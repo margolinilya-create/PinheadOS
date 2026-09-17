@@ -54,7 +54,17 @@ export type StageStatus =
   | 'skipped'      // не нужен для этой позиции
   | 'blocked';     // ручная блокировка цехом (block_reason)
 
-export type MaterialKind = 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other';
+/**
+ * `finished_good` — ГОТОВОЕ ИЗДЕЛИЕ (правка 16.09, п. 2): закупка, которая
+ * описывает не материал, а саму позицию заказа — «Футболка чёрная — 100 шт»
+ * с размерной разбивкой ВНУТРИ одной строки, вместо закупки на каждый размер.
+ *
+ * Вид, а не флаг рядом с видом: специализация участков уже выражена этим
+ * языком (`erp_departments.gate_material_kinds`), и флаг потребовал бы
+ * описывать гейт склада константой в коде.
+ */
+export type MaterialKind =
+  | 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other' | 'finished_good';
 export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
 /**
  * Чьё готовое изделие — три сценария `ready_garment` (правки 07.09 п. 4,
@@ -142,6 +152,57 @@ export const RESULT_FIELD_TARGET_LABELS: Record<ResultFieldTarget, string> = {
  * Строка журнала результатов (`erp_stage_reports`). Append-only: цех сдаёт
  * работу частями, и каждая сдача — своя строка. Итог живёт в счётчиках этапа.
  */
+/**
+ * Строка размерного результата этапа (`erp_stage_report_sizes`, правки 16.09,
+ * пп. 1, 4, 6): отчёт × ЦВЕТ × размер.
+ *
+ * Цвет, а не только размер: `erp_order_items.size_grid` — это
+ * `[{color, sizes}]`, и «XS» само по себе не адресует строку сетки
+ * у позиции с двумя цветами.
+ */
+export interface ErpStageReportSize {
+  id: string;
+  report_id: string;
+  /** С какого рулона скроены эти изделия; NULL — результат без рулонов */
+  report_roll_id?: string | null;
+  color: string;
+  size: string;
+  qty_good: number;
+  qty_defect: number;
+  qty_rework: number;
+  qty_extra: number;
+  created_at: string;
+}
+
+/**
+ * Расход ткани по одному рулону в отчёте закроя (`erp_stage_report_rolls`,
+ * правка 16.09, п. 4).
+ *
+ * Отдельно от размерных строк, потому что расход у рулона ОДИН, а размеров
+ * с него несколько: повтори его в каждой строке — и первый же `sum()`
+ * увеличит расход впятеро.
+ */
+export interface ErpStageReportRoll {
+  id: string;
+  report_id: string;
+  roll_id: string | null;
+  material_id: string | null;
+  qty_used: number;
+  unit: string | null;
+  roll_finished: boolean;
+  created_at: string;
+}
+
+/** Что уезжает в `erp_stage_submit_report` одной размерной строкой */
+export interface StageReportSizeInput {
+  color?: string | null;
+  size: string;
+  qty_good?: number;
+  qty_defect?: number;
+  qty_rework?: number;
+  qty_extra?: number;
+}
+
 export interface ErpStageReport {
   id: string;
   stage_id: string | null;
@@ -185,6 +246,13 @@ export interface ErpDepartment {
    * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
    */
   result_fields?: ResultField[];
+  /**
+   * Детализация результата участка (правка 16.09, пп. 4 и 6):
+   * `rolls` — по рулонам и размерам (закрой), `sizes` — по размерам (швейка),
+   * NULL — числом, как было. Свойство В ДАННЫХ рядом с `result_fields`
+   * и `gate_material_kinds`: константа «рулоны → закрой» в коде запрещена.
+   */
+  result_detail?: 'rolls' | 'sizes' | null;
   /**
    * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
    * Пустой массив — участок материалами не гейтится. Правится в админке;
@@ -357,6 +425,21 @@ export interface ErpOrderItem {
    */
   packaging_width_mm?: number | null;
   packaging_height_mm?: number | null;
+  /**
+   * ФАКТИЧЕСКАЯ СТОИМОСТЬ СБОРКИ ЗА ЕДИНИЦУ (правка 16.09, п. 6).
+   *
+   * Живёт у ПОЗИЦИИ, а не у этапа и не в отчёте: документ просит «один раз
+   * на всю позицию». У этапа их бывает несколько (возврат брака заводит
+   * второй швейный этап со своим циклом), у отчёта — сколько угодно
+   * (сдача частями), и «один раз» там не держится.
+   *
+   * Единственный писатель — `erp_stage_submit_report`: страж позиции
+   * пропускает его по метке `erp.assembly_cost` и только при изменении
+   * ровно этих трёх колонок.
+   */
+  assembly_cost_per_unit?: number | null;
+  assembly_cost_set_at?: string | null;
+  assembly_cost_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -471,6 +554,39 @@ export interface ErpMaterialReceipt {
    * значением, а не отрицанием старого.
    */
   client_key?: string | null;
+  /**
+   * Что пришло по размерам В ЭТОТ приход (правка 16.09, п. 2) — формат
+   * `SizeGridRow[]`, тот же, что у позиции заказа.
+   *
+   * Живёт в ЖУРНАЛЕ, а не в строке закупки, по той же причине, по которой
+   * там живёт `qty`: поставка бывает частичной, и вторая приёмка ДОБАВЛЯЕТ
+   * к первой. Итог по размерам — сумма журнала (`utils/sizeGrid.mergeGrids`).
+   */
+  size_grid?: SizeGridRow[] | null;
+  created_at: string;
+}
+
+/**
+ * РУЛОН ПРИНЯТОЙ ПАРТИИ (`erp_material_rolls`, правка 16.09, п. 5).
+ *
+ * Заводится приёмкой склада, дальше по нему отчитывается закрой: с какого
+ * рулона кроили, сколько ткани ушло и сколько изделий каждого размера
+ * получилось. Число рулонов нигде не хранится — это `count(*)`: колонка
+ * рядом была бы вторым писателем того же числа.
+ */
+export interface ErpMaterialRoll {
+  id: string;
+  material_id: string;
+  /** Каким приходом заведён — связь «закупка → партия → рулон» */
+  receipt_id: string | null;
+  /** Сквозной номер ВНУТРИ материала: вторая поставка продолжает нумерацию */
+  seq: number;
+  /** То, что цех произносит вслух: «Рулон №3» */
+  label: string;
+  /** Вес рулона. На приёмке не обязателен — склад принимает партию общим весом */
+  qty: number | null;
+  unit: string | null;
+  status: 'in_stock' | 'in_use' | 'used';
   created_at: string;
 }
 
@@ -506,6 +622,16 @@ export interface ErpMaterial {
   eta_date: string | null;
   received_at: string | null;
   notes: string | null;
+  /**
+   * Разбивка ЗАКУПКИ по размерам (правка 16.09, п. 2): «Футболка чёрная —
+   * 100 шт: XS 10 / S 20 / M 30 / L 25 / XL 15» одной строкой закупки.
+   *
+   * Заполнена только у `kind: 'finished_good'`. При непустой сетке
+   * `qty_expected` СЧИТАЕТСЯ по ней триггером `erp_material_grid_qty` —
+   * сумма по размерам и «общая потребность» это одно число, и второй
+   * писатель дал бы приёмку по устаревшему плану.
+   */
+  size_grid?: SizeGridRow[] | null;
   // Приёмка складом (правка 3 + 4.1.3): числовая сверка план/факт + фактические атрибуты
   qty_expected: number | null;
   /**
@@ -552,6 +678,8 @@ export interface ErpMaterial {
   updated_at: string;
   /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
   suppliers?: ErpMaterialSupplier[];
+  /** Рулоны партии — приезжают вложенной выборкой в карточке заказа */
+  rolls?: ErpMaterialRoll[];
 }
 
 /**
@@ -1287,6 +1415,7 @@ export const MATERIAL_KIND_LABELS: Record<MaterialKind, string> = {
   labels: 'бирки',
   packaging: 'упаковка',
   other: 'прочее',
+  finished_good: 'готовое изделие',
 };
 
 export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
@@ -1666,6 +1795,7 @@ export type { ErpPermission } from './permissionKeys';
 export { ERP_PERMISSIONS } from './permissionKeys';
 
 export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
+  'analytics.view': 'Смотреть аналитику производства',
   'stage.take': 'Брать задания в работу',
   'stage.progress': 'Записывать результат',
   'stage.complete': 'Завершать этап',

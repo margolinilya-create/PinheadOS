@@ -4,6 +4,7 @@
  * без циклического импорта через useErpStore.ts. Реэкспорт — в useErpStore.ts.
  */
 
+import type { ReportWithSizes } from '../utils/stageSizes';
 import type { PermissionMatrix } from '../utils/permissions';
 import type { CapacitySettings } from '../utils/capacity';
 import type { RouteGroup } from '../utils/routeDraft';
@@ -31,7 +32,9 @@ import type {
   ErpItemPrint,
   ErpItemStage,
   ErpMaterial,
+  ErpMaterialReceipt,
   ErpMaterialSupplier,
+  StageReportSizeInput,
   ErpAttachmentKind,
   ErpOrder,
   ErpOrderAttachment,
@@ -562,7 +565,42 @@ export interface StagesSlice {
     qtyExtra?: number;
     comment?: string | null;
     extra?: Record<string, unknown>;
+    /**
+     * Результат в разрезе размеров (правки 16.09, пп. 1, 4, 6) — строки
+     * `erp_stage_report_sizes`. Когда разбивка есть, заголовочные числа
+     * отчёта СЧИТАЕТ СЕРВЕР по ней же: иначе у `qty_good` два писателя
+     * (форма и сумма строк), и разойдутся они молча.
+     */
+    sizes?: StageReportSizeInput[];
+    /**
+     * Расход ткани по рулонам (правка 16.09, п. 4). Когда он есть, сервер
+     * считает `qty_good` по нему и сам ведёт статус рулона: «израсходован»
+     * по галочке закройщика, «в работе» при первом расходе.
+     */
+    /**
+     * Фактическая стоимость сборки за единицу (правка 16.09, п. 6). Пишется
+     * В ПОЗИЦИЮ заказа, и единственный её писатель — этот RPC: документ просит
+     * «один раз на всю позицию», а у этапа их бывает несколько (возврат брака
+     * заводит второй швейный этап со своим циклом).
+     */
+    assemblyCost?: number | null;
+    rolls?: {
+      roll_id: string;
+      material_id?: string | null;
+      qty_used: number;
+      finished?: boolean;
+      sizes: StageReportSizeInput[];
+    }[];
   }) => Promise<boolean>;
+  /**
+   * Отчёты этапов вместе с размерными строками (правка 16.09, п. 6):
+   * из них считается «принято из закроя» по каждому размеру.
+   *
+   * ТОЧЕЧНО, а не в выборке заказа: журнал результатов растёт быстрее всего,
+   * а нужен он ровно на одной форме — сдаче результата участка, который
+   * отчитывается по размерам.
+   */
+  loadStageReports: (stageIds: string[]) => Promise<ReportWithSizes[]>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
   loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
@@ -693,6 +731,84 @@ export interface MaterialsSlice {
 }
 
 /** Склад: числовая приёмка материалов + история складских операций (правки 2, 3) */
+/** Фильтр раздела «Аналитика» */
+export interface AnalyticsFilter {
+  from: string;
+  to: string;
+  bucket?: 'day' | 'week';
+  product?: string | null;
+  dept?: string | null;
+}
+
+/** Карточки «Обзора»: то, что возвращает `erp_analytics_overview` */
+export interface AnalyticsOverview {
+  from: string;
+  to: string;
+  prev_from: string;
+  prev_to: string;
+  released: number;
+  released_prev: number;
+  defect: number;
+  rework: number;
+  /** «Плюсы» — изделия сверх тиража (решение владельца 16.09) */
+  extra: number;
+  /** Средневзвешенная по выпуску; `null` — стоимость нигде не проставлена */
+  assembly_avg: number | null;
+  /** Сколько изделий выпуска покрыто стоимостью: среднее без покрытия врёт */
+  assembly_covered_qty: number;
+  fabric_kg: number;
+  fabric_rolls: number;
+  fabric_per_item: number | null;
+}
+
+export interface AnalyticsSeriesRow {
+  bucket: string;
+  released: number;
+  defect: number;
+  rework: number;
+  extra: number;
+  fabric: number;
+}
+
+export interface AnalyticsSkuRow {
+  sku_card_id: string | null;
+  product_type: string;
+  released: number;
+  defect: number;
+  rework: number;
+  extra: number;
+  defect_pct: number | null;
+  assembly_avg: number | null;
+  orders: number;
+}
+
+export interface AnalyticsDeptRow {
+  department_id: string;
+  released: number;
+  defect: number;
+  rework: number;
+  defect_pct: number | null;
+}
+
+export interface AnalyticsSnapshot {
+  overview: AnalyticsOverview | null;
+  series: AnalyticsSeriesRow[];
+  bySku: AnalyticsSkuRow[];
+  byDept: AnalyticsDeptRow[];
+}
+
+export interface AnalyticsSlice {
+  /** Последний снимок и его ключ: тот же фильтр — тот же ответ */
+  analytics?: AnalyticsSnapshot | null;
+  analyticsKey?: string | null;
+  analyticsLoading?: boolean;
+  /**
+   * Сводка за период. Возвращает `null`, когда хотя бы одна агрегация
+   * не удалась: половина снимка молча врала бы про остальные показатели.
+   */
+  loadAnalytics: (filter: AnalyticsFilter) => Promise<AnalyticsSnapshot | null>;
+}
+
 export interface WarehouseSlice {
   /**
    * Приёмка материала складом ОДНОЙ транзакцией (RPC `erp_material_accept`):
@@ -722,8 +838,30 @@ export interface WarehouseSlice {
        * на фабрике, и удвоить её молча нельзя.
        */
       clientKey?: string | null;
+      /**
+       * Что пришло по размерам (правка 16.09, п. 2) — только у закупки
+       * готового изделия. При непустой разбивке количество прихода
+       * СЧИТАЕТ СЕРВЕР по ней же, и поле «Пришло сейчас» из формы уходит:
+       * два писателя одного числа разошлись бы на первой опечатке.
+       */
+      sizeGrid?: SizeGridRow[] | null;
+      /**
+       * Сколько РУЛОНОВ пришло (правка 16.09, п. 5). Обязательно для единиц,
+       * учитываемых рулонами (`utils/materialUnit`), и то же условие стоит
+       * внутри RPC: гейт формы и гейт сервера ставятся одним коммитом.
+       */
+      rolls?: number | null;
     },
   ) => Promise<boolean>;
+  /**
+   * Журнал приходов конкретных позиций закупки (`erp_material_receipts`).
+   *
+   * ТОЧЕЧНО, а не в общей выборке заказа: журнал растёт быстрее всего,
+   * а нужен он ровно в двух местах — окне приёмки изделия (сложить
+   * фактически закупленное по размерам) и карточке закупки. Класть его
+   * в `ORDER_SELECT` значило бы возить историю приходов на каждый экран.
+   */
+  loadMaterialReceipts: (materialIds: string[]) => Promise<ErpMaterialReceipt[]>;
   /** Прочая складская операция (упаковка/отгрузка/маркировка) → строка erp_warehouse_ops */
   /**
    * Отчёт склада по задаче (волна 3.4): журнал `erp_stage_reports` с якорем
@@ -1451,4 +1589,5 @@ export type ErpStore = BootstrapSlice &
   NotificationsSlice &
   ChatSlice &
   SkuSlice &
+  AnalyticsSlice &
   RealtimeSlice;

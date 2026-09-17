@@ -100,6 +100,7 @@
 - `pravila-erp-pravki-zakazchika-12-09-vtoraya-porciya-sessiya-57.md`
 - `pravila-erp-pravki-zakazchika-13-09-sessiya-59.md`
 - `pravila-erp-pravki-zakazchika-14-09-sessiya-61.md`
+- `pravila-erp-pravki-zakazchika-16-09-sessiya-63.md`
 
 ## Доступ, роли и заведение сотрудников
 

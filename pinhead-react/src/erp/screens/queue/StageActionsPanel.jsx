@@ -251,14 +251,18 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         не противоречат друг другу, если поле не прячется за кнопкой.
       */}
       {perms.take && group === 'ready' && (
-        <label className={`${styles.subText} ${styles.queueStartPlan}`}>
+        <label className={styles.planDateRow}>
           План завершения
-          {normDays > 0 && <span> · норматив участка {normDays} дн.</span>}
           <DateField
             value={startDate}
             onChange={setStartDate}
             aria-label="Плановая дата завершения"
           />
+          {/* Норматив — ПОСЛЕ поля: он объясняет подставленную дату, а стоя
+              между подписью и полем, разрывал строку надвое */}
+          {normDays > 0 && (
+            <span className={styles.subText}>норматив участка {normDays} дн.</span>
+          )}
         </label>
       )}
 

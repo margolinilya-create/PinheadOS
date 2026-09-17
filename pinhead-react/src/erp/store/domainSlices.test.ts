@@ -34,6 +34,8 @@ const DOMAIN = [
   'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
   'chatSlice', 'skuSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
+  // Аналитика (правка 16.09, п. 7): доменный слайс — сводку грузит вкладка
+  'analyticsSlice',
 ];
 
 /** Поля слайса, выполнив его фабрику «вхолостую» */

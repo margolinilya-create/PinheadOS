@@ -36,7 +36,7 @@ export const ORDER_SELECT = `
     prints:erp_item_prints (*),
     labels:erp_item_labels (*)
   ),
-  materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
+  materials:erp_materials (*, suppliers:erp_material_suppliers (*), rolls:erp_material_rolls (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),

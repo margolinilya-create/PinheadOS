@@ -40,12 +40,18 @@ type DomainState = Pick<ErpStore,
   | 'capacity' | 'capacityLoaded' | 'capacityError'
   | 'orderDrafts' | 'orderDraftsLoaded' | 'orderDraftsError'
   | 'chatDirectory' | 'chatDirectoryLoaded'
+  | 'analytics' | 'analyticsKey' | 'analyticsLoading'
   | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
   | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
   | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
+  // Аналитика (правка 16.09, п. 7): снимок приезжает по запросу вкладки
+  analytics: null,
+  analyticsKey: null,
+  analyticsLoading: false,
+
   // subcontractingSlice
   subcontracting: [],
   subcontractingLoaded: false,

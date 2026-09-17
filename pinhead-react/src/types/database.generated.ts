@@ -390,27 +390,6 @@ export type Database = {
           },
         ]
       }
-      erp_deleted_test_orders_20260913: {
-        Row: {
-          deleted_at: string
-          id: string
-          payload: Json
-          title: string | null
-        }
-        Insert: {
-          deleted_at?: string
-          id: string
-          payload: Json
-          title?: string | null
-        }
-        Update: {
-          deleted_at?: string
-          id?: string
-          payload?: Json
-          title?: string | null
-        }
-        Relationships: []
-      }
       erp_departments: {
         Row: {
           active: boolean
@@ -424,6 +403,7 @@ export type Database = {
           is_production: boolean
           name: string
           norm_days: number | null
+          result_detail: string | null
           result_fields: Json
           sort_order: number
           type: string
@@ -441,6 +421,7 @@ export type Database = {
           is_production?: boolean
           name: string
           norm_days?: number | null
+          result_detail?: string | null
           result_fields?: Json
           sort_order?: number
           type: string
@@ -458,6 +439,7 @@ export type Database = {
           is_production?: boolean
           name?: string
           norm_days?: number | null
+          result_detail?: string | null
           result_fields?: Json
           sort_order?: number
           type?: string
@@ -1033,6 +1015,7 @@ export type Database = {
           material_id: string
           qty: number
           received_on: string
+          size_grid: Json | null
           unit: string | null
         }
         Insert: {
@@ -1047,6 +1030,7 @@ export type Database = {
           material_id: string
           qty: number
           received_on?: string
+          size_grid?: Json | null
           unit?: string | null
         }
         Update: {
@@ -1061,6 +1045,7 @@ export type Database = {
           material_id?: string
           qty?: number
           received_on?: string
+          size_grid?: Json | null
           unit?: string | null
         }
         Relationships: [
@@ -1069,6 +1054,57 @@ export type Database = {
             columns: ["material_id"]
             isOneToOne: false
             referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_material_rolls: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          material_id: string
+          qty: number | null
+          receipt_id: string | null
+          seq: number
+          status: string
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          material_id: string
+          qty?: number | null
+          receipt_id?: string | null
+          seq: number
+          status?: string
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          material_id?: string
+          qty?: number | null
+          receipt_id?: string | null
+          seq?: number
+          status?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_material_rolls_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_material_rolls_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "erp_material_receipts"
             referencedColumns: ["id"]
           },
         ]
@@ -1152,6 +1188,7 @@ export type Database = {
           received_at: string | null
           responsible: string | null
           role: string | null
+          size_grid: Json | null
           source: string
           status: string
           supplier: string | null
@@ -1186,6 +1223,7 @@ export type Database = {
           received_at?: string | null
           responsible?: string | null
           role?: string | null
+          size_grid?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -1220,6 +1258,7 @@ export type Database = {
           received_at?: string | null
           responsible?: string | null
           role?: string | null
+          size_grid?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -1541,6 +1580,9 @@ export type Database = {
       }
       erp_order_items: {
         Row: {
+          assembly_cost_by: string | null
+          assembly_cost_per_unit: number | null
+          assembly_cost_set_at: string | null
           branding_methods: string[]
           branding_on: string | null
           color_supplier: string | null
@@ -1575,6 +1617,9 @@ export type Database = {
           variant: string | null
         }
         Insert: {
+          assembly_cost_by?: string | null
+          assembly_cost_per_unit?: number | null
+          assembly_cost_set_at?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           color_supplier?: string | null
@@ -1609,6 +1654,9 @@ export type Database = {
           variant?: string | null
         }
         Update: {
+          assembly_cost_by?: string | null
+          assembly_cost_per_unit?: number | null
+          assembly_cost_set_at?: string | null
           branding_methods?: string[]
           branding_on?: string | null
           color_supplier?: string | null
@@ -2281,6 +2329,115 @@ export type Database = {
             columns: ["stage_id"]
             isOneToOne: false
             referencedRelation: "erp_item_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_stage_report_rolls: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string | null
+          qty_used: number
+          report_id: string
+          roll_finished: boolean
+          roll_id: string | null
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          qty_used: number
+          report_id: string
+          roll_finished?: boolean
+          roll_id?: string | null
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string | null
+          qty_used?: number
+          report_id?: string
+          roll_finished?: boolean
+          roll_id?: string | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_stage_report_rolls_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "erp_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_rolls_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_rolls_roll_id_fkey"
+            columns: ["roll_id"]
+            isOneToOne: false
+            referencedRelation: "erp_material_rolls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_stage_report_sizes: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          qty_defect: number
+          qty_extra: number
+          qty_good: number
+          qty_rework: number
+          report_id: string
+          report_roll_id: string | null
+          size: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_rework?: number
+          report_id: string
+          report_roll_id?: string | null
+          size: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          qty_defect?: number
+          qty_extra?: number
+          qty_good?: number
+          qty_rework?: number
+          report_id?: string
+          report_roll_id?: string | null
+          size?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_stage_report_sizes_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stage_report_sizes_report_roll_id_fkey"
+            columns: ["report_roll_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_report_rolls"
             referencedColumns: ["id"]
           },
         ]
@@ -3151,6 +3308,8 @@ export type Database = {
           p_material_id: string
           p_qty?: number
           p_received_on?: string
+          p_rolls?: number
+          p_size_grid?: Json
         }
         Returns: Json
       }
@@ -3213,6 +3372,7 @@ export type Database = {
         }
         Returns: Json
       }
+      erp_size_grid_total: { Args: { p_grid: Json }; Returns: number }
       erp_sku_card_stats: { Args: { p_card: string }; Returns: Json }
       erp_sku_catalog_upsert: { Args: { p_sku: Json }; Returns: string }
       erp_sku_from_dev: {
@@ -3379,6 +3539,7 @@ export type Database = {
       }
       erp_stage_submit_report: {
         Args: {
+          p_assembly_cost?: number
           p_comment?: string
           p_extra?: Json
           p_qty_defect?: number
@@ -3386,6 +3547,8 @@ export type Database = {
           p_qty_good: number
           p_qty_in: number
           p_qty_rework?: number
+          p_rolls?: Json
+          p_sizes?: Json
           p_stage_id: string
         }
         Returns: {
@@ -3526,6 +3689,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_unit_tracks_rolls: { Args: { p_unit: string }; Returns: boolean }
       erp_update_order: {
         Args: { p_order_id: string; p_payload: Json }
         Returns: string

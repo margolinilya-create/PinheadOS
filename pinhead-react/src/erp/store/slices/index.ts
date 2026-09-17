@@ -20,4 +20,5 @@ export { planSlice } from './planSlice';
 export { bypassSlice } from './bypassSlice';
 export { notificationsSlice } from './notificationsSlice';
 export { settingsSlice } from './settingsSlice';
+export { analyticsSlice } from './analyticsSlice';
 export { realtimeSlice } from './realtimeSlice';

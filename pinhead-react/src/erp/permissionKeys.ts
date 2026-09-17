@@ -75,7 +75,15 @@ export type ErpPermission =
   | 'sku.view'
   | 'sku.edit'
   | 'sku.publish'
-  | 'sku.archive';
+  | 'sku.archive'
+  /**
+   * РАЗДЕЛ «АНАЛИТИКА» (правка 16.09, п. 7) — отдельное право, а не
+   * `catalog.edit` и не роль. Сводка показывает себестоимость сборки,
+   * расход ткани и брак по цехам, то есть отвечает на вопросы руководства;
+   * при этом она ТОЛЬКО ЧИТАЕТ, и запирать её правом на правку справочников
+   * значило бы раздавать вместе с ней право менять данные.
+   */
+  | 'analytics.view';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
@@ -83,5 +91,6 @@ export const ERP_PERMISSIONS: ErpPermission[] = [
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
   'bypass.manage', 'experimental.manage', 'staff.invite', 'files.manage',
   'sku.view', 'sku.edit', 'sku.publish', 'sku.archive',
+  'analytics.view',
 ];
 
