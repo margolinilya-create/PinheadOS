@@ -31,6 +31,9 @@
 - `pravila-erp-progon-04-09-sessiya-48.md`
 - `pravila-erp-pred-prodakshen-audit-22-08-sessiya-35.md`
 - `pravila-kataloga-sku-v-erp-pravka-14-09-p-6-pr-3-sessiya-61.md`
+- `pravila-erp-pravki-zakazchika-16-09-sessiya-63.md` — узкий пропуск стража
+  (метка + ровно три изменившиеся колонки), право `analytics.view` внутри
+  каждой функции сводки, `revoke … from public, anon` закрывает НЕ ВСЁ
 
 ## Сторожа и тесты
 
@@ -42,6 +45,10 @@
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
 - `pravila-erp-kod-revyu-05-08.md`
 - `pravila-ustoychivosti-raskladki-sessiya-44.md`
+- `pravila-erp-pravki-zakazchika-16-09-sessiya-63.md` — тело функции обязано
+  быть в `$$` (иначе `functionBody` вырезает пустоту и семь проверок молча
+  перестают проверять), а сторож «нельзя обращаться к таблице» и сторож
+  «нельзя ПИСАТЬ в таблицу» — разные сторожа
 
 ## Миграции и журнал
 

@@ -12,7 +12,9 @@ URL: https://pinhead-os.vercel.app
   (+ create/: SizeGridEditor, FormParts, ItemBlock, TzSection — форма разрезана);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
-  DefectWizard (мастер брака: 2 шага в Drawer);
+  DefectWizard (мастер брака: 2 шага в Drawer)/
+  CutRollsSection (сдача закроя рулонами: расход с каждого + размерный выход,
+  правка 16.09 п. 4 — секция включается значением erp_departments.result_detail);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
   screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
   цепочкой «план → факт → срок заказа» с подписью источника (utils/gantt);
@@ -25,24 +27,38 @@ URL: https://pinhead-os.vercel.app
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
   SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
+  AnalyticsTab (раздел «Аналитика» под правом analytics.view: выпуск, плюсы,
+  себестоимость сборки, ткань, брак по цехам; считает сервер, графиков в первой
+  итерации нет — динамика таблицей)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
   screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
   История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
-  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
-  SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
-  screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
+  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3; с 16.09 —
+  обязательное «Количество рулонов» у рулонных единиц)/MarkingCard/PackShipCard/
+  SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1)/
+  GarmentIntakeModal (окно «Результат приёмки» изделия: строка на размер,
+  недоприёмка оставляет этап открытым, правка 16.09 п. 1) — задачи склада),
+  screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10)/
+  SizeGridView (разбивка закупки готового изделия по размерам, правка 16.09 п. 2),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
   Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
-  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
+  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe),
+  SizeResultTable (результат по парам «цвет × размер» — ОДНА таблица на приёмку
+  склада, закрой и пошив), DateField (эхо даты условное: проп echo='auto') +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
   + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
+  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime/analytics;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay),
+  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay +
+  правки 16.09: sizeGrid (разбор сетки «цвет × размер»)/garmentIntake (итоги
+  и текст недоприёмки)/garmentPurchase (строка закупки из позиции)/materialUnit
+  (рулонность единицы — из справочника, не сравнением строки)/cutRolls (рулоны
+  этапа и проверки расхода)/stageSizes (потолок по размеру, fail-open)/dateLocale
+  (порядок частей даты у Intl)),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -116,12 +132,17 @@ URL: https://pinhead-os.vercel.app
   волны 1, 88 тестов
 - erp/utils/tz.ts — резолюция версий и гейт ТЗ, 38 тестов
 - erp/utils/queueEntries.js — единый источник групп очереди, 21 тест
+- erp/utils/ sizeGrid · garmentIntake · garmentPurchase · materialUnit · cutRolls ·
+  stageSizes · dateLocale — чистая логика правок 16.09, 100 тестов. Здесь же
+  живут решения, которые молча ломаются при «упрощении»: рулонность единицы
+  читается из справочника, а не сравнением строки; потолок по размеру fail-open
+  (нет размерных данных → работает прежний общий потолок этапа)
 
 ## Тесты
 ```bash
-npm run test      # 1788 unit тестов (Vitest)
+npm run test      # 4402 unit теста в 258 файлах (Vitest, состояние 16.09)
 npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
-npm run e2e       # E2E (Playwright, 11 файлов, 96 сценариев desktop + 13 mobile).
+npm run e2e       # E2E (Playwright, 23 файла, 405 сценариев: desktop + mobile + perf).
                   # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
                   # вместо временного конфига проще разложить ожидаемые пути
                   # из имеющихся бинарников:
