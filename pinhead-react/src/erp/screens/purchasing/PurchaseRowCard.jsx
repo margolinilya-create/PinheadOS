@@ -35,7 +35,7 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
         <div className={styles.dataCardFields}>
           <span className={styles.dataCardField}>
             <span className={styles.dataCardFieldLabel}>Материал</span>
-            <span><MaterialCell m={m} /></span>
+            <span><MaterialCell m={m} onUpdate={onUpdate} /></span>
           </span>
           <span className={styles.dataCardField}>
             <span className={styles.dataCardFieldLabel}>

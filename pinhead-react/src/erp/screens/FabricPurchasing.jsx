@@ -7,7 +7,7 @@ import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
-import { SizeGridView } from './purchasing/SizeGridView';
+import { PurchaseSizeTable } from './purchasing/PurchaseSizeTable';
 import { garmentPurchaseCandidates, garmentPurchaseDraft } from '../utils/garmentPurchase';
 import {
   ArticleField, CostValue, EtaField, ManagerNote, MaterialCell, OrderCell,
@@ -111,6 +111,9 @@ const EMPTY_MAT = {
   // Закупка ГОТОВОГО ИЗДЕЛИЯ (правка 16.09, п. 2): позиция заказа и её
   // размерная разбивка. Пусто — обычная закупка материала
   item_id: '', size_grid: null,
+  // Фактически заказано по размерам (правка 20.09, п. 2) — отдельно
+  // от потребности: по ней считается qty_expected
+  size_grid_ordered: null,
 };
 
 /**
@@ -151,7 +154,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
    */
   const pickGarment = (itemId) => {
     if (!itemId) {
-      set({ item_id: '', size_grid: null, kind: 'fabric' });
+      set({ item_id: '', size_grid: null, size_grid_ordered: null, kind: 'fabric' });
       return;
     }
     const draft = garmentPurchaseDraft(garmentItems.find((i) => i.id === itemId));
@@ -216,6 +219,7 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
        */
       item_id: form.item_id || null,
       size_grid: form.size_grid,
+      size_grid_ordered: form.size_grid_ordered,
       status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
     });
     setSaving(false);
@@ -271,10 +275,19 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               </select>
             </label>
           )}
+          {/*
+            Таблица «Размер / Количество к заказу / Фактическое количество»
+            (правка 20.09, п. 2). Прежде здесь стоял `SizeGridView` — только
+            чтение: человек видел потребность, но сказать, сколько заказал
+            у поставщика по каждому размеру, ему было негде.
+          */}
           {form.size_grid && (
-            <div className={styles.fieldWide}>
-              <SizeGridView grid={form.size_grid} />
-            </div>
+            <PurchaseSizeTable
+              plannedGrid={form.size_grid}
+              orderedGrid={form.size_grid_ordered}
+              onChange={(grid) => set({ size_grid_ordered: grid })}
+              caption="Размеры закупки: потребность и фактический заказ"
+            />
           )}
           <label className={`${styles.field} ${styles.fieldWide}`}>
             <span className={styles.fieldLabel}>Материал</span>
@@ -804,7 +817,7 @@ export default function FabricPurchasing() {
                   {pageRows.map(({ order, m }) => (
                     <tr key={m.id}>
                       <td><OrderCell order={order} /></td>
-                      <td><MaterialCell m={m} /></td>
+                      <td><MaterialCell m={m} onUpdate={updateMaterial} /></td>
                       <td><PlanField m={m} onUpdate={updateMaterial} /></td>
                       <td><ManagerNote m={m} /></td>
                       <td><SupplierCell m={m} order={order} onOpenOptions={setOptionsFor} /></td>

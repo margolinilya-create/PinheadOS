@@ -12,6 +12,7 @@ import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
 } from './purchaseLabels';
 import styles from '../../styles';
+import { PurchaseSizeTable } from './PurchaseSizeTable';
 import { gridCells } from '../../utils/sizeGrid';
 
 /**
@@ -40,7 +41,7 @@ export function OrderCell({ order }) {
 }
 
 /** Материал: название и его вид/цвет/источник */
-export function MaterialCell({ m }) {
+export function MaterialCell({ m, onUpdate }) {
   /**
    * РАЗБИВКА ГОТОВОГО ИЗДЕЛИЯ ВИДНА ПРЯМО В СТРОКЕ (правка 16.09, п. 2).
    *
@@ -50,6 +51,7 @@ export function MaterialCell({ m }) {
    * а ради ответа открывает заказ.
    */
   const cells = gridCells(m.size_grid);
+  const ordered = gridCells(m.size_grid_ordered);
   return (
     <>
       <strong>{m.name}</strong>
@@ -59,9 +61,29 @@ export function MaterialCell({ m }) {
         {m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}
       </div>
       {cells.length > 0 && (
-        <div className={styles.subText}>
-          {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
-        </div>
+        /*
+          ФАКТ ПО РАЗМЕРАМ ПРАВИТСЯ ЗДЕСЬ ЖЕ (правка 20.09, п. 2). Сводка
+          строкой остаётся на виду, а таблица разворачивается по требованию:
+          в таблице закупки четырнадцать колонок, и развёрнутая матрица
+          «цвет × размер» в каждой строке сделала бы экран нечитаемым.
+
+          Без `onUpdate` (печатный лист, чтение) таблица не рисуется вовсе —
+          поля ввода на печати бессмысленны.
+        */
+        <details className={styles.purchaseSizes}>
+          <summary className={styles.subText}>
+            {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
+            {ordered.length > 0 ? ' · заказано по размерам' : ''}
+          </summary>
+          {onUpdate ? (
+            <PurchaseSizeTable
+              plannedGrid={m.size_grid}
+              orderedGrid={m.size_grid_ordered}
+              onChange={(grid) => onUpdate(m.id, { size_grid_ordered: grid })}
+              caption={`Размеры закупки: ${m.name}`}
+            />
+          ) : null}
+        </details>
       )}
     </>
   );
