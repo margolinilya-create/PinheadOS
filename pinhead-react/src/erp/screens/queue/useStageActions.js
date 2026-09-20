@@ -36,7 +36,7 @@ function dependentDeptNamesFactory(deptNameById) {
 export function useStageActions() {
   const {
     departments, setStageStatus, reportProgress, reportDefect,
-    uploadOrderAttachment, ackStageOverdue, bypasses,
+    uploadOrderAttachment, ackStageOverdue, bypasses, forceCompleteStage,
   } = useErpStore(
     useShallow((s) => ({
       departments: s.departments,
@@ -44,6 +44,7 @@ export function useStageActions() {
       setStageStatus: s.setStageStatus,
       reportProgress: s.reportProgress,
       reportDefect: s.reportDefect,
+      forceCompleteStage: s.forceCompleteStage,
       uploadOrderAttachment: s.uploadOrderAttachment,
       ackStageOverdue: s.ackStageOverdue,
     })),
@@ -260,8 +261,47 @@ export function useStageActions() {
     return ok;
   }, [setStageStatus, deptNameById, dependentDeptNames]);
 
+  /**
+   * ЗАВЕРШИТЬ ЭТАП ПРИНУДИТЕЛЬНО (правка заказчика 20.09, п. 5).
+   *
+   * Чем отличается от пропуска, стоящего выше. Пропуск говорит «операции
+   * на этом заказе НЕ БЫЛО» и для зависимостей равен пройденному. Здесь
+   * операция была, но этап не проходит проверок, появившихся после того,
+   * как заказ завели: «часть ранее заведённых сделок не проходит новые
+   * проверки, заказ невозможно продвинуть дальше по маршруту».
+   *
+   * Количество не пишется намеренно: сколько цех сдал, столько и останется.
+   * Записать «весь тираж» значило бы выдумать факт производства — правило
+   * раздела прямо запрещает «по умолчанию весь тираж».
+   */
+  const onForceComplete = useCallback(async (entry) => {
+    const deptName = deptNameById.get(entry.stage.department_id) || 'этап';
+    const next = dependentDeptNames(entry);
+    const done = entry.stage.qty_done ?? 0;
+    const total = entry.item.qty;
+    const { ok: confirmed, value: reason } = await confirmWithInput({
+      title: `Завершить «${deptName}» принудительно?`,
+      message: [
+        `Этап закроется без обычных проверок. Записано ${done} из ${total} шт — `
+        + 'это количество останется как есть, недостающее дописано не будет.',
+        next.length > 0 ? `Откроется ${next.join(', ')}.` : null,
+        'Остальные этапы маршрута и сам заказ не затрагиваются.',
+      ].filter(Boolean).join(' '),
+      confirmLabel: 'Завершить принудительно',
+      variant: 'danger',
+      prompt: {
+        label: 'Причина (попадёт в историю этапа и аудит заказа)',
+        placeholder: 'напр. заказ заведён до новой проверки, материал списан вручную',
+        required: true,
+      },
+    });
+    if (!confirmed) return false;
+    return forceCompleteStage(entry.stage.id, reason);
+  }, [forceCompleteStage, deptNameById, dependentDeptNames]);
+
   return {
     onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip,
+    onForceComplete,
     onAckOverdue: ackStageOverdue,
   };
 }

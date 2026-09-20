@@ -83,7 +83,18 @@ export type ErpPermission =
    * при этом она ТОЛЬКО ЧИТАЕТ, и запирать её правом на правку справочников
    * значило бы раздавать вместе с ней право менять данные.
    */
-  | 'analytics.view';
+  | 'analytics.view'
+  /**
+   * ЗАВЕРШИТЬ ЭТАП ПРИНУДИТЕЛЬНО (правка 20.09, п. 5) — закрыть один
+   * заблокированный этап, не выполняя обычных условий завершения.
+   *
+   * Отдельное право, а не `stage.complete`: то про обычную работу цеха
+   * и есть почти у всех, а это — разбор последствий обновления, когда
+   * заказ, заведённый до новых проверок, их не проходит и стоит.
+   * Количество действие не пишет и последующие этапы не трогает, поэтому
+   * `stage.progress` оно тоже не подменяет.
+   */
+  | 'stage.force_complete';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
@@ -91,6 +102,6 @@ export const ERP_PERMISSIONS: ErpPermission[] = [
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
   'bypass.manage', 'experimental.manage', 'staff.invite', 'files.manage',
   'sku.view', 'sku.edit', 'sku.publish', 'sku.archive',
-  'analytics.view',
+  'analytics.view', 'stage.force_complete',
 ];
 

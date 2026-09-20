@@ -37,6 +37,14 @@ export interface StagePermissions {
    * планирует не цех.
    */
   plan: boolean;
+  /**
+   * Завершить этап принудительно (правка 20.09, п. 5). Цех вызывающего
+   * НЕ проверяется — как у пропуска: разбирает последствия обновления тот,
+   * кто ведёт систему, а он не состоит ни в одном цехе. Ровно то же
+   * исключение стоит в `erp_stage_guard`, иначе вышло бы «кнопка есть,
+   * действие падает».
+   */
+  forceComplete: boolean;
   /** Хоть одно действие доступно — рисовать ли блок действий вообще */
   any: boolean;
   /**
@@ -58,6 +66,7 @@ export function useStagePermissions(departmentId: string | null | undefined): St
     const defect = access.canDo('stage.defect', departmentId);
     const skip = access.can('order.manage');
     const plan = access.can('plan.manage');
+    const forceComplete = access.can('stage.force_complete');
     return {
       inDept: access.canActIn(departmentId),
       take,
@@ -67,7 +76,8 @@ export function useStagePermissions(departmentId: string | null | undefined): St
       defect,
       skip,
       plan,
-      any: take || progress || complete || block || defect || skip || plan,
+      forceComplete,
+      any: take || progress || complete || block || defect || skip || plan || forceComplete,
       needsDeptBinding: access.needsDeptBinding,
     };
   }, [access, departmentId]);

@@ -49,7 +49,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
       && sl.work_date === factoryToday()
       && sl.status !== 'cancelled') ?? null));
   const {
-    onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onAckOverdue,
+    onStart, onDone, onProgress, onBlock, onUnblock, onDefect, onSkip, onForceComplete,
+    onAckOverdue,
   } = actions;
 
   const overdue = stageOverdue(stage.planned_end, stage.status);
@@ -406,6 +407,29 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   {perms.skip && (
                     <Button variant="ghost" loading={busy} disabled={busy} onClick={() => run(() => onSkip(entry))}>
                       <Icon name="chevronRight" size={14} /> Пропустить этап
+                    </Button>
+                  )}
+                  {/*
+                    ЗАВЕРШИТЬ ПРИНУДИТЕЛЬНО (правка 20.09, п. 5) — рядом
+                    с пропуском и после него: это соседние аварийные выходы,
+                    и разница между ними смысловая. Пропуск говорит «операции
+                    НЕ БЫЛО», принудительное завершение — «операция была,
+                    но этап не проходит проверок, которых при заведении заказа
+                    ещё не существовало».
+
+                    Право своё (`stage.force_complete`), по умолчанию только
+                    у директора, и проверяется оно ещё и на сервере — сама RPC
+                    и страж этапов. Скрытой кнопки мало: путь через REST
+                    остаётся открытым для любого участника.
+                  */}
+                  {perms.forceComplete && (
+                    <Button
+                      variant="ghost"
+                      loading={busy}
+                      disabled={busy}
+                      onClick={() => run(() => onForceComplete(entry))}
+                    >
+                      <Icon name="check" size={14} /> Завершить принудительно
                     </Button>
                   )}
                 </>

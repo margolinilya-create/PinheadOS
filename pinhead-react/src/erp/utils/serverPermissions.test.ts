@@ -153,8 +153,38 @@ describe('страж этапов повторяет гейты интерфей
    * `stage.progress` для перехода в done достаточно, ровно как в интерфейсе.
    * Перенос закрывает исходный этап, отсюда же `move`.
    */
-  it('завершение этапа принимает progress и move, а не только complete', () => {
-    expect(STAGE_SQL).toMatch(/not \(v_complete or v_progress or v_moving\)/);
+  it('завершение этапа принимает progress, move и принудительное закрытие', () => {
+    /**
+     * Четвёртый законный способ закрыть этап — принудительное завершение
+     * (правка 20.09, п. 5): заказы, заведённые до новых проверок, их
+     * не проходят и стоят. Страж обязан пускать ровно то, что разрешает
+     * интерфейс, — кнопка под `stage.force_complete` в `StageActionsPanel`.
+     */
+    expect(STAGE_SQL).toMatch(/not \(v_complete or v_progress or v_moving or v_force\)/);
+  });
+
+  /**
+   * ПРАВО САМО ПО СЕБЕ НЕ ОТКРЫВАЕТ ЭТАП. `v_force` — это право И метка
+   * `erp.force_complete`, которую ставит только сама RPC и снимает сразу
+   * после UPDATE. Голое право работало бы сквозным пропуском: обладатель
+   * правил бы любые колонки любого этапа обычным REST-запросом, минуя
+   * и цех, и остальные проверки. Тот же урок уже выучен на `v_move`,
+   * которое до правки 04.09 стояло голым.
+   */
+  it('принудительное завершение — право И метка, поставленная самой RPC', () => {
+    expect(STAGE_SQL).toMatch(
+      /v_force :=[\s\S]{0,120}erp\.force_complete[\s\S]{0,120}erp_has_permission\('stage\.force_complete'\)/,
+    );
+    const FORCE_SQL = latestDefining('erp_stage_force_complete');
+    // Метка ставится и СНИМАЕТСЯ в той же транзакции
+    expect(FORCE_SQL).toMatch(/set_config\('erp\.force_complete', 'on', true\)/);
+    expect(FORCE_SQL).toMatch(/set_config\('erp\.force_complete', 'off', true\)/);
+    // Право проверяется ещё и внутри самой функции — REST мимо кнопки закрыт
+    expect(FORCE_SQL).toMatch(/erp_has_permission\('stage\.force_complete'\)[\s\S]{0,200}42501/);
+    // Причина обязательна: действие обходит все проверки разом
+    expect(FORCE_SQL).toMatch(/22023/);
+    // Количество не переписывается: «по умолчанию весь тираж» запрещено правилом
+    expect(withoutComments(FORCE_SQL)).not.toMatch(/set[\s\S]{0,200}qty_done\s*=/);
   });
 
   it('возврат брака переоткрывает этапы, поэтому defect пускает в in_progress и waiting', () => {
@@ -209,7 +239,16 @@ describe('страж этапов повторяет гейты интерфей
      * сквозным пропуском: менеджер (ему перенос выдали 10.08, а take/progress/
      * complete/defect — нет) закрывал прямым запросом любой этап любого цеха.
      */
-    expect(STAGE_SQL).toMatch(/not v_moving and not public\.erp_can_act_in_dept\(old\.department_id\)/);
+    /**
+     * `v_force` стоит в том же исключении (правка 20.09, п. 5) и по той же
+     * причине, что `skip` в `useStagePermissions` не проверяет цех: разбирает
+     * последствия обновления директор, а он не состоит ни в одном цехе.
+     * Требуй страж принадлежности — кнопка была бы у того, кому действие
+     * недоступно.
+     */
+    expect(STAGE_SQL).toMatch(
+      /not v_moving and not v_force[\s\S]{0,60}not public\.erp_can_act_in_dept\(old\.department_id\)/,
+    );
     expect(STAGE_SQL).toMatch(/v_moving :=[\s\S]{0,80}erp\.moving[\s\S]{0,40}and v_move/);
     expect(STAGE_SQL).toMatch(/задание другого цеха изменить нельзя/);
   });

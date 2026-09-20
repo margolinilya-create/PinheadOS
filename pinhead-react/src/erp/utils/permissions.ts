@@ -62,7 +62,15 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
     // Образцы ведёт технолог: разработка — не производственный поток.
     // Приглашения — тоже не его: они раздают права и заводят учётные записи,
     // это решение руководства (seed миграции даёт `staff.invite` директору)
-    (p) => p !== 'bypass.manage' && p !== 'experimental.manage' && p !== 'staff.invite',
+    /**
+     * `stage.force_complete` назван ЯВНО (правка 20.09, п. 5): перечень
+     * строится ИСКЛЮЧЕНИЯМИ, и право досталось бы ему молча. Это не рабочее
+     * действие производства, а разбор последствий обновления — оно обходит
+     * ВСЕ условия завершения разом, поэтому по умолчанию остаётся
+     * у директора, рядом с аварийным снятием блокировок.
+     */
+    (p) => p !== 'bypass.manage' && p !== 'experimental.manage' && p !== 'staff.invite'
+      && p !== 'stage.force_complete',
   ),
   /**
    * Диспетчер план НЕ ставит — за это отвечает руководитель производства.
@@ -87,7 +95,11 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
       && p !== 'experimental.manage' && p !== 'warehouse.manage'
       && p !== 'staff.invite'
       && p !== 'sku.edit' && p !== 'sku.publish' && p !== 'sku.archive'
-      && p !== 'analytics.view',
+      && p !== 'analytics.view'
+      // `stage.force_complete` — по той же причине, что и остальные явные
+      // исключения (правка 20.09, п. 5): перечень строится исключениями.
+      // Диспетчер распоряжается очередью, а не отменой проверок завершения.
+      && p !== 'stage.force_complete',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',

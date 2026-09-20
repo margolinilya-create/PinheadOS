@@ -220,6 +220,49 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return true;
   },
 
+  /**
+   * ПРИНУДИТЕЛЬНОЕ ЗАВЕРШЕНИЕ (правка 20.09, п. 5).
+   *
+   * Единственное действие этапа, которое НЕ проходит `completionBlockFor`:
+   * в том и смысл — закрыть этап, который обычные условия пройти не может.
+   * Поэтому оно и заведено отдельным правом и отдельной RPC, а не флагом
+   * к обычному завершению: флаг у общего пути рано или поздно окажется
+   * выставлен там, где его не ждали.
+   *
+   * Не оптимистично: ставить `done` до ответа значило бы показать закрытым
+   * этап, который сервер мог и не отдать (право проверяется ещё и стражем).
+   */
+  forceCompleteStage: async (stageId, reason) => {
+    const text = (reason ?? '').trim();
+    if (!text) {
+      toast.error('Укажите причину принудительного завершения');
+      return false;
+    }
+    const found = findStage(get().orders, stageId);
+    const { data, error } = await erpQuery(() => withPending(`stage:${stageId}`, () =>
+      supabase.rpc('erp_stage_force_complete', {
+        p_stage_id: stageId,
+        p_reason: text,
+      })));
+    if (error) {
+      erpError('Этап не завершён', error);
+      return false;
+    }
+    const row = (data ?? null) as ErpItemStage | null;
+    if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
+    /**
+     * Событие этапа пишет САМА RPC (вместе с записью аудита заказа):
+     * повторить его здесь значило бы две строки истории на одно действие.
+     */
+    toast.success(found
+      ? `Этап «${deptShortName(
+        get().departments.find((d) => d.id === found.stage.department_id)?.code ?? '',
+        get().departments.find((d) => d.id === found.stage.department_id)?.name ?? '',
+      )}» завершён принудительно`
+      : 'Этап завершён принудительно');
+    return true;
+  },
+
   reportProgress: async (stageId, qty, opts) => {
     const prev = get().orders;
     const found = findStage(prev, stageId);
