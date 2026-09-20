@@ -28,6 +28,8 @@ import type {
   ChatContext,
   ChatUnread,
   ChatReadReceipt,
+  ChatReactionPerson,
+  ChatSearchHit,
   ErpPermission,
   ErpRolePermission,
   ErpItemPrint,
@@ -1331,6 +1333,21 @@ export interface ChatSlice {
    * показать это по ошибке сети.
    */
   deleteChatMessage: (messageId: string) => Promise<boolean>;
+  /**
+   * ПЕРЕКЛЮЧИТЬ РЕАКЦИЮ (вторая очередь чата). Одно действие на оба исхода:
+   * решает сервер по факту удаления строки — клиент не знает наверняка,
+   * стоит ли уже его реакция, и «посмотреть, потом поставить» давало бы
+   * гонку на быстрых нажатиях.
+   */
+  toggleChatReaction: (messageId: string, emoji: string) => Promise<boolean>;
+  /** Кто поставил реакции этого сообщения — по требованию, для подсказки */
+  loadChatReactionPeople: (messageId: string) => Promise<ChatReactionPerson[]>;
+  /**
+   * ПОИСК ПО ПЕРЕПИСКЕ СДЕЛКИ (вторая очередь чата). Не фильтр поверх
+   * загруженной ленты: искомое обычно ВЫШЕ страницы, и локальный фильтр
+   * отвечал бы «ничего не найдено» там, где сообщение просто не доехало.
+   */
+  searchChat: (orderId: string, query: string) => Promise<ChatSearchHit[]>;
   loadChatUnread: (orderId: string) => Promise<void>;
   /**
    * Счётчики непрочитанного СРАЗУ ПО СПИСКУ заказов (правка 20.09, п. 4):

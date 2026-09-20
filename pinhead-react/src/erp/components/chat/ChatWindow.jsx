@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { Button } from '../Button';
 import { Icon } from '../Icon';
 import { ChatPanel } from './ChatPanel';
 import { ChatNotifyMenu } from './ChatNotifyMenu';
+import { ChatSearch } from './ChatSearch';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import styles from '../../styles';
 
@@ -37,6 +39,12 @@ export function ChatWindow() {
   })));
 
   const ref = useFocusTrap(false, close);
+  /**
+   * Куда прокрутить ленту после находки. Состояние ОКНА, а не стора: это
+   * разовое «покажи вот это сообщение», и в сторе оно пережило бы закрытие
+   * окна, уведя человека к чужой находке при следующем открытии.
+   */
+  const [focusId, setFocusId] = useState(null);
 
   if (!win) return null;
 
@@ -49,6 +57,10 @@ export function ChatWindow() {
     >
       <header className={styles.chatFloatHead}>
         <span className={styles.chatFloatTitle} title={win.title}>{win.title}</span>
+
+        {/* Поиск по переписке (вторая очередь): ищет СЕРВЕР по всей сделке,
+            и находка ведёт к сообщению тем же якорем, что уведомление */}
+        <ChatSearch orderId={win.orderId} onOpenMessage={(hit) => setFocusId(hit.id)} />
 
         {/* Настройки уведомлений — по заказу, как просит документ: режим
             выбирают «на заказ», а не на сообщение и не глобально */}
@@ -75,6 +87,7 @@ export function ChatWindow() {
         orderId={win.orderId}
         context={win.context}
         contextLabel={win.contextLabel}
+        focusId={focusId}
       />
     </section>
   );

@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { Button } from '../components/Button';
+import {
+  askPermission, desktopEnabled, notifyPermission, setDesktopEnabled,
+  setSoundEnabled, soundEnabled,
+} from '../utils/desktopNotify';
 import styles from '../erp.module.css';
 
 /**
@@ -43,6 +47,14 @@ export function NotificationCenter({ onClose }) {
     markRead: s.markNotificationsRead,
   })));
   const [tab, setTab] = useState('unread');
+  /**
+   * Настройки читаются из localStorage ОДИН раз при открытии центра:
+   * это личный выбор человека на этом устройстве, а не состояние стора —
+   * общего у них ничего нет, и переживать выход из системы он должен.
+   */
+  const [desktop, setDesktop] = useState(() => desktopEnabled());
+  const [sound, setSound] = useState(() => soundEnabled());
+  const [perm, setPerm] = useState(() => notifyPermission());
 
   // Открыли центр — ничего не гасим: «очистка уведомления не означает,
   // что текст сообщения прочитан» (документ). Прочтение ставит человек
@@ -115,6 +127,53 @@ export function NotificationCenter({ onClose }) {
           ))}
         </ul>
       )}
+
+      {/*
+        БРАУЗЕРНЫЕ УВЕДОМЛЕНИЯ И ЗВУК (вторая очередь чата). Оба выключены
+        по умолчанию — звук документ объявляет выключенным сам, а разрешение
+        браузера спрашивается ТОЛЬКО по нажатию: отказ, полученный при входе,
+        браузер помнит навсегда, и включить уведомления человек уже не сможет.
+
+        Подпись честная: это уведомления, пока ERP ОТКРЫТА (хотя бы в фоне).
+        Доставка при закрытом браузере — отдельная подсистема (service worker
+        и VAPID), и называть это «push» значило бы обещать то, чего нет.
+      */}
+      <div className={styles.noticeSettings}>
+        <label className={styles.noticeToggle}>
+          <input
+            type="checkbox"
+            checked={desktop}
+            disabled={perm === 'unsupported' || perm === 'denied'}
+            onChange={async (e) => {
+              const on = e.target.checked;
+              if (on) {
+                const got = await askPermission();
+                setPerm(got);
+                if (got !== 'granted') { setDesktop(false); setDesktopEnabled(false); return; }
+              }
+              setDesktop(on);
+              setDesktopEnabled(on);
+            }}
+          />
+          <span>Уведомления браузера, пока ERP открыта</span>
+        </label>
+        {perm === 'denied' && (
+          <p className={styles.subText}>
+            Браузер запретил уведомления для сайта — включите их в его настройках.
+          </p>
+        )}
+        {perm === 'unsupported' && (
+          <p className={styles.subText}>Этот браузер уведомлений не поддерживает.</p>
+        )}
+        <label className={styles.noticeToggle}>
+          <input
+            type="checkbox"
+            checked={sound}
+            onChange={(e) => { setSound(e.target.checked); setSoundEnabled(e.target.checked); }}
+          />
+          <span>Звук нового уведомления</span>
+        </label>
+      </div>
 
       {unreadIds.length > 0 && (
         <Button

@@ -1956,6 +1956,14 @@ export interface ErpChatQuote {
   deleted?: boolean;
 }
 
+/** Одна реакция в сводке сообщения */
+export interface ErpChatReaction {
+  emoji: string;
+  count: number;
+  /** Стоит ли МОЯ — по ней рисуется выделение и решается, снимать или ставить */
+  mine: boolean;
+}
+
 export interface ErpChatMessage {
   id: string;
   thread_id: string;
@@ -1982,6 +1990,12 @@ export interface ErpChatMessage {
    * означал бы полсотни лишних выборок.
    */
   read_count?: number;
+  /**
+   * Сводка реакций (вторая очередь чата): `{emoji, count, mine}`. Именно
+   * сводка, а не список людей — имена приезжают по наведению отдельным
+   * вызовом, иначе страница ленты означала бы полсотни лишних выборок.
+   */
+  reactions?: ErpChatReaction[];
   /**
    * Правка автором (вторая очередь чата): null — не правили. Показывается
    * подписью «изменено» — правка задним числом без следа вводила бы
@@ -2039,6 +2053,28 @@ export interface ChatReadReceipt {
   user_id: string;
   name: string | null;
   read_at: string;
+}
+
+/**
+ * Находка поиска по переписке (`erp_chat_search`). Тело приходит ЦЕЛИКОМ:
+ * подсветку и обрезку делает тот, кто знает, сколько у него места, — обрезка
+ * на сервере однажды отдала бы кусок без найденного слова.
+ */
+export interface ChatSearchHit {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  item_id: string | null;
+  stage_id: string | null;
+  experimental_id: string | null;
+}
+
+/** Кто поставил реакцию — ответ `erp_chat_reaction_people()` */
+export interface ChatReactionPerson {
+  emoji: string;
+  user_id: string;
+  name: string;
 }
 
 /**

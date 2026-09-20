@@ -347,6 +347,42 @@ export type Database = {
           },
         ]
       }
+      erp_chat_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_chat_reads: {
         Row: {
           created_at: string
@@ -3254,6 +3290,18 @@ export type Database = {
           p_stage_id?: string
         }
         Returns: Json
+      }
+      erp_chat_react: {
+        Args: { p_emoji: string; p_message_id: string }
+        Returns: Json
+      }
+      erp_chat_reaction_people: {
+        Args: { p_message_id: string }
+        Returns: {
+          emoji: string
+          name: string
+          user_id: string
+        }[]
       }
       erp_chat_read_receipts: {
         Args: { p_message_ids: string[] }

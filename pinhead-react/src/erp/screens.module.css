@@ -1854,6 +1854,120 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .chatEditRow { display: flex; gap: var(--space-xs); }
 
+/* Реакции (вторая очередь чата): поставленные — пилюлями, набор — по кнопке */
+.chatReactions { display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; }
+.chatReaction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+}
+/* Своя реакция выделена рамкой и фоном акцента: «я это уже поставил» —
+   первое, что человек ищет глазами, прежде чем нажать второй раз */
+.chatReactionMine { border-color: var(--accent); background: var(--accent-light); }
+.chatReactionCount { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.chatReactionPick { position: relative; display: inline-flex; }
+.chatReactionAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.chatReactionMenu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  gap: 2px;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+}
+.chatReactionChoice {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-xs);
+  font-size: var(--type-body-lg);
+  cursor: pointer;
+}
+.chatReactionChoice:hover { background: var(--bg2); }
+
+/* Поиск по переписке (вторая очередь чата) */
+.chatSearch {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-nav);
+  width: min(420px, calc(100vw - var(--space-md) * 2));
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.chatSearchRow { display: flex; gap: var(--space-xs); align-items: center; }
+.chatSearchInput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+}
+.chatSearchList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.chatSearchHit {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.chatSearchHit:hover { background: var(--bg2); }
+.chatSearchWho {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: baseline;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.chatSearchBody { font-size: var(--type-body-sm); overflow-wrap: break-word; }
+
+@media (pointer: coarse) {
+  /* Тач-цели: пилюля и выбор нажимаются пальцем, не целясь */
+  .chatReaction, .chatReactionAdd, .chatReactionChoice { min-height: 44px; }
+  .chatReactionAdd { min-width: 44px; }
+}
+
 /* Пальцем по кнопке действия надо попадать не целясь */
 @media (pointer: coarse) {
   .chatMsgReply { min-height: 44px; display: inline-flex; align-items: center; }
@@ -1924,6 +2038,10 @@ a.cellTitle:hover { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  /* Опора для панели поиска: без неё `top: 100%` считался бы от ОКНА чата,
+     и панель уезжала бы под его нижний край (та же ловушка, что была
+     у центра уведомлений в шапке раздела) */
+  position: relative;
   padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--border-light);
 }

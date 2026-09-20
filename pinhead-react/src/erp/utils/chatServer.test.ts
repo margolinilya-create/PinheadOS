@@ -344,3 +344,133 @@ describe('чат: правка и удаление', () => {
     expect(page).toContain("'deleted', r.deleted_at is not null");
   });
 });
+
+/**
+ * РЕАКЦИИ (вторая очередь чата, документ 20.09, п. 4).
+ *
+ * Здесь политики уместны, в отличие от самих сообщений, и именно это надо
+ * сторожить: строка реакции не несёт ни текста, ни адресата, ни контекста —
+ * подделать ею можно ровно одно, «Иван поставил палец». Значит достаточно
+ * условия «только себе», но оно ОБЯЗАНО быть: без него любой участник
+ * ставил бы и снимал реакции от чужого имени через REST.
+ */
+describe('чат: реакции', () => {
+  const REACT = clean(latestMatching(
+    /create table if not exists public\.erp_chat_reactions/,
+    'таблицу реакций',
+  ));
+  const TOGGLE = clean(functionBody(latestDefining('erp_chat_react'), 'erp_chat_react'));
+
+  it('ставить и снимать можно только СВОЮ', () => {
+    const ins = REACT.slice(REACT.indexOf('create policy erp_chat_reactions_insert'));
+    expect(ins.slice(0, ins.indexOf(';'))).toContain('user_id = (select auth.uid())');
+    const del = REACT.slice(REACT.indexOf('create policy erp_chat_reactions_delete'));
+    expect(del.slice(0, del.indexOf(';'))).toContain('user_id = (select auth.uid())');
+  });
+
+  it('UPDATE-политики нет: реакцию не правят, её снимают и ставят заново', () => {
+    expect(REACT).not.toMatch(/create policy \w+ on public\.erp_chat_reactions\s+for update/);
+  });
+
+  it('видят все участники — иначе «кто поставил» не собрать', () => {
+    const sel = REACT.slice(REACT.indexOf('create policy erp_chat_reactions_read'));
+    expect(sel.slice(0, sel.indexOf(';'))).toContain('erp_is_member()');
+  });
+
+  it('одна и та же реакция дважды невозможна на уровне ключа', () => {
+    // Не проверкой в коде: двое нажавших одновременно иначе дали бы дубль
+    expect(REACT).toContain('primary key (message_id, user_id, emoji)');
+  });
+
+  it('набор смайлов НЕ зашит в CHECK', () => {
+    /**
+     * Список «какие реакции предлагать» меняется от привычек людей и живёт
+     * в интерфейсе (`ChatReactions.REACTION_CHOICES`). CHECK на него означал
+     * бы миграцию на каждое новое лицо — сервер ограничивает только ДЛИНУ.
+     */
+    const col = REACT.slice(REACT.indexOf('emoji'), REACT.indexOf('created_at'));
+    expect(col).toContain('char_length(emoji)');
+    expect(col).not.toMatch(/emoji in \(/);
+  });
+
+  it('переключение решает САМ delete, а не предварительная проверка', () => {
+    // Между «посмотреть» и «поставить» помещается второе нажатие, и реакция
+    // оставалась бы включённой через раз
+    expect(TOGGLE).toContain('delete from public.erp_chat_reactions');
+    expect(TOGGLE).toContain('get diagnostics v_rows = row_count');
+    const del = TOGGLE.indexOf('delete from public.erp_chat_reactions');
+    const ins = TOGGLE.indexOf('insert into public.erp_chat_reactions');
+    expect(del, 'вставка стоит раньше удаления — это уже не переключение')
+      .toBeLessThan(ins);
+  });
+
+  it('на удалённое сообщение реакцию не поставить', () => {
+    expect(TOGGLE).toContain('deleted_at is not null');
+  });
+
+  it('лента везёт сводку, а не список людей', () => {
+    // Полсотни сообщений на странице; список читателей у каждого означал бы
+    // полсотни лишних выборок (то же решение, что у «Прочитали N»)
+    const page = clean(latestDefining('erp_chat_page'));
+    expect(page).toContain("'reactions'");
+    expect(page).toContain("bool_or(rx.user_id = (select auth.uid())) as mine");
+  });
+
+  it('имена читателей отдаёт definer с гейтом участника', () => {
+    const people = clean(latestDefining('erp_chat_reaction_people'));
+    expect(people).toContain('security definer');
+    expect(people).toContain('public.erp_is_member()');
+    expect(people).toMatch(/revoke execute on function public\.erp_chat_reaction_people\([^)]*\) from public, anon/);
+    expect(people).toMatch(/grant execute on function public\.erp_chat_reaction_people\([^)]*\) to authenticated/);
+  });
+});
+
+/**
+ * ПОИСК ПО ПЕРЕПИСКЕ (вторая очередь чата, документ 20.09, п. 4).
+ *
+ * Два правила, которые ломаются молча: поиск обязан идти ОТ ЛИЦА
+ * ВЫЗЫВАЮЩЕГО (definer отдал бы находки из сделок, которых человек не видит)
+ * и не должен находить удалённое (тело затёрто, находка ведёт в пустоту).
+ */
+describe('чат: поиск', () => {
+  const SEARCH = clean(latestDefining('erp_chat_search'));
+  const BODY = clean(functionBody(latestDefining('erp_chat_search'), 'erp_chat_search'));
+
+  it('идёт от лица вызывающего, а не definer', () => {
+    expect(SEARCH).toContain('security invoker');
+    expect(SEARCH).not.toContain('security definer');
+  });
+
+  it('ищет только внутри тредов ЭТОЙ сделки, включая её разработки', () => {
+    expect(BODY).toContain('where t.order_id = p_order_id');
+    expect(BODY).toContain('join public.erp_experimental e on e.id = t.experimental_id');
+  });
+
+  it('удалённые не находятся', () => {
+    expect(BODY).toContain('m.deleted_at is null');
+  });
+
+  it('однобуквенный запрос не ищет', () => {
+    // По одной букве «находится» вся переписка — порог тот же, что в панели
+    expect(BODY).toContain('char_length(q.text) >= 2');
+  });
+
+  it('есть индекс под поиск — иначе это скан всей таблицы', () => {
+    /**
+     * `ILIKE '%…%'` без триграммного индекса читает КАЖДУЮ строку. Пока
+     * сообщений семь, разницы нет; она появится ровно тогда, когда чатом
+     * начнут пользоваться, — и выглядеть будет как «поиск подвисает».
+     */
+    const mig = clean(latestMatching(
+      /create index if not exists erp_chat_messages_body_trgm_idx/,
+      'индекс поиска по телу сообщения',
+    ));
+    expect(mig).toContain('using gin (body extensions.gin_trgm_ops)');
+    expect(mig).toContain('create extension if not exists pg_trgm');
+  });
+
+  it('права на вызов выданы явно', () => {
+    expect(SEARCH).toMatch(/revoke execute on function public\.erp_chat_search\([^)]*\) from public, anon/);
+    expect(SEARCH).toMatch(/grant execute on function public\.erp_chat_search\([^)]*\) to authenticated/);
+  });
+});

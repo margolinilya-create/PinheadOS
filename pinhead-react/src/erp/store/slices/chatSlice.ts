@@ -27,7 +27,7 @@ import type {
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import { contextKey, isWholeDeal, unreadForContext } from '../../utils/chatContext';
 import type { ChatSlice, ErpStore } from '../types';
-import type { ChatReadReceipt } from '../../types';
+import type { ChatReadReceipt, ChatReactionPerson, ChatSearchHit } from '../../types';
 
 /** Сколько сообщений в странице. Совпадает с умолчанием `erp_chat_page` */
 export const CHAT_PAGE_SIZE = 50;
@@ -314,6 +314,69 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
      */
     set({ chatPing: get().chatPing + 1 });
     return true;
+  },
+
+  /**
+   * РЕАКЦИЯ — ПЕРЕКЛЮЧАТЕЛЬ, И РЕШАЕТ ЕГО СЕРВЕР.
+   *
+   * Клиент не спрашивает «стоит ли уже моя»: лента могла устареть на секунду,
+   * а два быстрых нажатия по такой проверке оставляют реакцию включённой
+   * через раз. `erp_chat_react` сначала пробует удалить строку и по факту
+   * удаления решает, что произошло.
+   *
+   * Лента перечитывается ответом: сводка `{emoji, count, mine}` считается
+   * там же, где хранится, и собирать её второй раз на клиенте значило бы
+   * завести второй ответ на вопрос «сколько пальцев у этого сообщения».
+   */
+  toggleChatReaction: async (messageId, emoji) => {
+    const { error } = await erpQuery(() => supabase.rpc('erp_chat_react', {
+      p_message_id: messageId,
+      p_emoji: emoji,
+    }));
+    if (error) {
+      erpError('Не удалось поставить реакцию', error);
+      return false;
+    }
+    await get().refreshChat();
+    return true;
+  },
+
+  /** Кто поставил — по требованию: имена нужны ровно тогда, когда навели */
+  loadChatReactionPeople: async (messageId) => {
+    const { data, error } = await erpRead(
+      () => supabase.rpc('erp_chat_reaction_people', { p_message_id: messageId }),
+    );
+    if (error) {
+      erpError('Не удалось узнать, кто поставил реакцию', error);
+      return [];
+    }
+    return (data ?? []) as ChatReactionPerson[];
+  },
+
+  /**
+   * ПОИСК ПО ПЕРЕПИСКЕ (вторая очередь чата).
+   *
+   * Спрашивает СЕРВЕР, а не фильтрует загруженное: лента держит последнюю
+   * страницу, а ищут обычно то, что выше неё, — локальный фильтр отвечал бы
+   * «ничего не найдено» там, где сообщение просто не доехало.
+   *
+   * Ответ не кладётся в стор: находки живут ровно столько, сколько открыто
+   * поле поиска, и класть их рядом с лентой значило бы завести второе
+   * состояние переписки, которое надо не забыть погасить.
+   */
+  searchChat: async (orderId, query) => {
+    const text = (query ?? '').trim();
+    // Один символ ищет всё подряд; порог тот же, что на сервере
+    if (!orderId || text.length < 2) return [];
+    const { data, error } = await erpRead(() => supabase.rpc('erp_chat_search', {
+      p_order_id: orderId,
+      p_query: text,
+    }));
+    if (error) {
+      erpError('Не удалось выполнить поиск по переписке', error);
+      return [];
+    }
+    return ((data as { messages?: ChatSearchHit[] } | null)?.messages ?? []);
   },
 
   loadChatUnread: async (orderId) => {

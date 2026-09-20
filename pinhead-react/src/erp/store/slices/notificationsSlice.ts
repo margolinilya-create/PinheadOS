@@ -22,6 +22,7 @@ import { supabase } from '../../../lib/supabase';
 import type { ErpNotification } from '../../types';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import { mergePopups, newPopups, seenIds } from '../../utils/noticePopups';
+import { notifyDesktop, playPing } from '../../utils/desktopNotify';
 import type { ErpStore, NotificationsSlice } from '../types';
 
 /** Сколько уведомлений держим в памяти: лента центра, а не архив */
@@ -75,12 +76,29 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
      * (разбор правила — в `utils/noticePopups`).
      */
     const first = !get().notificationsLoaded;
+    const fresh = newPopups(rows, get().noticeSeen, first);
     set({
       notifications: rows,
       notificationsLoaded: true,
       noticeSeen: seenIds(rows),
-      noticePopups: mergePopups(get().noticePopups, newPopups(rows, get().noticeSeen, first)),
+      noticePopups: mergePopups(get().noticePopups, fresh),
     });
+
+    /**
+     * УВЕДОМЛЕНИЕ ОПЕРАЦИОННОЙ СИСТЕМЫ И ЗВУК (вторая очередь чата) — по тем
+     * же событиям, что всплывающая карточка, и по одному разу. Оба выключены
+     * по умолчанию; `notifyDesktop` сам молчит, когда вкладка на экране:
+     * человек и так видит карточку внутри ERP, а дубль в углу экрана — это
+     * два сообщения об одном событии.
+     *
+     * Звук звучит ТОЛЬКО вместе с показанным уведомлением: сигнал ниоткуда
+     * заставляет искать, что произошло.
+     *
+     * Показываем ОДНО, даже если пришло три: три окна подряд в углу экрана
+     * человек закрывает не читая.
+     */
+    const top = fresh[0];
+    if (top && notifyDesktop(top.title, top.body)) playPing();
   },
 
   /**

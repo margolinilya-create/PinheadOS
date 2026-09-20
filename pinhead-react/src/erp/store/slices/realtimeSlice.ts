@@ -396,6 +396,17 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
+    /**
+     * Реакция — тот же звонок, что сообщение, и по той же причине: сводка
+     * `{emoji, count, mine}` считается СЕРВЕРОМ внутри `erp_chat_page`,
+     * и дописать её из события значило бы завести вторую реализацию счёта
+     * (а `mine` в событии вообще нет — оно про чужую строку).
+     */
+    if (ev.table === 'erp_chat_reactions') {
+      set({ chatPing: get().chatPing + 1 });
+      return;
+    }
+
     // Неизвестная таблица — старый путь
     scheduleFullReload();
   },
@@ -505,6 +516,17 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         'postgres_changes',
         { event: '*', schema: 'public', table: 'erp_chat_messages' },
         forward('erp_chat_messages'),
+      )
+      /**
+       * РЕАКЦИИ (вторая очередь чата) — единственное в переписке, что видно
+       * сразу и меняется ЧУЖИМИ РУКАМИ без нового сообщения. Без подписки
+       * палец, поставленный коллегой, доезжал бы только со следующей
+       * репликой; строк мало, событий — по одному на нажатие.
+       */
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'erp_chat_reactions' },
+        forward('erp_chat_reactions'),
       )
       .on(
         'postgres_changes',

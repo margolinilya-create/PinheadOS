@@ -7,6 +7,7 @@ import styles from '../../styles';
 import { messageTime, messageFullTime } from '../../utils/chatFeed';
 import { splitMentions, mentionsInText } from '../../utils/mentions';
 import { ChatReadReceipts } from './ChatReadReceipts';
+import { ChatReactions } from './ChatReactions';
 
 /**
  * Одно сообщение переписки.
@@ -218,6 +219,15 @@ export function ChatMessage({
               : <span key={i}>{part.text}</span>
           ))}
         </p>
+      )}
+
+      {/*
+        РЕАКЦИИ — у любого сообщения, включая своё: «палец» под собственной
+        репликой ставят те же люди, и запрет на это объяснить нечем.
+        У удалённого набор не открывается — реакция на пустое место.
+      */}
+      {!deleted && (
+        <ChatReactions messageId={message.id} reactions={message.reactions ?? []} />
       )}
 
       {/*
