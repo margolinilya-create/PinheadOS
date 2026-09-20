@@ -275,3 +275,68 @@ describe('разделители ленты', () => {
     expect(screen.getAllByText('Мария')).toHaveLength(2);
   });
 });
+
+/**
+ * «НОВЫЕ СООБЩЕНИЯ, N» (правка 20.09, п. 4): «если человек читает историю
+ * выше, показывать индикатор новых сообщений с переходом вниз».
+ *
+ * Сторож проверяет ИМЕННО РАЗВИЛКУ: у низа ленты индикатора быть не должно
+ * (там всё и так видно), выше — должен, и с числом пришедшего после ухода
+ * от низа. Счётчик вкладки для этого не годится: `markChatRead` гасит его
+ * по показу ленты, а человек стоит выше и пришедшего внизу не видел.
+ */
+describe('индикатор новых сообщений ниже', () => {
+  const at = (iso, over = {}) => ({ ...MSG, created_at: iso, ...over });
+
+  const scrollTo = (feed, { scrollTop, scrollHeight, clientHeight }) => {
+    Object.defineProperty(feed, 'scrollHeight', { value: scrollHeight, configurable: true });
+    Object.defineProperty(feed, 'clientHeight', { value: clientHeight, configurable: true });
+    feed.scrollTop = scrollTop;
+    fireEvent.scroll(feed);
+  };
+
+  const feedOf = () => screen.getByLabelText('Обсуждение сделки')
+    .querySelector('[class*="chatFeed"]');
+
+  it('у низа ленты индикатора нет', () => {
+    setup({ chatMessages: [at('2026-09-20T10:00:00+03:00', { id: 'a' })] });
+    render(<ChatPanel orderId="o1" />);
+    scrollTo(feedOf(), { scrollTop: 500, scrollHeight: 600, clientHeight: 100 });
+    expect(screen.queryByText(/Новые сообщения/)).not.toBeInTheDocument();
+  });
+
+  it('человек ушёл вверх — пришедшее после считается и показывается', () => {
+    setup({ chatMessages: [at('2026-09-20T10:00:00+03:00', { id: 'a' })] });
+    const { rerender } = render(<ChatPanel orderId="o1" />);
+    // Ушёл читать историю
+    scrollTo(feedOf(), { scrollTop: 0, scrollHeight: 600, clientHeight: 100 });
+    expect(screen.queryByText(/Новые сообщения/)).not.toBeInTheDocument();
+
+    // Пока он наверху, пришли две реплики
+    useErpStore.setState({
+      chatMessages: [
+        at('2026-09-20T10:00:00+03:00', { id: 'a' }),
+        at('2026-09-20T10:40:00+03:00', { id: 'b' }),
+        at('2026-09-20T10:41:00+03:00', { id: 'c' }),
+      ],
+    });
+    rerender(<ChatPanel orderId="o1" />);
+    expect(screen.getByText(/Новые сообщения, 2/)).toBeInTheDocument();
+  });
+
+  it('переход вниз гасит индикатор', () => {
+    setup({ chatMessages: [at('2026-09-20T10:00:00+03:00', { id: 'a' })] });
+    const { rerender } = render(<ChatPanel orderId="o1" />);
+    scrollTo(feedOf(), { scrollTop: 0, scrollHeight: 600, clientHeight: 100 });
+    useErpStore.setState({
+      chatMessages: [
+        at('2026-09-20T10:00:00+03:00', { id: 'a' }),
+        at('2026-09-20T10:40:00+03:00', { id: 'b' }),
+      ],
+    });
+    rerender(<ChatPanel orderId="o1" />);
+
+    fireEvent.click(screen.getByText(/Новые сообщения/));
+    expect(screen.queryByText(/Новые сообщения/)).not.toBeInTheDocument();
+  });
+});

@@ -363,6 +363,27 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
     return true;
   },
 
+  loadChatUnreadMany: async (orderIds) => {
+    const ids = (orderIds ?? []).filter(Boolean);
+    if (ids.length === 0 || !currentUserId()) return;
+    const { data, error } = await erpRead(
+      () => supabase.rpc('erp_chat_unread_many', { p_order_ids: ids }),
+    );
+    // Fail-open и молча: счётчик в списке — подсказка, а не работа.
+    // Полоса поверх списка заказов из-за неё была бы хуже её отсутствия
+    if (error) return;
+    const rows = (data ?? {}) as Record<string, number>;
+    const next = { ...get().chatUnread };
+    for (const id of ids) {
+      const total = rows[id] ?? 0;
+      // Разбивку по задачам здесь НЕ трогаем: её считает `loadChatUnread`
+      // для открытой сделки, и обнулять её списком значило бы стереть
+      // счётчики задач у открытой рядом карточки
+      next[id] = { ...(next[id] ?? { byStage: {} }), total } as ChatUnread;
+    }
+    set({ chatUnread: next });
+  },
+
   markChatRead: async (orderId, stageId = null) => {
     if (!currentUserId()) return;
     const before = get().chatUnread[orderId];

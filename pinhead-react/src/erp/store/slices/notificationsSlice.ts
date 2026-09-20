@@ -21,6 +21,7 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import type { ErpNotification } from '../../types';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
+import { mergePopups, newPopups, seenIds } from '../../utils/noticePopups';
 import type { ErpStore, NotificationsSlice } from '../types';
 
 /** Сколько уведомлений держим в памяти: лента центра, а не архив */
@@ -32,6 +33,12 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
 ) => ({
   notifications: [],
   notificationsLoaded: false,
+  noticePopups: [],
+  noticeSeen: [],
+
+  dismissNoticePopup: (id) => {
+    set({ noticePopups: get().noticePopups.filter((n) => n.id !== id) });
+  },
 
   loadNotifications: async () => {
     if (!currentUserId()) {
@@ -39,7 +46,9 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
        * Без учётной записи спрашивать нечего: RLS отдаст пусто, а флаг
        * «загружено» поднять надо — иначе колокол будет ждать вечно.
        */
-      set({ notifications: [], notificationsLoaded: true });
+      set({
+        notifications: [], notificationsLoaded: true, noticePopups: [], noticeSeen: [],
+      });
       return;
     }
     const { data, error } = await erpRead(() => supabase
@@ -57,7 +66,21 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
       set({ notificationsLoaded: true });
       return;
     }
-    set({ notifications: (data ?? []) as ErpNotification[], notificationsLoaded: true });
+    const rows = (data ?? []) as ErpNotification[];
+    /**
+     * ВСПЛЫВАЮЩИЕ СЧИТАЮТСЯ ЗДЕСЬ, а не в оболочке: список перечитывается
+     * целиком на каждый звонок realtime, и «что из этого новое» знает только
+     * тот, кто держит предыдущий снимок. Первая загрузка сессии молчит —
+     * иначе накопившееся за ночь высыпалось бы карточками при каждом входе
+     * (разбор правила — в `utils/noticePopups`).
+     */
+    const first = !get().notificationsLoaded;
+    set({
+      notifications: rows,
+      notificationsLoaded: true,
+      noticeSeen: seenIds(rows),
+      noticePopups: mergePopups(get().noticePopups, newPopups(rows, get().noticeSeen, first)),
+    });
   },
 
   /**
@@ -77,6 +100,11 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
       notifications: before.map((n) => (fresh.some((f) => f.id === n.id)
         ? { ...n, read_at: at }
         : n)),
+      /**
+       * Прочитанное со всплывающей карточки её и гасит: оставить висеть
+       * то, по чему человек только что нажал, — предложить прочитать дважды.
+       */
+      noticePopups: get().noticePopups.filter((n) => !ids.includes(n.id)),
     });
     const { error } = await erpQuery(() => supabase
       .from('erp_notifications')

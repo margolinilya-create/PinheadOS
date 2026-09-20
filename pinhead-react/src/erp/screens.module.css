@@ -1981,6 +1981,18 @@ a.cellTitle:hover { color: var(--accent); }
 /* Граница непрочитанного — акцентом: это не разметка времени, а место,
    с которого человек продолжает читать */
 .chatUnreadLine { color: var(--accent); }
+
+/*
+  «Новые сообщения, N» (правка 20.09, п. 4) — полоса между лентой и формой.
+  Центрируется, а не прижимается к краю: она и есть кнопка перехода вниз,
+  и попадать в неё надо не целясь.
+*/
+.chatNewBelow {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xs) 0;
+}
+
 .chatUnreadLine::before, .chatUnreadLine::after { background: var(--accent); }
 
 /* Группа сообщений одного автора: внутри интервал меньше, чем между группами */

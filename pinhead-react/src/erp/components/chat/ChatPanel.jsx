@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { currentUserId } from '../../store/shared';
 import { Button } from '../Button';
+import { Icon } from '../Icon';
 import { LoadFailed } from '../ErpStates';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import { ChatMessage } from './ChatMessage';
@@ -159,6 +160,29 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
   // Новое сообщение прокручивает ленту вниз — но только если человек и так
   // внизу: иначе чтение старого разговора уезжало бы из-под пальца
   const atBottom = useRef(true);
+  /**
+   * «НОВЫЕ СООБЩЕНИЯ, N» (правка 20.09, п. 4): «если человек читает историю
+   * выше, показывать индикатор новых сообщений с переходом вниз».
+   *
+   * Считается ВЫЧИТАНИЕМ, а не счётчиком в эффекте: запоминаем длину ленты
+   * на момент, когда человек последний раз был у низа, и всё, что пришло
+   * после, — это и есть «новые». Состояние двигает обработчик прокрутки,
+   * то есть событие; считать его в эффекте нельзя (правило `set-state-in-effect`
+   * и, по сути, та же беда: пересчёт на каждый кадр ленты).
+   *
+   * Счётчик вкладки для этого не годится: `markChatRead` двигает водяную
+   * отметку по ПОКАЗУ ленты, поэтому `unread.total` гаснет, даже когда
+   * человек стоит выше и пришедшего внизу не видел.
+   */
+  const [tail, setTail] = useState({ atBottom: true, count: 0 });
+  const pendingBelow = tail.atBottom ? 0 : Math.max(0, messages.length - tail.count);
+  const scrollToBottom = useCallback(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    atBottom.current = true;
+    setTail({ atBottom: true, count: useErpStore.getState().chatMessages.length });
+  }, []);
   useEffect(() => {
     const el = feedRef.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
@@ -219,7 +243,9 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
         ref={attachFeed}
         onScroll={(e) => {
           const el = e.currentTarget;
-          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+          const near = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+          atBottom.current = near;
+          setTail({ atBottom: near, count: useErpStore.getState().chatMessages.length });
         }}
       >
         {error && !loading && messages.length === 0 && (
@@ -291,6 +317,20 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
           );
         })}
       </div>
+
+      {/*
+        Индикатор стоит МЕЖДУ лентой и формой, а не внутри прокрутки: внутри
+        он уехал бы вместе с историей, которую человек читает, — то есть
+        исчез бы ровно в том случае, ради которого и нужен.
+      */}
+      {pendingBelow > 0 && (
+        <div className={styles.chatNewBelow}>
+          <Button size="sm" variant="primary" onClick={scrollToBottom}>
+            <Icon name="arrowDown" size={14} />
+            Новые сообщения, {pendingBelow}
+          </Button>
+        </div>
+      )}
 
       <ChatComposer
         orderId={orderId}

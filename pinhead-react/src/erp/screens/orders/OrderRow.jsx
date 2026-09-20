@@ -19,7 +19,7 @@ import { formatDateCell } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, shipping = false }) {
+function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, shipping = false, chatUnread = 0 }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -65,6 +65,20 @@ function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, sh
           >
             {order.title} <Icon name="externalLink" size={12} />
           </OrderLink>
+          {/*
+            НЕПРОЧИТАННОЕ ПЕРЕПИСКИ (правка 20.09, п. 4): «в списке заказов
+            показывать число непрочитанных сообщений для текущего пользователя.
+            При нуле скрывать бейдж». Ноль здесь не значит «пусто» — он значит
+            «читать нечего», и пилюля с нулём просила бы внимания зря.
+          */}
+          {chatUnread > 0 && (
+            <Badge
+              variant="info"
+              title={`Непрочитанных сообщений: ${chatUnread}`}
+            >
+              <Icon name="comment" size={12} /> {chatUnread}
+            </Badge>
+          )}
           {order.notes && order.notes !== 'imported' && (
             <div className={styles.subText}>{order.notes}</div>
           )}

@@ -16,7 +16,7 @@ import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
 function OrderCardMobileBase({
-  order, departments, now, onDelete, canDelete, onShip, shipping = false,
+  order, departments, now, onDelete, canDelete, onShip, shipping = false, chatUnread = 0,
 }) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -43,6 +43,19 @@ function OrderCardMobileBase({
         >
           {order.title} ↗
         </OrderLink>
+        {/*
+          Непрочитанное переписки — то же, что в строке таблицы (правка 20.09,
+          п. 4). Правило раздела: правка, доехавшая до одной раскладки из двух,
+          сделана наполовину, а на планшете цеха живёт именно эта.
+        */}
+        {chatUnread > 0 && (
+          <Badge
+            variant="info"
+            title={`Непрочитанных сообщений: ${chatUnread}`}
+          >
+            <Icon name="comment" size={12} /> {chatUnread}
+          </Badge>
+        )}
         {canDelete && (
           <Button variant="ghost" aria-label={`Удалить заказ ${order.title}`} onClick={() => onDelete(order)}>
             <Icon name="x" size={15} />

@@ -23,6 +23,7 @@ import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
 import { ChatWindow } from '../components/chat/ChatWindow';
 import { NotificationCenter } from './NotificationCenter';
+import { NoticePopups } from './NoticePopups';
 import styles from '../erp.module.css';
 import appStyles from '../../App.module.css';
 
@@ -267,6 +268,13 @@ export default function ErpLayout({ user, children }) {
             )}
           </button>
           {noticesOpen && <NotificationCenter onClose={() => setNoticesOpen(false)} />}
+          {/*
+            ВСПЛЫВАЮЩИЕ — под тем же колоколом и ровно на месте центра,
+            поэтому при открытом центре их нет вовсе: человек уже смотрит
+            в список, и карточка поверх него перекрывала бы то, ради чего
+            он его открыл.
+          */}
+          {!noticesOpen && <NoticePopups />}
 
           <button
             type="button"

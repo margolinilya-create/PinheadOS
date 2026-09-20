@@ -96,6 +96,18 @@ export default function OrdersScreen() {
     deleteOrderDraft: s.deleteOrderDraft,
   })));
   /**
+   * НЕПРОЧИТАННОЕ В СПИСКЕ ЗАКАЗОВ (правка 20.09, п. 4): «на вкладке
+   * и кнопке чата, а также в списке заказов показывать число непрочитанных
+   * сообщений для текущего пользователя».
+   *
+   * Один вызов на видимую страницу, а не на строку: в списке их полсотни.
+   * Перезапрашивается по звонку realtime — иначе число оставалось бы
+   * вчерашним у вкладки, открытой смену назад.
+   */
+  const chatUnread = useErpStore((s) => s.chatUnread);
+  const chatPing = useErpStore((s) => s.chatPing);
+  const loadChatUnreadMany = useErpStore((s) => s.loadChatUnreadMany);
+  /**
    * Самый свежий черновик. `orderDrafts` приходит отсортированным по
    * `updated_at` убыванием (см. `orderDraftsSlice`), но опираться на порядок
    * чужого запроса нельзя — он однажды поменяется молча.
@@ -361,6 +373,13 @@ export default function OrdersScreen() {
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // Счётчики переписки — по ВИДИМОЙ странице: грузить их на весь список
+  // значило бы считать непрочитанное по заказам, которых человек не видит
+  const pageIds = pageRows.map((o) => o.id).join(',');
+  useEffect(() => {
+    if (pageIds) void loadChatUnreadMany(pageIds.split(','));
+  }, [pageIds, chatPing, loadChatUnreadMany]);
 
   const onDelete = async (order) => {
     const ok = await confirm({
@@ -651,6 +670,7 @@ export default function OrdersScreen() {
               canDelete={canDelete}
               onShip={canShip ? onShip : null}
               shipping={shippingId === o.id}
+              chatUnread={chatUnread[o.id]?.total ?? 0}
             />
           ))}
         </div>
@@ -720,6 +740,7 @@ export default function OrdersScreen() {
                   canDelete={canDelete}
                   onShip={canShip ? onShip : null}
                   shipping={shippingId === o.id}
+                  chatUnread={chatUnread[o.id]?.total ?? 0}
                 />
               ))}
             </tbody>

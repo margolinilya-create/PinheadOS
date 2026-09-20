@@ -85,7 +85,18 @@ describe('уведомления: клиент и схема сходятся', 
   it('вид уведомления объявлен ОДИНАКОВО в CHECK и в типе', () => {
     // Вид, заведённый в одном месте из двух, даёт 23514 на вставке — в проекте
     // на этом уже ловились с видами вложений (весь unit-набор был зелёным)
-    const check = sql.slice(sql.indexOf('kind text not null check'));
+    /**
+     * СПИСОК БЕРЁТСЯ ИЗ ПОСЛЕДНЕГО МЕСТА, ГДЕ ОН ОБЪЯВЛЕН, а не из создания
+     * таблицы: применённую миграцию правят НОВОЙ, поэтому вид, добавленный
+     * позже (`chat_message`, правка 20.09), живёт в `add constraint`. Сторож,
+     * читающий только `create table`, краснел бы на КАЖДОМ новом виде —
+     * то есть требовал бы вернуть список в уже применённую миграцию.
+     */
+    const kindSql = withoutComments(latestMatching(
+      /check \(kind in \([^)]*'chat_mention'/,
+      'список видов erp_notifications.kind',
+    ));
+    const check = kindSql.slice(kindSql.lastIndexOf('check (kind in'));
     const inCheck = [...check.slice(0, check.indexOf(')')).matchAll(/'(\w+)'/g)]
       .map((m) => m[1]).sort();
     const types = readFileSync(join(process.cwd(), 'src/erp/types.ts'), 'utf8');

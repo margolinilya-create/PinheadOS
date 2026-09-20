@@ -234,6 +234,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  /*
+    ОПОРА ДЛЯ ВЫПАДАЮЩИХ ПАНЕЛЕЙ ШАПКИ (центр уведомлений, всплывающие).
+    Без неё `top: calc(100% + 6px)` считается от НАЧАЛЬНОГО блока, то есть
+    от высоты окна, и панель уезжает под нижнюю границу экрана — кнопка
+    нажимается, а показывать нечего.
+  */
+  position: relative;
   height: 60px;
   flex-shrink: 0;
   padding: 0 var(--space-xl);
@@ -1159,6 +1166,66 @@
 /* Непрочитанное выделяется фоном и точкой — как просит референс документа */
 .noticeUnread > .noticeRow { background: var(--accent-light); }
 .noticeTitle { font-weight: 600; }
+
+/*
+  ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (правка 20.09, п. 4).
+
+  Стоят ТАМ ЖЕ, где центр уведомлений, — под колоколом: всплывающее и есть
+  короткий пересказ того, что лежит в центре, и приучать глаз к двум разным
+  углам для одной сущности незачем. Пока центр открыт, карточек нет вовсе
+  (`ErpLayout`): человек уже смотрит в список, и полоса поверх него мешала бы.
+
+  Слой выше окна чата: уведомление приходит и тогда, когда окно открыто
+  на ДРУГОМ заказе, — спрятанное за ним, оно бесполезно.
+*/
+.noticePopups {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: min(360px, calc(100vw - var(--space-md) * 2));
+}
+.noticePopup {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.noticePopupBody {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;   /* тач-цель: уведомление приходит и на планшет цеха */
+}
+.noticePopupClose {
+  min-width: 44px;
+  min-height: 44px;   /* тач-цель: закрыть надо уметь пальцем, не промахнувшись */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.noticePopupClose:hover { background: var(--bg2); }
 
 /*
   Список черновиков в разделе заказов (правка 20.09, п. 6). Свёрнут

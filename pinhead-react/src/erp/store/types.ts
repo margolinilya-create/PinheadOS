@@ -1217,6 +1217,16 @@ export interface NotificationsSlice {
   loadNotifications: () => Promise<void>;
   /** Отметить прочитанными; уже прочитанные не трогаются — иначе read_at соврёт */
   markNotificationsRead: (ids: string[]) => Promise<boolean>;
+  /**
+   * ВСПЛЫВАЮЩИЕ (правка 20.09, п. 4) — то, что пришло ПРИ ЖИЗНИ вкладки.
+   * Очередь считает слайс, а не компонент: правило «первая загрузка молчит»
+   * иначе жило бы в эффекте оболочки, где его не проверить.
+   */
+  noticePopups: ErpNotification[];
+  /** Что эта вкладка уже видела; сбрасывается вместе со стором при смене смены */
+  noticeSeen: string[];
+  /** Закрыть карточку — по нажатию или по таймеру */
+  dismissNoticePopup: (id: string) => void;
 }
 
 /**
@@ -1306,6 +1316,13 @@ export interface ChatSlice {
     attachments?: { file_path: string; file_name?: string | null }[];
   }) => Promise<{ message_id: string; mentioned: string[] } | null>;
   loadChatUnread: (orderId: string) => Promise<void>;
+  /**
+   * Счётчики непрочитанного СРАЗУ ПО СПИСКУ заказов (правка 20.09, п. 4):
+   * «в списке заказов показывать число непрочитанных сообщений». Один вызов
+   * на страницу, а не на строку — иначе открытие раздела означало бы
+   * полсотни запросов.
+   */
+  loadChatUnreadMany: (orderIds: string[]) => Promise<void>;
   markChatRead: (orderId: string, stageId?: string | null) => Promise<void>;
   closeChat: () => void;
 }
