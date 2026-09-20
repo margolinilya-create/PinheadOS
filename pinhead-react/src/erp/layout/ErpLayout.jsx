@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
@@ -21,11 +21,38 @@ import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
-import { ChatWindow } from '../components/chat/ChatWindow';
-import { NotificationCenter } from './NotificationCenter';
-import { NoticePopups } from './NoticePopups';
 import styles from '../erp.module.css';
 import appStyles from '../../App.module.css';
+
+/*
+  ЧАТ И ЦЕНТР УВЕДОМЛЕНИЙ — ЛЕНИВЫЕ, И ЭТО НЕ КОСМЕТИКА.
+  Оба смонтированы в ОБОЛОЧКЕ, то есть попадали в критический путь всех
+  100% входов: со статическим импортом сюда ехала вся подсистема чата
+  (лента, сообщение, наборный, реакции, поиск, подсказка упоминаний)
+  и вместе с ней `screens.module.css` — через агрегатор `erp/styles`,
+  который оболочке импортировать запрещено (`stylesResolve.test.ts`
+  сторожит только `layout/*`, а ChatWindow лежит в `components/`).
+  Замер: 14,7 кБ JS и 7,2 кБ CSS gzip — бюджет критического пути был пробит
+  на 8 % и 40 % (205 636 → 190 956 и 22 451 → 15 294). Сторож —
+  `layout/shellStatic.test.ts`.
+
+  Разговор открывают руками, и до этого момента грузить его нечего:
+  оба компонента монтируются только открытыми. Пустого состояния у них
+  нет — оно и раньше было `return null`, — поэтому условие снаружи
+  ничего не меняет в поведении.
+*/
+const ChatWindow = lazy(() => import('../components/chat/ChatWindow')
+  .then((m) => ({ default: m.ChatWindow })));
+const NotificationCenter = lazy(() => import('./NotificationCenter')
+  .then((m) => ({ default: m.NotificationCenter })));
+/*
+  ВСПЛЫВАЮЩИЕ — тоже лениво, и по той же причине: карточка появляется, когда
+  уведомление ПРИШЛО, то есть в редкий момент, а не при каждом входе. Задержка
+  подгрузки чанка здесь незаметна — событие и так приходит само, человек его
+  не ждёт с секундомером.
+*/
+const NoticePopups = lazy(() => import('./NoticePopups')
+  .then((m) => ({ default: m.NoticePopups })));
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
@@ -42,6 +69,18 @@ export default function ErpLayout({ user, children }) {
       notifications: s.notifications,
     })),
   );
+  /**
+   * Открыт ли разговор. Берём ПРИЗНАК, а не сам объект окна: оболочка
+   * перерисовывалась бы на каждом переключении «Весь заказ / Контекст»
+   * и на развороте окна, хотя ей это безразлично.
+   */
+  const chatOpen = useErpStore((s) => s.chatWindow != null);
+  /**
+   * Есть ли что всплывать. Отбор «не по открытому заказу» остаётся ВНУТРИ
+   * карточек: здесь нужен только повод загрузить их чанк, а повторять
+   * правило в двух местах значит однажды развести их между собой.
+   */
+  const popupsPending = useErpStore((s) => s.noticePopups.length > 0);
 
   // Сворачивание сайдбара (persist); на узких экранах — по умолчанию свёрнут
   const [collapsed, setCollapsed] = useState(() => {
@@ -267,14 +306,22 @@ export default function ErpLayout({ user, children }) {
               <span className={styles.iconDot} aria-hidden="true">{overdueCount}</span>
             )}
           </button>
-          {noticesOpen && <NotificationCenter onClose={() => setNoticesOpen(false)} />}
+          {noticesOpen && (
+            <Suspense fallback={null}>
+              <NotificationCenter onClose={() => setNoticesOpen(false)} />
+            </Suspense>
+          )}
           {/*
             ВСПЛЫВАЮЩИЕ — под тем же колоколом и ровно на месте центра,
             поэтому при открытом центре их нет вовсе: человек уже смотрит
             в список, и карточка поверх него перекрывала бы то, ради чего
             он его открыл.
           */}
-          {!noticesOpen && <NoticePopups />}
+          {!noticesOpen && popupsPending && (
+            <Suspense fallback={null}>
+              <NoticePopups />
+            </Suspense>
+          )}
 
           <button
             type="button"
@@ -353,7 +400,11 @@ export default function ErpLayout({ user, children }) {
         «окно поверх ERP» превратилось бы во вкладку с лишними рамками.
         Пустое состояние ничего не рисует.
       */}
-      <ChatWindow />
+      {chatOpen && (
+        <Suspense fallback={null}>
+          <ChatWindow />
+        </Suspense>
+      )}
     </div>
   );
 }

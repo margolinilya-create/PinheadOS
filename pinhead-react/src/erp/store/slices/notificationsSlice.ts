@@ -22,7 +22,6 @@ import { supabase } from '../../../lib/supabase';
 import type { ErpNotification } from '../../types';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import { mergePopups, newPopups, seenIds } from '../../utils/noticePopups';
-import { notifyDesktop, playPing } from '../../utils/desktopNotify';
 import type { ErpStore, NotificationsSlice } from '../types';
 
 /** Сколько уведомлений держим в памяти: лента центра, а не архив */
@@ -97,8 +96,19 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
      * Показываем ОДНО, даже если пришло три: три окна подряд в углу экрана
      * человек закрывает не читая.
      */
+    /**
+     * МОДУЛЬ ПОДТЯГИВАЕТСЯ ПО СОБЫТИЮ, а не статикой: `desktopNotify` несёт
+     * синтез звука на WebAudio и разбор разрешений браузера, а нужен он
+     * в редкий момент прихода уведомления. Статический импорт отправлял его
+     * в критический путь ВСЕХ входов — слайс живёт в ядре стора, потому что
+     * колокол стоит в оболочке.
+     */
     const top = fresh[0];
-    if (top && notifyDesktop(top.title, top.body)) playPing();
+    if (top) {
+      void import('../../utils/desktopNotify').then(({ notifyDesktop, playPing }) => {
+        if (notifyDesktop(top.title, top.body)) playPing();
+      });
+    }
   },
 
   /**
