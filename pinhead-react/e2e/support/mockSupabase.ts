@@ -700,6 +700,68 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
  */
 const createdTasks = new Map<string, Record<string, unknown>>();
 
+/** Переписка сделки для e2e: двое, своё и чужое сообщение */
+const CHAT_ME = 'dev-user';
+const CHAT_OTHER = 'u-maria';
+
+const CHAT_PEOPLE = [
+  { user_id: CHAT_ME, name: 'Dev Mode', email: null, role: null, department_id: null },
+  { user_id: CHAT_OTHER, name: 'Мария', email: null, role: null, department_id: null },
+];
+
+const CHAT_BASE = {
+  thread_id: 'thr-1',
+  item_id: null,
+  stage_id: null,
+  experimental_id: null,
+  reply_to: null,
+  edited_at: null,
+  deleted_at: null,
+  mentions: [] as string[],
+  attachments: [] as unknown[],
+  reply: null,
+  read_count: 0,
+  reactions: [] as { emoji: string; count: number; mine: boolean }[],
+};
+
+interface ChatMsg {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+  mentions: string[];
+  attachments: unknown[];
+  reply: unknown;
+  read_count: number;
+  reactions: { emoji: string; count: number; mine: boolean }[];
+  [key: string]: unknown;
+}
+
+/** Живое состояние переписки: спека правит, удаляет и ставит реакции */
+const chatState: { messages: ChatMsg[] } = { messages: [] };
+
+export function resetChatMock(): void {
+  chatState.messages = [
+    {
+      ...CHAT_BASE,
+      id: 'chat-1',
+      author_id: CHAT_OTHER,
+      body: 'Ткань ромашка приехала, 47 кг',
+      created_at: '2026-07-20T08:30:00Z',
+    } as ChatMsg,
+    {
+      ...CHAT_BASE,
+      id: 'chat-2',
+      author_id: CHAT_ME,
+      body: 'Принял, запускаем закрой',
+      created_at: '2026-07-20T08:40:00Z',
+    } as ChatMsg,
+  ];
+}
+resetChatMock();
+
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
     case 'erp_experimental_add_tasks': {
@@ -768,6 +830,102 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
       void body;
       return { events: [], audit: [], comments: [] };
     }
+    /**
+     * ЧАТ СДЕЛКИ (правки 20.09 и вторая очередь). Без этих веток окно чата
+     * в e2e открывалось бы пустым: `default: null` лента читает как «ошибка
+     * загрузки», и проверить было бы нечего.
+     *
+     * Состояние держится в `chatState`, а не в константе: спека правит
+     * и удаляет сообщения, ставит реакции — фикстура «только для чтения»
+     * молчала бы ровно там, где эти действия и проверяются.
+     */
+    case 'erp_chat_directory':
+      return CHAT_PEOPLE;
+
+    case 'erp_chat_page':
+      return {
+        messages: chatState.messages.map((m) => ({ ...m })),
+        has_more: false,
+      };
+
+    case 'erp_chat_unread':
+      return {
+        total: 0, by_stage: {}, mentions: 0, first_unread_id: null, first_unread_at: null,
+      };
+
+    case 'erp_chat_unread_many':
+      return [];
+
+    case 'erp_chat_mode':
+      return 'mentions';
+
+    case 'erp_chat_mark_read':
+    case 'erp_chat_set_mode':
+      return null;
+
+    case 'erp_chat_mark_seen':
+      return 0;
+
+    case 'erp_chat_read_receipts':
+    case 'erp_chat_reaction_people':
+      return [];
+
+    case 'erp_chat_send': {
+      const id = `chat-new-${chatState.messages.length}`;
+      chatState.messages.push({
+        ...CHAT_BASE,
+        id,
+        author_id: CHAT_ME,
+        body: String(body.p_body ?? ''),
+        created_at: '2026-07-20T09:05:00Z',
+      });
+      return { message_id: id, thread_id: 'thr-1', duplicate: false, mentioned: [] };
+    }
+
+    case 'erp_chat_edit': {
+      const row = chatState.messages.find((m) => m.id === body.p_message_id);
+      if (row) {
+        row.body = String(body.p_body ?? '');
+        row.edited_at = '2026-07-20T09:10:00Z';
+      }
+      return { message_id: body.p_message_id, changed: true, mentioned: [] };
+    }
+
+    case 'erp_chat_delete': {
+      const row = chatState.messages.find((m) => m.id === body.p_message_id);
+      if (row) {
+        // Как сервер: тело ЗАТИРАЕТСЯ, строка остаётся
+        row.body = '';
+        row.deleted_at = '2026-07-20T09:12:00Z';
+        row.attachments = [];
+      }
+      return { message_id: body.p_message_id, deleted: true };
+    }
+
+    case 'erp_chat_react': {
+      const row = chatState.messages.find((m) => m.id === body.p_message_id);
+      const emoji = String(body.p_emoji ?? '');
+      if (row) {
+        const list = row.reactions ?? [];
+        const at = list.findIndex((r) => r.emoji === emoji);
+        if (at >= 0 && list[at].mine) list.splice(at, 1);
+        else if (at >= 0) { list[at].count += 1; list[at].mine = true; }
+        else list.push({ emoji, count: 1, mine: true });
+        row.reactions = list;
+      }
+      return { emoji, mine: true };
+    }
+
+    case 'erp_chat_search': {
+      const q = String(body.p_query ?? '').toLowerCase();
+      return {
+        query: q,
+        messages: chatState.messages
+          .filter((m) => !m.deleted_at && m.body.toLowerCase().includes(q))
+          .map((m) => ({ ...m })),
+      };
+    }
+
     default:
       return null;
   }

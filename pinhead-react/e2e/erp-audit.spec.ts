@@ -225,10 +225,26 @@ test.describe('Уведомления обзора сгруппированы п
     await expect(groups.first()).toHaveAttribute('open', '');
   });
 
-  test('колокол в шапке ведёт к уведомлениям', async ({ page }) => {
-    await page.goto('/?studio=0');
-    await page.getByRole('button', { name: 'Уведомления' }).click();
-    await expect(page).toHaveURL(/#notifications/);
+  /**
+   * С ПРАВКИ 20.09 (П. 4) КОЛОКОЛ НИКУДА НЕ ВЕДЁТ — он открывает центр
+   * уведомлений НА МЕСТЕ: «центр открывается из общей шапки ERP на любом
+   * экране». Прежняя редакция теста требовала перехода на `/#notifications`,
+   * то есть сторожила ровно то поведение, от которого документ и просил
+   * уйти: чтобы прочитать «вас упомянули», человек покидал экран,
+   * на котором работал.
+   */
+  test('колокол открывает центр уведомлений НА МЕСТЕ, не уводя с экрана', async ({ page }) => {
+    await page.goto('/orders?studio=0');
+    const url = page.url();
+
+    await page.getByRole('button', { name: /Уведомления/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Уведомления' })).toBeVisible();
+    // Адрес не изменился: человек остался там, где работал
+    expect(page.url()).toBe(url);
+
+    // Повторное нажатие закрывает — колокол это переключатель
+    await page.getByRole('button', { name: /Уведомления/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Уведомления' })).toHaveCount(0);
   });
 });
 
