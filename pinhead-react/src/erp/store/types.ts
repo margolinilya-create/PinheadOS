@@ -27,6 +27,7 @@ import type {
   ErpChatPerson,
   ChatContext,
   ChatUnread,
+  ChatReadReceipt,
   ErpPermission,
   ErpRolePermission,
   ErpItemPrint,
@@ -1227,6 +1228,14 @@ export interface NotificationsSlice {
  * Действия приезжают доменным чанком: чат открывают с экрана.
  */
 export interface ChatSlice {
+  /**
+   * Отметить показанные сообщения просмотренными (правка 20.09, п. 4).
+   * Возвращает, сколько отметок реально добавилось: повтор той же пачки
+   * не считается.
+   */
+  markChatSeen: (messageIds: string[]) => Promise<number>;
+  /** Кто прочитал эти сообщения — для «Прочитали N» с именами и временем */
+  loadChatReadReceipts: (messageIds: string[]) => Promise<ChatReadReceipt[]>;
   /**
    * Первое непрочитанное на момент ОТКРЫТИЯ переписки (правка 20.09, п. 4) —
    * перед ним лента рисует черту «Непрочитанные сообщения».

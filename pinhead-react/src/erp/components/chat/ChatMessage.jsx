@@ -3,6 +3,7 @@ import { Icon } from '../Icon';
 import styles from '../../styles';
 import { messageTime, messageFullTime } from '../../utils/chatFeed';
 import { splitMentions } from '../../utils/mentions';
+import { ChatReadReceipts } from './ChatReadReceipts';
 
 /**
  * Одно сообщение переписки.
@@ -33,6 +34,11 @@ export function ChatMessage({
    * оно у них разное.
    */
   compact = false,
+  /**
+   * Наблюдатель прочтения (правка 20.09, п. 4): вешается на КАЖДЫЙ пузырь,
+   * потому что прочитанным считается сообщение, а не лента.
+   */
+  observeRef,
 }) {
   const mine = message.author_id === meId;
   const mentioned = Array.isArray(message.mentions) && meId
@@ -47,6 +53,8 @@ export function ChatMessage({
         highlighted ? styles.chatMsgFocus : '',
       ].filter(Boolean).join(' ')}
       id={`chat-msg-${message.id}`}
+      ref={observeRef}
+      data-message-id={message.id}
       aria-label={`Сообщение от ${nameOf(message.author_id)}`}
     >
       <header className={styles.chatMsgHead}>
@@ -95,6 +103,15 @@ export function ChatMessage({
               : <span key={i}>{part.text}</span>
           ))}
         </p>
+      )}
+
+      {/*
+        «ПРОЧИТАЛИ N» — ТОЛЬКО У СВОИХ сообщений (правка 20.09, п. 4):
+        отправитель спрашивает «дошло ли», а у чужого сообщения этот вопрос
+        не имеет смысла и лишь удваивал бы каждую строку ленты.
+      */}
+      {mine && (
+        <ChatReadReceipts messageId={message.id} count={message.read_count ?? 0} />
       )}
 
       {message.attachments?.length > 0 && (

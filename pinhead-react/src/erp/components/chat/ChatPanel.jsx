@@ -9,6 +9,7 @@ import { ChatMessage } from './ChatMessage';
 import { ChatComposer } from './ChatComposer';
 import { isWholeDeal } from '../../utils/chatContext';
 import { buildFeed } from '../../utils/chatFeed';
+import { useSeenMessages } from '../../hooks/useSeenMessages';
 import styles from '../../styles';
 
 /**
@@ -27,7 +28,7 @@ import styles from '../../styles';
 export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId = null }) {
   const {
     messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, realtimeLive,
-    openChat, loadMore, refresh, send, loadDirectory, markRead, closeChat,
+    openChat, loadMore, refresh, send, loadDirectory, markRead, markSeen, loadUnread, closeChat,
   } = useErpStore(useShallow((s) => ({
     messages: s.chatMessages,
     hasMore: s.chatHasMore,
@@ -44,6 +45,8 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     send: s.sendChatMessage,
     loadDirectory: s.loadChatDirectory,
     markRead: s.markChatRead,
+    markSeen: s.markChatSeen,
+    loadUnread: s.loadChatUnread,
     closeChat: s.closeChat,
   })));
 
@@ -118,6 +121,30 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    * панель перерисовывается от каждого realtime-события, а показ ленты
    * тут же гасит счётчик, из которого граница выводится.
    */
+  /**
+   * ПОШТУЧНОЕ ПРОЧТЕНИЕ (правка 20.09, п. 4): прочитанным считается то,
+   * что реально показалось на глаза при активном окне. Водяная отметка
+   * ниже остаётся — она отвечает за счётчик вкладки и за всё, что прочитано
+   * до перехода на поштучную модель.
+   */
+  const onSeen = useCallback(async (ids) => {
+    const added = await markSeen(ids);
+    // Счётчик перечитываем, только если что-то действительно отметилось:
+    // повтор пачки ничего не меняет, и лишний запрос здесь — это запрос
+    // на каждую прокрутку
+    if (added > 0) void loadUnread(orderId);
+  }, [markSeen, loadUnread, orderId]);
+  const seen = useSeenMessages(onSeen, messages.length > 0);
+  /**
+   * Один узел — два наблюдателя: прокрутка (`feedRef`) и корень наблюдения
+   * прочтения. Callback-ref, а не мутация в разметке: правило раздела
+   * запрещает трогать `ref.current` во время рендера.
+   */
+  const attachFeed = useCallback((node) => {
+    feedRef.current = node;
+    seen.setRoot(node);
+  }, [seen]);
+
   const feed = useMemo(
     () => buildFeed(messages, { firstUnreadId: unreadAnchor }),
     [messages, unreadAnchor],
@@ -189,7 +216,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
 
       <div
         className={styles.chatFeed}
-        ref={feedRef}
+        ref={attachFeed}
         onScroll={(e) => {
           const el = e.currentTarget;
           atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -257,6 +284,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
                   /* Имя автора — только над ГРУППОЙ: повтор у каждой реплики
                      и есть то, что документ просит объединить визуально */
                   compact={i > 0}
+                  observeRef={seen.observe}
                 />
               ))}
             </div>

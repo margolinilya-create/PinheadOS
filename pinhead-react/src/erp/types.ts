@@ -1949,6 +1949,13 @@ export interface ErpChatMessage {
   mentions: string[];
   attachments: ErpChatAttachment[];
   reply: ErpChatQuote | null;
+  /**
+   * Сколько человек прочитало (правка 20.09, п. 4) — для «Прочитали N»
+   * у СВОИХ сообщений. Имена и время грузятся отдельно, по нажатию:
+   * страница ленты это полсотни сообщений, и список читателей у каждого
+   * означал бы полсотни лишних выборок.
+   */
+  read_count?: number;
 }
 
 /**
@@ -1980,6 +1987,20 @@ export interface ChatContext {
 export interface ChatUnread {
   total: number;
   byStage: Record<string, number>;
+  /**
+   * Непрочитанные УПОМИНАНИЯ отдельно (правка 20.09, п. 4): документ просит
+   * «упоминания дополнительно выделять значком @», а значок без числа
+   * не отвечает на «сколько их».
+   */
+  mentions?: number;
+}
+
+/** Кто и когда прочитал сообщение — для «Прочитали N» (правка 20.09, п. 4) */
+export interface ChatReadReceipt {
+  message_id: string;
+  user_id: string;
+  name: string | null;
+  read_at: string;
 }
 
 /**

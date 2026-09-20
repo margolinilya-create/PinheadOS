@@ -139,10 +139,22 @@ describe('чат: чтение', () => {
      * позднюю из двух. Подмешай сюда `swm` — и, прочитав одну задачу, человек
      * обнулил бы непрочитанное всей сделки.
      */
-    const total = READ_BODY.slice(READ_BODY.indexOf("'total'"), READ_BODY.indexOf("'by_stage'"));
-    expect(total).toContain('wm.last_read_at');
-    expect(total, 'total смотрит отметку ЗАДАЧИ — просмотр задачи погасит всю сделку')
+    /**
+     * С правки 20.09 (п. 4) `total` считается по отдельному CTE `unread` —
+     * туда же переехало и условие отметки. Проверяем то же правило по его
+     * НОВОМУ месту: основа общего счёта смотрит отметку ТРЕДА и ничего
+     * не знает про отметки задач.
+     */
+    const unreadCte = READ_BODY.slice(
+      READ_BODY.indexOf('unread as ('),
+      READ_BODY.indexOf('scoped as ('),
+    );
+    expect(unreadCte).toContain('wm.last_read_at');
+    expect(unreadCte, 'основа total смотрит отметку ЗАДАЧИ — просмотр задачи погасит всю сделку')
       .not.toContain('swm');
+    // И вторая половина новой формулы: просмотренное поштучно (20.09, п. 4)
+    expect(unreadCte).toContain('erp_chat_message_reads');
+
     const byStage = READ_BODY.slice(READ_BODY.indexOf("'by_stage'"));
     expect(byStage).toContain('greatest(');
     expect(byStage).toContain('swm.last_read_at');

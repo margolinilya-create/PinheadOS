@@ -1858,6 +1858,36 @@ a.cellTitle:hover { color: var(--accent); }
 
 .chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
 /*
+  «Прочитали N» под своим сообщением (правка 20.09, п. 4). Кегль подписи
+  и приглушённый цвет: это служебная строка, и конкурировать с текстом
+  сообщения она не должна.
+*/
+.chatReceiptWrap { position: relative; align-self: flex-end; }
+.chatReceipt {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.chatReceiptList {
+  position: absolute;
+  right: 0;
+  /* Над лентой, но ниже шапки: это подсказка внутри окна, а не слой поверх ERP */
+  z-index: var(--z-sticky);
+  margin: 2px 0 0;
+  padding: var(--space-sm);
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+  font-size: var(--type-body-sm);
+  white-space: nowrap;
+}
+
+/*
   РАЗДЕЛИТЕЛИ ЛЕНТЫ (правка 20.09, п. 4): день и граница непрочитанного.
 
   Линия через всю ширину с подписью по центру — а не просто текст: в ленте

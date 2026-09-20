@@ -27,6 +27,7 @@ import type {
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import { contextKey, isWholeDeal, unreadForContext } from '../../utils/chatContext';
 import type { ChatSlice, ErpStore } from '../types';
+import type { ChatReadReceipt } from '../../types';
 
 /** Сколько сообщений в странице. Совпадает с умолчанием `erp_chat_page` */
 export const CHAT_PAGE_SIZE = 50;
@@ -261,12 +262,21 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
     }));
     if (error) return;
     const row = (data ?? { total: 0, by_stage: {} }) as {
-      total: number; by_stage: Record<string, number>;
+      total: number;
+      by_stage: Record<string, number>;
+      mentions?: number;
+      first_unread_id?: string | null;
     };
     set({
       chatUnread: {
         ...get().chatUnread,
-        [orderId]: { total: row.total ?? 0, byStage: row.by_stage ?? {} } as ChatUnread,
+        [orderId]: {
+          total: row.total ?? 0,
+          byStage: row.by_stage ?? {},
+          // Упоминания считаются отдельно (правка 20.09, п. 4): значок @
+          // без числа не отвечает на «сколько их»
+          mentions: row.mentions ?? 0,
+        } as ChatUnread,
       },
     });
   },
@@ -277,6 +287,44 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    * Просмотр задачи не гасит сделку (требование документа), и клиент
    * не имеет права решить иначе, чем сервер.
    */
+  /**
+   * ПРОСМОТРЕННЫЕ СООБЩЕНИЯ (правка 20.09, п. 4) — пачкой, по видимой области.
+   *
+   * Счётчик после этого НЕ правится оптимистично: сколько из отправленного
+   * сервер счёл новым, знает только он (повтор той же пачки не считается),
+   * и вычесть длину списка значило бы показать меньше, чем есть.
+   * Актуальное число приезжает следующим `loadChatUnread`.
+   */
+  markChatSeen: async (messageIds) => {
+    const ids = (messageIds ?? []).filter(Boolean);
+    if (ids.length === 0 || !currentUserId()) return 0;
+    const { data, error } = await erpQuery(
+      () => supabase.rpc('erp_chat_mark_seen', { p_message_ids: ids }),
+    );
+    // Молча: отметка о просмотре — фон, и полоса поверх переписки на каждый
+    // промах сети была бы хуже пропущенного счётчика
+    if (error) return 0;
+    return Number(data ?? 0);
+  },
+
+  /**
+   * КТО ПРОЧИТАЛ (правка 20.09, п. 4) — для «Прочитали N» с именами
+   * и временем. Точечно, по требованию: список читателей нужен ровно тогда,
+   * когда на счётчик нажали, и возить его вместе с лентой незачем.
+   */
+  loadChatReadReceipts: async (messageIds) => {
+    const ids = (messageIds ?? []).filter(Boolean);
+    if (ids.length === 0) return [];
+    const { data, error } = await erpRead(
+      () => supabase.rpc('erp_chat_read_receipts', { p_message_ids: ids }),
+    );
+    if (error) {
+      erpError('Не удалось узнать, кто прочитал', error);
+      return [];
+    }
+    return (data ?? []) as ChatReadReceipt[];
+  },
+
   markChatRead: async (orderId, stageId = null) => {
     if (!currentUserId()) return;
     const before = get().chatUnread[orderId];
