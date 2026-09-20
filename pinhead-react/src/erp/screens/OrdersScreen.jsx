@@ -38,6 +38,7 @@ import { SortableTh } from '../components/SortableTh';
 import { sortRows, nextSortState } from '../utils/tableSort';
 import { Button } from '../components/Button';
 import { buildOrderNow } from '../utils/orderNow';
+import { createAttemptKeeper } from '../utils/attemptKey';
 
 export default function OrdersScreen() {
   const {
@@ -362,13 +363,37 @@ export default function OrdersScreen() {
     }
   };
 
+  /**
+   * ОТГРУЗКА ИЗ СПИСКА — С КЛЮЧОМ ПОПЫТКИ (правка 20.09, п. 1).
+   *
+   * Этот путь шёл без `clientKey` вовсе: `p_client_key` приезжал `null`,
+   * уникальный индекс журнала не работал, и повтор после оборванного ответа
+   * молча удваивал отгруженное. Карточка склада ключ передавала с самого
+   * начала — то есть защита была у одного из двух писателей.
+   *
+   * Подпись попытки — идентификатор заказа: вводить здесь нечего, отгружается
+   * остаток целиком. Успех сбрасывает ключ, поэтому «отгрузили часть
+   * со склада, остаток из списка» — это две разные попытки, а не повтор одной.
+   */
+  const shipAttempt = useRef(createAttemptKeeper());
+  const [shippingId, setShippingId] = useState(null);
+
   const onShip = async (order) => {
+    // Второй клик гасится ДО подтверждения: `confirm` асинхронный, и без
+    // этой проверки два диалога встают друг на друга.
+    if (shippingId) return;
     const ok = await confirm({
       title: `Отгрузить заказ «${order.title}»?`,
       message: 'Заказ уйдёт в архив.',
       confirmLabel: 'Отгрузить',
     });
-    if (ok) await shipOrder(order.id);
+    if (!ok) return;
+    setShippingId(order.id);
+    const done = await shipOrder(order.id, undefined, {
+      clientKey: shipAttempt.current.keyFor(order.id),
+    });
+    if (done) shipAttempt.current.reset();
+    setShippingId(null);
   };
 
   return (
@@ -549,6 +574,7 @@ export default function OrdersScreen() {
               onDelete={onDelete}
               canDelete={canDelete}
               onShip={canShip ? onShip : null}
+              shipping={shippingId === o.id}
             />
           ))}
         </div>
@@ -617,6 +643,7 @@ export default function OrdersScreen() {
                   onDelete={onDelete}
                   canDelete={canDelete}
                   onShip={canShip ? onShip : null}
+                  shipping={shippingId === o.id}
                 />
               ))}
             </tbody>

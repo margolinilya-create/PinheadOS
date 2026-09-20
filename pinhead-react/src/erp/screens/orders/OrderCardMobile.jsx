@@ -15,7 +15,9 @@ import { formatDateCell } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Карточка заказа вместо строки таблицы (мобильный <760px) */
-function OrderCardMobileBase({ order, departments, now, onDelete, canDelete, onShip }) {
+function OrderCardMobileBase({
+  order, departments, now, onDelete, canDelete, onShip, shipping = false,
+}) {
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
     [departments],
@@ -93,8 +95,14 @@ function OrderCardMobileBase({ order, departments, now, onDelete, canDelete, onS
           </span>
         )}
       </div>
+      {/* Гаснет на время запроса — см. тот же комментарий в `OrderRow` */}
       {canShip && (
-        <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
+        <Button
+          variant="primary"
+          className={styles.shipBtn}
+          disabled={shipping}
+          onClick={() => onShip(order)}
+        >
           <Icon name="truck" size={14} /> Отгрузить
         </Button>
       )}

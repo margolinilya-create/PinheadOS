@@ -19,7 +19,7 @@ import { formatDateCell } from '../../utils/format';
 import { Button } from '../../components/Button';
 
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
-function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip }) {
+function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, shipping = false }) {
   const [open, setOpen] = useState(false);
   const deptById = useMemo(
     () => new Map(departments.map((d) => [d.id, d])),
@@ -113,8 +113,15 @@ function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip }) 
           )}
         </td>
         <td onClick={(e) => e.stopPropagation()}>
+          {/* Кнопка гаснет на время запроса: отгрузка необратима, а второй
+              клик по ней — самый дешёвый способ отгрузить дважды */}
           {canShip && (
-            <Button variant="primary" className={styles.shipBtn} onClick={() => onShip(order)}>
+            <Button
+              variant="primary"
+              className={styles.shipBtn}
+              disabled={shipping}
+              onClick={() => onShip(order)}
+            >
               <Icon name="truck" size={14} /> Отгрузить
             </Button>
           )}
