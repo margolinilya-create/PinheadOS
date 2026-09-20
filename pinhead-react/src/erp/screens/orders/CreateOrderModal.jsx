@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
@@ -538,17 +538,28 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * `File` в JSON превращается в `{}`, а объект в бакете к этому моменту
    * уже есть — он кладётся туда при выборе.
    */
-  const draftPayload = () => ({
+  /**
+   * СНИМОК ФОРМЫ ДЛЯ ЧЕРНОВИКА — в `useCallback`, и это не про
+   * производительность.
+   *
+   * Функция стоит в зависимостях эффекта автосохранения. Пересоздаваясь
+   * каждый рендер, она либо заставляла бы эффект перезапускаться постоянно,
+   * либо (если её из зависимостей убрать) оставляла бы автосохранение
+   * СЛЕПЫМ К ФАЙЛАМ: добавление вложения или ТЗ меняет `attach`/`tzDocs`,
+   * а не `form`, и черновик бы их не заметил.
+   */
+  const attachSnapshot = attach.draftSnapshot;
+  const draftPayload = useCallback(() => ({
     form,
     items,
     notes,
-    attachments: attach.draftSnapshot(),
+    attachments: attachSnapshot(),
     tzDocs: tzDocs
       .filter((d) => d.state === 'uploaded' && d.path)
       // `File` и текст ошибки в снимок не уезжают: первый в JSON
       // превращается в `{}`, второй относится к прошлой попытке
       .map(({ file: _file, error: _error, ...rest }) => rest),
-  });
+  }), [form, items, notes, attachSnapshot, tzDocs]);
 
   const rowIdRef = useRef(draftId);
   useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
@@ -589,7 +600,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow]);
+  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow, draftPayload]);
 
   const resetDraft = async () => {
     clearOrderDraft();
