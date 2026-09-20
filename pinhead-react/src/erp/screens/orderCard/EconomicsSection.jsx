@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { EmptyState } from '../../components/ErpStates';
-import { Skeleton } from '../../components/ErpSkeletons';
+/* Примитив-полоска живёт в общих компонентах; `ErpSkeletons` — это ГОТОВЫЕ
+   скелеты экранов (таблица, очередь, канбан), и одиночной полоски там нет */
+import { Skeleton } from '../../../components/shared/Skeleton';
 import {
   economicsGaps, GAP_LABELS, coverageNote, assemblySourceNote, PRICE_SOURCE_NOTE, money, qty,
 } from '../../utils/itemEconomics';
@@ -43,7 +45,17 @@ export function EconomicsSection({ order }) {
     return rows.find((r) => r.item_id === itemId) ?? rows[0];
   }, [rows, itemId]);
 
-  if (!rows && economicsLoading) return <Skeleton lines={4} />;
+  /* Полоски, а не «Загрузка…»: вкладка — сетка плиток, и место под них
+     занимается заранее, чтобы содержимое не прыгало при появлении */
+  if (!rows && economicsLoading) {
+    return (
+      <div className={styles.metricGrid}>
+        <Skeleton width="100%" height={48} />
+        <Skeleton width="100%" height={48} />
+        <Skeleton width="100%" height={48} />
+      </div>
+    );
+  }
   if (!rows || rows.length === 0) {
     return (
       <EmptyState
