@@ -26,6 +26,12 @@ export default function ConfirmDialog({
   variant = 'default',
   /** { label, placeholder, required, type, initialValue } — поле вместо window.prompt() */
   prompt = null,
+  /**
+   * Третий исход (правка 20.09, п. 6): подпись дополнительной кнопки.
+   * Пусто — кнопки нет, и диалог ведёт себя ровно как прежде.
+   */
+  extraLabel = '',
+  onExtra,
   onConfirm,
   onCancel,
 }) {
@@ -71,6 +77,13 @@ export default function ConfirmDialog({
           <button type="button" className={styles.cancel} onClick={onCancel}>
             {cancelLabel}
           </button>
+          {/* Стоит между «отменой» и главной кнопкой: это ответ, а не отказ,
+              но и не то действие, ради которого диалог открыли */}
+          {extraLabel && (
+            <button type="button" className={styles.cancel} onClick={onExtra}>
+              {extraLabel}
+            </button>
+          )}
           <button
             type="button"
             className={`${styles.confirm} ${variant === 'danger' ? styles.danger : ''}`}

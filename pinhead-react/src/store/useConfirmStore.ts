@@ -35,12 +35,27 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   variant?: ConfirmVariant;
   prompt?: ConfirmPrompt;
+  /**
+   * ТРЕТИЙ ИСХОД (правка 20.09, п. 6): подпись дополнительной кнопки рядом
+   * с «подтвердить» и «отмена».
+   *
+   * Заведён под закрытие формы заказа, где решений ровно три: сохранить
+   * черновик, выйти без сохранения, продолжить заполнение. Двумя кнопками
+   * это не выражается — «отмена» здесь означает «продолжить заполнение»,
+   * и выйти, отказавшись от набранного, было бы нечем.
+   *
+   * Не путать с `variant: 'danger'`: опасность помечает ПОСЛЕДСТВИЕ главной
+   * кнопки, а это — отдельный ответ.
+   */
+  extraLabel?: string;
 }
 
 export interface ConfirmResult {
   ok: boolean;
   /** Текст из поля ввода; пустая строка, если поля не было */
   value: string;
+  /** Нажата дополнительная кнопка (`extraLabel`), а не «подтвердить» */
+  extra?: boolean;
 }
 
 interface ConfirmStore {
@@ -51,11 +66,12 @@ interface ConfirmStore {
   cancelLabel: string;
   variant: ConfirmVariant;
   prompt: ConfirmPrompt | null;
+  extraLabel: string;
   /** Растёт на каждый вызов — по нему диалог перемонтируется и поле ввода чистое */
   nonce: number;
   _resolver: ((result: ConfirmResult) => void) | null;
   show: (opts: ConfirmOptions) => Promise<ConfirmResult>;
-  _close: (ok: boolean, value?: string) => void;
+  _close: (ok: boolean, value?: string, extra?: boolean) => void;
 }
 
 export const useConfirmStore = create<ConfirmStore>((set) => ({
@@ -66,6 +82,7 @@ export const useConfirmStore = create<ConfirmStore>((set) => ({
   cancelLabel: 'Отмена',
   variant: 'default',
   prompt: null,
+  extraLabel: '',
   nonce: 0,
   _resolver: null,
 
@@ -80,14 +97,21 @@ export const useConfirmStore = create<ConfirmStore>((set) => ({
         cancelLabel: opts.cancelLabel || 'Отмена',
         variant: opts.variant || 'default',
         prompt: opts.prompt || null,
+        extraLabel: opts.extraLabel || '',
         _resolver: resolve,
       }));
     }),
 
-  _close: (ok, value = '') =>
+  _close: (ok, value = '', extra = false) =>
     set((s) => {
-      if (s._resolver) s._resolver({ ok, value });
-      return { open: false, prompt: null, _resolver: null };
+      /**
+       * `extra` попадает в результат ТОЛЬКО когда нажата третья кнопка.
+       * Класть `extra: false` всегда — значит менять форму ответа у всех
+       * прежних вызовов: они сравнивают результат целиком, и поле,
+       * ничего не добавляющее по смыслу, ломало бы их без причины.
+       */
+      if (s._resolver) s._resolver(extra ? { ok, value, extra } : { ok, value });
+      return { open: false, prompt: null, extraLabel: '', _resolver: null };
     }),
 }));
 
@@ -108,4 +132,20 @@ export function confirm(opts: ConfirmOptions | string): Promise<boolean> {
  */
 export function confirmWithInput(opts: ConfirmOptions): Promise<ConfirmResult> {
   return useConfirmStore.getState().show(opts);
+}
+
+/**
+ * Диалог с ТРЕМЯ исходами (правка 20.09, п. 6). Отдельная функция по той же
+ * причине, что `confirmWithInput`: прежние `if (await confirm(...))` не должны
+ * начать получать объект, истинный всегда.
+ *
+ * Возвращает 'confirm' | 'extra' | 'cancel' — словами, а не булевыми парами:
+ * `{ok: false, extra: true}` на месте вызова читается как отказ, которым
+ * оно не является.
+ */
+export function confirmThreeWay(opts: ConfirmOptions): Promise<'confirm' | 'extra' | 'cancel'> {
+  return useConfirmStore.getState().show(opts).then((r) => {
+    if (r.extra) return 'extra';
+    return r.ok ? 'confirm' : 'cancel';
+  });
 }

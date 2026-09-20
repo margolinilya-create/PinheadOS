@@ -7,7 +7,7 @@ import ConfirmDialog from './ConfirmDialog';
  */
 export default function ConfirmDialogHost() {
   const {
-    open, title, message, confirmLabel, cancelLabel, variant, prompt, nonce, _close,
+    open, title, message, confirmLabel, cancelLabel, variant, prompt, extraLabel, nonce, _close,
   } = useConfirmStore(
     useShallow((s) => ({
       open: s.open,
@@ -17,6 +17,7 @@ export default function ConfirmDialogHost() {
       cancelLabel: s.cancelLabel,
       variant: s.variant,
       prompt: s.prompt,
+      extraLabel: s.extraLabel,
       nonce: s.nonce,
       _close: s._close,
     }))
@@ -32,6 +33,8 @@ export default function ConfirmDialogHost() {
       cancelLabel={cancelLabel}
       variant={variant}
       prompt={prompt}
+      extraLabel={extraLabel}
+      onExtra={() => _close(false, '', true)}
       onConfirm={(value) => _close(true, value)}
       onCancel={() => _close(false)}
     />

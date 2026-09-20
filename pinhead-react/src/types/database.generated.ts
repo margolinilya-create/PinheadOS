@@ -1189,6 +1189,7 @@ export type Database = {
           responsible: string | null
           role: string | null
           size_grid: Json | null
+          size_grid_ordered: Json | null
           source: string
           status: string
           supplier: string | null
@@ -1224,6 +1225,7 @@ export type Database = {
           responsible?: string | null
           role?: string | null
           size_grid?: Json | null
+          size_grid_ordered?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -1259,6 +1261,7 @@ export type Database = {
           responsible?: string | null
           role?: string | null
           size_grid?: Json | null
+          size_grid_ordered?: Json | null
           source?: string
           status?: string
           supplier?: string | null
@@ -3075,6 +3078,75 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      erp_analytics_by_dept: {
+        Args: { p_from: string; p_product?: string; p_to: string }
+        Returns: {
+          defect: number
+          defect_pct: number
+          department_id: string
+          released: number
+          rework: number
+        }[]
+      }
+      erp_analytics_by_sku: {
+        Args: { p_dept?: string; p_from: string; p_to: string }
+        Returns: {
+          assembly_avg: number
+          defect: number
+          defect_pct: number
+          extra: number
+          orders: number
+          product_type: string
+          released: number
+          rework: number
+          sku_card_id: string
+        }[]
+      }
+      erp_analytics_overview: {
+        Args: {
+          p_dept?: string
+          p_from: string
+          p_product?: string
+          p_to: string
+        }
+        Returns: Json
+      }
+      erp_analytics_released: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          assembly_cost: number
+          at: string
+          department_id: string
+          item_id: string
+          item_qty: number
+          order_id: string
+          product_type: string
+          qty_defect: number
+          qty_extra: number
+          qty_good: number
+          qty_rework: number
+          report_id: string
+          sku_card_id: string
+          stage_id: string
+        }[]
+      }
+      erp_analytics_series: {
+        Args: {
+          p_bucket?: string
+          p_dept?: string
+          p_from: string
+          p_product?: string
+          p_to: string
+        }
+        Returns: {
+          bucket: string
+          defect: number
+          extra: number
+          fabric: number
+          released: number
+          rework: number
+        }[]
+      }
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
@@ -3419,6 +3491,43 @@ export type Database = {
       erp_stage_completion_block: {
         Args: { p_added_good?: number; p_stage_id: string }
         Returns: string
+      }
+      erp_stage_force_complete: {
+        Args: { p_reason: string; p_stage_id: string }
+        Returns: {
+          assignee: string | null
+          block_reason: string | null
+          contractor: string | null
+          created_at: string
+          cycle: number
+          department_id: string
+          depends_on: string[]
+          executor: string
+          finished_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          operation: string | null
+          origin: string
+          overdue_ack_at: string | null
+          overdue_comment: string | null
+          planned_end: string | null
+          planned_start: string | null
+          qty_done: number
+          qty_rework: number
+          queue_position: number | null
+          result_kind: string | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "erp_item_stages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       erp_stage_input_qty: { Args: { p_stage_id: string }; Returns: number }
       erp_stage_item_qty: { Args: { p_stage_id: string }; Returns: number }

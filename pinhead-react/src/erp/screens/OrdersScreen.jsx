@@ -39,6 +39,7 @@ import { sortRows, nextSortState } from '../utils/tableSort';
 import { Button } from '../components/Button';
 import { buildOrderNow } from '../utils/orderNow';
 import { createAttemptKeeper } from '../utils/attemptKey';
+import { formatDateCell } from '../utils/format';
 
 export default function OrdersScreen() {
   const {
@@ -68,6 +69,16 @@ export default function OrdersScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(() => searchParams.get('new') === '1');
   /**
+   * КАКОЙ ЧЕРНОВИК ОТКРЫТЬ (правка 20.09, п. 6). `undefined` — «самый
+   * свежий», как было с 07.09; конкретный id приходит из списка черновиков.
+   *
+   * Список вернули по прямому требованию документа: «вернуть доступ к списку
+   * „Черновики" из раздела заказов и из формы создания заказа». Без него
+   * продолжить можно было только последний начатый — а их бывает несколько,
+   * ради чего черновики и переехали в 22.08 из localStorage в таблицу.
+   */
+  const [openDraftId, setOpenDraftId] = useState(null);
+  /**
    * ЧЕРНОВИК ЗАКАЗА (правка 22.08, п. 5.5; список убран 07.09, п. 15).
    *
    * Снимок формы по-прежнему пишется в `erp_order_drafts` — без него закрытая
@@ -76,12 +87,13 @@ export default function OrdersScreen() {
    * прерванное было бы нечем, а строка копилась бы в базе мусором.
    */
   const {
-    orderDrafts, orderDraftsLoaded, orderDraftsError, loadOrderDrafts,
+    orderDrafts, orderDraftsLoaded, orderDraftsError, loadOrderDrafts, deleteOrderDraft,
   } = useErpStore(useShallow((s) => ({
     orderDrafts: s.orderDrafts,
     orderDraftsLoaded: s.orderDraftsLoaded,
     orderDraftsError: s.orderDraftsError,
     loadOrderDrafts: s.loadOrderDrafts,
+    deleteOrderDraft: s.deleteOrderDraft,
   })));
   /**
    * Самый свежий черновик. `orderDrafts` приходит отсортированным по
@@ -508,6 +520,70 @@ export default function OrdersScreen() {
       )}
 
       {/*
+        СПИСОК «ЧЕРНОВИКИ» ВЕРНУЛСЯ (правка заказчика 20.09, п. 6): «вернуть
+        доступ к списку „Черновики" из раздела заказов… В списке показывать
+        название, клиента, автора и дату последнего изменения. По нажатию
+        открывать сохранённую форму для продолжения работы».
+
+        Свёрнут по умолчанию: черновик — рабочее состояние одного человека,
+        и разворачивать его поверх списка заказов каждому, кто зашёл
+        в раздел, незачем. Счётчик в заголовке отвечает на вопрос
+        «есть ли что продолжить», не занимая места.
+
+        Права — те же, что на создание заказа (`order.manage`). RLS отдаёт
+        человеку свои черновики, администратору — все, так что видимость
+        решается на сервере, а не здесь.
+      */}
+      {canManageOrders && orderDrafts.length > 0 && (
+        <details className={styles.draftsBlock}>
+          <summary>
+            Черновики <b>{orderDrafts.length}</b>
+          </summary>
+          <div className={styles.dataCardList} role="list" aria-label="Черновики заказов">
+            {orderDrafts.map((d) => (
+              <div key={d.id} className={styles.dataCard} role="listitem">
+                <div className={styles.dataCardHead}>
+                  <span className={styles.dataCardTitle}>
+                    {d.title || 'Без названия'}
+                  </span>
+                  <span className={styles.subText}>{formatDateCell(d.updated_at)}</span>
+                </div>
+                <div className={styles.subText}>
+                  {[d.payload?.form?.customer, d.payload?.form?.manager]
+                    .filter(Boolean).join(' · ') || 'клиент и менеджер не указаны'}
+                </div>
+                <div className={styles.queueActions}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => { setOpenDraftId(d.id); setShowCreate(true); }}
+                  >
+                    Продолжить
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Удалить черновик?',
+                        message: `«${d.title || 'Без названия'}» будет удалён. Заказ не создан, `
+                          + 'поэтому на производство это не влияет.',
+                        confirmLabel: 'Удалить',
+                        variant: 'danger',
+                      });
+                      if (ok && await deleteOrderDraft(d.id)) toast.success('Черновик удалён');
+                    }}
+                  >
+                    Удалить
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/*
         БЛОКА «ЧЕРНОВИКИ ЗАКАЗОВ» БОЛЬШЕ НЕТ (правки заказчика 07.09, п. 15 —
         аннотация указывает на группу из семи элементов с кнопками
         «Продолжить» и «Удалить»).
@@ -689,9 +765,10 @@ export default function OrdersScreen() {
       {showCreate && canManageOrders && (
         <Suspense fallback={null}>
         <CreateOrderModal
-          draftId={latestDraftId}
+          draftId={openDraftId ?? latestDraftId}
           onClose={() => {
             setShowCreate(false);
+            setOpenDraftId(null);
             if (searchParams.get('new')) {
               setSearchParams((prev) => {
                 const next = new URLSearchParams(prev);

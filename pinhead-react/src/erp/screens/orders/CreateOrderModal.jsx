@@ -5,7 +5,7 @@ import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
-import { confirm } from '../../../store/useConfirmStore';
+import { confirm, confirmThreeWay } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
 import {
@@ -209,7 +209,16 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * form/items, как и ТЗ: черновик пишется через `JSON.stringify`, и File
    * сериализовался бы в `{}` молча.
    */
-  const attach = useAttachmentUploads('new');
+  /**
+   * ФАЙЛЫ ТЕПЕРЬ ЖИВУТ В ЧЕРНОВИКЕ (правка 20.09, п. 6): документ требует
+   * сохранять «все введённые данные… и загруженные файлы».
+   *
+   * Это возможно потому, что файл уходит в бакет ПРИ ВЫБОРЕ, а не в сабмите
+   * (правило проекта): в черновике лежит не `File`, а путь уже загруженного
+   * объекта. Восстановленная строка сразу готова к отправке — повторять
+   * загрузку не нужно.
+   */
+  const attach = useAttachmentUploads('new', restoredDraft?.attachments ?? []);
   const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
@@ -262,7 +271,10 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * только по «Создать заказ»: интерфейс показывал приложенный файл, которого
    * в Storage ещё не было, и первую же ошибку человек видел вместо созданного заказа.
    */
-  const [tzDocs, setTzDocs] = useState([]);
+  const [tzDocs, setTzDocs] = useState(
+    /* Из черновика — только загруженные: у `File` в JSON не остаётся ничего */
+    () => (restoredDraft?.tzDocs ?? []).filter((d) => d?.path && d.state === 'uploaded'),
+  );
   const tzUploading = tzDocs.some((d) => d.state === 'uploading');
   const tzFailed = tzDocs.some((d) => d.state === 'error');
 
@@ -517,6 +529,27 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * на потерянной связи превратила бы форму в мигалку. Молчит здесь ТОЛЬКО
    * фоновое сохранение: сам заказ создаётся кнопкой и об ошибках говорит.
    */
+  /**
+   * СНИМОК ФОРМЫ ДЛЯ ЧЕРНОВИКА — ОДИН на автосохранение и на кнопку
+   * «Сохранить в черновики». Два сборщика рядом означали бы, что по кнопке
+   * сохраняется не то же самое, что в фоне, и расходились бы они молча.
+   *
+   * Файлы (правка 20.09, п. 6) уезжают путями уже загруженных объектов:
+   * `File` в JSON превращается в `{}`, а объект в бакете к этому моменту
+   * уже есть — он кладётся туда при выборе.
+   */
+  const draftPayload = () => ({
+    form,
+    items,
+    notes,
+    attachments: attach.draftSnapshot(),
+    tzDocs: tzDocs
+      .filter((d) => d.state === 'uploaded' && d.path)
+      // `File` и текст ошибки в снимок не уезжают: первый в JSON
+      // превращается в `{}`, второй относится к прошлой попытке
+      .map(({ file: _file, error: _error, ...rest }) => rest),
+  });
+
   const rowIdRef = useRef(draftId);
   useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
   useEffect(() => {
@@ -545,7 +578,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         }
         const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
         const row = await saveDraftRow(
-          rowIdRef.current, title, { form, items, notes });
+          rowIdRef.current, title, draftPayload());
         if (row && !rowIdRef.current) {
           rowIdRef.current = row.id;
           setRowId(row.id);
@@ -572,7 +605,51 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     setSubmitted(false);
   };
 
-  // Закрытие (фон/крестик/Escape): пустая форма — сразу, иначе confirm
+  /**
+   * ЯВНОЕ СОХРАНЕНИЕ В ЧЕРНОВИКИ (правка заказчика 20.09, п. 6).
+   *
+   * Автосохранение работало и раньше, но молча — «раньше заказ можно было
+   * сохранить в черновики, открыть позже и продолжить заполнение. Сейчас эта
+   * возможность пропала» ровно об этом: механизм был, СКАЗАТЬ ЕМУ «сохрани»
+   * было нечем, а увидеть результат — негде.
+   *
+   * Обязательные поля не проверяются намеренно: «сохранять частично
+   * заполненную форму без обязательного заполнения всех полей, нужных
+   * для запуска заказа».
+   */
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveDraftNow = async () => {
+    if (savingDraft || saving) return false;
+    if (isFormEmpty(form, items, initialLaunch)) {
+      toast.error('Черновик пустой — заполните хотя бы одно поле');
+      return false;
+    }
+    setSavingDraft(true);
+    const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
+    const row = await saveDraftRow(rowIdRef.current, title, draftPayload());
+    setSavingDraft(false);
+    if (!row) {
+      // Молчать нельзя: человек нажал кнопку и ждёт ответа — в отличие
+      // от фонового автосохранения, которое об отказах не сообщает
+      toast.error('Черновик не сохранён — проверьте связь и повторите');
+      return false;
+    }
+    if (!rowIdRef.current) {
+      rowIdRef.current = row.id;
+      setRowId(row.id);
+    }
+    toast.success(title ? `Черновик «${title}» сохранён` : 'Черновик сохранён');
+    return true;
+  };
+
+  /**
+   * Закрытие: пустая форма — сразу, иначе ТРИ исхода (документ: «предложить
+   * сохранить черновик, выйти без сохранения или продолжить заполнение»).
+   *
+   * «Выйти без сохранения» удаляет строку черновика, а не просто закрывает
+   * окно: автосохранение к этому моменту её уже завело, и «без сохранения»,
+   * оставляющее сохранённое, было бы обманом.
+   */
   const closingRef = useRef(false);
   const requestClose = async () => {
     if (saving || closingRef.current) return;
@@ -582,17 +659,25 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
       return;
     }
     closingRef.current = true;
-    const ok = await confirm({
+    const answer = await confirmThreeWay({
       title: 'Закрыть форму заказа?',
-      message: 'Заполненные поля сохранены как черновик — он восстановится при следующем '
-        + 'открытии формы. Файлы (ТЗ и превью) в черновик не попадают: их придётся приложить заново.',
-      confirmLabel: 'Закрыть',
-      cancelLabel: 'Продолжить редактирование',
+      message: 'Заполненное можно сохранить черновиком — он откроется из списка «Черновики» '
+        + 'в разделе заказов. Приложенные файлы сохраняются вместе с ним.',
+      confirmLabel: 'Сохранить черновик',
+      cancelLabel: 'Продолжить заполнение',
+      extraLabel: 'Выйти без сохранения',
     });
     closingRef.current = false;
-    if (ok) {
-      // Автосейв уже записал состояние в базу; здесь только выходим
+    if (answer === 'extra') {
+      // Автосохранение строку уже завело — «без сохранения», оставляющее
+      // сохранённое, было бы обманом
+      await resetDraft();
       onClose();
+      return;
+    }
+    if (answer === 'confirm') {
+      const saved = await saveDraftNow();
+      if (saved) onClose();
     }
   };
 
@@ -1413,6 +1498,29 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
             </span>
           )}
           <Button variant="ghost" onClick={requestClose}>Отмена</Button>
+          {/*
+            «СОХРАНИТЬ В ЧЕРНОВИКИ» РЯДОМ С СОЗДАНИЕМ (правка 20.09, п. 6):
+            «в форме „Новый заказ" добавить кнопку „Сохранить в черновики"
+            рядом с основным действием создания заказа».
+
+            Гейта обязательных полей у неё НЕТ намеренно — черновик и заводят
+            затем, чтобы дозаполнить позже. А вот незавершённую загрузку файла
+            она ждёт: в черновик уходит путь объекта в бакете, и сохранять
+            ссылку на то, чего там ещё нет, нельзя.
+
+            В режиме правки её не показываем: `erp_order_drafts` — про
+            НЕсозданный заказ, и запись туда правки существующего затёрла бы
+            чужой черновик (то же решение, что у автосохранения).
+          */}
+          {!isEdit && (
+            <Button
+              variant="secondary"
+              onClick={saveDraftNow}
+              disabled={saving || savingDraft || tzUploading || attach.uploading}
+            >
+              {savingDraft ? 'Сохранение…' : 'Сохранить в черновики'}
+            </Button>
+          )}
           <Button
             variant="primary"
             type="submit"

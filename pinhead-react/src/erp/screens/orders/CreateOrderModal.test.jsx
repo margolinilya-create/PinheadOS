@@ -532,3 +532,90 @@ describe('CreateOrderModal — правка созданного заказа', 
     expect(screen.getByText('ТЗ футболка.pdf')).toBeInTheDocument();
   });
 });
+
+/**
+ * ЧЕРНОВИКИ ЗАКАЗА (правка заказчика 20.09, п. 6).
+ *
+ * «Раньше заказ можно было сохранить в черновики, открыть позже и продолжить
+ * заполнение. Сейчас эта возможность пропала». Механизм при этом работал —
+ * автосохранение писало снимок каждые 500 мс, — но СКАЗАТЬ ему «сохрани»
+ * было нечем, увидеть результат негде, а файлы в снимок не попадали вовсе.
+ */
+describe('сохранение в черновики', () => {
+  const draftBtn = () => screen.getByRole('button', { name: /Сохранить в черновики|Сохранение…/ });
+
+  it('кнопка есть рядом с созданием заказа', () => {
+    setup();
+    expect(draftBtn()).toBeInTheDocument();
+  });
+
+  it('сохраняет ЧАСТИЧНО заполненную форму — обязательные поля не требуются', async () => {
+    const saveOrderDraft = vi.fn().mockResolvedValue({ id: 'draft-1' });
+    useErpStore.setState({ saveOrderDraft });
+    setup();
+    useErpStore.setState({ saveOrderDraft });
+
+    // Только название: ни изделия, ни тиража, ни решения по закупке
+    fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
+      target: { value: 'Недописанный заказ' },
+    });
+    fireEvent.click(draftBtn());
+
+    await waitFor(() => expect(saveOrderDraft).toHaveBeenCalled());
+    const [, title, payload] = saveOrderDraft.mock.calls.at(-1);
+    expect(title).toBe('Недописанный заказ');
+    expect(payload.form.title).toBe('Недописанный заказ');
+  });
+
+  it('пустую форму черновиком не сохраняет — иначе список зарастёт мусором', async () => {
+    const saveOrderDraft = vi.fn().mockResolvedValue({ id: 'draft-1' });
+    setup();
+    useErpStore.setState({ saveOrderDraft });
+
+    fireEvent.click(draftBtn());
+    await waitFor(() => expect(saveOrderDraft).not.toHaveBeenCalled());
+  });
+
+  /**
+   * ГЛАВНОЕ, ЧЕГО НЕ ХВАТАЛО. Форма честно предупреждала: «файлы в черновик
+   * не попадают: их придётся приложить заново». Документ требует обратного —
+   * «сохранять… загруженные файлы».
+   *
+   * Это стало возможно потому, что файл уходит в бакет ПРИ ВЫБОРЕ: в снимок
+   * кладётся путь уже загруженного объекта, а не `File`, который в JSON
+   * превратился бы в `{}`.
+   */
+  it('приложенный файл ТЗ уезжает в черновик путём, а не File-объектом', async () => {
+    const saveOrderDraft = vi.fn().mockResolvedValue({ id: 'draft-1' });
+    setup();
+    useErpStore.setState({ saveOrderDraft });
+
+    fillRequired();
+    pickItemPdf(pdf('tz.pdf'));
+    await waitFor(() => expect(uploadCalls.length).toBe(1));
+
+    fireEvent.click(draftBtn());
+    await waitFor(() => expect(saveOrderDraft).toHaveBeenCalled());
+
+    const payload = saveOrderDraft.mock.calls.at(-1)[2];
+    expect(payload.tzDocs).toHaveLength(1);
+    expect(payload.tzDocs[0].path).toBe(uploadCalls[0].path);
+    // `File` не сериализуем — в снимке его быть не должно
+    expect(payload.tzDocs[0].file).toBeUndefined();
+    // Снимок обязан пережить JSON: именно в таком виде он и ляжет в базу
+    expect(JSON.parse(JSON.stringify(payload)).tzDocs[0].path)
+      .toBe(uploadCalls[0].path);
+  });
+
+  it('незагруженный файл сохранять не даёт — путь указывал бы в пустоту', async () => {
+    // Загрузка «зависает»: состояние `uploading`, пути ещё нет
+    let release;
+    uploadResult = new Promise((resolve) => { release = resolve; });
+    setup();
+    fillRequired();
+    pickItemPdf(pdf('slow.pdf'));
+
+    await waitFor(() => expect(draftBtn()).toBeDisabled());
+    release({ data: { path: 'ok' }, error: null });
+  });
+});

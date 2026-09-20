@@ -40,8 +40,24 @@ const BUCKET = 'erp-attachments';
  */
 export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
 
-export function useAttachmentUploads(scope = 'new') {
-  const [files, setFiles] = useState([]);
+/**
+ * `initial` — файлы, восстановленные ИЗ ЧЕРНОВИКА (правка 20.09, п. 6).
+ *
+ * В черновик уезжают только те, что уже лежат в бакете (`state: 'uploaded'`,
+ * есть `path`), и БЕЗ самого `File`: черновик пишется через `JSON.stringify`,
+ * и File сериализовался бы в `{}` молча. Загрузку повторять не нужно —
+ * объект в Storage уже есть, поэтому восстановленная строка сразу готова
+ * к отправке.
+ *
+ * До правки файлы в черновик не попадали вовсе, и форма честно об этом
+ * предупреждала: «Файлы (ТЗ и превью) в черновик не попадают: их придётся
+ * приложить заново». Документ требует обратного — «сохранять все введённые
+ * данные… и загруженные файлы».
+ */
+export function useAttachmentUploads(scope = 'new', initial = []) {
+  const [files, setFiles] = useState(() => (initial ?? [])
+    .filter((f) => f?.path && f.state === 'uploaded')
+    .map((f) => ({ ...f, file: null, error: null })));
 
   const upload = useCallback(async (uid, kind, file) => {
     const path = attachmentFilePath(scope, kind, uid, file.name);
@@ -190,6 +206,16 @@ export function useAttachmentUploads(scope = 'new') {
    * в секцию `materials`: индекс материала считается по нему, а не по позиции
    * ключа в состоянии, иначе удалённая средняя строка сдвинула бы привязку.
    */
+  /**
+   * Снимок для ЧЕРНОВИКА: успешно загруженные файлы без `File`-объекта.
+   * Отдельно от `payload`, потому что вопросы разные: `payload` отвечает
+   * «что привязать к создаваемому заказу» и переводит ключи строк в индексы,
+   * а снимок — «чем восстановить форму», и ключи в нём остаются исходными.
+   */
+  const draftSnapshot = useCallback(() => files
+    .filter((f) => f.state === 'uploaded' && f.path)
+    .map(({ file: _file, error: _error, ...rest }) => rest), [files]);
+
   const payload = useCallback((rowKeys = [], noteKeys = []) => files
     .filter((f) => f.state === 'uploaded')
     .map((f) => {
@@ -265,6 +291,6 @@ export function useAttachmentUploads(scope = 'new') {
 
   return {
     files, add, retry, remove, clear, copyOwner, moveFile, dropItem, dropOwner, payload,
-    uploading, failed,
+    draftSnapshot, uploading, failed,
   };
 }
