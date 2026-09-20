@@ -169,23 +169,32 @@ describe('страница задания — раскладка 13.09', () => {
    * задачи. Кнопка раскрывает чат здесь же — увод на карточку заказа стоил
    * бы цеху возврата и потерянного места, а пришёл он сюда работать.
    */
-  it('обсуждение задачи открывается на месте, с контекстом этапа', async () => {
-    const openChat = vi.fn(async () => {});
+  /**
+   * С правки 20.09 (п. 4) чат открывается ОКНОМ ПОВЕРХ ERP, а не
+   * раскрывается на месте: «на компьютере открывать чат в отдельном окне
+   * поверх ERP». Раскрытая лента уводила вниз маршрут, файлы и комментарии —
+   * чтобы ответить, приходилось терять из виду само задание.
+   *
+   * Само окно монтируется в оболочке раздела, поэтому здесь проверяется
+   * то, за что отвечает страница: кнопка просит открыть переписку ИМЕННО
+   * ЭТОЙ задачи.
+   */
+  it('обсуждение задачи открывается окном, с контекстом этапа', async () => {
+    const openChatWindow = vi.fn();
     useErpStore.setState({
-      openChat,
+      openChatWindow,
       loadChatUnread: vi.fn(async () => {}),
-      loadChatDirectory: vi.fn(async () => {}),
-      markChatRead: vi.fn(async () => {}),
-      closeChat: vi.fn(),
-      chatMessages: [],
       chatUnread: {},
     });
     renderTask();
 
     fireEvent.click(screen.getByRole('button', { name: /Открыть чат/ }));
-    await waitFor(() => expect(openChat).toHaveBeenCalled());
+    await waitFor(() => expect(openChatWindow).toHaveBeenCalled());
+
     // Контекст — ЭТАП: пустой открыл бы общую переписку сделки, и счётчик
     // задачи гасился бы просмотром чужих сообщений
-    expect(openChat).toHaveBeenCalledWith(ORDER.id, { stageId: STAGE.id });
+    const [orderId, , context] = openChatWindow.mock.calls.at(-1);
+    expect(orderId).toBe(ORDER.id);
+    expect(context).toEqual({ stageId: STAGE.id });
   });
 });

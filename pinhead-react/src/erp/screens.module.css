@@ -1858,6 +1858,74 @@ a.cellTitle:hover { color: var(--accent); }
 
 .chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
 /*
+  ОКНО ЧАТА ПОВЕРХ ERP (правка 20.09, п. 4): «шириной примерно 760–960 px,
+  с возможностью развернуть».
+
+  Не модальное: под ним продолжают работать, поэтому оверлея нет, а окно
+  прижато к правому нижнему углу — туда, где оно не закрывает ни левое меню,
+  ни начало таблиц.
+
+  На телефоне разворачивается во весь экран: окно в 760 px там не помещается
+  вовсе, а половинчатое решение («узкое окно поверх узкого экрана») —
+  это два неудобства вместо одного.
+*/
+.chatFloat {          /* имя НЕ `chatWindow`: так называется поле стора,
+                         и сторож динамических классов справедливо считает
+                         совпадение риском — статически не видно, какое
+                         из двух имён окажется в `styles[...]` */
+  position: fixed;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  z-index: var(--z-drawer);
+  width: min(760px, calc(100vw - var(--space-md) * 2));
+  max-height: min(78vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+.chatFloatWide { width: min(960px, calc(100vw - var(--space-md) * 2)); max-height: 92vh; }
+.chatFloatHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+}
+.chatFloatTitle {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: auto;
+}
+.chatNotify { display: flex; align-items: center; gap: var(--space-xs); }
+.chatNotifySelect {
+  font-size: var(--type-label);
+  background: var(--bg2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) 6px;
+  color: inherit;
+  /* Тач-цель: окно открывают и с планшета цеха */
+  min-height: 44px;
+}
+
+@media (max-width: 760px) {
+  .chatFloat,
+  .chatFloatWide {
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/*
   «Прочитали N» под своим сообщением (правка 20.09, п. 4). Кегль подписи
   и приглушённый цвет: это служебная строка, и конкурировать с текстом
   сообщения она не должна.

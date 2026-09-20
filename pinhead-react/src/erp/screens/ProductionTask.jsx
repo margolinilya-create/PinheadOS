@@ -419,6 +419,9 @@ export default function ProductionTask() {
         context={{ stageId: stage.id }}
         contextLabel="Эта задача"
         title="Обсуждение задачи"
+        /* Заголовок окна называет ЗАКАЗ, а не задачу: окно живёт поверх
+           всего раздела, и «Обсуждение задачи» в нём не отвечает, какой */
+        windowTitle={`№${order.bitrix_id || '—'} · ${order.title}`}
       />
 
       <CommentsSection comments={detail.comments} onSend={detail.onSendComment} />

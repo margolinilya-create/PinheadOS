@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { Button } from '../Button';
 import { Icon } from '../Icon';
@@ -23,8 +23,10 @@ import styles from '../../styles';
  * ответ на вопрос «что считать прочитанным» — а он в этом проекте уже
  * расходился (две формулы годности материала, §10.1 обхода 04.09).
  */
-export function ChatSection({ orderId, context, contextLabel, title = 'Обсуждение' }) {
-  const [open, setOpen] = useState(false);
+export function ChatSection({
+  orderId, context, contextLabel, title = 'Обсуждение', windowTitle,
+}) {
+  const openWindow = useErpStore((s) => s.openChatWindow);
   const unread = useErpStore((s) => s.chatUnread[orderId]);
   const loadChatUnread = useErpStore((s) => s.loadChatUnread);
   const ping = useErpStore((s) => s.chatPing);
@@ -45,20 +47,23 @@ export function ChatSection({ orderId, context, contextLabel, title = 'Обсу�
       <div className={styles.matSectionHead}>
         <strong>{title}</strong>
         <div className={styles.spacer} />
+        {/*
+          ЧАТ ОТКРЫВАЕТСЯ ОКНОМ ПОВЕРХ ERP (правка 20.09, п. 4), а не
+          раскрывается на месте. Раскрытая лента внутри страницы задания
+          уводила вниз всё остальное — маршрут, файлы, комментарии, — и,
+          чтобы ответить в переписке, приходилось терять из виду задание,
+          ради которого чат и открывают.
+        */}
         <Button
-          variant={open ? 'ghost' : 'secondary'}
+          variant="secondary"
           size="sm"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
+          onClick={() => openWindow(orderId, windowTitle, context, contextLabel)}
         >
           <Icon name="comment" size={14} />
-          {open ? 'Свернуть чат' : 'Открыть чат'}
-          {count > 0 && !open ? ` · ${count}` : ''}
+          Открыть чат
+          {count > 0 ? ` · ${count}` : ''}
         </Button>
       </div>
-      {open && (
-        <ChatPanel orderId={orderId} context={context} contextLabel={contextLabel} />
-      )}
     </section>
   );
 }

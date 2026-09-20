@@ -42,7 +42,7 @@ type DomainState = Pick<ErpStore,
   | 'chatDirectory' | 'chatDirectoryLoaded'
   | 'analytics' | 'analyticsKey' | 'analyticsLoading'
   | 'orderEconomics' | 'economicsLoading'
-  | 'chatUnreadAnchor'
+  | 'chatUnreadAnchor' | 'chatWindow'
   | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
   | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
   | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
@@ -55,6 +55,7 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   analyticsLoading: false,
   // Экономика позиций (20.09, п. 9): поле без хозяина никто не чистит при выходе
   chatUnreadAnchor: null,
+  chatWindow: null,
   orderEconomics: {},
   economicsLoading: false,
 

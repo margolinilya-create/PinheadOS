@@ -1107,6 +1107,60 @@
 }
 
 /*
+  ЦЕНТР УВЕДОМЛЕНИЙ В ШАПКЕ (правка 20.09, п. 4). Панель у колокола,
+  а не экран: «центр открывается из общей шапки ERP на любом экране» —
+  уводить человека с рабочего экрана ради строки «вас упомянули» и есть
+  то, от чего правка уходит.
+*/
+.noticeCenter {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-nav);
+  width: min(380px, calc(100vw - var(--space-md) * 2));
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.noticeTabs { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.noticeTab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  cursor: pointer;
+  min-height: 44px;   /* тач-цель: шапка одна на планшет и монитор */
+}
+.noticeTabActive { border-color: var(--accent); color: var(--accent); }
+.noticeList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.noticeRow {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  color: inherit;
+}
+.noticeRow:hover { background: var(--bg2); }
+/* Непрочитанное выделяется фоном и точкой — как просит референс документа */
+.noticeUnread > .noticeRow { background: var(--accent-light); }
+.noticeTitle { font-weight: 600; }
+
+/*
   Список черновиков в разделе заказов (правка 20.09, п. 6). Свёрнут
   по умолчанию: черновик — рабочее состояние одного человека, и разворачивать
   его поверх списка заказов каждому, кто зашёл в раздел, незачем.

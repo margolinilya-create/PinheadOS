@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
@@ -22,13 +21,14 @@ import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
+import { ChatWindow } from '../components/chat/ChatWindow';
+import { NotificationCenter } from './NotificationCenter';
 import styles from '../erp.module.css';
 import appStyles from '../../App.module.css';
 
 export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
   const {
     orders, departments, experimental, bypasses, bootstrapLoaded, notifications,
   } = useErpStore(
@@ -55,6 +55,8 @@ export default function ErpLayout({ user, children }) {
   // Ниже 760px сайдбар — выезжающий оверлей (см. erp.module.css): постоянная
   // колонка там занимала от 13% до половины ширины и убиралась только сворачиванием
   const [navOpen, setNavOpen] = useState(false);
+  /** Центр уведомлений раскрыт прямо в шапке (правка 20.09, п. 4) */
+  const [noticesOpen, setNoticesOpen] = useState(false);
 
   // Живой ERP: изменения этапов/заказов долетают без обновления страницы
   useEffect(() => {
@@ -250,13 +252,21 @@ export default function ErpLayout({ user, children }) {
             aria-label={overdueCount > 0
               ? `Уведомления: требуют внимания ${overdueCount}`
               : 'Уведомления'}
-            onClick={() => navigate('/#notifications')}
+            aria-expanded={noticesOpen}
+            /*
+              ЦЕНТР ОТКРЫВАЕТСЯ НА МЕСТЕ (правка 20.09, п. 4): «центр
+              открывается из общей шапки ERP на любом экране». Прежде
+              колокол уводил на дашборд — то есть, чтобы прочитать «вас
+              упомянули», человек покидал экран, на котором работал.
+            */
+            onClick={() => setNoticesOpen((v) => !v)}
           >
             <Icon name="bell" size={19} />
             {overdueCount > 0 && (
               <span className={styles.iconDot} aria-hidden="true">{overdueCount}</span>
             )}
           </button>
+          {noticesOpen && <NotificationCenter onClose={() => setNoticesOpen(false)} />}
 
           <button
             type="button"
@@ -328,6 +338,14 @@ export default function ErpLayout({ user, children }) {
           {children}
         </main>
       </div>
+
+      {/*
+        ОКНО ЧАТА ЖИВЁТ В ОБОЛОЧКЕ (правка 20.09, п. 4). Смонтируй его
+        в экране — и переход на «Задания» закрывал бы разговор, то есть
+        «окно поверх ERP» превратилось бы во вкладку с лишними рамками.
+        Пустое состояние ничего не рисует.
+      */}
+      <ChatWindow />
     </div>
   );
 }

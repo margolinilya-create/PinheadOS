@@ -277,6 +277,7 @@ export default function DevPage() {
           context={{ experimentalId: dev.id }}
           contextLabel="Эта разработка"
           title="Обсуждение разработки"
+          windowTitle={`№${dev.order?.bitrix_id || '—'} · ${dev.order?.title || 'разработка'}`}
         />
       )}
     </>

@@ -1229,6 +1229,33 @@ export interface NotificationsSlice {
  */
 export interface ChatSlice {
   /**
+   * ОКНО ЧАТА ПОВЕРХ ERP (правка 20.09, п. 4): «на компьютере открывать чат
+   * в отдельном окне поверх ERP шириной примерно 760–960 px, с возможностью
+   * развернуть».
+   *
+   * Состояние живёт В СТОРЕ, а не в экране: окно не должно закрываться
+   * от перехода между разделами — в том и смысл окна поверх, что человек
+   * продолжает работать, не теряя разговора.
+   */
+  chatWindow?: {
+    orderId: string;
+    title: string;
+    context: ChatContext;
+    contextLabel?: string | null;
+    expanded: boolean;
+  } | null;
+  openChatWindow: (
+    orderId: string,
+    title: string,
+    context?: ChatContext,
+    contextLabel?: string | null,
+  ) => void;
+  closeChatWindow: () => void;
+  /** Режим уведомлений по заказу: 'all' | 'mentions' | 'none' */
+  loadChatMode: (orderId: string) => Promise<string>;
+  setChatMode: (orderId: string, mode: string) => Promise<boolean>;
+  toggleChatWindowSize: () => void;
+  /**
    * Отметить показанные сообщения просмотренными (правка 20.09, п. 4).
    * Возвращает, сколько отметок реально добавилось: повтор той же пачки
    * не считается.

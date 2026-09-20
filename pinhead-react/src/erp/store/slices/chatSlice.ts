@@ -55,6 +55,22 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
   chatUnread: {},
   /** Граница «Непрочитанные сообщения» — снимок на момент открытия (20.09, п. 4) */
   chatUnreadAnchor: null,
+  chatWindow: null,
+
+  /**
+   * Открыть окно чата поверх ERP (правка 20.09, п. 4).
+   *
+   * Саму ленту грузит `ChatPanel` внутри окна — здесь только «что показать».
+   * Разводить это по двум местам нельзя: окно открывают из задачи, из
+   * разработки и из списка заказов, и три копии загрузки разошлись бы.
+   */
+  openChatWindow: (orderId, title, context = {}, contextLabel = null) => set({
+    chatWindow: { orderId, title, context, contextLabel, expanded: false },
+  }),
+  closeChatWindow: () => set({ chatWindow: null }),
+  toggleChatWindowSize: () => set((s) => (s.chatWindow
+    ? { chatWindow: { ...s.chatWindow, expanded: !s.chatWindow.expanded } }
+    : {})),
   chatPing: 0,
 
   loadChatDirectory: async () => {
@@ -323,6 +339,28 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
       return [];
     }
     return (data ?? []) as ChatReadReceipt[];
+  },
+
+  /** Текущий режим уведомлений по заказу; сервер по умолчанию отдаёт `mentions` */
+  loadChatMode: async (orderId) => {
+    const { data, error } = await erpRead(
+      () => supabase.rpc('erp_chat_mode', { p_order_id: orderId }),
+    );
+    // Fail-open: не узнали — показываем умолчание, а не пустой селект.
+    // Полоса поверх окна ради подписи в шапке была бы хуже
+    if (error) return 'mentions';
+    return (data as string) ?? 'mentions';
+  },
+
+  setChatMode: async (orderId, mode) => {
+    const { error } = await erpQuery(
+      () => supabase.rpc('erp_chat_set_mode', { p_order_id: orderId, p_mode: mode }),
+    );
+    if (error) {
+      erpError('Не удалось изменить режим уведомлений', error);
+      return false;
+    }
+    return true;
   },
 
   markChatRead: async (orderId, stageId = null) => {
