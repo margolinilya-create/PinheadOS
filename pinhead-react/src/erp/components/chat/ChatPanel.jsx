@@ -30,6 +30,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
   const {
     messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, realtimeLive,
     openChat, loadMore, refresh, send, loadDirectory, markRead, markSeen, loadUnread, closeChat,
+    editMessage, deleteMessage,
   } = useErpStore(useShallow((s) => ({
     messages: s.chatMessages,
     hasMore: s.chatHasMore,
@@ -46,6 +47,8 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     send: s.sendChatMessage,
     loadDirectory: s.loadChatDirectory,
     markRead: s.markChatRead,
+    editMessage: s.editChatMessage,
+    deleteMessage: s.deleteChatMessage,
     markSeen: s.markChatSeen,
     loadUnread: s.loadChatUnread,
     closeChat: s.closeChat,
@@ -214,6 +217,17 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     return Boolean(result);
   }, [send, orderId, active]);
 
+  /**
+   * ПРАВКА И УДАЛЕНИЕ СВОЕГО (вторая очередь чата). Обработчики собираются
+   * здесь, а не в самом сообщении: лента — единственная реализация переписки,
+   * и запись идёт через неё же, чем бы её ни вызвали.
+   */
+  const onEdit = useCallback(
+    (message, body, mentions) => editMessage({ messageId: message.id, body, mentions }),
+    [editMessage],
+  );
+  const onDelete = useCallback((message) => deleteMessage(message.id), [deleteMessage]);
+
   const showSwitch = !isWholeDeal(context);
   const unreadTotal = unread?.total ?? 0;
 
@@ -311,6 +325,8 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
                      и есть то, что документ просит объединить визуально */
                   compact={i > 0}
                   observeRef={seen.observe}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
                 />
               ))}
             </div>

@@ -226,12 +226,47 @@ export type Database = {
           },
         ]
       }
+      erp_chat_message_reads: {
+        Row: {
+          message_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          message_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          message_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_message_reads_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_message_reads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_chat_messages: {
         Row: {
           author_id: string
           body: string
           client_key: string
           created_at: string
+          deleted_at: string | null
+          edited_at: string | null
           experimental_id: string | null
           id: string
           item_id: string | null
@@ -244,6 +279,8 @@ export type Database = {
           body?: string
           client_key: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           experimental_id?: string | null
           id?: string
           item_id?: string | null
@@ -256,6 +293,8 @@ export type Database = {
           body?: string
           client_key?: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           experimental_id?: string | null
           id?: string
           item_id?: string | null
@@ -354,6 +393,42 @@ export type Database = {
           },
         ]
       }
+      erp_chat_subscriptions: {
+        Row: {
+          mode: string
+          thread_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          mode?: string
+          thread_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          mode?: string
+          thread_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_chat_subscriptions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_chat_threads: {
         Row: {
           created_at: string
@@ -395,6 +470,7 @@ export type Database = {
           active: boolean
           allows_over_plan: boolean
           code: string
+          cost_role: string | null
           created_at: string
           gate_material_kinds: string[]
           head_employee_id: string | null
@@ -413,6 +489,7 @@ export type Database = {
           active?: boolean
           allows_over_plan?: boolean
           code: string
+          cost_role?: string | null
           created_at?: string
           gate_material_kinds?: string[]
           head_employee_id?: string | null
@@ -431,6 +508,7 @@ export type Database = {
           active?: boolean
           allows_over_plan?: boolean
           code?: string
+          cost_role?: string | null
           created_at?: string
           gate_material_kinds?: string[]
           head_employee_id?: string | null
@@ -2447,6 +2525,7 @@ export type Database = {
       }
       erp_stage_reports: {
         Row: {
+          assembly_cost_per_unit: number | null
           author: string | null
           author_id: string | null
           comment: string | null
@@ -2462,6 +2541,7 @@ export type Database = {
           warehouse_task_id: string | null
         }
         Insert: {
+          assembly_cost_per_unit?: number | null
           author?: string | null
           author_id?: string | null
           comment?: string | null
@@ -2477,6 +2557,7 @@ export type Database = {
           warehouse_task_id?: string | null
         }
         Update: {
+          assembly_cost_per_unit?: number | null
           author?: string | null
           author_id?: string | null
           comment?: string | null
@@ -3150,11 +3231,18 @@ export type Database = {
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
+      erp_chat_delete: { Args: { p_message_id: string }; Returns: Json }
       erp_chat_directory: { Args: never; Returns: Json }
+      erp_chat_edit: {
+        Args: { p_body: string; p_mentions?: string[]; p_message_id: string }
+        Returns: Json
+      }
       erp_chat_mark_read: {
         Args: { p_at?: string; p_order_id: string; p_stage_id?: string }
         Returns: string
       }
+      erp_chat_mark_seen: { Args: { p_message_ids: string[] }; Returns: number }
+      erp_chat_mode: { Args: { p_order_id: string }; Returns: string }
       erp_chat_page: {
         Args: {
           p_before_at?: string
@@ -3165,6 +3253,10 @@ export type Database = {
           p_order_id: string
           p_stage_id?: string
         }
+        Returns: Json
+      }
+      erp_chat_read_receipts: {
+        Args: { p_message_ids: string[] }
         Returns: Json
       }
       erp_chat_send: {
@@ -3181,7 +3273,20 @@ export type Database = {
         }
         Returns: Json
       }
-      erp_chat_unread: { Args: { p_order_id: string }; Returns: Json }
+      erp_chat_set_mode: {
+        Args: { p_mode: string; p_order_id: string }
+        Returns: string
+      }
+      erp_chat_unread: {
+        Args: {
+          p_experimental_id?: string
+          p_item_id?: string
+          p_order_id: string
+          p_stage_id?: string
+        }
+        Returns: Json
+      }
+      erp_chat_unread_many: { Args: { p_order_ids: string[] }; Returns: Json }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
         Returns: number
@@ -3366,6 +3471,7 @@ export type Database = {
       }
       erp_is_manager: { Args: never; Returns: boolean }
       erp_is_member: { Args: never; Returns: boolean }
+      erp_item_economics: { Args: { p_item_id: string }; Returns: Json }
       erp_local_date: { Args: never; Returns: string }
       erp_material_accept: {
         Args: {
@@ -3386,6 +3492,7 @@ export type Database = {
         Returns: Json
       }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
+      erp_order_economics: { Args: { p_order_id: string }; Returns: Json }
       erp_order_has_open_dev: { Args: { p_order_id: string }; Returns: boolean }
       erp_pkg_flag: { Args: { p_key: string; p_pkg: Json }; Returns: boolean }
       erp_pkg_list_filled: {

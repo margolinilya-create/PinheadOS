@@ -1815,8 +1815,16 @@ a.cellTitle:hover { color: var(--accent); }
   letter-spacing: 0.04em;
   color: var(--color-error-ink);
 }
-.chatMsgReply {
+/* Действия сообщения — группой у правого края (вторая очередь чата).
+   `margin-left: auto` переехал сюда с самих кнопок: у каждой он растаскивал
+   соседей по ширине шапки, потому что auto-отступ делит свободное место */
+.chatMsgActions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.chatMsgReply {
   font-size: var(--type-label);
   background: none;
   border: 0;
@@ -1826,6 +1834,30 @@ a.cellTitle:hover { color: var(--accent); }
   text-decoration: underline;
 }
 .chatMsgBody { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+
+/* «изменено» — приписка, а не статус: тем же кеглем, что время, но тише */
+.chatMsgEdited { font-size: var(--type-label); color: var(--text-dim); }
+/* Удалённое читается как след, а не как текст: курсив и приглушённый цвет */
+.chatMsgDeleted { color: var(--text-dim); font-style: italic; }
+
+/* Правка на месте сообщения */
+.chatEdit { display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatEditArea {
+  width: 100%;
+  resize: vertical;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+.chatEditRow { display: flex; gap: var(--space-xs); }
+
+/* Пальцем по кнопке действия надо попадать не целясь */
+@media (pointer: coarse) {
+  .chatMsgReply { min-height: 44px; display: inline-flex; align-items: center; }
+}
 
 .chatQuote {
   display: flex;

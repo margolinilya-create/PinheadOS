@@ -271,6 +271,51 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
     return result;
   },
 
+  /**
+   * ПРАВКА СВОЕГО СООБЩЕНИЯ (вторая очередь чата).
+   *
+   * Лента перечитывается ответом сервера, а не патчится на месте: правка
+   * меняет не только текст — она пересобирает упоминания, а их подсветку
+   * лента берёт из `mentions` сообщения. Патч «только body» показал бы
+   * подсветку снятого упоминания до следующего звонка realtime.
+   */
+  editChatMessage: async ({ messageId, body, mentions = [] }) => {
+    const { error } = await erpQuery(() => supabase.rpc('erp_chat_edit', {
+      p_message_id: messageId,
+      p_body: body,
+      p_mentions: mentions,
+    }));
+    if (error) {
+      erpError('Не удалось изменить сообщение', error);
+      return false;
+    }
+    await get().refreshChat();
+    return true;
+  },
+
+  /**
+   * УДАЛЕНИЕ СВОЕГО СООБЩЕНИЯ. Не оптимистично — правило раздела: показать
+   * «удалено» до ответа сервера значит однажды показать это по ошибке сети,
+   * а вернуть текст обратно будет уже неоткуда.
+   */
+  deleteChatMessage: async (messageId) => {
+    const { error } = await erpQuery(
+      () => supabase.rpc('erp_chat_delete', { p_message_id: messageId }),
+    );
+    if (error) {
+      erpError('Не удалось удалить сообщение', error);
+      return false;
+    }
+    await get().refreshChat();
+    /**
+     * Счётчики трогаем тоже: удалённое перестаёт быть непрочитанным
+     * (`erp_chat_unread` его не считает), и бейдж, оставшийся висеть,
+     * звал бы читать пустое место.
+     */
+    set({ chatPing: get().chatPing + 1 });
+    return true;
+  },
+
   loadChatUnread: async (orderId) => {
     if (!currentUserId()) return;
     const { data, error } = await erpRead(() => supabase.rpc('erp_chat_unread', {

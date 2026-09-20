@@ -1315,6 +1315,22 @@ export interface ChatSlice {
     mentions?: string[];
     attachments?: { file_path: string; file_name?: string | null }[];
   }) => Promise<{ message_id: string; mentioned: string[] } | null>;
+  /**
+   * ПРАВКА СВОЕГО СООБЩЕНИЯ (вторая очередь чата). Только своё — это
+   * проверяет и сервер (`erp_chat_edit`, 42501): возможность переписать
+   * чужую реплику обесценивает переписку целиком.
+   */
+  editChatMessage: (input: {
+    messageId: string;
+    body: string;
+    mentions?: string[];
+  }) => Promise<boolean>;
+  /**
+   * УДАЛЕНИЕ СВОЕГО СООБЩЕНИЯ. Не оптимистично (правило раздела): удаление
+   * необратимо, и показать «удалено» до ответа сервера значит однажды
+   * показать это по ошибке сети.
+   */
+  deleteChatMessage: (messageId: string) => Promise<boolean>;
   loadChatUnread: (orderId: string) => Promise<void>;
   /**
    * Счётчики непрочитанного СРАЗУ ПО СПИСКУ заказов (правка 20.09, п. 4):

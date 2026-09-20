@@ -56,9 +56,24 @@ export function withoutComments(sql: string): string {
 export function functionBody(sql: string, fn: string): string {
   const start = sql.indexOf(`create or replace function public.${fn}(`);
   if (start < 0) throw new Error(`нет тела ${fn}()`);
-  const open = sql.indexOf('$$', start);
-  const close = sql.indexOf('$$', open + 2);
-  return sql.slice(open, close);
+  /**
+   * РАЗДЕЛИТЕЛЬ ТЕЛА БЕРЁТСЯ ИЗ САМОГО SQL, а не считается равным `$$`.
+   *
+   * Postgres разрешает любой тег: `$$`, `$fn$`, а `pg_get_functiondef`
+   * печатает `$function$` — и тело, скопированное с прода подлинным (правило
+   * проекта), приезжает именно с ним. Жёсткий `$$` в этом месте уже стоил
+   * проекту семи пустых проверок приёмки материалов: `indexOf('$$')`
+   * не находил ничего, тело выходило пустым, и сторож зеленел НА ЛЮБОМ коде.
+   * Отсюда и правило: пустое тело — это ошибка, а не «нечего проверять».
+   */
+  const tag = /\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$/.exec(sql.slice(start));
+  if (!tag) throw new Error(`нет тела ${fn}(): не найден разделитель тела функции`);
+  const open = start + tag.index;
+  const close = sql.indexOf(tag[0], open + tag[0].length);
+  if (close < 0) throw new Error(`нет тела ${fn}(): тело не закрыто ${tag[0]}`);
+  const body = sql.slice(open + tag[0].length, close);
+  if (body.trim() === '') throw new Error(`пустое тело ${fn}() — сторож проверял бы пустоту`);
+  return body;
 }
 
 /**
