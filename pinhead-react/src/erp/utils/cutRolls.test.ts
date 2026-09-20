@@ -4,6 +4,7 @@ import {
   rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock,
   cutSizesPayload, cutRollsPayload, sizeCellsOf, cellKey,
 } from './cutRolls';
+import type { CutSizeRow } from './cutRolls';
 
 const roll = (n: number, extra: Partial<ErpMaterialRoll> = {}): ErpMaterialRoll => ({
   id: `r${n}`, material_id: 'm1', receipt_id: null, seq: n, label: `Рулон №${n}`,
@@ -23,6 +24,14 @@ const fabric = (extra: Partial<ErpMaterial> = {}): ErpMaterial => ({
 const GRID: SizeGridRow[] = [{ color: '—', sizes: { XS: 4, S: 8, M: 10, L: 8, XL: 6 } }];
 const CELLS = sizeCellsOf(GRID);
 const key = (size: string) => cellKey({ color: '—', size });
+
+/**
+ * Размерные строки рулона (правка 20.09, п. 7). До неё это был объект
+ * «ключ → количество»; теперь закройщик добавляет и удаляет СТРОКИ,
+ * и у строки бывает состояние «размер ещё не выбран».
+ */
+const rows = (...pairs: [string, number][]): CutSizeRow[] => pairs
+  .map(([size, qty]) => ({ size, color: '—', qty }));
 
 describe('rollsForItem — рулоны не вводятся вручную', () => {
   it('предлагает рулоны тканей ЭТОЙ позиции', () => {
@@ -85,8 +94,8 @@ describe('rollsForItem — рулоны не вводятся вручную', (
 
 describe('автоматические итоги', () => {
   const entries = [
-    { rollId: 'r1', qtyUsed: 19.4, sizes: { [key('XS')]: 4, [key('S')]: 8, [key('M')]: 10 } },
-    { rollId: 'r2', qtyUsed: 19.4, sizes: { [key('L')]: 8, [key('XL')]: 6, [key('M')]: 2 } },
+    { rollId: 'r1', qtyUsed: 19.4, sizes: rows(['XS', 4], ['S', 8], ['M', 10]) },
+    { rollId: 'r2', qtyUsed: 19.4, sizes: rows(['L', 8], ['XL', 6], ['M', 2]) },
   ];
 
   it('итог с одного рулона — сумма его размеров', () => {
@@ -109,7 +118,7 @@ describe('автоматические итоги', () => {
   });
 
   it('пустые строки в итог не попадают', () => {
-    expect(cutTotals([{ rollId: 'r1', qtyUsed: 0, sizes: {} }]).rolls).toBe(0);
+    expect(cutTotals([{ rollId: 'r1', qtyUsed: 0, sizes: [] }]).rolls).toBe(0);
     expect(cutTotals(null).qty).toBe(0);
   });
 });
@@ -121,14 +130,14 @@ describe('cutBlock — почему нельзя сдать', () => {
 
   it('рулон без расхода назван по имени', () => {
     const options = rollsForItem([fabric()], 'i1');
-    const block = cutBlock([{ rollId: 'r1', qtyUsed: 0, sizes: { [key('XS')]: 4 } }], options);
+    const block = cutBlock([{ rollId: 'r1', qtyUsed: 0, sizes: rows(['XS', 4]) }], options);
     expect(block).toContain('Рулон №1');
     expect(block).toContain('расход');
   });
 
   it('рулон без изделий назван по имени', () => {
     const options = rollsForItem([fabric()], 'i1');
-    const block = cutBlock([{ rollId: 'r2', qtyUsed: 19, sizes: {} }], options);
+    const block = cutBlock([{ rollId: 'r2', qtyUsed: 19, sizes: [] }], options);
     expect(block).toContain('Рулон №2');
     expect(block).toContain('скроено');
   });
@@ -136,28 +145,78 @@ describe('cutBlock — почему нельзя сдать', () => {
   it('один рулон дважды — это ошибка ввода, а не два рулона', () => {
     const options = rollsForItem([fabric()], 'i1');
     const twice = [
-      { rollId: 'r1', qtyUsed: 10, sizes: { [key('XS')]: 2 } },
-      { rollId: 'r1', qtyUsed: 10, sizes: { [key('S')]: 2 } },
+      { rollId: 'r1', qtyUsed: 10, sizes: rows(['XS', 2]) },
+      { rollId: 'r1', qtyUsed: 10, sizes: rows(['S', 2]) },
     ];
     expect(cutBlock(twice, options)).toContain('дважды');
   });
 
   it('заполненная форма не блокируется', () => {
     const options = rollsForItem([fabric()], 'i1');
-    expect(cutBlock([{ rollId: 'r1', qtyUsed: 19, sizes: { [key('XS')]: 4 } }], options)).toBeNull();
+    expect(cutBlock([{ rollId: 'r1', qtyUsed: 19, sizes: rows(['XS', 4]) }], options)).toBeNull();
+  });
+
+  /**
+   * Правка 20.09, п. 7: «Один и тот же размер внутри одного рулона не должен
+   * добавляться дважды. Если размер уже выбран в этом рулоне, система должна
+   * предложить изменить количество в существующей строке».
+   */
+  it('один размер дважды в одном рулоне — отказ с подсказкой, что делать', () => {
+    const options = rollsForItem([fabric()], 'i1');
+    const block = cutBlock(
+      [{ rollId: 'r1', qtyUsed: 19, sizes: rows(['M', 4], ['M', 6]) }],
+      options,
+    );
+    expect(block).toContain('M');
+    expect(block).toContain('дважды');
+    expect(block).toContain('измените количество');
+  });
+
+  it('количество без выбранного размера — отдельная ошибка, а не «нечего сдавать»', () => {
+    const options = rollsForItem([fabric()], 'i1');
+    const block = cutBlock(
+      [{ rollId: 'r1', qtyUsed: 19, sizes: [{ size: '', color: '—', qty: 5 }] }],
+      options,
+    );
+    expect(block).toContain('выберите размер');
+  });
+
+  it('пустая строка размера сдавать не мешает — её просто не сохраняют', () => {
+    const options = rollsForItem([fabric()], 'i1');
+    const entries = [{
+      rollId: 'r1',
+      qtyUsed: 19,
+      sizes: [...rows(['M', 4]), { size: '', color: '—', qty: 0 }],
+    }];
+    expect(cutBlock(entries, options)).toBeNull();
+    expect(cutRollsPayload(entries)[0].sizes).toEqual([{ color: '—', size: 'M', qty_good: 4 }]);
   });
 });
 
 describe('что уезжает в отчёт этапа', () => {
   const entries = [
-    { rollId: 'r1', qtyUsed: 19.4, sizes: { [key('XS')]: 4, [key('S')]: 8 } },
-    { rollId: 'r2', qtyUsed: 12, sizes: { [key('S')]: 2 }, finished: true },
+    { rollId: 'r1', qtyUsed: 19.4, sizes: rows(['XS', 4], ['S', 8]) },
+    { rollId: 'r2', qtyUsed: 12, sizes: rows(['S', 2]), finished: true },
   ];
 
-  it('размеры — суммой по всем рулонам, в порядке сетки позиции', () => {
-    expect(cutSizesPayload(entries, CELLS)).toEqual([
+  it('размеры — суммой по всем рулонам', () => {
+    expect(cutSizesPayload(entries)).toEqual([
       { color: '—', size: 'XS', qty_good: 4 },
       { color: '—', size: 'S', qty_good: 10 },
+    ]);
+  });
+
+  /**
+   * ГЛАВНОЕ ПОСЛЕДСТВИЕ ПРАВКИ 20.09 (п. 7). Прежняя версия собирала разбивку
+   * ПО ЯЧЕЙКАМ СЕТКИ ПОЗИЦИИ: нет сетки — нет ячеек — пустой список, и
+   * размерный факт закроя не сохранялся вовсе. На бою так заведена 21 позиция
+   * из 49, и именно на такой заказчик проверял правку.
+   */
+  it('позиция без размерной сетки: разбивка всё равно уезжает в отчёт', () => {
+    const free = [{ rollId: 'r1', qtyUsed: 10, sizes: rows(['M', 3], ['L', 2]) }];
+    expect(cutSizesPayload(free)).toEqual([
+      { color: '—', size: 'M', qty_good: 3 },
+      { color: '—', size: 'L', qty_good: 2 },
     ]);
   });
 
@@ -171,6 +230,6 @@ describe('что уезжает в отчёт этапа', () => {
   });
 
   it('пустая строка рулона в отчёт не уезжает', () => {
-    expect(cutRollsPayload([{ rollId: 'r1', qtyUsed: 5, sizes: {} }])).toEqual([]);
+    expect(cutRollsPayload([{ rollId: 'r1', qtyUsed: 5, sizes: [] }])).toEqual([]);
   });
 });

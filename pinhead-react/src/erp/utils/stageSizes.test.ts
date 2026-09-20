@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SizeGridRow } from '../types';
 import {
   sizeKey, stageSizeOutput, sizeInputFor, sizeInputRows, sizeReportBlock,
-  sizeTotals, sizeReportPayload, rowEntered,
+  sizeTotals, sizeReportPayload, rowEntered, sizeInputCells,
 } from './stageSizes';
 
 const GRID: SizeGridRow[] = [{ color: '—', sizes: { XS: 10, S: 20, M: 15 } }];
@@ -133,5 +133,52 @@ describe('итоги и полезная нагрузка', () => {
       { color: '—', size: 'XS', qty_good: 9, qty_defect: 1, qty_rework: 0 },
       { color: '—', size: 'S', qty_good: 18, qty_defect: 0, qty_rework: 2 },
     ]);
+  });
+});
+
+/**
+ * СТРОКИ ТАБЛИЦЫ ПРИ ОТСУТСТВИИ СЕТКИ (правка заказчика 20.09, п. 8).
+ *
+ * `sizeInputRows` строила строки ТОЛЬКО по сетке позиции, и `gridCells(null)`
+ * пуст — таблицы не было вовсе. Документ требует обратного: «размеры
+ * и количество „Покроено, шт" должны подтягиваться из этапа закройки».
+ */
+describe('размеры подтягиваются из закроя, когда сетки у позиции нет', () => {
+  const STAGE = { depends_on: ['cut1'] };
+  const ALL = [{ id: 'cut1' }, { id: 'sew1' }];
+  const REPORTS = [{
+    id: 'r1',
+    stage_id: 'cut1',
+    sizes: [
+      { color: '—', size: 'M', qty_good: 30 },
+      { color: '—', size: 'L', qty_good: 20 },
+    ],
+  }] as never;
+
+  it('sizeInputCells отдаёт размер и цвет, а не только ключ и число', () => {
+    const cells = sizeInputCells(STAGE, ALL, REPORTS);
+    expect(cells).toEqual(expect.arrayContaining([
+      { color: '—', size: 'M', qty: 30 },
+      { color: '—', size: 'L', qty: 20 },
+    ]));
+  });
+
+  it('без сетки строки берутся из факта закроя', () => {
+    const rows = sizeInputRows(null, sizeInputFor(STAGE, ALL, REPORTS), sizeInputCells(STAGE, ALL, REPORTS));
+    expect(rows.map((r) => r.size).sort()).toEqual(['L', 'M']);
+    expect(rows.find((r) => r.size === 'M')?.expected).toBe(30);
+  });
+
+  it('сетка есть — она и главная: строки заказа, включая ещё не скроенные', () => {
+    const grid = [{ color: '—', sizes: { M: 40, XL: 10 } }];
+    const rows = sizeInputRows(grid, sizeInputFor(STAGE, ALL, REPORTS), sizeInputCells(STAGE, ALL, REPORTS));
+    // XL в заказе есть, закрой его не сдавал — строка обязана остаться с нулём
+    expect(rows.map((r) => r.size)).toEqual(['M', 'XL']);
+    expect(rows.find((r) => r.size === 'XL')?.expected).toBe(0);
+  });
+
+  it('закрой ничего не сдавал — строк из факта нет, потолка тоже (fail-open)', () => {
+    expect(sizeInputCells(STAGE, ALL, [])).toEqual([]);
+    expect(sizeInputRows(null, null, [])).toEqual([]);
   });
 });

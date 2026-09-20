@@ -196,3 +196,95 @@ describe('результат пошива по размерам (правка 16
     expect(screen.queryByText(/при принятых из закроя/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * РАЗМЕРНАЯ ВЕТКА У ПОЗИЦИИ БЕЗ СЕТКИ (правка заказчика 20.09, п. 8).
+ *
+ * До правки она включалась условием `result_detail === 'sizes' &&
+ * item.size_grid?.length > 0`. На позиции, заведённой без размерной сетки
+ * (на бою таких 21 из 49), швейка сдавала результат одним числом, а поля
+ * «Стоимость сборки единицы» не было ВООБЩЕ — оно рисовалось внутри той же
+ * ветки. Именно это заказчик и описал в документе.
+ */
+describe('швейка: размеры и стоимость сборки без размерной сетки позиции', () => {
+  const SEWING = { ...DEPT, result_detail: 'sizes' };
+
+  /** Этап швейки зависит от закроя, а закрой сдал размеры фактом */
+  const withCutting = {
+    order: { id: 'o1', title: 'Заказ' },
+    item: {
+      id: 'it1',
+      qty: 100,
+      size_grid: null, // сетки НЕТ — в этом вся правка
+      stages: [{ id: 'cut1' }, { id: 'sew1' }],
+    },
+    stage: {
+      id: 'sew1', item_id: 'it1', department_id: 'd-sew', qty_done: 0, depends_on: ['cut1'],
+    },
+  };
+
+  function mockCuttingReports() {
+    useErpStore.setState({
+      loadStageReports: async () => ([{
+        id: 'r1',
+        stage_id: 'cut1',
+        sizes: [
+          { color: '—', size: 'M', qty_good: 30 },
+          { color: '—', size: 'L', qty_good: 20 },
+        ],
+      }]),
+    });
+  }
+
+  it('поле стоимости сборки есть даже без размерной сетки', async () => {
+    mockCuttingReports();
+    render(
+      <StageReportForm
+        entry={withCutting}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(await screen.findByLabelText(/Стоимость сборки за единицу/))
+      .toBeInTheDocument();
+  });
+
+  it('«Покроено» подтягивается из закроя — размерами, а не одним числом', async () => {
+    mockCuttingReports();
+    render(
+      <StageReportForm
+        entry={withCutting}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    // Заголовок колонки — формулировка документа
+    expect(await screen.findByText('Покроено, шт')).toBeInTheDocument();
+    // Строки — те размеры, что сдал закрой
+    expect(await screen.findByLabelText(/^M, Сшито, шт$/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^L, Сшито, шт$/)).toBeInTheDocument();
+  });
+
+  it('сшито больше покроенного — поле помечено ошибкой и названа причина', async () => {
+    mockCuttingReports();
+    render(
+      <StageReportForm
+        entry={withCutting}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const field = await screen.findByLabelText(/^M, Сшито, шт$/);
+    fireEvent.change(field, { target: { value: '40' } }); // покроено 30
+
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Нельзя указать больше, чем покроено')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
+  });
+});

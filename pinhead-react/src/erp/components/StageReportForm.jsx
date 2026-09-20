@@ -10,10 +10,11 @@ import { useErpStore } from '../store/useErpStore';
 import { SizeResultTable } from './SizeResultTable';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
 import {
-  sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
+  sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
+  rowEntered,
 } from '../utils/stageSizes';
 import {
-  cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem, sizeCellsOf,
+  cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
 } from '../utils/cutRolls';
 import styles from '../erp.module.css';
 
@@ -52,7 +53,21 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * мастер её не вводит. Признак участка тот же самый, что у рулонов,
    * и живёт он в данных (`erp_departments.result_detail`).
    */
-  const bySizes = dept?.result_detail === 'sizes' && (item.size_grid?.length ?? 0) > 0;
+  /**
+   * РАЗМЕРНАЯ ВЕТКА БОЛЬШЕ НЕ ЗАВИСИТ ОТ СЕТКИ ПОЗИЦИИ (правка 20.09, п. 8).
+   *
+   * Условие `&& item.size_grid?.length > 0` означало: у позиции, заведённой
+   * без размерной сетки, швейка сдаёт результат одним числом, а поля
+   * «Стоимость сборки единицы» нет вовсе — оно живёт внутри этой же ветки.
+   * Ровно это заказчик и описал: «результат сдаётся общим количеством…
+   * в форме нет поля для стоимости сборки единицы». Сетки нет у 21 позиции
+   * из 49, и проверял он на такой.
+   *
+   * Теперь размеры берутся из сетки, когда она есть, и из ФАКТА ЗАКРОЯ,
+   * когда её нет («Размеры и количество „Покроено, шт" должны подтягиваться
+   * из этапа закройки»).
+   */
+  const bySizes = dept?.result_detail === 'sizes';
   const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
   const [assemblyCost, setAssemblyCost] = useState('');
@@ -78,12 +93,25 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
     [bySizes, stage, item.stages, prevReports],
   );
-  const sizeRows = useMemo(
-    () => (bySizes ? sizeInputRows(item.size_grid, sizeInput) : []),
-    [bySizes, item.size_grid, sizeInput],
+  const sizeFromPrev = useMemo(
+    () => (bySizes ? sizeInputCells(stage, item.stages ?? [], prevReports) : []),
+    [bySizes, stage, item.stages, prevReports],
   );
+  const sizeRows = useMemo(
+    () => (bySizes ? sizeInputRows(item.size_grid, sizeInput, sizeFromPrev) : []),
+    [bySizes, item.size_grid, sizeInput, sizeFromPrev],
+  );
+  /**
+   * ТАБЛИЦА ЕСТЬ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ СТРОКИ (правка 20.09, п. 8).
+   *
+   * Строки берутся из сетки позиции либо из факта закроя. Когда нет ни того,
+   * ни другого (закрой ещё ничего не сдал, сетку не завели), участок сдаёт
+   * результат обычными полями — иначе мастер остался бы вообще без полей:
+   * `fields` при размерной ветке оставляет только `extra`.
+   */
+  const useSizeTable = bySizes && sizeRows.length > 0;
   const sizeSums = useMemo(() => sizeTotals(sizeRows, sizeValues), [sizeRows, sizeValues]);
-  const sizeBlock = bySizes ? sizeReportBlock(sizeRows, sizeValues) : null;
+  const sizeBlock = useSizeTable ? sizeReportBlock(sizeRows, sizeValues) : null;
   /**
    * Стоимость сборки обязательна, ПОКА её у позиции нет (документ называет
    * поле обязательным). Когда она уже записана, спрашивать её на каждой
@@ -128,10 +156,10 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
        * документ просит заменить их таблицей, а держать оба набора значило бы
        * два писателя одних и тех же трёх чисел.
        */
-      if (bySizes) return visible.filter((f) => f.target === 'extra');
+      if (useSizeTable) return visible.filter((f) => f.target === 'extra');
       return visible;
     },
-    [dept, canDefect, byRolls, bySizes],
+    [dept, canDefect, byRolls, useSizeTable],
   );
   const qtyIn = useMemo(
     () => stageInputQty(stage, item.stages ?? [], item.qty),
@@ -184,9 +212,15 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const rollBlock = byRolls && rollEntries.length > 0
     ? cutBlock(rollEntries, rollOptions)
     : null;
-  const goodQty = byRolls ? rollTotals.qty : (bySizes ? sizeSums.good : totals.qty_good);
-  const defectQty = bySizes ? sizeSums.defect : totals.qty_defect;
-  const reworkQty = bySizes ? sizeSums.rework : totals.qty_rework;
+  /**
+   * Числа берутся из размерной таблицы, только когда она РИСУЕТСЯ
+   * (`useSizeTable`). У участка с `result_detail = 'sizes'`, но без строк
+   * таблицы, суммы по ней нулевые — и сдать результат стало бы нечем:
+   * обычные поля при этом остаются на месте (см. `fields`).
+   */
+  const goodQty = byRolls ? rollTotals.qty : (useSizeTable ? sizeSums.good : totals.qty_good);
+  const defectQty = useSizeTable ? sizeSums.defect : totals.qty_defect;
+  const reworkQty = useSizeTable ? sizeSums.rework : totals.qty_rework;
 
   const anything = goodQty + defectQty + reworkQty + totals.qty_extra > 0;
   const needsComment = defectQty > 0 || reworkQty > 0;
@@ -222,12 +256,18 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
       ...(byRolls && rollEntries.length > 0
         ? {
           rolls: cutRollsPayload(rollEntries, rollOptions),
-          sizes: cutSizesPayload(rollEntries, sizeCellsOf(item.size_grid)),
+          // Разбивка считается по ВВЕДЁННЫМ строкам рулонов (правка 20.09,
+          // п. 7). Прежде она собиралась по ячейкам сетки позиции — и у
+          // позиции без сетки выходила пустой, то есть размерный факт закроя
+          // не сохранялся вовсе.
+          sizes: cutSizesPayload(rollEntries),
         }
         : {}),
       ...(bySizes
         ? {
-          sizes: sizeReportPayload(sizeRows, sizeValues),
+          // Строки уезжают, только если таблица рисовалась: пустой список
+          // ничего не портит, но и притворяться размерным фактом не должен
+          sizes: useSizeTable ? sizeReportPayload(sizeRows, sizeValues) : [],
           /**
            * Стоимость сборки — ОДНА на позицию, а не по размерам (документ:
            * «мастер указывает один раз на всю позицию»). Пустое поле не
@@ -260,46 +300,91 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         />
       )}
 
-      {bySizes && (
+      {useSizeTable && (
         <>
+          <span className={styles.fieldLabel}>Размерная разбивка</span>
           <SizeResultTable
             rows={sizeRows.map((r) => ({ ...r, expected: r.expected ?? '—' }))}
             columns={[
-              { code: 'good', label: 'Сшито, шт' },
+              {
+                code: 'good',
+                label: 'Сшито, шт',
+                /* Подсветка ИМЕННО этого поля: документ просит показать,
+                   какую строку исправлять, а не «где-то превышение» */
+                invalid: (row, vals) => row.expected !== null
+                  && row.expected !== '—'
+                  && rowEntered(vals) > Number(row.expected),
+              },
               ...(canDefect ? [
                 { code: 'defect', label: 'Брак, шт' },
                 { code: 'rework', label: 'В переделку, шт' },
               ] : []),
+              {
+                code: 'state',
+                label: 'Статус',
+                /* Колонка-ВЫВОД: считается, а не вводится. Мастер видит
+                   состояние строки, не сверяя два числа глазами */
+                render: (row, vals) => {
+                  if (row.expected === null || row.expected === '—') {
+                    return <span className={styles.subText}>—</span>;
+                  }
+                  const entered = rowEntered(vals);
+                  if (entered === 0) return <span className={styles.subText}>не заполнено</span>;
+                  if (entered > Number(row.expected)) {
+                    return (
+                      <span className={styles.cellError}>
+                        Нельзя указать больше, чем покроено
+                      </span>
+                    );
+                  }
+                  const left = Number(row.expected) - entered;
+                  return left > 0
+                    ? <span className={styles.subText}>осталось {left}</span>
+                    : <span className={styles.subText}>готово</span>;
+                },
+              },
             ]}
             values={sizeValues}
             onChange={(key, code, value) => setSizeValues((v) => ({
               ...v, [key]: { ...v[key], [code]: value },
             }))}
-            expectedLabel="Принято из закроя"
+            expectedLabel="Покроено, шт"
             caption="Результат пошива по размерам"
             disabled={busy}
           />
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>
-              Стоимость сборки за единицу, ₽{needsCost ? ' *' : ''}
-            </span>
-            <input
-              type="number" min="0" step="0.01"
-              className={`${styles.input} ${styles.qtySmallInput}`}
-              value={assemblyCost}
-              disabled={busy}
-              onChange={(e) => setAssemblyCost(e.target.value)}
-              placeholder={item.assembly_cost_per_unit
-                ? String(item.assembly_cost_per_unit) : ''}
-              aria-label="Стоимость сборки за единицу"
-            />
-            <span className={styles.subText}>
-              {item.assembly_cost_per_unit
-                ? `Записано по позиции: ${item.assembly_cost_per_unit} ₽ за единицу`
-                : 'Один раз на всю позицию, а не по размерам'}
-            </span>
-          </label>
         </>
+      )}
+
+      {/*
+        СТОИМОСТЬ СБОРКИ ЖИВЁТ СНАРУЖИ РАЗМЕРНОЙ ТАБЛИЦЫ (правка 20.09, п. 8).
+
+        Раньше поле стояло внутри неё, и на позиции без размерной сетки
+        таблица не рисовалась — а вместе с ней исчезало и поле. Заказчик
+        описал это прямо: «в форме нет поля для стоимости сборки единицы».
+        Величина при этом к размерам не относится вовсе: она «один раз
+        на всю позицию».
+      */}
+      {bySizes && (
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>
+            Стоимость сборки за единицу, ₽{needsCost ? ' *' : ''}
+          </span>
+          <input
+            type="number" min="0" step="0.01"
+            className={`${styles.input} ${styles.qtySmallInput}`}
+            value={assemblyCost}
+            disabled={busy}
+            onChange={(e) => setAssemblyCost(e.target.value)}
+            placeholder={item.assembly_cost_per_unit
+              ? String(item.assembly_cost_per_unit) : ''}
+            aria-label="Стоимость сборки за единицу"
+          />
+          <span className={styles.subText}>
+            {item.assembly_cost_per_unit
+              ? `Записано по позиции: ${item.assembly_cost_per_unit} ₽ за единицу`
+              : 'Один раз на всю позицию, а не по размерам'}
+          </span>
+        </label>
       )}
 
       <div className={styles.planFormRow}>

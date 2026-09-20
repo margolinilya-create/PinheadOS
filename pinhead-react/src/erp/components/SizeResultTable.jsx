@@ -39,24 +39,47 @@ export function SizeResultTable({
 
   const cellValue = (row, col) => values?.[row.key]?.[col.code] ?? '';
 
-  const totals = columns.map((col) => rows.reduce(
+  // Колонка-вывод не суммируется: «Статус» — это не число
+  const totals = columns.map((col) => (typeof col.render === 'function' ? null : rows.reduce(
     (sum, row) => sum + (Number(cellValue(row, col)) || 0), 0,
-  ));
+  )));
   const expectedTotal = rows.reduce((sum, row) => sum + (Number(row.expected) || 0), 0);
 
-  const field = (row, col) => (
-    <input
-      type="number"
-      min="0"
-      max={col.max ? col.max(row) : undefined}
-      inputMode="numeric"
-      className={`${styles.input} ${styles.qtySmallInput}`}
-      value={cellValue(row, col)}
-      disabled={disabled}
-      onChange={(e) => onChange(row.key, col.code, e.target.value)}
-      aria-label={`${row.label}, ${col.label}`}
-    />
-  );
+  /**
+   * КОЛОНКА-ВЫВОД (правка 20.09, п. 8): у неё есть `render`, и вместо поля
+   * ввода она показывает посчитанное — например «Статус» строки. Заводится
+   * здесь, а не отдельной таблицей рядом: у колонки-вывода те же заголовок,
+   * порядок и компактная раскладка, что у остальных, и вторая таблица
+   * разошлась бы с первой на первой же правке.
+   */
+  const isOutput = (col) => typeof col.render === 'function';
+
+  /**
+   * Подсветка КОНКРЕТНОГО поля (правка 20.09, п. 8): «при превышении поле
+   * должно подсвечиваться ошибкой, рядом выводится понятное сообщение».
+   * Общего сообщения под таблицей мало — в матрице «цвет × размер» оно
+   * не говорит, какую именно строку исправлять.
+   */
+  const cellInvalid = (row, col) => Boolean(col.invalid?.(row, values?.[row.key]));
+
+  const field = (row, col) => {
+    if (isOutput(col)) return col.render(row, values?.[row.key]);
+    const bad = cellInvalid(row, col);
+    return (
+      <input
+        type="number"
+        min="0"
+        max={col.max ? col.max(row) : undefined}
+        inputMode="numeric"
+        className={`${styles.input} ${styles.qtySmallInput} ${bad ? styles.inputError : ''}`}
+        value={cellValue(row, col)}
+        disabled={disabled}
+        aria-invalid={bad || undefined}
+        onChange={(e) => onChange(row.key, col.code, e.target.value)}
+        aria-label={`${row.label}, ${col.label}`}
+      />
+    );
+  };
 
   if (compact) {
     return (
@@ -79,9 +102,9 @@ export function SizeResultTable({
         ))}
         <p className={styles.queueReason} role="status">
           Итого {expectedLabel.toLowerCase()}: <b>{expectedTotal}</b>
-          {columns.map((col, i) => (
+          {columns.map((col, i) => (totals[i] === null ? null : (
             <span key={col.code}> · {col.label}: <b>{totals[i]}</b></span>
-          ))}
+          )))}
         </p>
       </div>
     );
@@ -114,7 +137,9 @@ export function SizeResultTable({
           <tr>
             <th scope="row">Итого</th>
             <td><b>{expectedTotal}</b></td>
-            {columns.map((col, i) => <td key={col.code}><b>{totals[i]}</b></td>)}
+            {columns.map((col, i) => (
+              <td key={col.code}>{totals[i] === null ? '' : <b>{totals[i]}</b>}</td>
+            ))}
           </tr>
         </tfoot>
       </table>
