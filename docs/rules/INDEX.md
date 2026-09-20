@@ -38,6 +38,7 @@
 отличается упоминание от вызова, как читать красный визуальный эталон.
 
 - `pravila-audita-i-storozhey-defekt-10-09-sessiya-54.md`
+- `pravila-pravok-20-09-sessiya-64.md`  ← «сделано ≠ работает»: проверка на распределении живых данных
 - `pravila-erp-krasnyy-ci-sessiya-36-razbor.md`
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
 - `pravila-erp-kod-revyu-05-08.md`
@@ -101,6 +102,7 @@
 - `pravila-erp-pravki-zakazchika-13-09-sessiya-59.md`
 - `pravila-erp-pravki-zakazchika-14-09-sessiya-61.md`
 - `pravila-erp-pravki-zakazchika-16-09-sessiya-63.md`
+- `pravila-pravok-20-09-sessiya-64.md`  ← правки 20.09
 
 ## Доступ, роли и заведение сотрудников
 
@@ -120,6 +122,7 @@
 
 - `pravila-chata-vnutri-sdelki-pravka-14-09-pr-2-sessiya-61.md`
 - `pravila-podgotovki-k-chatu-14-09-sessiya-61-storozh-rpc-i-uvedomleniya.md`
+- `pravila-pravok-20-09-sessiya-64.md`  ← окно, поштучное прочтение, всплывающие
 
 ## Остальные разборы по датам
 

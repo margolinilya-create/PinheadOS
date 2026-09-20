@@ -22,7 +22,15 @@ URL: https://pinhead-os.vercel.app
   screens/queue/DeptPlanPanel.jsx — вкладка «План» в кабинете цеха;
   screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
-  TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии);
+  TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии)/
+  EconomicsSection (вкладка «Экономика позиции», правка 20.09 п. 9: расход и стоимость
+  полотна, средняя сборка, прямая себестоимость — считает сервер, право `economics.view`);
+  components/chat/ — ChatWindow (окно поверх ERP, смонтировано в ОБОЛОЧКЕ: переживает
+  переход между разделами)/ChatPanel (лента: дни, группы по 5 минут, граница
+  непрочитанного, «Новые сообщения, N»)/ChatMessage/ChatComposer/ChatSection (вход
+  с экранов)/ChatNotifyMenu (режим подписки)/ChatReadReceipts («Прочитали N»);
+  layout/NotificationCenter + layout/NoticePopups (центр и всплывающие под колоколом;
+  очередь показа считает `utils/noticePopups`, первая загрузка сессии молчит);
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
   SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
