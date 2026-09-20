@@ -16,7 +16,6 @@ import {
 import {
   devMoveIntent, devMoveLabel, devMoveRefusalText, neighbourStage,
 } from '../../utils/devBoardMove';
-import { currentBlocker, nextAction, taskLabel } from '../../utils/experimentalTasks';
 import { dueLabelCompact } from '../../utils/format';
 import { daysLeft } from '../../utils/time';
 import { toast } from '../../../store/useToastStore';
@@ -75,13 +74,9 @@ const LANE_CHIP = Object.fromEntries(
 );
 
 function DevBoardCard({ row, onMove, canManage, dragging, onDragStart, onDragEnd }) {
-  const { dev, tasks, states, column, typeNames, materialGate } = row;
+  const { dev, states, column, materialGate } = row;
   const location = useLocation();
   const state = states.find((s) => s.stage === column);
-  // Подписи задач берутся из справочника: без него человек читает код
-  // (`начать patterns`) — то же правило, что в строке списка
-  const blocker = currentBlocker(tasks, typeNames, row.today);
-  const action = nextAction(dev, tasks, typeNames, row.today);
   const due = dev.due_date || dev.order?.due_date || null;
   const left = daysLeft(due);
   const overdue = left !== null && left < 0 && !dev.outcome;
@@ -140,19 +135,25 @@ function DevBoardCard({ row, onMove, canManage, dragging, onDragStart, onDragEnd
       <div className={styles.kanbanCardTitle}>
         {dev.tech_name || dev.order?.title || 'Без названия'}
       </div>
-      {/* Вариант/цвет — прямое требование документа к карточке доски */}
-      {dev.dev_type && <div className={styles.subText}>{dev.dev_type}</div>}
 
-      <div className={styles.subText}>
-        {dev.technologist || dev.constructor || 'ответственный не назначен'}
-      </div>
+      {/*
+        ТЕКСТОВЫЕ ПОДПИСИ С КАРТОЧКИ СНЯТЫ (правка заказчика 20.09, п. 3):
+        «Убрать из визуала карточек на доске надписи… Номер и название изделия
+        остаются».
 
-      {/* Текущая задача и следующее действие — то, ради чего доска и нужна */}
-      {blocker && (
-        <div className={styles.subText}>
-          <Icon name="flask" size={12} /> {taskLabel(blocker, typeNames)}
-        </div>
-      )}
+        Сняты: тип разработки (`dev_type`), ответственный
+        (`technologist`/`constructor`), текущая задача-блокер и строка
+        «следующее действие». Все четыре остаются В КАРТОЧКЕ РАЗРАБОТКИ
+        (`DevCard`), то есть данные никуда не делись — с доски ушёл текст,
+        который на ней и не читали: четыре серые строки подряд под названием
+        превращали колонку в стену.
+
+        Остаются: номер сделки (он же ссылка), название изделия, срок,
+        чипы ожидания и материала — это СОСТОЯНИЕ, а не описание, и оно
+        отвечает на вопрос «почему карточка стоит», ради которого доску
+        и открывают. Кнопки «‹ ›» — альтернатива перетаскиванию, без них
+        доска перестала бы работать с клавиатуры.
+      */}
       {state?.waitingReason && (
         <span className={`${styles.chip} ${styles[LANE_CHIP[state.lane]]}`}>
           {state.waitingReason}
@@ -176,7 +177,6 @@ function DevBoardCard({ row, onMove, canManage, dragging, onDragStart, onDragEnd
           Ожидаем материал
         </span>
       )}
-      {action && <div className={styles.cellSub}>{action}</div>}
 
       {/* Путь разработки: что выполнено, что идёт, что осталось.
           Вид индикатора один на весь ERP — своей ленты точек здесь не заводим.
