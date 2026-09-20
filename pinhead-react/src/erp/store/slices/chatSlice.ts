@@ -25,7 +25,7 @@ import type {
   ChatContext, ChatUnread, ErpChatMessage, ErpChatPerson,
 } from '../../types';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
-import { contextKey } from '../../utils/chatContext';
+import { contextKey, isWholeDeal, unreadForContext } from '../../utils/chatContext';
 import type { ChatSlice, ErpStore } from '../types';
 
 /** Сколько сообщений в странице. Совпадает с умолчанием `erp_chat_page` */
@@ -52,6 +52,8 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
   chatLoading: false,
   chatError: null,
   chatUnread: {},
+  /** Граница «Непрочитанные сообщения» — снимок на момент открытия (20.09, п. 4) */
+  chatUnreadAnchor: null,
   chatPing: 0,
 
   loadChatDirectory: async () => {
@@ -81,6 +83,7 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    */
   openChat: async (orderId, context = {}) => {
     set({
+      chatUnreadAnchor: null,
       chatOrderId: orderId,
       chatContext: context,
       chatMessages: [],
@@ -107,11 +110,36 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
       return;
     }
     const page = (data ?? { messages: [], has_more: false }) as ChatPage;
+    const rows = page.messages ?? [];
+    /**
+     * ГРАНИЦА НЕПРОЧИТАННОГО — СНИМОК НА МОМЕНТ ОТКРЫТИЯ (правка 20.09, п. 4).
+     *
+     * «Граница остаётся ориентиром в текущем сеансе, даже когда видимые
+     * сообщения уже отмечены прочитанными». Считать её на каждом кадре
+     * из счётчика нельзя: первый же `markChatRead` обнулит счётчик, и черта
+     * исчезнет ровно тогда, когда по ней ориентируются.
+     *
+     * Место ей ЗДЕСЬ, а не в компоненте: панель перерисовывается от каждого
+     * realtime-события, а это величина «один раз при открытии».
+     *
+     * Непрочитанные — последние `count` ЧУЖИХ сообщений: сервер считает
+     * их тем же правилом, свои в счётчик не входят.
+     */
+    const unread = !isWholeDeal(context)
+      ? unreadForContext(get().chatUnread[orderId], context)
+      : (get().chatUnread[orderId]?.total ?? 0);
+    const me = currentUserId();
+    const others = unread > 0 ? rows.filter((m) => m.author_id !== me) : [];
+    const anchor = others.length > 0
+      ? (others[Math.max(others.length - unread, 0)]?.id ?? null)
+      : null;
+
     set({
-      chatMessages: page.messages ?? [],
+      chatMessages: rows,
       chatHasMore: Boolean(page.has_more),
       chatLoading: false,
       chatError: null,
+      chatUnreadAnchor: anchor,
     });
   },
 

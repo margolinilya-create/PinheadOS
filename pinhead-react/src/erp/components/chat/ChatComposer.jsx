@@ -47,6 +47,8 @@ export function ChatComposer({
   const [chosen, setChosen] = useState([]);
   const [mention, setMention] = useState(null);
   const [mentionAt, setMentionAt] = useState(0);
+  /** Файл тащат над полем — подсветка зоны приёма (правка 20.09, п. 4) */
+  const [dragOver, setDragOver] = useState(false);
   const suggestions = mention ? matchPeople(directory, mention.query) : [];
 
   const ready = uploads.files.filter((f) => f.state === 'uploaded');
@@ -150,18 +152,37 @@ export function ChatComposer({
       )}
 
       <form
-        className={styles.chatComposerRow}
+        className={`${styles.chatComposerRow} ${dragOver ? styles.chatDropActive : ''}`}
         onSubmit={(e) => { e.preventDefault(); void submit(); }}
+        /*
+          ПЕРЕТАСКИВАНИЕ (правка 20.09, п. 4). Подсветка нужна не для красоты:
+          без неё человек не знает, отпускать ли файл здесь, и роняет его
+          мимо окна — браузер тогда ОТКРЫВАЕТ файл вместо загрузки, теряя
+          набранный текст вместе со страницей.
+        */
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          for (const file of e.dataTransfer?.files ?? []) uploads.add(file, 'chat');
+        }}
       >
         <label className={styles.chatAttachBtn}>
           <Icon name="paperclip" size={16} />
           <span className={styles.visuallyHidden}>Приложить файл</span>
+          {/*
+            НЕСКОЛЬКО ФАЙЛОВ СРАЗУ (правка 20.09, п. 4): «разрешить несколько
+            вложений, перетаскивание и вставку изображения из буфера».
+            Прежде input был без `multiple`, и приложить три фотографии
+            означало три захода в диалог выбора.
+          */}
           <input
             type="file"
             hidden
+            multiple
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploads.add(file, 'chat');
+              for (const file of e.target.files ?? []) uploads.add(file, 'chat');
               e.target.value = '';
             }}
           />
@@ -193,6 +214,23 @@ export function ChatComposer({
               setMentionAt(0);
             }}
             onBlur={() => setMention(null)}
+            /*
+              ВСТАВКА ИЗ БУФЕРА (правка 20.09, п. 4) — скриншот брака делают
+              «Ctrl+Shift+S», и путь «сохранить на диск → найти → приложить»
+              здесь лишний целиком.
+
+              Текстовую вставку не трогаем: `items` с файлами есть только
+              у картинок и файлов, у обычного текста список пуст.
+            */
+            onPaste={(e) => {
+              const files = [...(e.clipboardData?.items ?? [])]
+                .filter((it) => it.kind === 'file')
+                .map((it) => it.getAsFile())
+                .filter(Boolean);
+              if (files.length === 0) return;
+              e.preventDefault();
+              for (const file of files) uploads.add(file, 'chat');
+            }}
             onKeyDown={(e) => {
               if (mention && suggestions.length > 0) {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

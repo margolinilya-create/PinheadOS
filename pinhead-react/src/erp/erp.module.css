@@ -1076,6 +1076,37 @@
 .cutSizeRow .qtySmallInput { flex: 0 1 110px; }
 
 /*
+  ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9). Плитки, а не таблица: величин
+  восемь, у каждой своя единица и своя оговорка про полноту данных —
+  в таблице оговорка не помещается никуда, кроме отдельной колонки,
+  которая на планшете уезжает за край.
+*/
+.economics { display: flex; flex-direction: column; gap: var(--space-md); }
+.metricGrid {
+  display: grid;
+  /* auto-fit: на телефоне одна колонка, на планшете две, на мониторе четыре —
+     без единого медиазапроса и без второго набора правил */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-sm);
+}
+.metricCard {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-md) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.metricCardAccent { border-color: var(--accent); }
+.metricLabel { font-size: var(--type-label); color: var(--text-dim); }
+.metricValue {
+  font-family: var(--mono);
+  font-size: var(--type-metric);
+  line-height: 1.1;
+}
+
+/*
   Список черновиков в разделе заказов (правка 20.09, п. 6). Свёрнут
   по умолчанию: черновик — рабочее состояние одного человека, и разворачивать
   его поверх списка заказов каждому, кто зашёл в раздел, незачем.

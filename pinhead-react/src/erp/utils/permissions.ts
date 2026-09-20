@@ -69,6 +69,12 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
      * ВСЕ условия завершения разом, поэтому по умолчанию остаётся
      * у директора, рядом с аварийным снятием блокировок.
      */
+    /**
+     * `economics.view` (20.09, п. 9) руководителю производства ОСТАЁТСЯ
+     * и назван здесь именно поэтому: перечень строится исключениями, и
+     * читать его нужно как список того, чего у роли нет. Расход полотна
+     * и стоимость сборки — его прямая работа, он же за них и отвечает.
+     */
     (p) => p !== 'bypass.manage' && p !== 'experimental.manage' && p !== 'staff.invite'
       && p !== 'stage.force_complete',
   ),
@@ -99,7 +105,13 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
       // `stage.force_complete` — по той же причине, что и остальные явные
       // исключения (правка 20.09, п. 5): перечень строится исключениями.
       // Диспетчер распоряжается очередью, а не отменой проверок завершения.
-      && p !== 'stage.force_complete',
+      && p !== 'stage.force_complete'
+      /**
+       * `economics.view` диспетчеру НЕ даётся (правка 20.09, п. 9): он
+       * распоряжается очередью цехов, а не деньгами заказа. Названо явно —
+       * перечень строится исключениями, и право досталось бы ему молча.
+       */
+      && p !== 'economics.view',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',

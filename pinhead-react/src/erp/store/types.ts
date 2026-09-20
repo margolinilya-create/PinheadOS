@@ -809,7 +809,60 @@ export interface AnalyticsSnapshot {
   byDept: AnalyticsDeptRow[];
 }
 
+/**
+ * ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9) — ответ `erp_item_economics`.
+ *
+ * Расход полотна возвращается РАЗБИВКОЙ ПО ЕДИНИЦАМ, а стоимость — одним
+ * числом: сложить «61 кг и 120 м» нельзя (правило раздела «пересчёта единиц
+ * система не делает»), а рубли складываются всегда.
+ *
+ * Ключа «расход на годную единицу» здесь НЕТ намеренно: документ прямо
+ * запрещает его выводить, а «посчитать и не показать» — приглашение вернуть
+ * его следующей правкой.
+ */
+export interface ItemEconomicsFabric {
+  unit: string | null;
+  qty_used: number;
+  cost: number | null;
+  /** По какой доле расхода цена нашлась: среднее по трети выглядит как среднее по всему */
+  priced_qty: number;
+  /** Средний расход на ВЫКРОЕННУЮ единицу; null — кроя ещё не было */
+  avg_per_cut: number | null;
+}
+
+export interface ItemEconomics {
+  item_id: string;
+  fabric: ItemEconomicsFabric[];
+  fabric_cost_total: number | null;
+  rolls_used: number;
+  qty_cut: number;
+  qty_good: number;
+  assembly: {
+    avg: number | null;
+    covered_qty: number;
+    /** `reports` — из отчётов швейки; `item_fallback` — из колонки позиции */
+    source: 'reports' | 'item_fallback' | null;
+  };
+  fabric_cost_per_good: number | null;
+  direct_unit_cost: number | null;
+}
+
+export interface OrderEconomicsRow {
+  item_id: string;
+  product_type: string | null;
+  variant: string | null;
+  qty: number;
+  economics: ItemEconomics;
+}
+
 export interface AnalyticsSlice {
+  /**
+   * Экономика позиций ОДНОГО заказа, ключ — его id (правка 20.09, п. 9).
+   * Вкладка делает один вызов на заказ, а не по одному на позицию.
+   */
+  orderEconomics?: Record<string, OrderEconomicsRow[]>;
+  economicsLoading?: boolean;
+  loadOrderEconomics: (orderId: string) => Promise<OrderEconomicsRow[] | null>;
   /** Последний снимок и его ключ: тот же фильтр — тот же ответ */
   analytics?: AnalyticsSnapshot | null;
   analyticsKey?: string | null;
@@ -1174,6 +1227,14 @@ export interface NotificationsSlice {
  * Действия приезжают доменным чанком: чат открывают с экрана.
  */
 export interface ChatSlice {
+  /**
+   * Первое непрочитанное на момент ОТКРЫТИЯ переписки (правка 20.09, п. 4) —
+   * перед ним лента рисует черту «Непрочитанные сообщения».
+   *
+   * Снимок, а не производная от счётчика: показ ленты тут же гасит счётчик,
+   * и вычисляемая граница исчезала бы в тот же кадр.
+   */
+  chatUnreadAnchor?: string | null;
   /** Кого можно упомянуть и как называть автора; пусто — справочник не грузили */
   chatDirectory: ErpChatPerson[];
   chatDirectoryLoaded: boolean;

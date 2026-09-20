@@ -16,7 +16,9 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { erpQuery, erpError } from '../shared';
-import type { AnalyticsFilter, AnalyticsSnapshot, ErpStore, AnalyticsSlice } from '../types';
+import type {
+  AnalyticsFilter, AnalyticsSnapshot, ErpStore, AnalyticsSlice, OrderEconomicsRow,
+} from '../types';
 
 /** Ключ снимка: те же фильтры — тот же ответ */
 function filterKey(f: AnalyticsFilter): string {
@@ -33,6 +35,42 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
   analytics: null,
   analyticsKey: null,
   analyticsLoading: false,
+  orderEconomics: {},
+  economicsLoading: false,
+
+  /**
+   * ЭКОНОМИКА ПОЗИЦИЙ ЗАКАЗА (правка 20.09, п. 9).
+   *
+   * Тоже считает сервер и по той же причине, что и сводка: нужны журнал
+   * отчётов, расход рулонов и цены закупки — ничего из этого в сторе нет,
+   * а тянуть ради одной вкладки значило бы возить историю в каждой карточке.
+   *
+   * ОДИН ВЫЗОВ НА ЗАКАЗ, а не по одному на позицию: у заказа их бывает
+   * с десяток, и N запросов на открытие вкладки — это ровно тот случай,
+   * от которого в разделе уходили `erp_bootstrap` и `erp_chat_unread_many`.
+   *
+   * Кэш по заказу: переключение вкладок карточки не должно пересчитывать
+   * себестоимость заново. Обновляется он при повторном открытии карточки —
+   * `loadOne` перезаписывает заказ целиком.
+   */
+  loadOrderEconomics: async (orderId) => {
+    const cached = get().orderEconomics?.[orderId];
+    if (cached) return cached;
+
+    set({ economicsLoading: true });
+    const { data, error } = await erpQuery(
+      () => supabase.rpc('erp_order_economics', { p_order_id: orderId }),
+    );
+    set({ economicsLoading: false });
+    if (error) {
+      // Вкладка открыта человеком — молчать нельзя, в отличие от фоновых загрузок
+      erpError('Не удалось посчитать экономику позиций', error);
+      return null;
+    }
+    const rows = (data ?? []) as OrderEconomicsRow[];
+    set((st) => ({ orderEconomics: { ...(st.orderEconomics ?? {}), [orderId]: rows } }));
+    return rows;
+  },
 
   loadAnalytics: async (filter) => {
     const key = filterKey(filter);

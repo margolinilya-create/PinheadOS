@@ -94,7 +94,17 @@ export type ErpPermission =
    * Количество действие не пишет и последующие этапы не трогает, поэтому
    * `stage.progress` оно тоже не подменяет.
    */
-  | 'stage.force_complete';
+  | 'stage.force_complete'
+  /**
+   * ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9) — расход и стоимость полотна,
+   * стоимость пошива и прямая себестоимость единицы в карточке заказа.
+   *
+   * Отдельное право, а не `analytics.view`: тот открывает сводку по ВСЕЙ
+   * фабрике, а вопрос здесь — «во что обошлась эта позиция», и задаёт его
+   * в том числе менеджер заказа. Выдать ему ради этого аналитику значило бы
+   * отдать заодно брак по цехам и себестоимость всех чужих заказов.
+   */
+  | 'economics.view';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
@@ -102,6 +112,6 @@ export const ERP_PERMISSIONS: ErpPermission[] = [
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
   'bypass.manage', 'experimental.manage', 'staff.invite', 'files.manage',
   'sku.view', 'sku.edit', 'sku.publish', 'sku.archive',
-  'analytics.view', 'stage.force_complete',
+  'analytics.view', 'stage.force_complete', 'economics.view',
 ];
 

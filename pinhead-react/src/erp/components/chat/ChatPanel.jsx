@@ -8,6 +8,7 @@ import { Skeleton } from '../../../components/shared/Skeleton';
 import { ChatMessage } from './ChatMessage';
 import { ChatComposer } from './ChatComposer';
 import { isWholeDeal } from '../../utils/chatContext';
+import { buildFeed } from '../../utils/chatFeed';
 import styles from '../../styles';
 
 /**
@@ -25,7 +26,7 @@ import styles from '../../styles';
  */
 export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId = null }) {
   const {
-    messages, hasMore, loading, error, directory, unread, ping, realtimeLive,
+    messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, realtimeLive,
     openChat, loadMore, refresh, send, loadDirectory, markRead, closeChat,
   } = useErpStore(useShallow((s) => ({
     messages: s.chatMessages,
@@ -34,6 +35,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     error: s.chatError,
     directory: s.chatDirectory,
     unread: s.chatUnread[orderId],
+    unreadAnchor: s.chatUnreadAnchor,
     ping: s.chatPing,
     realtimeLive: s.realtimeLive,
     openChat: s.openChat,
@@ -101,6 +103,26 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    * у задачи — её (требование документа «просмотр переписки отдельной задачи
    * не отмечает прочитанными сообщения других задач»).
    */
+  /**
+   * ГРАНИЦА НЕПРОЧИТАННОГО ФИКСИРУЕТСЯ ПРИ ОТКРЫТИИ И ЖИВЁТ ВЕСЬ СЕАНС
+   * (правка 20.09, п. 4): «граница остаётся ориентиром в текущем сеансе,
+   * даже когда видимые сообщения уже отмечены прочитанными».
+   *
+   * Считать её от счётчика на каждом кадре нельзя: первый же `markRead`
+   * обнулил бы счётчик, и граница исчезла бы ровно в тот момент, когда
+   * человек по ней ориентируется.
+   */
+  /**
+   * Граница непрочитанного приходит ИЗ СТОРА: она считается один раз при
+   * открытии переписки (см. `openChat`). Здесь её вычислять нельзя —
+   * панель перерисовывается от каждого realtime-события, а показ ленты
+   * тут же гасит счётчик, из которого граница выводится.
+   */
+  const feed = useMemo(
+    () => buildFeed(messages, { firstUnreadId: unreadAnchor }),
+    [messages, unreadAnchor],
+  );
+
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
   useEffect(() => {
     if (!lastMessageId) return;
@@ -199,17 +221,47 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
           </p>
         )}
 
-        {messages.map((m) => (
-          <ChatMessage
-            key={m.id}
-            message={m}
-            nameOf={nameOf}
-            meId={meId}
-            onReply={setReplyTo}
-            highlighted={replyTo?.id === m.id || focusId === m.id}
-            directory={directory}
-          />
-        ))}
+        {/*
+          ЛЕНТА РАЗОБРАНА НА УЗЛЫ (правка 20.09, п. 4): разделители дней,
+          граница непрочитанного и группы сообщений одного автора. Раньше
+          здесь стоял плоский `messages.map`, и каждое сообщение несло полную
+          шапку с датой — в переписке из двадцати реплик подряд это двадцать
+          повторов одного имени и одной даты.
+        */}
+        {feed.map((node) => {
+          if (node.kind === 'day') {
+            return (
+              <div key={node.key} className={styles.chatDay} role="separator">
+                <span>{node.label}</span>
+              </div>
+            );
+          }
+          if (node.kind === 'unread') {
+            return (
+              <div key={node.key} className={styles.chatUnreadLine} role="separator">
+                <span>Непрочитанные сообщения</span>
+              </div>
+            );
+          }
+          return (
+            <div key={node.key} className={styles.chatGroup}>
+              {node.messages.map((m, i) => (
+                <ChatMessage
+                  key={m.id}
+                  message={m}
+                  nameOf={nameOf}
+                  meId={meId}
+                  onReply={setReplyTo}
+                  highlighted={replyTo?.id === m.id || focusId === m.id}
+                  directory={directory}
+                  /* Имя автора — только над ГРУППОЙ: повтор у каждой реплики
+                     и есть то, что документ просит объединить визуально */
+                  compact={i > 0}
+                />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       <ChatComposer

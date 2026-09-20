@@ -1830,6 +1830,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'sku.publish': 'Выпускать модель в прайс',
   'sku.archive': 'Архивировать модель',
   'stage.force_complete': 'Завершать этап принудительно',
+  'economics.view': 'Смотреть экономику позиции',
 };
 
 // --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------

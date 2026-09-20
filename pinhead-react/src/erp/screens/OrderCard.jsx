@@ -31,6 +31,7 @@ import { FilesSection } from './orderCard/FilesSection';
 import { CommentsSection } from './orderCard/CommentsSection';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { HistorySection } from './orderCard/HistorySection';
+import { EconomicsSection } from './orderCard/EconomicsSection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
 import { Button, ButtonLink } from '../components/Button';
@@ -77,7 +78,10 @@ export default function OrderCard() {
    * показываются НА ЧТЕНИЕ, а не пропадают: срок клиента и менеджер нужны
    * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
    */
-  const canManageOrder = useErpAccess().can('order.manage');
+  const access = useErpAccess();
+  const canManageOrder = access.can('order.manage');
+  /** Себестоимость позиции — своё право, а не `order.manage` (20.09, п. 9) */
+  const canSeeEconomics = access.can('economics.view');
   /** Открыта ли форма правки заказа (правка 12.09, п. 7) */
   const [editing, setEditing] = useState(false);
 
@@ -154,8 +158,17 @@ export default function OrderCard() {
      * я ещё не видел».
      */
     { id: 'chat', label: 'Чат', count: chatUnread },
+    /**
+     * ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9) — под своим правом
+     * `economics.view`. Без него вкладки нет вовсе: прятать содержимое,
+     * оставляя заголовок, значит обещать то, чего человек не получит.
+     *
+     * Счётчика у неё нет намеренно: «сколько там» — неверный вопрос
+     * к себестоимости, а число позиций уже стоит у вкладки «Позиции».
+     */
+    ...(canSeeEconomics ? [{ id: 'economics', label: 'Экономика позиции' }] : []),
     { id: 'history', label: 'История', count: (events?.length ?? 0) + (audit?.length ?? 0) },
-  ], [order, comments, events, audit, chatUnread]);
+  ], [order, comments, events, audit, chatUnread, canSeeEconomics]);
   const requested = params.get('tab');
   const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
 
@@ -410,6 +423,8 @@ export default function OrderCard() {
             разговор общий — сужение по задаче открывается со страницы
             задания, где задача и выбрана */}
         {tab === 'chat' && <ChatPanel orderId={order.id} focusId={params.get('msg')} />}
+
+        {tab === 'economics' && <EconomicsSection order={order} />}
 
         {tab === 'history' && (
           <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />

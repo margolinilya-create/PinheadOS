@@ -1,7 +1,7 @@
 import { supabase } from '../../../lib/supabase';
 import { Icon } from '../Icon';
 import styles from '../../styles';
-import { formatDateTimeShort } from '../../utils/format';
+import { messageTime, messageFullTime } from '../../utils/chatFeed';
 import { splitMentions } from '../../utils/mentions';
 
 /**
@@ -24,7 +24,16 @@ function fileUrl(path) {
 
 const isImage = (att) => /\.(png|jpe?g|webp|gif|avif)$/i.test(att.file_name || att.file_path);
 
-export function ChatMessage({ message, nameOf, meId, onReply, highlighted, directory = [] }) {
+export function ChatMessage({
+  message, nameOf, meId, onReply, highlighted, directory = [],
+  /**
+   * Продолжение группы (правка 20.09, п. 4): имя автора уже стоит над
+   * группой, и повторять его у каждой реплики — ровно то, что документ
+   * просит «объединить визуально». Время остаётся у каждого сообщения:
+   * оно у них разное.
+   */
+  compact = false,
+}) {
   const mine = message.author_id === meId;
   const mentioned = Array.isArray(message.mentions) && meId
     ? message.mentions.includes(meId)
@@ -41,9 +50,17 @@ export function ChatMessage({ message, nameOf, meId, onReply, highlighted, direc
       aria-label={`Сообщение от ${nameOf(message.author_id)}`}
     >
       <header className={styles.chatMsgHead}>
-        <strong className={styles.chatMsgAuthor}>{nameOf(message.author_id)}</strong>
-        <time className={styles.chatMsgTime} dateTime={message.created_at}>
-          {formatDateTimeShort(message.created_at)}
+        {!compact && (
+          <strong className={styles.chatMsgAuthor}>{nameOf(message.author_id)}</strong>
+        )}
+        {/* Время — ЧЧ:ММ по поясу фабрики; полная дата в подсказке
+            (документ: «полная дата и время доступны по наведению») */}
+        <time
+          className={styles.chatMsgTime}
+          dateTime={message.created_at}
+          title={messageFullTime(message.created_at)}
+        >
+          {messageTime(message.created_at)}
         </time>
         {/* «Вас упомянули» видно В ЛЕНТЕ, а не только в колоколе: человек
             приходит по ссылке и должен понять, ради чего его позвали */}

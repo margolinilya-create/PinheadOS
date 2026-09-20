@@ -42,6 +42,11 @@ const EXEMPT: Record<string, string> = {
     'строка очереди — источник, полифилл поднимает DepartmentQueue',
   'screens/queue/QueueCard.jsx':
     'карточка очереди — источник, полифилл поднимает DepartmentQueue',
+  'components/chat/ChatComposer.jsx':
+    'сюда тащат ФАЙЛ ИЗ СИСТЕМЫ, а не элемент страницы: `mobile-drag-drop` '
+    + 'эмулирует перетаскивание узлов DOM и файловому drop не помогает ничем. '
+    + 'На планшете тот же файл прикладывают кнопкой — она рядом и работает '
+    + '(правка 20.09, п. 4)',
 };
 
 function walk(dir: string, out: string[] = []): string[] {

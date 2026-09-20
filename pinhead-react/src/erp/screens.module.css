@@ -1857,6 +1857,48 @@ a.cellTitle:hover { color: var(--accent); }
 .chatFileThumb { width: 28px; height: 28px; object-fit: cover; border-radius: var(--radius-sm); }
 
 .chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
+/*
+  РАЗДЕЛИТЕЛИ ЛЕНТЫ (правка 20.09, п. 4): день и граница непрочитанного.
+
+  Линия через всю ширину с подписью по центру — а не просто текст: в ленте
+  из пузырей слева и справа одинокая строка теряется среди сообщений,
+  и «Сегодня» читается как чья-то реплика.
+*/
+.chatDay,
+.chatUnreadLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.chatDay::before, .chatDay::after,
+.chatUnreadLine::before, .chatUnreadLine::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-light);
+}
+/* Граница непрочитанного — акцентом: это не разметка времени, а место,
+   с которого человек продолжает читать */
+.chatUnreadLine { color: var(--accent); }
+.chatUnreadLine::before, .chatUnreadLine::after { background: var(--accent); }
+
+/* Группа сообщений одного автора: внутри интервал меньше, чем между группами */
+.chatGroup { display: flex; flex-direction: column; gap: 2px; }
+
+/*
+  Зона приёма файла при перетаскивании (правка 20.09, п. 4). Пунктир, а не
+  заливка: заливка поверх набранного текста делает его нечитаемым ровно
+  в тот момент, когда человек проверяет, туда ли он тащит.
+*/
+.chatDropActive {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
 .chatComposerRow { display: flex; align-items: flex-end; gap: var(--space-xs); }
 .chatInput {
   flex: 1;
