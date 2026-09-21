@@ -68,6 +68,42 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * из этапа закройки»).
    */
   const bySizes = dept?.result_detail === 'sizes';
+
+  /**
+   * ФОРМА СДАЧИ ТРЕБУЕТ ПОЛНЫЙ ЗАКАЗ (правка 21.09, пп. 2, 3, 4).
+   *
+   * Списочная выборка (`ORDER_LIST_SELECT`) намеренно тоньше карточки:
+   * из неё выброшена `items.size_grid`, а рулоны в неё не входили никогда.
+   * Форму сдачи при этом открывают из очереди цеха, то есть с ЛИСТОВЫМИ
+   * данными, и обе недостающие вещи приезжали `undefined` — молча, без
+   * единой ошибки:
+   *
+   *   · размерная сетка позиции не находилась, закрой предлагал стандартную
+   *     шкалу и писал «у позиции нет размерной сетки» на позиции, где она
+   *     заполнена (пп. 3 и 4 документа);
+   *   · `material.rolls` пуст → `rollsForItem` возвращает пустой список,
+   *     и при одной заполненной строке загоралось «Все принятые рулоны уже
+   *     в списке» (п. 2 — «после добавления одного рулона система ошибочно
+   *     считает, что все принятые рулоны уже в списке»).
+   *
+   * Поэтому заказ ДОЗАГРУЖАЕТСЯ, а не возвращается в списочную выборку:
+   * сетку читает одна эта форма, а список возят все экраны раздела разом.
+   * Рулоны в список всё же вернулись — их на всю базу четыре десятка строк,
+   * и без них карточка очереди не знает, есть ли с чего кроить.
+   */
+  const needsDetail = byRolls || bySizes;
+  const loadOne = useErpStore((st) => st.loadOne);
+  const hasDetail = useErpStore((st) => st.detailIds.includes(order.id));
+  /** Свежий заказ из стора: `entry.order` — снимок, сделанный до дозагрузки */
+  const fullOrder = useErpStore((st) => st.orders.find((o) => o.id === order.id)) ?? order;
+  const fullItem = useMemo(
+    () => (fullOrder.items ?? []).find((it) => it.id === item.id) ?? item,
+    [fullOrder, item],
+  );
+  useEffect(() => {
+    if (needsDetail && !hasDetail) loadOne(order.id);
+  }, [needsDetail, hasDetail, loadOne, order.id]);
+
   const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
   const [assemblyCost, setAssemblyCost] = useState('');
@@ -98,8 +134,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     [bySizes, stage, item.stages, prevReports],
   );
   const sizeRows = useMemo(
-    () => (bySizes ? sizeInputRows(item.size_grid, sizeInput, sizeFromPrev) : []),
-    [bySizes, item.size_grid, sizeInput, sizeFromPrev],
+    () => (bySizes ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev) : []),
+    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev],
   );
   /**
    * ТАБЛИЦА ЕСТЬ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ СТРОКИ (правка 20.09, п. 8).
@@ -118,11 +154,13 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * частичной сдаче незачем — «обязательное» превратилось бы в «вводите
    * одно и то же каждый день».
    */
-  const needsCost = bySizes && !item.assembly_cost_per_unit && assemblyCost === '';
+  const needsCost = bySizes && !fullItem.assembly_cost_per_unit && assemblyCost === '';
   /** Рулоны, принятые складом по этой позиции: их же показывает секция */
   const rollOptions = useMemo(
-    () => (byRolls ? rollsForItem(order?.materials, item?.id, rollEntries.map((e) => e.rollId)) : []),
-    [byRolls, order, item, rollEntries],
+    () => (byRolls
+      ? rollsForItem(fullOrder?.materials, fullItem?.id, rollEntries.map((e) => e.rollId))
+      : []),
+    [byRolls, fullOrder, fullItem, rollEntries],
   );
 
   /**
@@ -290,15 +328,21 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         </span>
       </span>
 
-      {byRolls && (
+      {/*
+        Секция ждёт ДОЗАГРУЗКУ заказа: до неё рулонов нет ни одного, и
+        «Склад ещё не принял рулоны» было бы неправдой о живой поставке
+      */}
+      {byRolls && (hasDetail ? (
         <CutRollsSection
-          order={order}
-          item={item}
+          order={fullOrder}
+          item={fullItem}
           entries={rollEntries}
           onChange={setRollEntries}
           disabled={busy}
         />
-      )}
+      ) : (
+        <p className={styles.queueReason} role="status">Подтягиваем принятые рулоны…</p>
+      ))}
 
       {useSizeTable && (
         <>
@@ -375,13 +419,13 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
             value={assemblyCost}
             disabled={busy}
             onChange={(e) => setAssemblyCost(e.target.value)}
-            placeholder={item.assembly_cost_per_unit
-              ? String(item.assembly_cost_per_unit) : ''}
+            placeholder={fullItem.assembly_cost_per_unit
+              ? String(fullItem.assembly_cost_per_unit) : ''}
             aria-label="Стоимость сборки за единицу"
           />
           <span className={styles.subText}>
-            {item.assembly_cost_per_unit
-              ? `Записано по позиции: ${item.assembly_cost_per_unit} ₽ за единицу`
+            {fullItem.assembly_cost_per_unit
+              ? `Записано по позиции: ${fullItem.assembly_cost_per_unit} ₽ за единицу`
               : 'Один раз на всю позицию, а не по размерам'}
           </span>
         </label>

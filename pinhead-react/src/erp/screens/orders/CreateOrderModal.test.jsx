@@ -5,6 +5,7 @@ import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
 import { supabase } from '../../../lib/supabase';
+import { addDays, factoryToday } from '../../../utils/date';
 
 /**
  * Форма монтируется НАПРЯМУЮ, минуя `lazyScreen`, — доменные действия надо
@@ -387,11 +388,7 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
  * сохранения — три теста разом, без единой правки кода. Календарь как скрытый
  * вход теста запрещён: фикстура обязана жить дольше одной недели.
  */
-const DAYS_FROM_TODAY = (days) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-};
+const DAYS_FROM_TODAY = (days) => addDays(factoryToday(), days);
 
 describe('CreateOrderModal — правка созданного заказа', () => {
   const ORDER = {
