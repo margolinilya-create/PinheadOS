@@ -640,7 +640,7 @@ export function DevCard({
 
         {/* ─── Файлы: сводный реестр вложений разработки ─── */}
         {tab === 'files' && (
-          <DevFilesTab files={files} tasks={tasks} typeNames={typeNames} />
+          <DevFilesTab dev={dev} files={files} tasks={tasks} typeNames={typeNames} />
         )}
 
         {/* ─── История доработок ───

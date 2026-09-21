@@ -286,11 +286,23 @@ export function useAttachmentUploads(scope = 'new', initial = []) {
    */
   const clear = useCallback(() => setFiles([]), []);
 
+  /**
+   * ЗАМЕНИТЬ СПИСОК ЦЕЛИКОМ — для выбора другого черновика (правка 21.09, п. 6):
+   * «выбор нового должен заменить данные формы данными выбранного черновика.
+   * Не создавать копию и не объединять два черновика».
+   *
+   * Берутся только УЖЕ ЗАГРУЖЕННЫЕ файлы, тем же фильтром, что при монтировании:
+   * в черновике лежит путь объекта в бакете, а `File` в JSON не переживает.
+   */
+  const replaceAll = useCallback((next) => setFiles((next ?? [])
+    .filter((f) => f?.path && f.state === 'uploaded')
+    .map((f) => ({ ...f, file: null, error: null }))), []);
+
   const uploading = useMemo(() => files.some((f) => f.state === 'uploading'), [files]);
   const failed = useMemo(() => files.some((f) => f.state === 'error'), [files]);
 
   return {
-    files, add, retry, remove, clear, copyOwner, moveFile, dropItem, dropOwner, payload,
-    draftSnapshot, uploading, failed,
+    files, add, retry, remove, clear, replaceAll, copyOwner, moveFile, dropItem, dropOwner,
+    payload, draftSnapshot, uploading, failed,
   };
 }
