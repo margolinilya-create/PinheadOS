@@ -85,7 +85,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     materialId,
     { qty = null, accept_status, accept_comment = null, invoice = null,
       fact_name = null, fact_color = null, fact_article = null, clientKey = null,
-      sizeGrid = null, rolls = null },
+      sizeGrid = null, rolls = null, rollWeights = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) {
@@ -116,6 +116,14 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
        * иначе удвоил бы рулоны так же, как удвоил бы килограммы.
        */
       p_rolls: rolls && rolls > 0 ? Math.round(rolls) : null,
+      /**
+       * ВЕС КАЖДОГО РУЛОНА (правка 21.09, п. 2). Сервер сверяет сумму
+       * с приходом и отвечает 22023, если она не сходится — тот же гейт,
+       * что показывает форма. Без весов вызов остаётся прежним: очередь
+       * офлайна хранит УЖЕ СОБРАННЫЕ вызовы, и обязательный параметр
+       * уронил бы в день выката всё, что накопилось на планшетах.
+       */
+      p_roll_weights: rollWeights && rollWeights.length > 0 ? rollWeights : null,
     };
 
     /**
@@ -204,6 +212,33 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
      * здесь не появляется.
      */
     await get().maybeCloseSupply(order.id);
+    return true;
+  },
+
+  /**
+   * ВЕС РУЛОНОВ, ПРИНЯТЫХ ДО ПРАВКИ 21.09 (решение заказчика).
+   *
+   * У сорока одного рулона на бою веса нет вовсе — приёмка заводила их пустыми.
+   * Без веса не посчитать остаток, а разложить принятое поровну нельзя:
+   * это выдуманные цифры в учётных данных. Поэтому склад проставляет вес
+   * тем же действием и с той же проверкой суммы, что при приёмке.
+   *
+   * Пишет RPC (`security definer`): право на это — `material.receive`,
+   * а UPDATE-политика рулонов открыта под права ЭТАПА, потому что расход
+   * по рулону пишет цех. Кладовщик без definer получил бы 42501.
+   */
+  setRollWeights: async (materialId, weights) => {
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_rolls_set_weights', {
+      p_material_id: materialId,
+      p_weights: weights,
+    }));
+    if (error) {
+      erpError('Вес рулонов не сохранён', error);
+      return false;
+    }
+    if (order) await get().loadOne(order.id);
+    toast.success('Вес рулонов записан');
     return true;
   },
 

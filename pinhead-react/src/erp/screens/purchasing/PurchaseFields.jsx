@@ -10,10 +10,12 @@ import { isPurchaserChoosableStatus } from '../../utils/materialStatus';
 import { ACCEPTANCE_ISSUE_LABELS, materialAcceptanceIssue } from '../../utils/supply';
 import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
+  pricePerUnitLabel, priceRequiredFor,
 } from './purchaseLabels';
 import styles from '../../styles';
 import { PurchaseSizeTable } from './PurchaseSizeTable';
 import { gridCells } from '../../utils/sizeGrid';
+import { useDictionary } from '../../store/useDictionary';
 
 /**
  * Содержимое колонок закупочной строки — ПО ОДНОЙ реализации на элемент.
@@ -182,16 +184,28 @@ export function QtyOrderedField({ m, onUpdate }) {
   );
 }
 
+/**
+ * Цена подписана ЕДИНИЦЕЙ материала (правка 21.09, п. 1): у ткани в килограммах
+ * это «Цена за кг, ₽», у штучной позиции — «за шт». Пустая цена у ткани
+ * названа прямо: по ней считается и себестоимость полотна, и стоимость
+ * возвратного остатка, и прочерк там читается как «бесплатно».
+ */
 export function PriceField({ m, onUpdate }) {
+  const units = useDictionary('unit');
+  const label = pricePerUnitLabel(m.unit, units);
+  const missing = priceRequiredFor(m.kind) && m.price_per_unit == null;
   return (
     <input
-      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
-      defaultValue={m.price_per_unit ?? ''} placeholder="—"
+      type="number" min="0" step="any"
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`
+        + `${missing ? ` ${styles.inputError}` : ''}`}
+      defaultValue={m.price_per_unit ?? ''} placeholder={missing ? 'нужна' : '—'}
+      aria-invalid={missing || undefined}
       onBlur={(e) => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         if (v !== (m.price_per_unit ?? null)) onUpdate(m.id, { price_per_unit: v });
       }}
-      aria-label={`Цена за единицу ${m.name}`}
+      aria-label={`${label}: ${m.name}`}
     />
   );
 }

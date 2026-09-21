@@ -68,7 +68,7 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
             <QtyOrderedField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>
-            <span className={styles.dataCardFieldLabel}>Цена за ед.</span>
+            <span className={styles.dataCardFieldLabel}>Цена за ед., ₽</span>
             <PriceField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>

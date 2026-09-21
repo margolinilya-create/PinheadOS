@@ -56,6 +56,7 @@ const GROUPS = [
       // кладовщик с `warehouse.manage` не видел «Склад» и не мог открыть адрес.
       { to: '/purchasing', label: 'Закупка', icon: 'truck' },
       { to: '/warehouse', label: 'Склад', icon: 'box' },
+      { to: '/leftovers', label: 'Остатки ткани', icon: 'scissors' },
       { to: '/subcontracting', label: 'Подряд', icon: 'users' },
       { to: '/experimental', label: 'Эксперим. цех', icon: 'flask' },
     ],

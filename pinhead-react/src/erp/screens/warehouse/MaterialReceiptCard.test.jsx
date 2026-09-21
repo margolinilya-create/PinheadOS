@@ -161,13 +161,47 @@ describe('рулоны при приёмке ткани (правка 16.09, п.
     expect(onAccept).not.toHaveBeenCalled();
   });
 
-  it('заполненные рулоны уезжают вместе с приходом', async () => {
-    const onAccept = renderWith('кг');
-    fireEvent.change(screen.getByLabelText(/Сколько пришло сейчас/), { target: { value: '48.6' } });
+  /**
+   * ВЕС КАЖДОГО РУЛОНА (правка 21.09, п. 2): «после указания количества
+   * рулонов раскрывать строки для ввода фактического веса каждого рулона.
+   * Сумма веса всех рулонов должна совпадать с общим фактически принятым
+   * количеством ткани. Если сумма не совпадает, не давать завершить приёмку
+   * и показать понятную ошибку».
+   */
+  it('после числа рулонов раскрываются строки веса — по одной на рулон', () => {
+    renderWith('кг');
+    expect(screen.queryByLabelText(/Вес рулона 1/)).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText(/Количество рулонов/), { target: { value: '3' } });
+
+    expect(screen.getByLabelText(/Вес рулона 1/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Вес рулона 3/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Вес рулона 4/)).not.toBeInTheDocument();
+  });
+
+  it('сумма весов не сходится с приходом — приёмка не отправляется, расхождение названо числом', () => {
+    const onAccept = renderWith('кг');
+    fireEvent.change(screen.getByLabelText(/Сколько пришло сейчас/), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/Количество рулонов/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Вес рулона 1/), { target: { value: '50' } });
+    fireEvent.change(screen.getByLabelText(/Вес рулона 2/), { target: { value: '45' } });
+
+    expect(screen.getByText(/не хватает 5/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Принять/ })).toBeDisabled();
+    expect(onAccept).not.toHaveBeenCalled();
+  });
+
+  it('заполненные рулоны уезжают вместе с приходом и весами', async () => {
+    const onAccept = renderWith('кг');
+    fireEvent.change(screen.getByLabelText(/Сколько пришло сейчас/), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText(/Количество рулонов/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText(/Вес рулона 1/), { target: { value: '60' } });
+    fireEvent.change(screen.getByLabelText(/Вес рулона 2/), { target: { value: '40' } });
     fireEvent.click(screen.getByRole('button', { name: /Принять/ }));
 
     await vi.waitFor(() => expect(onAccept).toHaveBeenCalled());
-    expect(onAccept).toHaveBeenCalledWith('m1', expect.objectContaining({ qty: 48.6, rolls: 3 }));
+    expect(onAccept).toHaveBeenCalledWith('m1', expect.objectContaining({
+      qty: 100, rolls: 2, rollWeights: [60, 40],
+    }));
   });
 });

@@ -118,7 +118,7 @@ describe('строка закупки карточкой (планшет)', () =
       .map((el) => el.textContent);
     expect(labels).toEqual([
       'Материал', PURCHASE_FIELD_LABELS.qtyExpected, 'Комментарий менеджера',
-      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered, 'Цена за ед.', 'Стоимость',
+      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered, 'Цена за ед., ₽', 'Стоимость',
       'Дата заказа', 'План прихода', 'Приход', 'Ответственный',
     ]);
   });

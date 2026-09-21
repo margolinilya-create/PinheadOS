@@ -53,6 +53,7 @@ export const SHOTS: Shot[] = [
   { name: 'purchasing', path: '/purchasing', route: '/purchasing' },
   { name: 'purchase-list', path: '/orders/ord-a/purchase-list', route: '/orders/:orderId/purchase-list' },
   { name: 'warehouse', path: '/warehouse', route: '/warehouse' },
+  { name: 'leftovers', path: '/leftovers', route: '/leftovers' },
   { name: 'subcontracting', path: '/subcontracting', route: '/subcontracting' },
   { name: 'experimental', path: '/experimental', route: '/experimental' },
   { name: 'experimental-board', path: '/experimental?view=board', route: '/experimental' },

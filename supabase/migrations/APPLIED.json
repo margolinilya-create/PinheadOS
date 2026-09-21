@@ -2092,6 +2092,54 @@
         "20260921212152_erp_analytics_extra_from_cutting.sql"
       ],
       "note": "Плитка «Количество плюсов» брала qty_extra из erp_analytics_released, то есть из ТЕРМИНАЛЬНЫХ этапов позиции. Закрой терминальным не бывает — плитка показывала ноль по построению. Плюсы считаются по всем отчётам периода, как брак в erp_analytics_by_dept (правка 21.09, п. 3)."
+    },
+    {
+      "version": "20260921213035",
+      "name": "erp_roll_weights",
+      "files": [
+        "20260921213035_erp_roll_weights.sql"
+      ],
+      "note": "Вес, цена и остаток рулона (правки 21.09, пп. 1, 2, 5). erp_material_rolls.qty_left / leftover_kind / price_per_unit; erp_material_accept принимает p_roll_weights и проверяет сумму весов против принятого количества; RPC erp_material_rolls_set_weights дозаполняет вес у 41 рулона, принятого до правки. Старая 13-аргументная перегрузка erp_material_accept СНЯТА: иначе PostgREST не смог бы выбрать между двумя функциями."
+    },
+    {
+      "version": "20260921214042",
+      "name": "erp_material_price_required",
+      "files": [
+        "20260921214042_erp_material_price_required.sql"
+      ],
+      "note": "Цена ткани обязательна при заведении закупки (правка 21.09, п. 1). Триггер ТОЛЬКО на INSERT: на бою десять тканей из семнадцати без цены, и требование на UPDATE заперло бы их правку целиком. Тот же гейт стоит в форме «Новая закупка»."
+    },
+    {
+      "version": "20260921214250",
+      "name": "erp_roll_leftovers",
+      "files": [
+        "20260921214250_erp_roll_leftovers.sql"
+      ],
+      "note": "Остаток рулона (правки 21.09, пп. 2 и 5): накопительный потолок расхода (fail-open у рулона без веса), qty_left считает сервер, вид остатка usable/scrap ставит закройщик. Порога в кг нет — документ просит его не задавать. Тело функции в файле сверено с прода по md5."
+    },
+    {
+      "version": "20260921214850",
+      "name": "erp_item_economics_leftover",
+      "files": [
+        "20260921214850_erp_item_economics_leftover.sql"
+      ],
+      "note": "Экономика позиции: возвратный остаток полотна (только usable, по цене конкретного рулона), цена берётся сначала у рулона, плюс закроя приезжает вместе с «выкроено» (правки 21.09, пп. 1, 3, 5). Тело функции сверено с продом по md5."
+    },
+    {
+      "version": "20260921220730",
+      "name": "erp_material_accept_security_invoker",
+      "files": [
+        "20260921220730_erp_material_accept_security_invoker.sql"
+      ],
+      "note": "Явный security invoker у erp_material_accept через alter function. Поведение не менялось (invoker — умолчание), но сторож materialReceipts.test.ts требует, чтобы это было НАПИСАНО: «одним запросом» не значит «мимо RLS»."
+    },
+    {
+      "version": "20260921221326",
+      "name": "erp_material_accept_invoker_text",
+      "files": [
+        "20260921221326_erp_material_accept_invoker.sql"
+      ],
+      "note": "То же определение целиком, со словом security invoker в тексте: сторож читает последнюю миграцию, ОБЪЯВЛЯЮЩУЮ функцию, и alter function он не видит. Тело не менялось ни на символ."
     }
   ]
 }
