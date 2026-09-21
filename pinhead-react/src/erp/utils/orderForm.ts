@@ -435,22 +435,45 @@ export function toggleSize(grid: DraftGrid | null | undefined, size: string): Dr
   return { sizes: next, rows };
 }
 
-/** size_grid формы → payload: только активные размеры, пустые строки отброшены */
+/**
+ * size_grid формы → payload: только активные размеры, пустые строки отброшены.
+ *
+ * ДВЕ СТРОКИ ОДНОГО ЦВЕТА СКЛЕИВАЮТСЯ (правка 21.09, п. 8). Форма их допускает
+ * (цвет по умолчанию пуст, то есть «—» у всех новых строк), а вся система
+ * адресует ячейку сеткой «цвет × размер»: две строки с одним ключом дают
+ * таблицу, где оба поля читают одно значение, а обратная сборка их складывает.
+ * Склейка стоит ЗДЕСЬ, на выходе формы, чтобы дубль не попадал в базу вовсе;
+ * уже записанные лечит `gridCells` при чтении и разовая миграция. Собирается
+ * сразу по цветам, а не «список строк, потом дедупликация»: второй проход
+ * по тем же данным — это второе место, где живёт правило склейки.
+ *
+ * Позвать готовую склейку из `utils/sizeGrid` нельзя: тот модуль импортирует
+ * `SIZE_PRESETS` отсюда, и обратный импорт замкнул бы модули кольцом —
+ * со шкалой, которая читается на уровне модуля, это не «предупреждение
+ * линтера», а падение при инициализации.
+ */
 export function gridToPayload(grid: DraftGrid | null | undefined): SizeGridRow[] | null {
   const rows = grid?.rows ?? [];
   const active = grid?.sizes ?? [];
   if (rows.length === 0) return null;
-  const out = rows
-    .filter((r) => r.color.trim() || active.some((sz) => Number(r.sizes?.[sz]) > 0))
-    .map((r) => ({
-      color: r.color.trim() || '—',
-      sizes: Object.fromEntries(
-        active
-          .filter((sz) => r.sizes?.[sz] !== undefined)
-          .map((sz) => [sz, Number(r.sizes[sz]) || 0]),
-      ),
-    }));
-  return out.length > 0 ? out : null;
+
+  const byColor = new Map<string, Record<string, number>>();
+  const order: string[] = [];
+  for (const row of rows) {
+    if (!row.color.trim() && !active.some((sz) => Number(row.sizes?.[sz]) > 0)) continue;
+    const color = row.color.trim() || '—';
+    if (!byColor.has(color)) {
+      byColor.set(color, {});
+      order.push(color);
+    }
+    const sizes = byColor.get(color)!;
+    for (const sz of active) {
+      if (row.sizes?.[sz] === undefined) continue;
+      // Ноль сохраняется: «размер заведён, количество ещё не проставили»
+      sizes[sz] = (sizes[sz] ?? 0) + (Number(row.sizes[sz]) || 0);
+    }
+  }
+  return order.length > 0 ? order.map((color) => ({ color, sizes: byColor.get(color)! })) : null;
 }
 
 // --- Пустота формы (для confirm при закрытии и автосейва) ----------------------

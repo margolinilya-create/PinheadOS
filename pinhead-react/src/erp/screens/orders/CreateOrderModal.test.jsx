@@ -378,6 +378,21 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
  * не создаётся, и маршрут в payload не едет — иначе правка срока стёрла бы
  * факт цеха.
  */
+/**
+ * ДАТЫ ФИКСТУРЫ СЧИТАЮТСЯ ОТ СЕГОДНЯ, а не написаны числом.
+ *
+ * Спека была зелёной до 21.09 и покраснела сама по себе: срок `2026-09-20`
+ * стал прошлым, `validateOrderForm` вернула «Срок клиента в прошлом», и submit
+ * выходил ДО вызова `saveOrderEdits`. Отказ при этом выглядел как поломка
+ * сохранения — три теста разом, без единой правки кода. Календарь как скрытый
+ * вход теста запрещён: фикстура обязана жить дольше одной недели.
+ */
+const DAYS_FROM_TODAY = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
 describe('CreateOrderModal — правка созданного заказа', () => {
   const ORDER = {
     id: 'o-1',
@@ -385,8 +400,8 @@ describe('CreateOrderModal — правка созданного заказа', 
     title: 'BOX39 футболки',
     customer: 'ООО Ромашка',
     manager: 'Иванов',
-    launch_date: '2026-09-01',
-    due_date: '2026-09-20',
+    launch_date: DAYS_FROM_TODAY(-20),
+    due_date: DAYS_FROM_TODAY(30),
     purchase_required: false,
     items: [{
       id: 'it-1',

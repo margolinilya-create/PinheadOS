@@ -73,6 +73,62 @@ describe('таблица «Размер / Количество к заказу /
     expect(container).toBeEmptyDOMElement();
   });
 
+  /**
+   * БАГ ВВОДА ФАКТИЧЕСКОГО КОЛИЧЕСТВА (правка 21.09, п. 8): «при вводе обычного
+   * числа система начинает самопроизвольно подставлять и накапливать большие
+   * значения… вместо введённого количества появляются значения вида 336842,
+   * а общий итог пересчитывается в 673684».
+   *
+   * Причина — дубль в сетке позиции: две строки с одним цветом и размером
+   * (на бою `[{«—», 3XS:100}, {«—», 3XS:122}]`). Ключ строки таблицы у них
+   * один, обе ячейки читают одно значение, а `cellsToGrid` их складывает —
+   * то есть каждое нажатие клавиши удваивало число.
+   */
+  it('дубль в сетке даёт ОДНУ строку ввода, а не две с общим значением', () => {
+    render(
+      <PurchaseSizeTable
+        plannedGrid={[
+          { color: '—', sizes: { '3XS': 100 } },
+          { color: '—', sizes: { '3XS': 122 } },
+        ]}
+        orderedGrid={null}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
+    // Потребность — сумма обеих строк, а не первая из них (в строке и в итоге)
+    expect(screen.getAllByText('222')).toHaveLength(2);
+  });
+
+  it('введённое число не удваивается: 1 остаётся 1, следом 20 остаётся 20', () => {
+    const onChange = vi.fn();
+    const DUP = [
+      { color: '—', sizes: { '3XS': 100 } },
+      { color: '—', sizes: { '3XS': 122 } },
+    ];
+    const { rerender } = render(
+      <PurchaseSizeTable plannedGrid={DUP} orderedGrid={null} onChange={onChange} />,
+    );
+    const field = () => screen.getByLabelText('3XS, Фактическое количество');
+
+    fireEvent.change(field(), { target: { value: '1' } });
+    expect(onChange).toHaveBeenLastCalledWith([{ color: '—', sizes: { '3XS': 1 } }]);
+
+    // Родитель вернул сохранённое обратно — в поле обязана стоять единица
+    rerender(
+      <PurchaseSizeTable
+        plannedGrid={DUP}
+        orderedGrid={[{ color: '—', sizes: { '3XS': 1 } }]}
+        onChange={onChange}
+      />,
+    );
+    expect(field()).toHaveValue(1);
+
+    // Очистили и набрали 20 — старое значение не дописывается к новому
+    fireEvent.change(field(), { target: { value: '20' } });
+    expect(onChange).toHaveBeenLastCalledWith([{ color: '—', sizes: { '3XS': 20 } }]);
+  });
+
   it('цвет различает строки: один размер двух цветов — две строки', () => {
     render(
       <PurchaseSizeTable
