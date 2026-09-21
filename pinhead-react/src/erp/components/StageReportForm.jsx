@@ -16,6 +16,7 @@ import {
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
 } from '../utils/cutRolls';
+import { reportedSizesOf } from '../utils/cutExtras';
 import styles from '../erp.module.css';
 
 /**
@@ -108,6 +109,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const [sizeValues, setSizeValues] = useState({});
   const [assemblyCost, setAssemblyCost] = useState('');
   const [prevReports, setPrevReports] = useState([]);
+  const [ownReports, setOwnReports] = useState([]);
 
   const loadStageReports = useErpStore(useShallow((st) => st.loadStageReports));
 
@@ -124,6 +126,22 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     loadStageReports(deps).then((rows) => { if (alive) setPrevReports(rows); });
     return () => { alive = false; };
   }, [bySizes, stage.depends_on, loadStageReports]);
+
+  /**
+   * СОБСТВЕННЫЕ прежние отчёты этого этапа — для плюсов (правка 21.09, п. 3).
+   *
+   * Закрой сдаёт частями, и плюс считается накопительно: 30 шт сегодня
+   * и 25 завтра при плане 50 — это плюс 5, а не два раза «меньше плана».
+   * Сервер считает то же и по тем же строкам; здесь они нужны, чтобы цех
+   * ВИДЕЛ плюс до нажатия кнопки, а не узнавал о нём из журнала.
+   */
+  useEffect(() => {
+    if (!byRolls) return undefined;
+    let alive = true;
+    loadStageReports([stage.id]).then((rows) => { if (alive) setOwnReports(rows); });
+    return () => { alive = false; };
+  }, [byRolls, stage.id, loadStageReports]);
+  const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
 
   const sizeInput = useMemo(
     () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
@@ -338,6 +356,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           item={fullItem}
           entries={rollEntries}
           onChange={setRollEntries}
+          reported={reportedSizes}
           disabled={busy}
         />
       ) : (
