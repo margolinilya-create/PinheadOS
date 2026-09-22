@@ -208,6 +208,31 @@ const ORDERS = [
         name: 'Футер 3-нитка, чёрный', source: 'purchase', qty: '120 кг',
         status: 'received', eta_date: null, received_at: CREATED, notes: null,
         created_at: CREATED, updated_at: CREATED,
+        unit: 'кг', price_per_unit: 700, color: 'чёрный',
+        /*
+          РУЛОНЫ С ОСТАТКОМ (правка 21.09, п. 5). Без них экран «Остатки ткани»
+          показывал на стенде только пустое состояние — то есть посмотреть
+          глазами можно было что угодно, кроме того, ради чего экран заведён.
+          Три исхода закроя представлены все: израсходован в ноль, пригодный
+          остаток и малый остаток (`scrap` в показатель не идёт).
+        */
+        rolls: [
+          {
+            id: 'ord-a-m1-r1', material_id: 'ord-a-m1', receipt_id: null, seq: 1,
+            label: 'Рулон №1', qty: 40, unit: 'кг', status: 'used',
+            qty_left: 0, leftover_kind: null, price_per_unit: 700, created_at: CREATED,
+          },
+          {
+            id: 'ord-a-m1-r2', material_id: 'ord-a-m1', receipt_id: null, seq: 2,
+            label: 'Рулон №2', qty: 40, unit: 'кг', status: 'used',
+            qty_left: 12.5, leftover_kind: 'usable', price_per_unit: 700, created_at: CREATED,
+          },
+          {
+            id: 'ord-a-m1-r3', material_id: 'ord-a-m1', receipt_id: null, seq: 3,
+            label: 'Рулон №3', qty: 40, unit: 'кг', status: 'used',
+            qty_left: 0.4, leftover_kind: 'scrap', price_per_unit: 700, created_at: CREATED,
+          },
+        ],
       },
       {
         id: 'ord-a-m2', order_id: 'ord-a', item_id: null, kind: 'labels',

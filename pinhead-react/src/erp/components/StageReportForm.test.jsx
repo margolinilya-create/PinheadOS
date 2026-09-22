@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { StageReportForm } from './StageReportForm';
 import { useErpStore } from '../store/useErpStore';
 import { attachDomainSlices } from '../store/domainSlices';
@@ -286,5 +286,105 @@ describe('швейка: размеры и стоимость сборки без
     expect(field).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByText('Нельзя указать больше, чем покроено')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
+  });
+});
+
+/**
+ * ФОРМА СДАЧИ ОТКРЫВАЕТСЯ ИЗ ОЧЕРЕДИ ЦЕХА — то есть с ЛИСТОВЫМИ данными
+ * заказа (правка 21.09, пп. 2, 3, 4).
+ *
+ * В `ORDER_LIST_SELECT` нет `items.size_grid`, а рулоны туда не входили
+ * никогда. Обе вещи приезжали `undefined`, и обе ломались молча: закрой
+ * предлагал стандартную шкалу и писал «у позиции нет размерной сетки»
+ * на позиции, где она заполнена, а список рулонов оказывался пустым —
+ * «после добавления одного рулона система ошибочно считает, что все
+ * принятые рулоны уже в списке».
+ */
+describe('форма сдачи дозагружает полный заказ', () => {
+  const CUTTING = {
+    id: 'd-cut',
+    name: 'Закройный',
+    result_detail: 'rolls',
+    result_fields: [
+      { code: 'cut', label: 'Скроено', unit: 'шт', required: true, target: 'qty_good' },
+    ],
+  };
+
+  /** Тот же заказ, каким его отдаёт СПИСОЧНАЯ выборка: без сетки и рулонов */
+  const listOrder = {
+    id: 'o-cut',
+    title: 'Заказ',
+    items: [{ id: 'it-cut', qty: 200, stages: [] }],
+    materials: [],
+  };
+  /** И он же после `loadOne` */
+  const fullOrder = {
+    id: 'o-cut',
+    title: 'Заказ',
+    items: [{
+      id: 'it-cut',
+      qty: 200,
+      stages: [],
+      size_grid: [{ color: '—', sizes: { XS: 200 } }],
+    }],
+    materials: [{
+      id: 'm-1',
+      kind: 'fabric',
+      name: 'кулирка',
+      item_id: null,
+      accept_status: 'accepted_full',
+      rolls: [
+        { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_stock' },
+        { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock' },
+      ],
+    }],
+  };
+
+  const entryOf = (order) => ({
+    order,
+    item: order.items[0],
+    stage: { id: 'st-cut', item_id: 'it-cut', department_id: 'd-cut', qty_done: 0, depends_on: [] },
+  });
+
+  function setup() {
+    const loadOne = vi.fn(async () => {
+      useErpStore.setState({ orders: [fullOrder], detailIds: ['o-cut'] });
+      return fullOrder;
+    });
+    useErpStore.setState({ orders: [listOrder], detailIds: [], loadOne });
+    render(
+      <StageReportForm
+        entry={entryOf(listOrder)}
+        dept={CUTTING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    return { loadOne };
+  }
+
+  it('листовой заказ дотягивается, а не выдаётся за полный', async () => {
+    const { loadOne } = setup();
+    expect(loadOne).toHaveBeenCalledWith('o-cut');
+    // До ответа секция молчит, а не врёт «склад ещё не принял рулоны»
+    expect(screen.queryByText(/Склад ещё не принял рулоны/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Добавить рулон/ })).toBeEnabled();
+  });
+
+  it('рулоны приёмки видны в селекте, а размеры берутся из сетки позиции', async () => {
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: /Добавить рулон/ }));
+
+    // Оба принятых рулона — в выборе, а не один
+    const roll = screen.getByLabelText('Рулон, строка 1');
+    expect(within(roll).getByRole('option', { name: /Рулон №1/ })).toBeInTheDocument();
+    expect(within(roll).getByRole('option', { name: /Рулон №2/ })).toBeInTheDocument();
+    // Добавили один — второй остаётся свободным
+    expect(screen.queryByText('Все принятые рулоны уже в списке')).not.toBeInTheDocument();
+
+    // Размер подписан количеством ИЗ ЗАКАЗА, а не взят из стандартной шкалы
+    const size = screen.getByLabelText('Размер, строка 1');
+    expect(within(size).getByRole('option', { name: 'XS (в заказе 200)' })).toBeInTheDocument();
   });
 });

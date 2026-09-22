@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
-  rollsForItem, cutTotals, rollTotal, cellKey,
+  rollsForItem, cutTotals, rollTotal, cellKey, rollLeft,
 } from '../../utils/cutRolls';
 import {
   sizeChoicesFor, choiceKey, isSizeTaken, freeChoices, normalizeSize, hasPlannedSizes,
 } from '../../utils/sizeChoices';
+import { cutExtras, cutExtrasText } from '../../utils/cutExtras';
 import { NO_COLOR } from '../../utils/sizeGrid';
 import styles from '../../styles';
 
@@ -38,7 +39,7 @@ const OTHER = '__other__';
  * человек заполняет сам, разошлось бы со строками на первой же правке.
  */
 export function CutRollsSection({
-  order, item, entries, onChange, unit = 'кг', disabled = false,
+  order, item, entries, onChange, unit = 'кг', disabled = false, reported = {},
 }) {
   const options = useMemo(
     () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId)),
@@ -47,6 +48,13 @@ export function CutRollsSection({
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
   const totals = useMemo(() => cutTotals(entries), [entries]);
+  /**
+   * ПЛЮСЫ (правка 21.09, п. 3): «разрешать скроить по размеру больше
+   * количества, указанного в заказе. Разница сверх заказа считается „плюсом"».
+   * Считает чистая утилита с тестами — здесь только показ.
+   */
+  const extras = useMemo(() => cutExtras(entries, item?.size_grid, reported),
+    [entries, item, reported]);
 
   /**
    * Сводка по размерам собирается ИЗ ВВЕДЁННЫХ СТРОК, а не из списка
@@ -67,7 +75,7 @@ export function CutRollsSection({
         else byKey.set(key, { label, qty });
       }
     }
-    return [...byKey.values()].map((r) => `${r.label} ${r.qty}`);
+    return [...byKey.values()].map((r) => `${r.label} — ${r.qty} шт`);
   }, [entries]);
 
   const used = new Set(entries.map((e) => e.rollId).filter(Boolean));
@@ -108,6 +116,19 @@ export function CutRollsSection({
 
   return (
     <div className={styles.queueBlockForm}>
+      {/*
+        ОТСУТСТВИЕ СЕТКИ — ПРЕДУПРЕЖДЕНИЕ, А НЕ ЧАСТЬ ИТОГА (правка 21.09, п. 4):
+        «если размерная сетка действительно отсутствует и это требует внимания,
+        показывать отдельное предупреждение „Размерная сетка заказа не найдена",
+        а не добавлять технический текст в итог».
+      */}
+      {!planned && (
+        <p className={styles.queueReason} role="status">
+          <Icon name="alert" size={13} />
+          {' '}
+          Размерная сетка заказа не найдена — размеры выбираются из стандартной шкалы.
+        </p>
+      )}
       {entries.map((entry, index) => {
         const rows = entry.sizes ?? [];
         return (
@@ -270,24 +291,77 @@ export function CutRollsSection({
               </Button>
             </div>
 
+            {/*
+              ОСТАТОК И ЕГО СУДЬБА (правка 21.09, п. 5). Остаток СЧИТАЕТСЯ
+              из веса рулона и расхода — вводить его руками значило бы завести
+              второго писателя той же величины. У рулона, принятого до правки,
+              веса нет, и остаток честно показывается прочерком.
+
+              Выбор появляется только когда работа по рулону закончена И остаток
+              есть: при нулевом остатке решать нечего, а до конца работы остаток
+              промежуточный. Автоматического порога в килограммах НЕТ —
+              «автоматический порог в килограммах пока не задавать».
+            */}
             <div className={styles.queueActions}>
               <span className={styles.queueReason}>
                 Итого с рулона: <b>{rollTotal(entry)}</b> шт
+                {(() => {
+                  const roll = options.find((o) => o.roll.id === entry.rollId)?.roll;
+                  const left = rollLeft(roll, entry.qtyUsed);
+                  if (!entry.rollId) return null;
+                  return left === null
+                    ? <span className={styles.subText}> · остаток: — (вес рулона не указан)</span>
+                    : <span className={styles.subText}> · остаток: {left} {unit}</span>;
+                })()}
               </span>
               <label className={styles.checkLabel}>
                 <input
                   type="checkbox"
                   checked={Boolean(entry.finished)}
                   disabled={disabled}
-                  onChange={(e) => patch(index, { finished: e.target.checked })}
+                  onChange={(e) => patch(index, {
+                    finished: e.target.checked,
+                    // Сняли отметку — вид остатка теряет смысл вместе с ней
+                    ...(e.target.checked ? {} : { leftover: null }),
+                  })}
                 />
                 {' '}
-                Рулон израсходован
+                Работа по рулону закончена
               </label>
               <Button variant="ghost" size="sm" disabled={disabled} onClick={() => removeRoll(index)}>
                 Убрать
               </Button>
             </div>
+
+            {entry.finished && (() => {
+              const roll = options.find((o) => o.roll.id === entry.rollId)?.roll;
+              const left = rollLeft(roll, entry.qtyUsed);
+              if (left === null || left <= 0) return null;
+              return (
+                <div className={styles.queueActions} role="group" aria-label="Что с остатком рулона">
+                  <span className={styles.fieldLabel}>
+                    Остаток {left} {unit}:
+                  </span>
+                  {[
+                    ['usable', 'Остаток пригоден'],
+                    ['scrap', 'Малый остаток, не учитывать'],
+                  ].map(([value, label]) => (
+                    <label key={value} className={styles.checkLabel}>
+                      <input
+                        type="radio"
+                        name={`leftover-${index}`}
+                        value={value}
+                        checked={entry.leftover === value}
+                        disabled={disabled}
+                        onChange={() => patch(index, { leftover: value })}
+                      />
+                      {' '}
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -301,14 +375,34 @@ export function CutRollsSection({
         )}
       </div>
 
-      {/* Автоматические итоги — документ просит их прямо: общее количество,
-          итог по каждому размеру и общий фактический расход ткани */}
+      {/*
+        ИТОГ КОРОТКИЙ, РАЗБИВКА ОТДЕЛЬНО (правка 21.09, п. 4).
+
+        Было одной строкой: «Всего скроено: 50 шт · расход: 20 кг · XS 50 ·
+        размеры выбраны из стандартной шкалы: у позиции нет размерной сетки».
+        Заказчик: «перегружена и непонятна. Техническое сообщение смешано
+        с производственным итогом». Поэтому итог — два числа, размеры —
+        своей строкой, плюсы — своей, а техническая фраза ушла в отдельное
+        предупреждение НАД таблицей (см. выше): это не итог работы, а сообщение
+        о недостающих данных заказа.
+      */}
       {entries.length > 0 && (
-        <p className={styles.queueReason} role="status">
-          Всего скроено: <b>{totals.qty}</b> шт · расход: <b>{totals.used}</b> {unit}
-          {sizeSummary.length > 0 && <>{' · '}{sizeSummary.join(' · ')}</>}
-          {planned ? '' : ' · размеры выбраны из стандартной шкалы: у позиции нет размерной сетки'}
-        </p>
+        <div className={styles.queueActions} role="status">
+          <p className={styles.queueReason}>
+            Скроено: <b>{totals.qty}</b> шт · Расход: <b>{totals.used}</b> {unit}
+          </p>
+          {sizeSummary.length > 0 && (
+            <p className={styles.queueReason}>
+              По размерам: {sizeSummary.join(' · ')}
+            </p>
+          )}
+          {extras.total > 0 && (
+            <p className={styles.queueReason}>
+              Плюс: {cutExtrasText(extras)}
+              {extras.rows.length > 1 && <> · всего <b>{extras.total}</b> шт</>}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

@@ -23,6 +23,9 @@ export const SCREEN_ACCESS: Record<string, ErpPermission[]> = {
   '/purchasing': ['material.receive', 'order.manage'],
   // Приёмка, маркировка, упаковка и отгрузка — работа кладовщика
   '/warehouse': ['warehouse.manage', 'order.manage'],
+  // Остатки ткани смотрят и склад, и закупка («надо докупить?»), и тот,
+  // кто ведёт заказ: право не заводится новое, читатели те же
+  '/leftovers': ['warehouse.manage', 'material.receive', 'order.manage'],
   // Решение по маршруту заказа: что делаем не у себя
   '/subcontracting': ['order.manage'],
   // Разработку образцов ведёт технолог

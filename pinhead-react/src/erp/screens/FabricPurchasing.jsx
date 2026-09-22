@@ -16,12 +16,14 @@ import {
 } from './purchasing/PurchaseFields';
 import {
   KIND_LABELS, PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, SOURCE_LABELS,
+  pricePerUnitLabel, priceRequiredFor,
 } from './purchasing/purchaseLabels';
 import { Badge } from '../components/Badge';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { SortableTh } from '../components/SortableTh';
+import { useDictionary } from '../store/useDictionary';
 import { DateField } from '../components/DateField';
 import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
@@ -143,6 +145,15 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
    * Правило одно на всю систему — `garmentPurchaseCandidates`: оно же решает,
    * есть ли у позиции этап «Закупка» в маршруте.
    */
+  /**
+   * Подпись и обязательность цены — по виду и единице материала (п. 1).
+   * Справочник единиц тот же, что у приёмки: в `unit` на бою лежат и код
+   * («кг»), и имя («Килограммы») одного значения.
+   */
+  const units = useDictionary('unit');
+  const priceLabel = pricePerUnitLabel(form.unit, units);
+  const priceRequired = priceRequiredFor(form.kind);
+
   const garmentItems = useMemo(() => {
     const order = orders.find((o) => o.id === form.order_id);
     return garmentPurchaseCandidates(order?.items);
@@ -188,6 +199,16 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
      */
     if (form.source === 'purchase' && (!form.qty_expected || Number(form.qty_expected) <= 0)) {
       toast.error(`Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»`); return;
+    }
+    /**
+     * ЦЕНА ТКАНИ ОБЯЗАТЕЛЬНА (правка 21.09, п. 1). Гейт стоит на ЗАВЕДЕНИИ
+     * строки, и ровно такой же — в триггере на INSERT: страж разрешает то же,
+     * что разрешает интерфейс. На правку уже заведённых строк он не
+     * распространяется — десять тканей из семнадцати на бою без цены,
+     * и требование при каждой правке заперло бы их целиком.
+     */
+    if (priceRequired && (form.price_per_unit === '' || !(Number(form.price_per_unit) > 0))) {
+      toast.error(`Укажите «${priceLabel}»`); return;
     }
     setSaving(true);
     /**
@@ -387,13 +408,20 @@ function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
               aria-label="Дата заказа"
             />
           </label>
+          {/*
+            ЦЕНА ПОДПИСАНА ЕДИНИЦЕЙ МАТЕРИАЛА (правка 21.09, п. 1) и обязательна
+            у ткани: по ней считается себестоимость полотна и стоимость
+            возвратного остатка заказа.
+          */}
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Цена за единицу</span>
+            <span className={styles.fieldLabel}>
+              {priceLabel}{priceRequired ? ' *' : ''}
+            </span>
             <input
               type="number" min="0" step="0.01" className={styles.input}
               value={form.price_per_unit}
               onChange={(e) => set({ price_per_unit: e.target.value })}
-              aria-label="Цена за единицу"
+              aria-label={priceLabel}
             />
           </label>
           <label className={styles.field}>
@@ -800,7 +828,7 @@ export default function FabricPurchasing() {
                         дата заказа · плановая дата прихода». Колонки в БД были
                         с 16.08, но не выведены НИ В ОДИН экран */}
                     <th>{PURCHASE_FIELD_LABELS.qtyOrdered}</th>
-                    <th>Цена за ед.</th>
+                    <th>Цена за ед., ₽</th>
                     <th>Стоимость</th>
                     <th>Дата заказа</th>
                     <th>План прихода</th>

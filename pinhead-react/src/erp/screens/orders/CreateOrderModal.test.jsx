@@ -5,6 +5,7 @@ import { CreateOrderModal } from './CreateOrderModal';
 import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
 import { supabase } from '../../../lib/supabase';
+import { addDays, factoryToday } from '../../../utils/date';
 
 /**
  * Форма монтируется НАПРЯМУЮ, минуя `lazyScreen`, — доменные действия надо
@@ -378,6 +379,17 @@ describe('CreateOrderModal — чьё готовое изделие (п. 4)', ()
  * не создаётся, и маршрут в payload не едет — иначе правка срока стёрла бы
  * факт цеха.
  */
+/**
+ * ДАТЫ ФИКСТУРЫ СЧИТАЮТСЯ ОТ СЕГОДНЯ, а не написаны числом.
+ *
+ * Спека была зелёной до 21.09 и покраснела сама по себе: срок `2026-09-20`
+ * стал прошлым, `validateOrderForm` вернула «Срок клиента в прошлом», и submit
+ * выходил ДО вызова `saveOrderEdits`. Отказ при этом выглядел как поломка
+ * сохранения — три теста разом, без единой правки кода. Календарь как скрытый
+ * вход теста запрещён: фикстура обязана жить дольше одной недели.
+ */
+const DAYS_FROM_TODAY = (days) => addDays(factoryToday(), days);
+
 describe('CreateOrderModal — правка созданного заказа', () => {
   const ORDER = {
     id: 'o-1',
@@ -385,8 +397,8 @@ describe('CreateOrderModal — правка созданного заказа', 
     title: 'BOX39 футболки',
     customer: 'ООО Ромашка',
     manager: 'Иванов',
-    launch_date: '2026-09-01',
-    due_date: '2026-09-20',
+    launch_date: DAYS_FROM_TODAY(-20),
+    due_date: DAYS_FROM_TODAY(30),
     purchase_required: false,
     items: [{
       id: 'it-1',
@@ -617,5 +629,110 @@ describe('сохранение в черновики', () => {
 
     await waitFor(() => expect(draftBtn()).toBeDisabled());
     release({ data: { path: 'ok' }, error: null });
+  });
+});
+
+/**
+ * ВЫБОР ЧЕРНОВИКА В ФОРМЕ И ТИХИЙ ВЫХОД (правка заказчика 21.09, п. 6).
+ *
+ * «В форме создания заказа добавить отдельное раскрывающееся действие
+ * „Черновики"… При нажатии „Отмена", закрытии формы или выходе из создания
+ * заказа не показывать дополнительное окно „Сохранить черновик?"…
+ * Сохранение в черновики должно происходить только по явному действию».
+ */
+describe('черновики внутри формы', () => {
+  const DRAFTS = [
+    {
+      id: 'd-1',
+      title: 'ВЦ',
+      updated_at: '2026-09-21T10:00:00Z',
+      payload: {
+        form: { title: 'ВЦ', customer: 'ООО Вектор', manager: 'Иванов' },
+        items: [{ ...{}, product_type: 'Худи', qty: '40', prints: [], labels: [] }],
+      },
+    },
+    {
+      id: 'd-2',
+      title: '',
+      updated_at: '2026-09-20T10:00:00Z',
+      payload: { form: { customer: 'ИП Петров' }, items: [{ product_type: '', prints: [], labels: [] }] },
+    },
+  ];
+
+  function setupWithDrafts() {
+    const saveOrderDraft = vi.fn().mockResolvedValue({ id: 'd-new' });
+    const deleteOrderDraft = vi.fn().mockResolvedValue(true);
+    setup();
+    useErpStore.setState({ orderDrafts: DRAFTS, saveOrderDraft, deleteOrderDraft });
+    return { saveOrderDraft, deleteOrderDraft };
+  }
+
+  it('список открывается из формы и показывает клиента, менеджера и дату', () => {
+    setupWithDrafts();
+    fireEvent.click(screen.getByRole('button', { name: /Черновики/ }));
+
+    expect(screen.getByText('ВЦ')).toBeInTheDocument();
+    expect(screen.getByText(/ООО Вектор · Иванов/)).toBeInTheDocument();
+    // Без названия — так и подписан, а не пустой строкой
+    expect(screen.getByText('Без названия')).toBeInTheDocument();
+  });
+
+  it('свежие сверху — порядок считает форма, а не запрос', () => {
+    setupWithDrafts();
+    fireEvent.click(screen.getByRole('button', { name: /Черновики/ }));
+    const titles = screen.getAllByRole('listitem')
+      .map((li) => li.querySelector('span')?.textContent);
+    expect(titles[0]).toContain('ВЦ');
+  });
+
+  it('выбранный черновик ЗАМЕНЯЕТ форму, а не дополняет её', async () => {
+    setupWithDrafts();
+    fireEvent.click(screen.getByRole('button', { name: /Черновики/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Открыть' })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('напр. BOX39 свитшоты')).toHaveValue('ВЦ');
+    });
+    expect(screen.getByPlaceholderText('футболка')).toHaveValue('Худи');
+    // И форма прямо говорит, что именно открыто
+    expect(screen.getByText(/Открыт черновик:/)).toBeInTheDocument();
+  });
+
+  /**
+   * Пока черновик не открыт, форма НЕ ПИШЕТ в базу сама: «сохранение
+   * в черновики должно происходить только по явному действию пользователя».
+   */
+  it('новая форма не заводит черновик фоном', async () => {
+    const saveOrderDraft = vi.fn().mockResolvedValue({ id: 'd-new' });
+    setup();
+    useErpStore.setState({ saveOrderDraft, orderDrafts: [] });
+
+    fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
+      target: { value: 'Черновик сам собой' },
+    });
+    await new Promise((r) => { setTimeout(r, 700); });
+    expect(saveOrderDraft).not.toHaveBeenCalled();
+  });
+
+  it('выход из формы не спрашивает про черновик', async () => {
+    const onClose = vi.fn();
+    useErpStore.setState({
+      departments: DEPARTMENTS, orders: [], loaded: true,
+      createOrder: vi.fn(), saveOrderDraft: vi.fn(), deleteOrderDraft: vi.fn(),
+      employees: [], profilesList: [], employeesLoaded: true,
+      loadEmployees: vi.fn().mockResolvedValue(undefined),
+    });
+    render(
+      <MemoryRouter>
+        <CreateOrderModal onClose={onClose} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByPlaceholderText('напр. BOX39 свитшоты'), {
+      target: { value: 'Заполнено, но не сохранено' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Отмена$/ }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(screen.queryByText(/Сохранить черновик\?/)).not.toBeInTheDocument();
   });
 });

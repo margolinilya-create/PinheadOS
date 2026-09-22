@@ -33,6 +33,7 @@ const ProductionBoard = lazyScreen(() => import('./screens/ProductionBoard')); /
 const AdminScreen = lazyScreen(() => import('./screens/AdminScreen')); // + Employees/Departments
 const ProductionTask = lazyScreen(() => import('./screens/ProductionTask'));
 const FabricPurchasing = lazyScreen(() => import('./screens/FabricPurchasing'));
+const FabricLeftovers = lazyScreen(() => import('./screens/FabricLeftovers'));
 const PurchaseListPrint = lazyScreen(() => import('./screens/purchasing/PurchaseListPrint'));
 const Warehouse = lazyScreen(() => import('./screens/Warehouse'));
 const Subcontracting = lazyScreen(() => import('./screens/Subcontracting'));
@@ -188,6 +189,9 @@ export default function ErpApp({ user }) {
               которая отвечает отказом. */}
           <Route path="/orders/:orderId/purchase-list" element={<PurchaseListPrint />} />
           <Route path="/warehouse" element={<ErpGuard allowed={canOpen('/warehouse')}><Warehouse /></ErpGuard>} />
+          {/* Остатки ткани (правка 21.09, п. 5) — свой адрес, а не вкладка
+              склада: вкладки там фильтруют ЗАДАЧИ, а остаток не задача */}
+          <Route path="/leftovers" element={<ErpGuard allowed={canOpen('/leftovers')}><FabricLeftovers /></ErpGuard>} />
           <Route path="/subcontracting" element={<ErpGuard allowed={canOpen('/subcontracting')}><Subcontracting /></ErpGuard>} />
           <Route path="/experimental" element={<ErpGuard allowed={canOpen('/experimental')}><Experimental /></ErpGuard>} />
           {/* Карточка разработки — СТРАНИЦА, а не шторка (правка 22.08, п. 4.11).

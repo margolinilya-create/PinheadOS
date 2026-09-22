@@ -205,7 +205,17 @@ test.describe('Приёмка материала: приход обязател�
     await expect(drawer).toContainText('укажите количество рулонов');
   });
 
-  test('количество и рулоны введены — кнопка открывается', async ({ page }) => {
+  /**
+   * ПРАВКА 21.09, П. 2. Числа рулонов стало мало: «при приёмке ткани нужно
+   * указывать вес каждого рулона отдельно». Без веса закрой не посчитает
+   * ни расход, ни остаток, а сорок один рулон на бою принят именно так.
+   *
+   * Спека упала при выкате ровно здесь — заполняла количество и число
+   * рулонов и ждала открытую кнопку. Это НЕ поломка: гейт стал строже
+   * осознанно, и правило проекта требует, чтобы клиент и сервер запрещали
+   * одно и то же.
+   */
+  test('веса рулонов не заполнены — кнопка погашена и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
       .getByRole('button', { name: 'Открыть' }).click();
@@ -213,6 +223,37 @@ test.describe('Приёмка материала: приход обязател�
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
     await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('вес каждого рулона');
+  });
+
+  /** Сумма весов обязана сойтись с приходом — иначе приёмка врёт о партии */
+  test('сумма весов не сходится с приходом — кнопка погашена, расхождение названо', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Открыть' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await drawer.getByLabel(/Вес рулона 1/).fill('20');
+    await drawer.getByLabel(/Вес рулона 2/).fill('20');
+    await drawer.getByLabel(/Вес рулона 3/).fill('15');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('55');
+  });
+
+  test('количество, рулоны и их веса введены — кнопка открывается', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Открыть' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await drawer.getByLabel(/Вес рулона 1/).fill('20');
+    await drawer.getByLabel(/Вес рулона 2/).fill('20');
+    await drawer.getByLabel(/Вес рулона 3/).fill('20');
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeEnabled();
   });
 

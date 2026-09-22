@@ -5,7 +5,8 @@ import {
   OrderedOnField, PlanField, PriceField, QtyOrderedField,
   ReceivedValue, ResponsibleField, StatusCell, StatusControl, SupplierCell,
 } from './PurchaseFields';
-import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS } from './purchaseLabels';
+import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, pricePerUnitLabel } from './purchaseLabels';
+import { useDictionary } from '../../store/useDictionary';
 
 /**
  * Строка закупки карточкой вместо строки таблицы — компактная раскладка
@@ -23,6 +24,7 @@ import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS } from './purchaseLabels';
  * Сами поля берутся из `PurchaseFields` — тех же, что рисует таблица.
  */
 function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock, onSetStatus }) {
+  const units = useDictionary('unit');
   return (
     <article className={styles.dataCard} aria-label={`Закупка: ${m.name} для заказа ${order.title}`}>
       <div className={styles.dataCardHead}>
@@ -68,8 +70,17 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
             <QtyOrderedField m={m} onUpdate={onUpdate} />
           </span>
           <span className={styles.dataCardField}>
-            <span className={styles.dataCardFieldLabel}>Цена за ед.</span>
-            <PriceField m={m} onUpdate={onUpdate} />
+            {/*
+              Подпись берётся у ЕДИНИЦЫ материала той же функцией, что в таблице
+              и в модалке (правка 21.09, п. 1). Здесь стоял литерал «Цена за ед.,
+              ₽» — ровно то расхождение, ради которого подпись и вынесли в одну
+              функцию: на планшете закупщик видел бы «за ед.» там, где в таблице
+              написано «за кг».
+            */}
+            <span className={styles.dataCardFieldLabel}>
+              {pricePerUnitLabel(m.unit, units)}
+            </span>
+            <PriceField m={m} onUpdate={onUpdate} note />
           </span>
           <span className={styles.dataCardField}>
             <span className={styles.dataCardFieldLabel}>Стоимость</span>

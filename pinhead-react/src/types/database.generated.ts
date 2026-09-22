@@ -1177,8 +1177,11 @@ export type Database = {
           created_at: string
           id: string
           label: string
+          leftover_kind: string | null
           material_id: string
+          price_per_unit: number | null
           qty: number | null
+          qty_left: number | null
           receipt_id: string | null
           seq: number
           status: string
@@ -1188,8 +1191,11 @@ export type Database = {
           created_at?: string
           id?: string
           label: string
+          leftover_kind?: string | null
           material_id: string
+          price_per_unit?: number | null
           qty?: number | null
+          qty_left?: number | null
           receipt_id?: string | null
           seq: number
           status?: string
@@ -1199,8 +1205,11 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string
+          leftover_kind?: string | null
           material_id?: string
+          price_per_unit?: number | null
           qty?: number | null
+          qty_left?: number | null
           receipt_id?: string | null
           seq?: number
           status?: string
@@ -3307,6 +3316,10 @@ export type Database = {
         Args: { p_message_ids: string[] }
         Returns: Json
       }
+      erp_chat_search: {
+        Args: { p_limit?: number; p_order_id: string; p_query: string }
+        Returns: Json
+      }
       erp_chat_send: {
         Args: {
           p_attachments?: Json
@@ -3534,9 +3547,14 @@ export type Database = {
           p_material_id: string
           p_qty?: number
           p_received_on?: string
+          p_roll_weights?: Json
           p_rolls?: number
           p_size_grid?: Json
         }
+        Returns: Json
+      }
+      erp_material_rolls_set_weights: {
+        Args: { p_material_id: string; p_weights: Json }
         Returns: Json
       }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
@@ -3599,6 +3617,15 @@ export type Database = {
         }
         Returns: Json
       }
+      erp_size_grid_cells: {
+        Args: { p_grid: Json }
+        Returns: {
+          color: string
+          qty: number
+          size: string
+        }[]
+      }
+      erp_size_grid_merge: { Args: { p_grid: Json }; Returns: Json }
       erp_size_grid_total: { Args: { p_grid: Json }; Returns: number }
       erp_sku_card_stats: { Args: { p_card: string }; Returns: Json }
       erp_sku_catalog_upsert: { Args: { p_sku: Json }; Returns: string }

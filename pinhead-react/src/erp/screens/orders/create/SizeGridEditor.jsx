@@ -64,6 +64,31 @@ export function SizeGridEditor({ grid, onChange }) {
 
   const removeRow = (ri) => set({ rows: rows.filter((_, i) => i !== ri) });
 
+  /**
+   * ДВА РЯДА ОДНОГО ЦВЕТА — ЭТО ОДИН РЯД (правка 21.09, п. 8).
+   *
+   * Сетка адресуется парой «цвет × размер» ВЕЗДЕ: в закупке, приёмке, закрое
+   * и пошиве. Два ряда с одним цветом дают в этих таблицах две строки с одним
+   * ключом — оба поля читают одно значение, а обратная сборка их складывает:
+   * ввод «1» превращался в 336842. На бою так заведено несколько позиций,
+   * и ни одна из них не была сделана нарочно: цвет по умолчанию ПУСТ, то есть
+   * у каждой новой строки он одинаковый.
+   *
+   * Поэтому: пока цвет строки не назван, второй строки не завести, а повтор
+   * названного цвета подсвечивается. Молча склеивать введённое нельзя —
+   * человек увидел бы, как его строка исчезает под руками.
+   */
+  const colorKey = (raw) => (raw ?? '').trim().toLowerCase();
+  const dupColors = new Set(
+    rows
+      .map((r) => colorKey(r.color))
+      .filter((c, i, all) => all.indexOf(c) !== i),
+  );
+  const isDup = (row) => dupColors.has(colorKey(row.color));
+  /** Первую строку заводим всегда; вторую — только когда первая названа */
+  const canAddRow = rows.length === 0
+    || (rows.every((r) => colorKey(r.color)) && dupColors.size === 0);
+
   const presetSizes = preset === 'custom' ? [] : SIZE_PRESETS[preset];
   const shownSizes = [...presetSizes, ...sizes.filter((s) => !presetSizes.includes(s))];
 
@@ -137,10 +162,12 @@ export function SizeGridEditor({ grid, onChange }) {
             <div key={ri} className={styles.dataCard} role="listitem">
               <div className={styles.dataCardHead}>
                 <input
-                  className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
+                  className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`
+                    + `${isDup(row) ? ` ${styles.inputError}` : ''}`}
                   placeholder="Цвет"
                   value={row.color}
                   aria-label={`Цвет ${ri + 1}`}
+                  aria-invalid={isDup(row) || undefined}
                   onChange={(e) => setColor(ri, e.target.value)}
                 />
                 <Button
@@ -196,10 +223,12 @@ export function SizeGridEditor({ grid, onChange }) {
                   */}
                   <th scope="row">
                     <input
-                      className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`}
+                      className={`${styles.input} ${styles.inputSm} ${styles.colorInput}`
+                        + `${isDup(row) ? ` ${styles.inputError}` : ''}`}
                       placeholder="Цвет"
                       value={row.color}
                       aria-label={`Цвет ${ri + 1}`}
+                      aria-invalid={isDup(row) || undefined}
                       onChange={(e) => setColor(ri, e.target.value)}
                     />
                   </th>
@@ -245,9 +274,21 @@ export function SizeGridEditor({ grid, onChange }) {
 
       {sizes.length > 0 && (
         <div className={styles.checkRow}>
-          <Button variant="secondary" onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}>
+          <Button
+            variant="secondary"
+            disabled={!canAddRow}
+            onClick={() => set({ rows: [...rows, { color: '', sizes: {} }] })}
+          >
             + Цвет
           </Button>
+          {!canAddRow && (
+            <span className={styles.subText} role="status">
+              {dupColors.size > 0
+                ? 'Такой цвет в сетке уже есть — количества сложатся в одну строку. '
+                  + 'Задайте разные цвета или уберите лишнюю строку.'
+                : 'Назовите цвет текущей строки — без имени вторая строка будет её двойником.'}
+            </span>
+          )}
         </div>
       )}
       <div className={styles.subText} aria-live="polite">

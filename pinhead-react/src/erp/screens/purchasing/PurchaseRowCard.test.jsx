@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PurchaseRowCard } from './PurchaseRowCard';
-import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS } from './purchaseLabels';
+import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, pricePerUnitLabel } from './purchaseLabels';
 
 /**
  * Строка закупки на планшете.
@@ -118,7 +118,10 @@ describe('строка закупки карточкой (планшет)', () =
       .map((el) => el.textContent);
     expect(labels).toEqual([
       'Материал', PURCHASE_FIELD_LABELS.qtyExpected, 'Комментарий менеджера',
-      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered, 'Цена за ед.', 'Стоимость',
+      // Подпись цены — тоже из общего модуля: литерал здесь и был тем самым
+      // «молча разошлись бы с таблицей», от которого сторожит этот тест
+      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered,
+      pricePerUnitLabel(MATERIAL.unit, []), 'Стоимость',
       'Дата заказа', 'План прихода', 'Приход', 'Ответственный',
     ]);
   });
@@ -211,5 +214,38 @@ describe('строка закупки карточкой (планшет)', () =
     fireEvent.click(screen.getByRole('button', { name: 'Наличие' }));
     expect(onConfirmStock).toHaveBeenCalledWith('m1');
     expect(screen.queryByLabelText(/^Статус /)).not.toBeInTheDocument();
+  });
+
+  /**
+   * ПОДПИСЬ ЦЕНЫ — ЕДИНИЦЕЙ МАТЕРИАЛА, И В КАРТОЧКЕ ТОЖЕ (правка 21.09, п. 1).
+   *
+   * Здесь стоял литерал «Цена за ед., ₽», хотя подпись уже была вынесена
+   * в общую функцию ради таблицы и модалки. Расхождение нашлось прогоном
+   * 22.09: на планшете закупщик читал «за ед.» там, где в таблице «за кг».
+   * Ровно такие молчаливые расхождения функция и должна была убрать.
+   */
+  it('подпись цены названа единицей материала, а не «за ед.»', () => {
+    renderCard({ ...MATERIAL, unit: 'кг' });
+    expect(screen.getByText('Цена за кг, ₽')).toBeInTheDocument();
+    expect(screen.queryByText('Цена за ед., ₽')).not.toBeInTheDocument();
+  });
+
+  /**
+   * ПУСТАЯ ЦЕНА ТКАНИ НАЗВАНА СЛОВАМИ (решение заказчика 22.09).
+   *
+   * Обязательность цены стоит только на ЗАВЕДЕНИИ строки: десять тканей
+   * из семнадцати на бою заведены до правки, и запрет при каждой правке
+   * запер бы их целиком. Значит, старые строки чинит человек — и он должен
+   * увидеть, какие именно, а не догадываться по прочерку.
+   */
+  it('у ткани без цены сказано «Цена не указана»', () => {
+    renderCard({ ...MATERIAL, price_per_unit: null });
+    expect(screen.getByText('Цена не указана')).toBeInTheDocument();
+  });
+
+  /** У непроверяемого вида пустая цена — не находка: закупка фурнитуры живёт без неё */
+  it('у фурнитуры без цены пометки нет — там цена не обязательна', () => {
+    renderCard({ ...MATERIAL, kind: 'hardware', price_per_unit: null });
+    expect(screen.queryByText('Цена не указана')).not.toBeInTheDocument();
   });
 });

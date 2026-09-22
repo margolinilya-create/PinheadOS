@@ -69,6 +69,8 @@ export function EconomicsSection({ order }) {
   const e = current.economics;
   const gaps = economicsGaps(e);
   const fabric = e?.fabric ?? [];
+  /** Возвратный остаток по единицам (правка 21.09, п. 5) — только «пригоден» */
+  const leftover = e?.leftover ?? [];
 
   return (
     <div className={styles.economics}>
@@ -109,7 +111,50 @@ export function EconomicsSection({ order }) {
           <span className={styles.metricValue}>{qty(e.rolls_used, 'шт')}</span>
           <span className={styles.subText}>из закроя</span>
         </div>
+        {/*
+          ПЛЮС ЗАКРОЯ (правка 21.09, п. 3) — рядом с «выкроено», потому что
+          это его часть: «сохранить фактический раскрой 55 шт и автоматически
+          зафиксировать плюс XS = 5 шт». Плитка появляется, только когда плюс
+          есть: «Плюс 0» на каждом заказе — шум, а не сведение.
+        */}
+        {e.qty_extra > 0 && (
+          <div className={styles.metricCard}>
+            <span className={styles.metricLabel}>Плюс закроя</span>
+            <span className={styles.metricValue}>{qty(e.qty_extra, 'шт')}</span>
+            <span className={styles.subText}>скроено сверх заказа</span>
+          </div>
+        )}
       </div>
+
+      {/*
+        ОСТАТОК ТКАНИ ПО ЗАКАЗУ (правка 21.09, п. 5): «показывать общий остаток
+        ткани в кг и в рублях… „Остаток ткани по заказу: 10 кг / 7 000 ₽"».
+        Считается только по остаткам, помеченным «пригоден»: «малый остаток»
+        в показатель не входит по прямому требованию документа.
+
+        Разбивка по единицам — та же, что у расхода: сложить «10 кг и 4 м»
+        нельзя, пересчёта единиц система не делает.
+      */}
+      {leftover.length > 0 && (
+        <div className={styles.metricGrid}>
+          {leftover.map((l) => (
+            <div key={l.unit ?? 'без единицы'} className={styles.metricCard}>
+              <span className={styles.metricLabel}>
+                Остаток ткани по заказу{l.unit ? `, ${l.unit}` : ''}
+              </span>
+              <span className={styles.metricValue}>
+                {qty(l.qty, l.unit)}{l.cost !== null && l.cost !== undefined
+                  ? ` / ${money(l.cost)}` : ''}
+              </span>
+              <span className={styles.subText}>
+                {l.cost === null || l.cost === undefined
+                  ? 'цена рулона не указана — стоимость не посчитать'
+                  : `пригодный остаток, ${l.rolls === 1 ? '1 рулон' : `${l.rolls} рулонов`}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* РАСХОД — СТРОКОЙ НА ЕДИНИЦУ ИЗМЕРЕНИЯ. Сложить «61 кг и 120 м»
           нельзя: пересчёта единиц система не делает, и одно число здесь

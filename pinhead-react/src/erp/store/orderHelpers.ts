@@ -75,7 +75,17 @@ export const ORDER_SELECT = `
  * три экрана — переносить их на свои запросы надо отдельной работой.
  *
  * Карточка заказа обязана дозагрузить полный заказ (`loadOne`) — иначе размерная
- * сетка не отрисуется. За этим следит `detailIds` в сторе.
+ * сетка не отрисуется. За этим следит `detailIds` в сторе. С 21.09 то же самое
+ * делает ФОРМА СДАЧИ РЕЗУЛЬТАТА: её открывают из очереди цеха, то есть с этими
+ * данными, и без сетки закрой предлагал стандартную шкалу на позиции, где сетка
+ * заполнена («у позиции нет размерной сетки» — пп. 3 и 4 документа 21.09).
+ *
+ * РУЛОНЫ (`rolls`) вернулись сюда 21.09, хотя карточка их всё равно дотянет.
+ * Без них `material.rolls` приезжал `undefined`, `rollsForItem` отдавала пустой
+ * список — и в форме закроя при одной заполненной строке загоралось «Все
+ * принятые рулоны уже в списке» (п. 2). Цена вопроса измерена: рулонов на всей
+ * базе четыре десятка строк по семь коротких колонок, то есть меньше, чем
+ * весит один этап.
  *
  * Бирки (`labels`) и основная ткань (`main_fabric`) — правка 22.08 — в списке
  * ЕСТЬ по той же причине, что техблок: их читает `screens/queue/TzBlock`,
@@ -111,7 +121,7 @@ export const ORDER_LIST_SELECT = `
     prints:erp_item_prints (*),
     labels:erp_item_labels (*)
   ),
-  materials:erp_materials (*, suppliers:erp_material_suppliers (*)),
+  materials:erp_materials (*, suppliers:erp_material_suppliers (*), rolls:erp_material_rolls (*)),
   attachments:erp_order_attachments (*),
   procurement_tasks:erp_procurement_tasks (*),
   warehouse_ops:erp_warehouse_ops (*),

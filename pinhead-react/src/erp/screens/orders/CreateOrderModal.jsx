@@ -5,7 +5,7 @@ import { DictionaryDatalist } from '../../components/DictionaryDatalist';
 import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
-import { confirm, confirmThreeWay } from '../../../store/useConfirmStore';
+import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
 import {
@@ -28,6 +28,7 @@ import { garmentSourceOf } from '../../utils/garmentSource';
 import { factoryToday } from '../../../utils/date';
 import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
+import { DraftPicker } from './create/DraftPicker';
 import { Icon } from '../../components/Icon';
 import { currentDocuments, deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
 import { translateSupabaseError } from '../../../utils/i18n';
@@ -219,7 +220,6 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * загрузку не нужно.
    */
   const attach = useAttachmentUploads('new', restoredDraft?.attachments ?? []);
-  const [draftRestored, setDraftRestored] = useState(Boolean(restoredDraft));
 
   /**
    * Заказы с тем же № сделки. Предупреждение, а не запрет: две партии по одной
@@ -574,6 +574,23 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
      * спрашивает `confirm`, ровно как при удалении заполненного блока.
      */
     if (isEdit) return undefined;
+    /**
+     * АВТОСОХРАНЕНИЕ РАБОТАЕТ ТОЛЬКО У ОТКРЫТОГО ЧЕРНОВИКА (правка 21.09, п. 6).
+     *
+     * Документ: «сохранение в черновики должно происходить только по явному
+     * действию пользователя „Сохранить в черновики". Если пользователь выходит
+     * без нажатия этой кнопки, форма просто закрывается без дополнительного
+     * подтверждения». Пока фон заводил строку сам, «выйти без сохранения»
+     * было неправдой — сохранённое уже лежало в базе, и окно при выходе
+     * существовало ровно затем, чтобы это как-то объяснить.
+     *
+     * Черновик, который УЖЕ открыт (выбран из списка или сохранён кнопкой),
+     * автосейв продолжает обновлять: «кнопка „Сохранить в черновики"
+     * продолжает обновлять именно этот черновик, а не создавать новый
+     * при каждом сохранении». Правка открытого черновика без сохранения
+     * потерялась бы молча — это не «не сохранять», а «потерять».
+     */
+    if (!rowIdRef.current) return undefined;
     const t = setTimeout(async () => {
       try {
         if (isFormEmpty(form, items, initialLaunch)) {
@@ -602,18 +619,99 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     return () => clearTimeout(t);
   }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow, draftPayload]);
 
-  const resetDraft = async () => {
-    clearOrderDraft();
-    if (rowIdRef.current) {
-      const id = rowIdRef.current;
-      rowIdRef.current = null;
-      setRowId(null);
-      await deleteDraftRow(id);
+  /**
+   * ЗАГРУЗИТЬ В ФОРМУ ВЫБРАННЫЙ ЧЕРНОВИК (правка 21.09, п. 6).
+   *
+   * «По нажатию на строку загружать выбранный черновик в текущую форму
+   * со всеми сохранёнными позициями, размерной сеткой, ТЗ, техническими
+   * полями, файлами и остальными данными. Если в форме уже открыт другой
+   * черновик, выбор нового должен ЗАМЕНИТЬ данные формы… Не создавать копию
+   * и не объединять два черновика».
+   *
+   * Замена непустой формы спрашивает подтверждение: набранное исчезает
+   * безвозвратно, и это не то же самое, что закрыть форму — там терять
+   * нечего, потому что фон ничего не сохранял.
+   */
+  const applyDraft = async (row) => {
+    if (!row) return;
+    if (row.id === rowId) return;
+    if (!isFormEmpty(form, items, initialLaunch)) {
+      const ok = await confirm({
+        title: 'Заменить содержимое формы?',
+        message: `Набранное сейчас не сохранено и будет потеряно. Вместо него `
+          + `откроется черновик «${row.title || 'Без названия'}».`,
+        confirmLabel: 'Открыть черновик',
+        variant: 'danger',
+      });
+      if (!ok) return;
     }
+    const draft = normalizeDraft(row.payload);
+    if (!draft) {
+      toast.error('Черновик не читается — возможно, он сохранён старой версией формы');
+      return;
+    }
+    setForm({ ...emptyOrderForm(initialLaunch), ...draft.form });
+    setItems(draft.items.length > 0 ? draft.items : [{ ...EMPTY_ITEM }]);
+    setNotes(draft.notes ?? []);
+    attach.replaceAll(draft.attachments ?? []);
+    setTzDocs((draft.tzDocs ?? []).filter((d) => d?.path && d.state === 'uploaded'));
+    rowIdRef.current = row.id;
+    setRowId(row.id);
+    setSubmitted(false);
+  };
+
+  /**
+   * «Создать новый черновик» / пустая форма (правка 21.09, п. 6): «в списке
+   * предусмотреть действие „Создать новый черновик"… чтобы быстро перейти
+   * от существующего черновика к новому заказу».
+   *
+   * Открытый черновик при этом НЕ удаляется — он остаётся в списке. Прежняя
+   * «Очистить» его сносила, но там это было единственным способом отказаться
+   * от заведённого фоном; теперь фон ничего не заводит, и удаление стало бы
+   * неожиданной потерей чужой работы.
+   */
+  const startFreshDraft = async () => {
+    if (!isFormEmpty(form, items, initialLaunch)) {
+      const ok = await confirm({
+        title: 'Начать новый заказ?',
+        message: rowId
+          ? 'Форма очистится. Открытый черновик останется в списке — набранное после '
+            + 'последнего сохранения будет потеряно.'
+          : 'Форма очистится, набранное не сохранено и будет потеряно.',
+        confirmLabel: 'Очистить форму',
+        variant: 'danger',
+      });
+      if (!ok) return;
+    }
+    clearOrderDraft();
+    rowIdRef.current = null;
+    setRowId(null);
     setForm(emptyOrderForm(initialLaunch));
     setItems([{ ...EMPTY_ITEM }]);
-    setDraftRestored(false);
+    setNotes([]);
+    attach.replaceAll([]);
+    setTzDocs([]);
     setSubmitted(false);
+  };
+
+  /** Удаление черновика из списка — не optimistic (правило проекта) */
+  const removeDraft = async (row) => {
+    const ok = await confirm({
+      title: 'Удалить черновик?',
+      message: `«${row.title || 'Без названия'}» будет удалён. Заказ не создан, `
+        + 'поэтому на производство это не влияет.',
+      confirmLabel: 'Удалить',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    if (!await deleteDraftRow(row.id)) return;
+    toast.success('Черновик удалён');
+    // Удалили тот, что открыт — форма остаётся заполненной, но больше
+    // ничего не обновляет: строки, в которую писать, уже нет
+    if (row.id === rowId) {
+      rowIdRef.current = null;
+      setRowId(null);
+    }
   };
 
   /**
@@ -654,42 +752,25 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   };
 
   /**
-   * Закрытие: пустая форма — сразу, иначе ТРИ исхода (документ: «предложить
-   * сохранить черновик, выйти без сохранения или продолжить заполнение»).
+   * ЗАКРЫТИЕ БЕЗ ВОПРОСОВ (правка заказчика 21.09, п. 6).
    *
-   * «Выйти без сохранения» удаляет строку черновика, а не просто закрывает
-   * окно: автосохранение к этому моменту её уже завело, и «без сохранения»,
-   * оставляющее сохранённое, было бы обманом.
+   * Документ: «при нажатии „Отмена", закрытии формы или выходе из создания
+   * заказа не показывать дополнительное окно „Сохранить черновик?"…
+   * Это убирает дублирование: отдельная кнопка сохранения уже есть внизу
+   * формы, а выбор сохранённых черновиков вынесен в отдельное меню».
+   *
+   * ЭТО ОТМЕНЯЕТ ПРЕЖНЕЕ РЕШЕНИЕ (20.09): «закрытие формы с несохранёнными
+   * изменениями — ТРИ исхода, а не два». Оно было верным, пока форма писала
+   * черновик сама: тогда «выйти без сохранения» требовало ещё и удалить
+   * заведённую фоном строку, и умолчать об этом было нельзя. Теперь фон
+   * ничего не заводит (см. автосохранение выше), терять нечего, и окно
+   * спрашивало бы о том, чего не происходит.
    */
   const closingRef = useRef(false);
   const requestClose = async () => {
     if (saving || closingRef.current) return;
-    if (isFormEmpty(form, items, initialLaunch)) {
-      clearOrderDraft();
-      onClose();
-      return;
-    }
-    closingRef.current = true;
-    const answer = await confirmThreeWay({
-      title: 'Закрыть форму заказа?',
-      message: 'Заполненное можно сохранить черновиком — он откроется из списка «Черновики» '
-        + 'в разделе заказов. Приложенные файлы сохраняются вместе с ним.',
-      confirmLabel: 'Сохранить черновик',
-      cancelLabel: 'Продолжить заполнение',
-      extraLabel: 'Выйти без сохранения',
-    });
-    closingRef.current = false;
-    if (answer === 'extra') {
-      // Автосохранение строку уже завело — «без сохранения», оставляющее
-      // сохранённое, было бы обманом
-      await resetDraft();
-      onClose();
-      return;
-    }
-    if (answer === 'confirm') {
-      const saved = await saveDraftNow();
-      if (saved) onClose();
-    }
+    clearOrderDraft();
+    onClose();
   };
 
   // Focus-trap + Escape → requestClose (важно: до эффекта autofocus, чтобы фокус остался на первом поле)
@@ -1129,13 +1210,26 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           {isEdit ? `Правка заказа${order.bitrix_id ? ` №${order.bitrix_id}` : ''}` : 'Новый заказ'}
         </div>
 
-        {draftRestored && (
-          <div className={styles.draftBanner} role="status">
-            <span>Восстановлен черновик</span>
-            <Button variant="ghost" onClick={resetDraft}>
-              Очистить
-            </Button>
-          </div>
+        {/*
+          ВЫБОР ЧЕРНОВИКА ПРЯМО В ФОРМЕ (правка заказчика 21.09, п. 6):
+          «добавить отдельное раскрывающееся действие „Черновики" / „Выбрать
+          черновик". Оно должно быть доступно прямо в интерфейсе нового заказа
+          и не зависеть от того, был ли автоматически восстановлен последний
+          черновик».
+
+          В режиме правки списка нет: `erp_order_drafts` — про НЕсозданный
+          заказ, и подставлять черновик в правку существующего значило бы
+          затереть живой заказ чужими данными.
+        */}
+        {!isEdit && (
+          <DraftPicker
+            drafts={drafts}
+            openId={rowId}
+            dirty={!isFormEmpty(form, items, initialLaunch)}
+            onPick={applyDraft}
+            onFresh={startFreshDraft}
+            onDelete={removeDraft}
+          />
         )}
 
         {/* Подсказки справочников для полей «Изделие» и «Поставщик» (правка 12) */}

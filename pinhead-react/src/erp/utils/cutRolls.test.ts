@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
 import {
-  rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock,
+  rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock, rollLeft,
   cutSizesPayload, cutRollsPayload, sizeCellsOf, cellKey,
 } from './cutRolls';
 import type { CutSizeRow } from './cutRolls';
@@ -231,5 +231,96 @@ describe('что уезжает в отчёт этапа', () => {
 
   it('пустая строка рулона в отчёт не уезжает', () => {
     expect(cutRollsPayload([{ rollId: 'r1', qtyUsed: 5, sizes: [] }])).toEqual([]);
+  });
+});
+
+/**
+ * ОСТАТОК РУЛОНА (правка заказчика 21.09, п. 5).
+ *
+ * «Система автоматически считает остаток рулона: первоначальный вес минус
+ * фактический расход… Фактический расход не может быть больше принятого веса
+ * рулона» (п. 2).
+ */
+describe('rollLeft — остаток рулона', () => {
+  it('первоначальный вес минус расход', () => {
+    expect(rollLeft(roll(1, { qty: 20 }), 10)).toBe(10);
+    expect(rollLeft(roll(1, { qty: 20 }), 20)).toBe(0);
+  });
+
+  it('уже израсходованное учитывается: считаем от остатка, а не от веса', () => {
+    // С рулона кроят в несколько заходов: осталось 12, списываем ещё 5
+    expect(rollLeft(roll(1, { qty: 20, qty_left: 12 }), 5)).toBe(7);
+  });
+
+  it('дробные килограммы не дают хвоста с плавающей точкой', () => {
+    expect(rollLeft(roll(1, { qty: 20 }), 19.4)).toBe(0.6);
+  });
+
+  /**
+   * FAIL-OPEN: сорок один рулон на бою принят до правки, веса у них нет.
+   * Прочерк честнее выдуманного числа — «0» читалось бы как «ткань кончилась».
+   */
+  it('без веса рулона остаток неизвестен, а не ноль', () => {
+    expect(rollLeft(roll(1), 10)).toBeNull();
+    expect(rollLeft(null, 10)).toBeNull();
+  });
+
+  it('перерасход не уводит остаток в минус', () => {
+    expect(rollLeft(roll(1, { qty: 20 }), 25)).toBe(0);
+  });
+});
+
+describe('cutBlock — остаток и потолок расхода', () => {
+  const options = [{
+    roll: roll(1, { qty: 20 }),
+    material: fabric(),
+    label: 'Рулон №1',
+  }];
+  const entry = (extra = {}) => ({
+    rollId: 'r1',
+    qtyUsed: 10,
+    sizes: [{ size: 'M', color: '—', qty: 5 }] as CutSizeRow[],
+    ...extra,
+  });
+
+  it('расход больше веса рулона — сдать нельзя, числа названы', () => {
+    const msg = cutBlock([entry({ qtyUsed: 25 })], options);
+    expect(msg).toContain('в рулоне 20');
+    expect(msg).toContain('25');
+  });
+
+  it('расход в пределах веса проходит', () => {
+    expect(cutBlock([entry()], options)).toBeNull();
+  });
+
+  /** У рулона без веса потолка нет: цех не должен вставать из-за пустого поля */
+  it('у рулона без веса перерасход не ловится — цех не встаёт', () => {
+    const noWeight = [{ roll: roll(1), material: fabric(), label: 'Рулон №1' }];
+    expect(cutBlock([entry({ qtyUsed: 999 })], noWeight)).toBeNull();
+  });
+
+  /**
+   * Без вида остатка килограммы повисают: в экономику заказа не попадают
+   * (там считается только «пригоден») и на складе не появляются.
+   */
+  it('работа закончена, остаток есть, вид не выбран — сдать нельзя', () => {
+    const msg = cutBlock([entry({ finished: true })], options);
+    expect(msg).toContain('остался 10');
+  });
+
+  it('вид остатка выбран — можно сдавать', () => {
+    expect(cutBlock([entry({ finished: true, leftover: 'scrap' })], options)).toBeNull();
+  });
+
+  it('рулон израсходован под ноль — вида остатка не спрашиваем', () => {
+    expect(cutBlock([entry({ qtyUsed: 20, finished: true })], options)).toBeNull();
+  });
+
+  it('вид остатка уезжает в payload только при законченной работе', () => {
+    const done = cutRollsPayload([entry({ finished: true, leftover: 'usable' })], options);
+    expect(done[0]).toMatchObject({ finished: true, leftover: 'usable' });
+    // Работа не закончена — остаток промежуточный, объявлять его рано
+    const going = cutRollsPayload([entry({ finished: false, leftover: 'usable' })], options);
+    expect(going[0]).toMatchObject({ finished: false, leftover: null });
   });
 });
