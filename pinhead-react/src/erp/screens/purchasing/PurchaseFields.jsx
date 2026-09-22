@@ -190,11 +190,11 @@ export function QtyOrderedField({ m, onUpdate }) {
  * названа прямо: по ней считается и себестоимость полотна, и стоимость
  * возвратного остатка, и прочерк там читается как «бесплатно».
  */
-export function PriceField({ m, onUpdate }) {
+export function PriceField({ m, onUpdate, note = false }) {
   const units = useDictionary('unit');
   const label = pricePerUnitLabel(m.unit, units);
   const missing = priceRequiredFor(m.kind) && m.price_per_unit == null;
-  return (
+  const input = (
     <input
       type="number" min="0" step="any"
       className={`${styles.input} ${styles.inputSm} ${styles.wNum}`
@@ -207,6 +207,20 @@ export function PriceField({ m, onUpdate }) {
       }}
       aria-label={`${label}: ${m.name}`}
     />
+  );
+  /*
+    СЛОВАМИ — ТОЛЬКО ТАМ, ГДЕ ЕСТЬ МЕСТО (решение заказчика 22.09). В строке
+    таблицы хватает рамки и «нужна»: лишняя подпись в узкой ячейке ломает ряд.
+    В карточке планшета поле стоит своим блоком, и там пустая цена названа
+    прямо — обязательность стоит только на INSERT, а десять тканей из
+    семнадцати заведены до правки, и молчаливый прочерк их и оставит пустыми.
+  */
+  if (!note || !missing) return input;
+  return (
+    <>
+      {input}
+      <span className={styles.subText}>Цена не указана</span>
+    </>
   );
 }
 

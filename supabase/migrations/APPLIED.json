@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-09-21",
+  "capturedAt": "2026-09-22",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -2140,6 +2140,14 @@
         "20260921221326_erp_material_accept_invoker.sql"
       ],
       "note": "То же определение целиком, со словом security invoker в тексте: сторож читает последнюю миграцию, ОБЪЯВЛЯЮЩУЮ функцию, и alter function он не видит. Тело не менялось ни на символ."
+    },
+    {
+      "version": "20260922085608",
+      "name": "erp_roll_weights_wording",
+      "files": [
+        "20260922085608_erp_roll_weights_wording.sql"
+      ],
+      "note": "склонение в тексте отказа: «не принадлежат этому материалу: рулонов — N»"
     }
   ]
 }
