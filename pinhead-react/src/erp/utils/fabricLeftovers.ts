@@ -58,6 +58,22 @@ function rollCost(roll: ErpMaterialRoll, material: ErpMaterial): number | null {
  * Порядок — по материалу и номеру рулона: на складе их ищут глазами по имени
  * ткани, а внутри неё по номеру, который написан на самом рулоне.
  */
+/**
+ * Цвет НЕ ПОВТОРЯЕТСЯ, если он уже назван в имени материала.
+ *
+ * Имя ткани на бою сплошь и рядом уже содержит цвет («Футер 3-нитка,
+ * чёрный»), а колонка `color` хранит его же отдельно. Экран печатал оба
+ * и выдавал «Футер 3-нитка, чёрный · чёрный» — поймано глазами на стенде.
+ *
+ * Отбрасывать колонку нельзя: у половины материалов имя цвета не содержит,
+ * и тогда со склада не понять, какой именно рулон искать.
+ */
+function colorSuffix(name: string, color: string | null | undefined): string | null {
+  const c = (color || '').trim();
+  if (!c) return null;
+  return name.toLowerCase().includes(c.toLowerCase()) ? null : c;
+}
+
 export function fabricLeftovers(
   orders: readonly LeftoverOrder[] | null | undefined,
 ): FabricLeftover[] {
@@ -68,11 +84,12 @@ export function fabricLeftovers(
         if (roll?.leftover_kind !== 'usable') continue;
         const qty = Number(roll.qty_left) || 0;
         if (qty <= 0) continue;
+        const name = material.fact_name || material.name;
         out.push({
           rollId: roll.id,
           label: roll.label,
-          material: material.fact_name || material.name,
-          color: material.fact_color || material.color,
+          material: name,
+          color: colorSuffix(name, material.fact_color || material.color),
           qty,
           unit: roll.unit || material.unit || null,
           price: roll.price_per_unit ?? material.price_per_unit ?? null,

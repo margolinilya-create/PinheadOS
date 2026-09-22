@@ -112,3 +112,35 @@ describe('leftoverTotals', () => {
     expect(leftoverTotals(rows)[0].cost).toBeNull();
   });
 });
+
+/**
+ * ЦВЕТ НЕ ДУБЛИРУЕТСЯ (находка стенда 22.09).
+ *
+ * Экран печатал «Футер 3-нитка, чёрный · чёрный»: имя ткани на бою уже
+ * содержит цвет, и колонка `color` хранит его же. Поймано глазами на стенде,
+ * а не тестом, — поэтому сторож ставится здесь.
+ */
+describe('цвет в подписи остатка', () => {
+  const orderWith = (name, color) => ([{
+    id: 'o1', title: 'Заказ', materials: [{
+      id: 'm1', name, color, unit: 'кг', price_per_unit: 700,
+      rolls: [{ id: 'r1', label: 'Рулон №1', qty: 40, unit: 'кг', qty_left: 10, leftover_kind: 'usable' }],
+    }],
+  }]);
+
+  it('цвет уже в имени — второй раз не печатается', () => {
+    expect(fabricLeftovers(orderWith('Футер 3-нитка, чёрный', 'чёрный'))[0].color).toBe(null);
+  });
+
+  it('регистр не обманывает проверку', () => {
+    expect(fabricLeftovers(orderWith('Футер 3-нитка, Чёрный', 'чёрный'))[0].color).toBe(null);
+  });
+
+  it('цвета в имени нет — колонка нужна: иначе рулон не найти на складе', () => {
+    expect(fabricLeftovers(orderWith('Футер 3-нитка', 'чёрный'))[0].color).toBe('чёрный');
+  });
+
+  it('пустой цвет не превращается в пустую подпись', () => {
+    expect(fabricLeftovers(orderWith('Футер 3-нитка', '  '))[0].color).toBe(null);
+  });
+});
