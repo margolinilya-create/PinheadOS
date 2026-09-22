@@ -112,6 +112,7 @@ supabase/
 | `/load` | DeptLoad (загрузка цехов из плановых дат этапов) | Все |
 | `/gantt` | GanttScreen (этапы полосами во времени) | Все |
 | `/orders/:orderId/purchase-list` | PurchaseListPrint (печатный лист закупки) | Все |
+| `/leftovers` | FabricLeftovers (остатки полотна по рулонам) | `warehouse.manage`, `material.receive`, `order.manage` |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
 | `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, аварийный режим, заказы ТЗ) | admin, director |
 
@@ -213,6 +214,27 @@ ERP, правка 14.09: карточка отвечает на «как это 
 ушедшая в цех; её статус ведёт триггер).
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
+
+Правки 21.09 (сессия 65) добавили **вес рулона, остаток полотна и плюс
+закроя**: `erp_material_rolls.qty` теперь заполняется приёмкой (`erp_material_accept`
+принимает `p_roll_weights` — пары «рулон → вес», сумма сверяется с приходом),
+плюс `qty_left` (остаток, ведёт сервер), `leftover_kind` (`usable`/`scrap`;
+NULL — рулон ещё в работе) и `price_per_unit` (снимок цены материала
+на момент приёмки: поздняя правка цены иначе перепишет себестоимость уже
+закрытых заказов). Рулонам, принятым ДО правки, вес дозаполняет склад —
+`erp_material_rolls_set_weights` (`security definer`, право `material.receive`).
+`erp_stage_submit_report` при сдаче закроя проверяет расход НАКОПИТЕЛЬНО
+(`qty_used ≤ qty − уже израсходованное`; fail-open у рулона без веса),
+пересчитывает `qty_left` и ставит `leftover_kind`; `erp_stage_report_sizes.qty_extra`
+и `erp_stage_reports.qty_extra` несут производственный «плюс» (превышение
+тиража), который раскладывается по рулонам в порядке `erp_material_rolls.seq`,
+а не по uuid. Экономика (`erp_item_economics`/`erp_order_economics`) отдаёт
+`leftover` и `qty_extra`, стоимость остатка считается по цене КОНКРЕТНОГО
+рулона. Цена у `erp_materials` обязательна для `kind = 'fabric'` — триггер
+`erp_material_price_required` **только на INSERT**: десять тканей
+из семнадцати на бою заведены без цены, и страж на UPDATE запер бы их правку.
+Плюс `erp_size_grid_merge` (разовая склейка дублей `(color, size)` в четырёх
+колонках сеток) и `erp_size_grid_cells`.
 
 Правки 20.09 (сессия 64) добавили **идемпотентную отгрузку, экономику
 и поштучное прочтение чата**: уникальность `erp_order_shipments` переехала

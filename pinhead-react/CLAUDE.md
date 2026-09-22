@@ -9,7 +9,10 @@ URL: https://pinhead-os.vercel.app
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal
-  (+ create/: SizeGridEditor, FormParts, ItemBlock, TzSection — форма разрезана);
+  (+ create/: SizeGridEditor (не даёт завести вторую строку того же цвета —
+  дубли удваивали ввод, правка 21.09 п. 8), DraftPicker (выбор черновика прямо
+  в форме; окна подтверждения при выходе больше нет — 21.09 п. 6),
+  FormParts, ItemBlock, TzSection — форма разрезана);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
   DefectWizard (мастер брака: 2 шага в Drawer);
@@ -36,9 +39,15 @@ URL: https://pinhead-os.vercel.app
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
   screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
   История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
-  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3)/MarkingCard/PackShipCard/
+  screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3; веса рулонов
+  и дозаполнение веса у принятых до правки — 21.09 п. 2)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
+  screens/FabricLeftovers.jsx — «Остатки ткани» (/leftovers, правка 21.09 п. 5):
+  рулоны с ненулевым остатком, вес, цена и заказ-источник; остаток это САМ рулон,
+  отдельной сущности нет;
   screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
+  purchaseLabels.js (подписи; `pricePerUnitLabel` — цена по ЕДИНИЦЕ материала,
+  одна функция на таблицу, карточку планшета, инлайн-правку и модалку),
   components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
   Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
@@ -50,7 +59,10 @@ URL: https://pinhead-os.vercel.app
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
-  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay),
+  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
+  sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
+  читателей)/cutRolls/cutExtras (производственный «плюс», накопительно)/
+  fabricLeftovers/attachmentView),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
