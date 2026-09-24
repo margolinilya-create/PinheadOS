@@ -293,10 +293,56 @@ describe('страж заказа совпадает с интерфейсом',
     expect(ORDER_CARD.match(/disabled=\{!canManageOrder\}/g) ?? []).toHaveLength(5);
   });
 
-  it('колонки, которые сторожит SQL, — это те же поля, что правит карточка', () => {
+  /**
+   * СТРАЖ ПЕРЕЧИСЛЯЕТ ИСКЛЮЧЕНИЯ, А НЕ ОХРАНЯЕМЫЕ КОЛОНКИ (код-ревью 23.09).
+   *
+   * Прежняя редакция этого теста брала пять полей карточки и требовала для
+   * каждого строку `new.X is distinct from old.X`. Тест был зелёным — и всё
+   * же четыре колонки (`purchase_required`, `delivered_at`, `tz_order_id`,
+   * `tz_number`) не охранялись ничем: он сторожил ПРИСУТСТВИЕ известных полей
+   * в списке, а дыру давало ОТСУТСТВИЕ неизвестных. Проверить «все колонки
+   * на месте» перечислением нельзя в принципе: список в тесте отстаёт от
+   * схемы ровно так же, как отставал список в страже.
+   *
+   * Поэтому сторожится конструкция: страж сравнивает снимки строки целиком
+   * и вычитает из них ровно оговорённые поля. Тогда новая колонка защищена
+   * по умолчанию, и тесту не нужно знать её имя.
+   */
+  it('страж сравнивает строку целиком, а не перечисляет колонки', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    expect(body).toMatch(/to_jsonb\(new\)/);
+    expect(body).toMatch(/to_jsonb\(old\)/);
+    expect(body).toMatch(/is distinct from/);
+  });
+
+  it('из сравнения вычтены ТОЛЬКО отгрузка и updated_at', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    // Всё, что вычитается из снимка, — это то, что НЕ требует order.manage
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    expect(excluded).toEqual(new Set([
+      'status', 'shipped_status', 'shipped_at', 'shipped_by', 'updated_at',
+    ]));
+  });
+
+  it('поля карточки заказа под order.manage — они не в исключениях', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
     for (const field of ['customer', 'manager', 'launch_date', 'due_date', 'notes']) {
-      expect(ORDER_SQL).toMatch(new RegExp(`new\\.${field}\\s+is distinct from old\\.${field}`));
+      expect(excluded.has(field)).toBe(false);
       expect(ORDER_CARD).toContain(`saveOrderField({ ${field}:`);
+    }
+  });
+
+  /**
+   * Четыре колонки из находки: интерфейс их не правит, но и открытыми они
+   * быть не должны — именно их отсутствие в прежнем перечне давало рабочему
+   * цеха возможность переписать отметку о сдаче через REST.
+   */
+  it('колонки, найденные открытыми, теперь охраняются', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    for (const field of ['purchase_required', 'delivered_at', 'tz_order_id', 'tz_number']) {
+      expect(excluded.has(field)).toBe(false);
     }
   });
 
@@ -636,13 +682,26 @@ describe('страж заказа охраняет отгрузку', () => {
     expect(GUARD).toMatch(/order\.manage/);
   });
 
-  it('прежние правила стража не потеряны', () => {
-    // Пересоздание функции целиком уже теряло колонки — сторожим и это
-    expect(GUARD).toMatch(/new\.due_date/);
-    expect(GUARD).toMatch(/new\.manager/);
-    // Вместо снятой 12.09 `is_demo` сторожим соседнюю колонку того же списка:
-    // проверка «пересоздание не потеряло поимённое перечисление» обязана
-    // остаться, иначе удаление одной ветки ослабило бы весь сторож
-    expect(GUARD).toMatch(/new\.tz_required/);
+  /**
+   * ПРЕЖНЯЯ РЕДАКЦИЯ ТРЕБОВАЛА ОБРАТНОГО — и была права для своего времени.
+   *
+   * Она проверяла, что пересоздание функции не потеряло поимённое перечисление
+   * (`new.due_date`, `new.manager`, `new.tz_required`), потому что удаление
+   * ветки однажды уже теряло колонки. Но у перечисления обнаружился второй,
+   * противоположный отказ: колонка, добавленная в таблицу ПОЗЖЕ, в список
+   * не попадала вовсе, и четыре такие (`purchase_required`, `delivered_at`,
+   * `tz_order_id`, `tz_number`) не охранялись ничем при зелёном тесте.
+   *
+   * С 24.09 страж сравнивает снимки строки и вычитает исключения, поэтому
+   * «потерять колонку» больше нечем: её нельзя потерять из списка, которого
+   * нет. Проверяем теперь ОТСУТСТВИЕ перечисления — иначе следующая правка
+   * молча вернёт прежний принцип вместе с его дырой.
+   */
+  it('поимённого перечисления полей заказа больше нет', () => {
+    for (const col of ['due_date', 'manager', 'tz_required', 'customer', 'notes']) {
+      expect(GUARD).not.toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+    }
+    // Охрана этих колонок теперь следует из сравнения снимков
+    expect(GUARD).toMatch(/to_jsonb\(new\)/);
   });
 });
