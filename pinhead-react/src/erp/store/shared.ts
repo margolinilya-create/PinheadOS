@@ -176,6 +176,40 @@ export async function removeOrphanUpload(bucket: string, path: string): Promise<
   if (error) console.warn('orphan upload not removed:', path, error.message);
 }
 
+/**
+ * Из списка ключей бакета — те, что можно убирать: на них НЕ ссылается
+ * карточка модели.
+ *
+ * Карточка SKU файлы в бакет не копирует (`erp_dev_sku_card_on_ready`):
+ * `erp_sku_card_files.file_path` — снимок ключа вложения разработки, а
+ * `attachment_id` объявлен `on delete set null` ровно затем, чтобы удалённая
+ * разработка «не унесла с собой техпаспорт модели». Строка переживает
+ * удаление вложения — а объект в бакете нет: три клиентских удаления
+ * (заказ, файл разработки, вложение заказа) сносили его по пути, не спрашивая
+ * второго носителя. Карточка оставалась со ссылкой в пустоту.
+ *
+ * ОШИБКА ЧТЕНИЯ = «НИЧЕГО НЕ УБИРАТЬ». Удаление файла необратимо, а сирота
+ * в бакете стоит копейки и убирается `storage-gc`, который те же носители
+ * знает сам. Неверный ответ здесь опаснее отсутствия ответа.
+ *
+ * Чтение `erp_sku_card_files` идёт под RLS (`sku.view`). У каждой роли,
+ * которой матрица даёт снять файл — администратор, менеджер, дизайнер,
+ * технолог, — оно есть; сторож этого — `permissions.test.ts`.
+ */
+export async function freeOfSkuCards(paths: string[]): Promise<string[]> {
+  if (paths.length === 0) return [];
+  const { data, error } = await erpQuery(() => supabase
+    .from('erp_sku_card_files').select('file_path').in('file_path', paths));
+  if (error) {
+    console.warn('sku card files not checked, keeping objects:', error.message);
+    return [];
+  }
+  const held = new Set(
+    ((data ?? []) as { file_path: string | null }[]).map((r) => r.file_path),
+  );
+  return paths.filter((p) => !held.has(p));
+}
+
 /** Пауза перед повторной попыткой записи аудита */
 export const STAGE_EVENT_RETRY_MS = 1500;
 

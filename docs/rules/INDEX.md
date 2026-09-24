@@ -39,6 +39,7 @@
 
 - `pravila-audita-i-storozhey-defekt-10-09-sessiya-54.md`
 - `pravila-pravok-20-09-sessiya-64.md`  ← «сделано ≠ работает»: проверка на распределении живых данных
+- `pravila-obzora-proekta-24-09-sessiya-67.md`  ← документ-память — не источник истины; надстройка оценивается по факту использования
 - `pravila-erp-krasnyy-ci-sessiya-36-razbor.md`
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
 - `pravila-erp-kod-revyu-05-08.md`
@@ -80,6 +81,7 @@
 гейта, как считать мёртвый код и почему список устаревает от первого удаления.
 
 - `pravila-uborki-dannyh-i-faylov-sessiya-60-chistka-13-09.md`
+- `pravila-obzora-proekta-24-09-sessiya-67.md`  ← носители ключа бакета выводятся из схемы; ошибка проверки = не удалять
 - `pravila-uborki-mertvogo-koda-sessiya-58.md`
 - `pravila-tehdolga-07-09-vtoraya-polovina-sessii-52.md`
 - `pravila-hvostov-14-09-15-09-limit-vlozheniya-i-razrabotka-bez-sdelki.md`

@@ -15,7 +15,9 @@
 
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
-import { arrivedLate, currentActor, erpError, erpQuery, removeOrphanUpload } from '../shared';
+import {
+  arrivedLate, currentActor, erpError, erpQuery, freeOfSkuCards, removeOrphanUpload,
+} from '../shared';
 import { toast } from '../../../store/useToastStore';
 import { attachmentFilePath } from '../../utils/storageKey';
 import { TZ_BUCKET } from '../../types';
@@ -371,7 +373,14 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       erpError('Файл не снят', error ?? { message: 'Нет прав на удаление файла' });
       return false;
     }
-    if (att?.file_path) await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    /**
+     * Объект бакета уходит, только если на него не ссылается карточка модели:
+     * файлы техпакета — лекала, паспорт, фото — карточка берёт ИМЕННО отсюда,
+     * снимком пути, без копии (`erp_dev_sku_card_on_ready`).
+     */
+    if (att?.file_path && (await freeOfSkuCards([att.file_path])).length > 0) {
+      await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    }
     set((s) => ({
       experimental: s.experimental.map((e) => (e.id === devId
         ? { ...e, attachments: (e.attachments ?? []).filter((a) => a.id !== attachmentId) }

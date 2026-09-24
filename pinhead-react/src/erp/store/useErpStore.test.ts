@@ -48,6 +48,13 @@ const h = vi.hoisted(() => ({
   orderCalls: [] as { table: string; col: string }[],
   tableData: {} as Record<string, unknown[]>,
   selectError: null as { message: string } | null,
+  /**
+   * Ошибка чтения ОДНОЙ таблицы: удаление заказа читает пути файлов из двух
+   * таблиц и карточки модели из третьей, и поведение при отказе третьей
+   * (объекты остаются) отличимо от отказа первых двух (путей нет — убирать
+   * нечего) только если падает ровно она.
+   */
+  selectErrorFor: {} as Record<string, { message: string }>,
   singleData: null as unknown,
   rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
   rpcResult: { data: null as unknown, error: null as { message: string } | null },
@@ -85,6 +92,9 @@ vi.mock('../../lib/supabase', () => {
       // вызов бросал бы «q.is is not a function», и ветка молча уходила
       // в обработку ошибки — то есть тест проверял бы не то
       is: (col: string, val: unknown) => { filters.push(`is:${col}=${val}`); return q; },
+      // `.in(col, list)` — проверка «на какие из этих ключей ссылается
+      // карточка модели» перед удалением объекта бакета (`freeOfSkuCards`)
+      in: (col: string, vals: unknown[]) => { filters.push(`in:${col}=${vals.join(',')}`); return q; },
       gte: (col: string, val: unknown) => { filters.push(`gte:${col}=${val}`); return q; },
       lte: (col: string, val: unknown) => { filters.push(`lte:${col}=${val}`); return q; },
       order: (col: string) => { h.orderCalls.push({ table, col }); return q; },
@@ -96,8 +106,9 @@ vi.mock('../../lib/supabase', () => {
       },
       then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
         h.selectCalls.push({ table, filters });
+        const error = h.selectErrorFor[table] ?? h.selectError;
         return Promise
-          .resolve({ data: h.tableData[table] ?? [], error: h.selectError })
+          .resolve({ data: error ? null : (h.tableData[table] ?? []), error })
           .then(resolve, reject);
       },
     };
@@ -298,6 +309,7 @@ beforeEach(() => {
   h.orderCalls.length = 0;
   h.tableData = {};
   h.selectError = null;
+  h.selectErrorFor = {};
   h.singleData = null;
   h.rpcCalls.length = 0;
   h.rpcResult = { data: null, error: null };
@@ -3732,5 +3744,34 @@ describe('deleteOrder — отказ виден, файлы убираются',
     expect(ok).toBe(false);
     expect(useErpStore.getState().orders).toHaveLength(1);
     h.deleteError = null;
+  });
+
+  /**
+   * Карточка модели ссылается на файл вложения СНИМКОМ пути, копии в бакете
+   * нет (`erp_dev_sku_card_on_ready`). Удаление заказа сносило объект по пути,
+   * и карточка оставалась со ссылкой в пустоту — техпакет терялся вместе
+   * с заказом, из которого пришёл.
+   */
+  it('файл, на который ссылается карточка модели, остаётся в бакете', async () => {
+    h.tableData.erp_sku_card_files = [{ file_path: 'ord-1/123.webp' }];
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    expect(ok).toBe(true);
+    expect(h.removeCalls).toHaveLength(1);
+    expect(h.removeCalls[0].paths).toEqual(['tz/ord-1/g/v1-a.pdf']);
+    // Спрашивались ровно те ключи, что собирались удалять
+    const check = h.selectCalls.find((c) => c.table === 'erp_sku_card_files');
+    expect(check?.filters.some((f) => f.startsWith('in:file_path='))).toBe(true);
+    delete h.tableData.erp_sku_card_files;
+  });
+
+  it('не удалось спросить карточки — объекты не трогаются', async () => {
+    h.selectErrorFor.erp_sku_card_files = { message: 'permission denied' };
+    const ok = await useErpStore.getState().deleteOrder('ord-1');
+
+    // Заказ удалён: невозможность убрать файлы — плохая причина запретить
+    // удаление. Но удаление файла необратимо, а сироту уберёт `storage-gc`
+    expect(ok).toBe(true);
+    expect(h.removeCalls).toHaveLength(0);
   });
 });

@@ -34,7 +34,8 @@ import type {
 } from '../../types';
 import { TZ_BUCKET } from '../../types';
 import {
-  currentActor, erpError, erpQuery, erpWrite, removeOrphanUpload, withPending,
+  currentActor, erpError, erpQuery, erpWrite, freeOfSkuCards, removeOrphanUpload,
+  withPending,
 } from '../shared';
 import { invalidate } from '../queryCache';
 import { ORDER_SELECT } from '../orderHelpers';
@@ -528,16 +529,20 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
      * Файлы — ПОСЛЕ строки. Обратный порядок означал бы, что упавший DELETE
      * оставляет живой заказ без ТЗ. Неудача уборки заказ не отменяет (он уже
      * удалён), но и молчать нельзя: файл остаётся в хранилище.
+     *
+     * Минус файлы, на которые ссылается карточка модели: техпакет живёт
+     * дольше заказа, из которого пришёл (`freeOfSkuCards`).
      */
-    if (paths.length > 0) {
+    const removable = await freeOfSkuCards(paths);
+    if (removable.length > 0) {
       const { error: rmError } = await erpQuery(() => supabase
-        .storage.from('erp-attachments').remove(paths));
+        .storage.from('erp-attachments').remove(removable));
       if (rmError) {
         // Число впереди слова: «1 файл осталось» не согласуется, а
         // «осталось файлов: 1» читается верно при любом количестве
         toast.warning(
           'Заказ удалён, но в хранилище осталось '
-          + `${pluralize(paths.length, 'файл', 'файла', 'файлов')}: ${paths.length}`
+          + `${pluralize(removable.length, 'файл', 'файла', 'файлов')}: ${removable.length}`
           + ' — уберите их вручную',
         );
       }
@@ -620,7 +625,10 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
         ? { ...o, attachments: (o.attachments ?? []).filter((a) => a.id !== attachmentId) }
         : o)),
     }));
-    if (att?.file_path) await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    // Объект уходит, только если на него не ссылается карточка модели
+    if (att?.file_path && (await freeOfSkuCards([att.file_path])).length > 0) {
+      await removeOrphanUpload(TZ_BUCKET, att.file_path);
+    }
     invalidate(orderBundleKey(orderId));
     return true;
   },

@@ -83,6 +83,9 @@ describe('удаление заказа: гейт интерфейса = пол�
     // Пути собираются ДО удаления: обе таблицы уедут каскадом
     expect(slice).toMatch(/erp_tz_documents/);
     expect(slice).toMatch(/erp_order_attachments/);
-    expect(slice).toMatch(/storage\.from\('erp-attachments'\)\.remove\(paths\)/);
+    // Минус файлы, на которые ссылается карточка модели (24.09, сессия 67):
+    // убирается `removable`, а не `paths` — см. `storageGc.test.ts`
+    expect(slice).toMatch(/const removable = await freeOfSkuCards\(paths\)/);
+    expect(slice).toMatch(/storage\.from\('erp-attachments'\)\.remove\(removable\)/);
   });
 });
