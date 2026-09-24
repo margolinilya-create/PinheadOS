@@ -40,6 +40,7 @@
 - `pravila-audita-i-storozhey-defekt-10-09-sessiya-54.md`
 - `pravila-pravok-20-09-sessiya-64.md`  ← «сделано ≠ работает»: проверка на распределении живых данных
 - `pravila-obzora-proekta-24-09-sessiya-67.md`  ← документ-память — не источник истины; надстройка оценивается по факту использования
+- `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← неглубокий клон лжёт о смерженности; числа отчёта сверяются суммой; 403 прокси не обходится
 - `pravila-erp-krasnyy-ci-sessiya-36-razbor.md`
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
 - `pravila-erp-kod-revyu-05-08.md`
@@ -53,6 +54,7 @@
 - `pravila-erp-zhurnal-migraciy-31-08.md`
 - `pravila-erp-audit-03-08-2026-fazy-0-5.md`
 - `pravila-erp-daty-sessiya-29.md`
+- `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← номер заказа: одна последовательность, один формат; проверка RPC на бою без расхода номера
 
 ## Вёрстка, токены, контраст
 
