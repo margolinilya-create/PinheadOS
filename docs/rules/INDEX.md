@@ -54,7 +54,7 @@
 - `pravila-erp-zhurnal-migraciy-31-08.md`
 - `pravila-erp-audit-03-08-2026-fazy-0-5.md`
 - `pravila-erp-daty-sessiya-29.md`
-- `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← номер заказа: одна последовательность, один формат; проверка RPC на бою без расхода номера
+- `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← номер заказа: одна последовательность, один формат; проверка RPC на бою без расхода номера; красный Supabase Preview на новом PR — сначала последняя проверка и журнал превью
 
 ## Вёрстка, токены, контраст
 
