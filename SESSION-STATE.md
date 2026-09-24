@@ -59,6 +59,28 @@
    (`docs/2026-09-24-project-review.md`, «Ветки»). Вендорные файлы ruflo
    удалены из репозитория в этой же сессии.
 
+### Мусор, проверенный и готовый к удалению (за владельцем)
+
+Классификатор сессии отклонил удаление, хотя владелец его разрешил.
+Каждый пункт проверен: ссылок нет либо файл не работает.
+
+- `package.json`, `package-lock.json` в корне — `agentation ^2.3.3`,
+  не установлен ни разу; CI и Vercel собирают только `pinhead-react/`.
+- `skills-lock.json` — в `.gitignore`, но отслеживается; 12 внешних скилов,
+  ни одного нет в `.claude/skills/`. Поправить `docs/ai-tooling.md`.
+- `pinhead-react/scripts/seed-catalog.js`, `generate-seed-sql.js`,
+  `seed-catalog.sql` — оба скрипта падают при загрузке (`FABRICS_LAYER1`,
+  `EXTRAS_ICONS` больше не экспортируются). Убрать `seed`/`seed:sql`
+  из `package.json` и строку `npm run seed` из `CLAUDE.md`, `docs/OPERATIONS.md`.
+- `docs/plans/backlog-progress.md`, `docs/superpowers/specs/2026-04-11-sku-tz-hub-design.md`,
+  `docs/load-test-report.html` — ни одной ссылки.
+- `pinhead-react/tests/E2E-TEST-PLAN.md` — «33 сценария в 6 файлах» при 24
+  спеках; поправить комментарии в `navigation.spec.ts` и `wizard-flow.spec.ts`.
+
+Мёртвого кода в `src/` НЕТ: все 415 модулей кем-то импортируются, все
+зависимости и ассеты используются, снимков-сирот нет. `.claude/agents/pinhead-qa.md`
+описывает только апрельский Order Studio — обновить под ERP или удалить.
+
 ### Решения, которые стоит помнить
 
 **Носители ключа бакета выводятся из схемы, а не перечисляются.** Список
