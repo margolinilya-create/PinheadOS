@@ -46,7 +46,8 @@ Docker-образами и ключами, репозиторием они не 
 
 Ставились через `npx skills` (`vercel-labs/skills` — CLI, а не набор скиллов;
 устанавливать его никуда не нужно, он вызывается через `npx`). Файлы скопированы
-в `.claude/skills/`, версии зафиксированы в `skills-lock.json`.
+в `.claude/skills/`. Вендорные скилы в git не хранятся (`.gitignore`), `skills-lock.json` удалён 24.09:
+ни одного из двенадцати зафиксированных в нём скилов в `.claude/skills/` уже не было.
 
 | Скилл | Зачем в Pinhead |
 |---|---|
@@ -136,6 +137,5 @@ OmniRoute, в `.env` проекта им не место.
 | Путь | Что это |
 |---|---|
 | `.claude/settings.json` | Маркетплейсы (`extraKnownMarketplaces`) и включённые плагины (`enabledPlugins`) |
-| `.claude/skills/` | Скиллы проекта, в том числе восемь новых от Vercel |
-| `skills-lock.json` | Зафиксированные версии скиллов, поставленных через `npx skills` |
+| `.claude/skills/` | Девять проектных скилов (вендорные в git не хранятся) |
 | `scripts/install-ai-tools.sh` | Установка Strix и OmniRoute на машину разработчика |

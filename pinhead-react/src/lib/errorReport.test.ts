@@ -2,14 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildReport, reportError, _resetReports, MAX_REPORTS } from './errorReport';
+import { supabase } from './supabase';
 
 /**
  * Отчёт об ошибке обязан быть безобиднее самой ошибки: он не должен ни падать,
  * ни шуметь в сеть, ни работать, пока приёмник не настроен.
  *
  * Тесты идут без `VITE_ERROR_REPORT_URL` — то есть в состоянии, в котором
- * приложение живёт сегодня. Главная проверка здесь: выключенный модуль
- * действительно ничего не делает.
+ * приложение живёт сегодня: отчёт уходит во встроенный приёмник
+ * `erp_client_errors`, наружу не шлётся ничего.
  */
 
 describe('buildReport', () => {
@@ -39,18 +40,58 @@ describe('buildReport', () => {
   });
 });
 
-describe('reportError без настроенного приёмника', () => {
-  beforeEach(() => { _resetReports(); });
+/**
+ * Без внешнего адреса отчёт уходит во встроенный приёмник `erp_client_errors`
+ * (обзор 24.09, сессия 67). До правки модуль в этом состоянии молчал — а адреса
+ * не было, и наблюдаемости не было тоже.
+ */
+describe('reportError без внешнего адреса — встроенный приёмник', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  beforeEach(() => { _resetReports(); vi.mocked(supabase.from).mockClear(); });
   afterEach(() => { vi.restoreAllMocks(); });
 
-  it('ничего не отправляет и возвращает false', () => {
+  it('не шлёт наружу: ни beacon, ни fetch', () => {
     const beacon = vi.fn(() => true);
     vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon });
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-    expect(reportError(new Error('boom'), 'render')).toBe(false);
+    expect(reportError(new Error('boom'), 'render')).toBe(true);
     expect(beacon).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('вошедший — отчёт пишется в erp_client_errors', async () => {
+    const insert = vi.fn().mockResolvedValue({ data: null, error: null });
+    vi.mocked(supabase.auth.getSession)
+      .mockResolvedValueOnce({ data: { session: { user: { id: 'u1' } } }, error: null } as never);
+    vi.mocked(supabase.from).mockReturnValueOnce({ insert } as never);
+
+    reportError(new Error('упал экран'), 'render', '    in QueueRow');
+    await flush();
+
+    expect(supabase.from).toHaveBeenCalledWith('erp_client_errors');
+    const row = insert.mock.calls[0][0];
+    expect(row.message).toBe('упал экран');
+    expect(row.source).toBe('render');
+    expect(row.stack).toContain('in QueueRow');
+  });
+
+  it('не вошёл — ничего не пишется: вставка открыта только authenticated', async () => {
+    reportError(new Error('на экране входа'), 'render');
+    await flush();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('упавшая вставка не становится новым отчётом', async () => {
+    const insert = vi.fn().mockRejectedValue(new Error('network down'));
+    vi.mocked(supabase.auth.getSession)
+      .mockResolvedValueOnce({ data: { session: { user: { id: 'u1' } } }, error: null } as never);
+    vi.mocked(supabase.from).mockReturnValueOnce({ insert } as never);
+
+    reportError(new Error('первая'), 'render');
+    await flush();
+    // Одна попытка вставки и ни одной на отказ самой вставки
+    expect(insert).toHaveBeenCalledTimes(1);
   });
 
   it('не бросает даже на том, что нельзя сериализовать', () => {

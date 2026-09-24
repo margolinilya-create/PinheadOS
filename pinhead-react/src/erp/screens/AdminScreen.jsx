@@ -11,6 +11,7 @@ import { DictionariesTab } from './admin/DictionariesTab';
 import { BypassTab } from './admin/BypassTab';
 import { CapacityTab } from './admin/CapacityTab';
 import { LegacySubcontractTab } from './admin/LegacySubcontractTab';
+import { ClientErrorsTab } from './admin/ClientErrorsTab';
 import { hasLegacySubcontracts } from '../utils/outsourcing';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
@@ -25,7 +26,7 @@ const AdminPanel = React.lazy(() => import('../../components/auth/AdminPanel'));
  * Мощность (общая мощность производства, правки 10.08) · Справочники (правка 12) ·
  * Аварийный режим (снятые проверки) · Подряд без маршрута (технический контур,
  * появляется только при наличии таких записей — правка 23.08, п. 5) ·
- * Заказы ТЗ (админ-таблица заказов Order Studio).
+ * Заказы ТЗ (админ-таблица заказов Order Studio) · Ошибки (отчёты интерфейса).
  */
 
 /** `needs` — право матрицы, без которого вкладка не показывается */
@@ -57,6 +58,10 @@ const TABS = [
   // сводка отвечает на вопросы руководства, но только ЧИТАЕТ — запирать её
   // правом на правку справочников значило бы раздавать заодно и правку
   { id: 'analytics', label: 'Аналитика', needs: 'analytics.view' },
+  // Отчёты об ошибках интерфейса (обзор 24.09, сессия 67): право то же, что
+  // у политики чтения `erp_client_errors` — вкладка есть ровно у тех,
+  // кому сервер отдаст строки
+  { id: 'errors', label: 'Ошибки', needs: 'staff.invite' },
 ];
 
 export default function AdminScreen() {
@@ -112,6 +117,7 @@ export default function AdminScreen() {
         </Suspense>
       )}
       {tab === 'analytics' && <AnalyticsTab />}
+      {tab === 'errors' && <ClientErrorsTab />}
       </TabPanel>
     </>
   );

@@ -78,25 +78,24 @@ const store = useMyStore();
 4. **Optimistic update только с rollback** — сохранить prev, восстановить при ошибке
 5. **useShallow** — обязательно для объектных селекторов
 
-## Структура для нового стора портала
+## Новый доменный слайс ERP
 
-```js
-// usePortalStore.ts — для покупательского портала
-export const usePortalStore = create((set, get) => ({
-  // Шаги портала (отдельно от wizard!)
-  step: 0,
-  // SKU выбранный клиентом
-  selectedSku: null,
-  selectedColor: null,
-  sizes: {},
-  artworkNote: '',
-  // Данные клиента
-  clientName: '',
-  clientPhone: '',
-  clientEmail: '',
-  // Статус отправки
-  submitting: false,
-  submitted: false,
-  orderNumber: null,
-}));
+Покупательский портал, который здесь служил примером, отменён (Roadmap
+в `PROJECT.md`). В ERP новый стор не заводится — заводится слайс:
+
+```ts
+// erp/store/slices/fooSlice.ts
+export const fooSlice: StateCreator<ErpStore, [], [], FooSlice> = (set) => ({
+  foos: [],
+  foosLoaded: false,
+  loadFoos: async () => {
+    const { data, error } = await erpQuery(() => supabase.from('erp_foos').select('*'));
+    if (error) { erpError('Не удалось загрузить', error); return null; }
+    set({ foos: data ?? [], foosLoaded: true });
+    return data;
+  },
+});
 ```
+
+Дальше: тип в `erp/store/types.ts`, регистрация в `domainSlices.ts`,
+тест по образцу `useErpStore.test.ts`.

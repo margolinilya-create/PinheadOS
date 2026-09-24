@@ -114,7 +114,7 @@ supabase/
 | `/orders/:orderId/purchase-list` | PurchaseListPrint (печатный лист закупки) | Все |
 | `/leftovers` | FabricLeftovers (остатки полотна по рулонам) | `warehouse.manage`, `material.receive`, `order.manage` |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
-| `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, аварийный режим, заказы ТЗ) | admin, director |
+| `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, аварийный режим, заказы ТЗ, ошибки интерфейса) | admin, director |
 
 ### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
@@ -185,7 +185,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 (перемещения по подряду), `erp_settings` (настройки производства key/value: общая мощность
 в изделиях за месяц), `erp_calendar_slots` (производственный план: этап × день,
 план/факт/брак, проблема) + `erp_plan_comments` (переписка по задаче дня), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
-`is_selected`), `erp_tz_documents` (ТЗ в PDF: версии внутри `group_id`, документ
+`is_selected`), `erp_client_errors` (отчёты об ошибках интерфейса от `lib/errorReport`: вставка — вошедший от своего имени, чтение — `staff.invite`, вкладка админки «Ошибки»; ни UPDATE, ни DELETE, правка 24.09), `erp_tz_documents` (ТЗ в PDF: версии внутри `group_id`, документ
 принадлежит позиции — `item_id`, либо всему заказу при `item_id = null`),
 `erp_experimental.branding_note` («Комментарий по проработке» — необязательный
 результат этапа проработки, который читает цех нанесения в своём задании,
@@ -335,7 +335,12 @@ NULL читается как `purchased`) — у давальческого из
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc`
 (гейт `is_admin()`, сухой прогон по умолчанию, возрастной гейт сутки) либо
 `npm run storage:gc` с ключом `service_role` из окружения. Правила — раздел
-«Правила уборки данных и файлов».
+«Правила уборки данных и файлов». Носителей ключа ТРИ (`erp_order_attachments`,
+`erp_tz_documents`, `erp_sku_card_files` — карточка модели ссылается на файл
+разработки снимком пути, без копии), и список в уборщике сторожится тестом
+`erp/utils/storageGc.test.ts`, который выводит его из миграций (правка 24.09,
+сессия 67). Клиентские удаления объекта идут через `freeOfSkuCards`;
+ошибка проверки = ничего не удалять.
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -515,7 +520,7 @@ NULL читается как `purchased`) — у давальческого из
 | Файл | Назначение |
 |------|-----------|
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
-| `docs/rules/INDEX.md` | **Указатель правил по темам** (60 файлов, перенос 15.09) |
+| `docs/rules/INDEX.md` | **Указатель правил по темам** (65 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, changelog, roadmap |
@@ -523,8 +528,10 @@ NULL читается как `purchased`) — у давальческого из
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
-| `docs/2026-04-10-design-audit.md` | 5-агентный аудит UI/UX |
+| `docs/2026-07-27-erp-ux-audit.md` | Аудит UI/UX раздела ERP |
 | `docs/2026-07-27-skills-audit.md` | Аудит по чек-листам скилов: 16 находок + план работ |
+| `docs/2026-09-23-erp-code-review.md` | Код-ревью ERP: 13 находок, статус правок |
+| `docs/2026-09-24-project-review.md` | Обзор проекта целиком: 15 находок по приоритетам, порядок работ |
 
 ## Команды
 
@@ -535,5 +542,4 @@ npm run build      # Production build
 npm run test       # Vitest unit tests
 npm run e2e        # Playwright e2e tests
 npm run lint       # ESLint
-npm run seed       # Seed catalog data
 ```

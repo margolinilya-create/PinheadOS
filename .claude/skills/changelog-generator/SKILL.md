@@ -31,7 +31,7 @@ git log --pretty=format:"%ad %s" --date=short -20 --no-merges
 - **Документация** — `docs(`
 - **Рефакторинг** — `refactor(`
 
-## Шаг 3 — Напиши в формате CHANGELOG.md
+## Шаг 3 — Напиши запись сессии
 
 ```markdown
 ## [Дата] — Сессия X
@@ -54,8 +54,8 @@ git log --pretty=format:"%ad %s" --date=short -20 --no-merges
 - Редактирование позиции — сразу на шаг «Дизайн»
 
 ### Документация
-- PINHEAD-SKILL.md — скилл-файл для Claude
-- ACTION-PLAN.md — обновлён статус задач
+- docs/rules/… — правила сессии, ссылка в docs/rules/INDEX.md
+- SESSION-STATE.md — текущее состояние и next steps
 
 ---
 Тестов: N ✅ | Коммитов: X
@@ -63,15 +63,10 @@ git log --pretty=format:"%ad %s" --date=short -20 --no-merges
 
 ## Шаг 4 — Обнови файл
 
-Добавь новый раздел в начало `CHANGELOG.md` (или создай если нет):
-
-```bash
-# Проверить есть ли файл
-ls CHANGELOG.md
-
-# Если нет — создать
-touch CHANGELOG.md
-```
+Отдельного `CHANGELOG.md` в проекте нет. Запись сессии идёт в начало раздела
+`## Changelog` в `PROJECT.md` заголовком `### Сессия N (дата) — тема`,
+как у соседних записей. Текущее состояние и next steps — в `SESSION-STATE.md`
+(правило конца сессии в корневом `CLAUDE.md`).
 
 ## Правила написания
 
