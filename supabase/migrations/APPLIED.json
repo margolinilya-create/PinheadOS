@@ -2187,6 +2187,13 @@
       "files": [
         "20260924205222_erp_client_errors.sql"
       ]
+    },
+    {
+      "version": "20260924222445",
+      "name": "order_studio_generate_order_number",
+      "files": [
+        "20260924222445_order_studio_generate_order_number.sql"
+      ]
     }
   ]
 }

@@ -157,7 +157,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 
 | Таблица | Назначение |
 |---------|-----------|
-| `orders` | id, order_number (PH-XXXX), status, data JSONB, bitrix_deal |
+| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal |
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
@@ -520,7 +520,7 @@ NULL читается как `purchased`) — у давальческого из
 | Файл | Назначение |
 |------|-----------|
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
-| `docs/rules/INDEX.md` | **Указатель правил по темам** (65 файлов, перенос 15.09) |
+| `docs/rules/INDEX.md` | **Указатель правил по темам** (66 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, changelog, roadmap |

@@ -9,12 +9,16 @@ import { MIGRATIONS_DIR, withoutComments } from './migrations.testutil';
  *
  * ЗАЧЕМ (обзор 24.09, сессия 67). Клиент Supabase в проекте не типизирован,
  * и опечатка или исчезнувшая функция видны только в рантайме — а если вызов
- * обёрнут запасным путём, то не видны вовсе. Так `useOrdersStore` зовёт
- * `generate_order_number`, которой нет ни в миграциях, ни на бою: номер
- * заказа Order Studio всегда уходит в запасной `PH-<время>-xxxx`, и об этом
+ * обёрнут запасным путём, то не видны вовсе. Так `useOrdersStore` звал
+ * `generate_order_number`, которой не было ни в миграциях, ни на бою: номер
+ * заказа Order Studio всегда уходил в запасной `PH-<время>-xxxx`, и об этом
  * никто не знал. Нашлось пробным включением `createClient<Database>` —
  * оно дало 93 ошибки, из которых настоящих две, а этот сторож ловит ровно
  * класс настоящих, без шума про `null` против необязательного аргумента.
+ *
+ * Функцию завела миграция `20260924222445_order_studio_generate_order_number`
+ * (решение владельца, сессия 68), и имя ушло из списка известных расхождений.
+ * Сам номер — формат и последовательность — сторожит `store/orderNumber.test.ts`.
  *
  * Сверка по МИГРАЦИЯМ, а не по `database.generated.ts`: файл типов
  * генерируется руками и отстаёт (на 24.09 в нём ещё `released`,
@@ -23,10 +27,7 @@ import { MIGRATIONS_DIR, withoutComments } from './migrations.testutil';
  */
 
 /** Известные расхождения: имя → почему оно здесь. Список только сокращается */
-const KNOWN_MISSING: Record<string, string> = {
-  generate_order_number:
-    'Order Studio: функции нет на бою, работает запасной номер. Решение за владельцем (обзор 24.09)',
-};
+const KNOWN_MISSING: Record<string, string> = {};
 
 const SRC = join(process.cwd(), 'src');
 
