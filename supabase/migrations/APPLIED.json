@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-09-22",
+  "capturedAt": "2026-09-24",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -2148,6 +2148,38 @@
         "20260922085608_erp_roll_weights_wording.sql"
       ],
       "note": "склонение в тексте отказа: «не принадлежат этому материалу: рулонов — N»"
+    },
+    {
+      "version": "20260924122634",
+      "name": "erp_order_guard_exceptions",
+      "files": [
+        "20260924122634_erp_order_guard_exceptions.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122702",
+      "name": "erp_role_resolution_and_profile_check",
+      "files": [
+        "20260924122702_erp_role_resolution_and_profile_check.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122718",
+      "name": "erp_fk_indexes",
+      "files": [
+        "20260924122718_erp_fk_indexes.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122733",
+      "name": "erp_analytics_by_dept_done_qty",
+      "files": [
+        "20260924122733_erp_analytics_by_dept_done_qty.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
     }
   ]
 }
