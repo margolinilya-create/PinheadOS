@@ -72,7 +72,9 @@ git commit -m "feat(scope): описание"
 git push
 ```
 
-## Шаг 6 — Обнови ACTION-PLAN.md
+## Шаг 6 — Обнови память проекта
 
-Найди задачу в `ACTION-PLAN.md` и поставь ✅.
-Если появились новые баги или идеи — добавь их в соответствующий раздел.
+По правилу конца сессии из корневого `CLAUDE.md`: `SESSION-STATE.md` (состояние,
+решения, next steps), запись в `## Changelog` файла `PROJECT.md`, правила
+сессии — отдельным файлом в `docs/rules/` со ссылкой из `docs/rules/INDEX.md`.
+Новые баги и идеи — в next steps `SESSION-STATE.md`.

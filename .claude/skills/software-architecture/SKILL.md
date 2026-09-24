@@ -1,6 +1,6 @@
 ---
 name: software-architecture
-description: Use when designing new modules, planning large features, or making architectural decisions for Pinhead Order Studio. Triggers on "как лучше организовать", "архитектура", "покупательский портал", "новый модуль", "structure", "architecture", "design pattern".
+description: Use when designing new modules, planning large features, or making architectural decisions for Pinhead Order Studio. Triggers on "как лучше организовать", "архитектура", "новый модуль", "structure", "architecture", "design pattern".
 ---
 
 # Software Architecture — Pinhead Order Studio
@@ -75,9 +75,9 @@ Supabase (Backend)
 
 ```
 Новая область — новый файл:
-- useCommentsStore.ts — (уже сделано)
-- useTemplatesStore.ts — (уже сделано)
-- usePortalStore.ts — для покупательского портала
+- Order Studio: отдельный store рядом с useCommentsStore.ts
+- ERP: новый слайс в `erp/store/slices/` + регистрация в `domainSlices.ts`
+  (сторож `domainSlices.test.ts`), а не новый глобальный store
 ```
 
 ### 2. Supabase — всегда null при ошибке
@@ -88,37 +88,25 @@ Supabase (Backend)
 
 ### 3. Новые компоненты — рядом с тестом
 ```
-components/
-  portal/
-    PortalWizard.jsx
-    PortalWizard.test.jsx   — сразу
+erp/screens/
+  FabricLeftovers.jsx
+  FabricLeftovers.test.jsx   — сразу
 ```
 
 ### 4. Lazy loading для тяжёлых панелей
 ```js
-// Паттерн уже используется в App.jsx
-const PortalPage = React.lazy(() => import('./components/portal/PortalPage'));
+// ERP: экраны только через `lazyScreen` (сторож запрещает голый lazy()),
+// он же догружает доменные слайсы стора параллельно с чанком экрана
+const FabricLeftovers = lazyScreen(() => import('./screens/FabricLeftovers'));
 ```
 
 ---
 
-## Покупательский портал — архитектурный план
+## Покупательский портал — ОТМЕНЁН
 
-Новый роут `/order` — отдельный модуль, не ломает существующий визард.
-
-```
-src/
-  components/
-    portal/              — новая папка
-      PortalWizard.jsx   — упрощённый визард (3 шага)
-      PortalStep1.jsx    — изделие + цвет + размеры
-      PortalStep2.jsx    — нанесение (только загрузка файла)
-      PortalStep3.jsx    — данные + отправить заявку
-  store/
-    usePortalStore.js    — отдельный store, не трогает useStore
-```
-
-**Ключевое решение:** портал использует те же каталоги (`useCatalogStore`) и ту же `saveOrder()` из `useOrdersStore`, но имеет свой упрощённый UI и свой store для состояния.
+Портал `/order` отклонён: приоритет сменился на CRM/ERP (Roadmap
+в `PROJECT.md`, «Отклонено / отложено»). Прежний план здесь снят, чтобы
+не учить строить то, чего не будет.
 
 ---
 
