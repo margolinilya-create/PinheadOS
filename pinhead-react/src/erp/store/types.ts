@@ -799,7 +799,13 @@ export interface AnalyticsSkuRow {
 
 export interface AnalyticsDeptRow {
   department_id: string;
-  released: number;
+  /**
+   * Сдано участком — сумма годного по ВСЕМ его этапам, а не выпуск позиции
+   * (код-ревью 23.09, находка 13). Колонка называлась `released`, как
+   * в трёх других сводках, где она значит выпуск, — сложить их было
+   * естественной ошибкой следующего читателя.
+   */
+  done_qty: number;
   defect: number;
   rework: number;
   defect_pct: number | null;

@@ -23,12 +23,31 @@ describe('resolveErpRole', () => {
     expect(resolveErpRole('rop', null)).toBe('dispatcher');
     expect(resolveErpRole('manager', null)).toBe('manager');
     expect(resolveErpRole('production', null)).toBe('worker');
-    expect(resolveErpRole('designer', null)).toBe('worker');
   });
 
-  it('неизвестная роль и отсутствие роли — worker', () => {
-    expect(resolveErpRole('kto-to', null)).toBe('worker');
-    expect(resolveErpRole(undefined, undefined)).toBe('worker');
+  /**
+   * Дизайнер ОСТАЁТСЯ дизайнером (код-ревью 23.09, находка 2; решение
+   * владельца 24.09). Здесь стояло `worker`, и это лишало человека,
+   * заведённого профилем без строки в `erp_employees`, права `files.manage` —
+   * единственного, ради которого роль заведена, — взамен выдавая права цеха,
+   * которыми он всё равно не может воспользоваться без участка.
+   */
+  it('дизайнер профиля — цеховой designer, а не worker', () => {
+    expect(resolveErpRole('designer', null)).toBe('designer');
+    // Цеховая роль по-прежнему сильнее: заведённый в цех дизайнер — рабочий
+    expect(resolveErpRole('designer', 'worker')).toBe('worker');
+  });
+
+  /**
+   * Неизвестная роль даёт `pending`, а не `worker` (находка 4). Прежнее
+   * значение было МЯГЧЕ сервера: тот возвращает пустую роль, после чего
+   * `erp_has_permission` отвечает `false` на любое право, — и получалось
+   * «кнопки есть, сервер отвечает 42501». У `pending` прав нет ни в дефолтах,
+   * ни в матрице, поэтому ответ обеих сторон теперь одинаков.
+   */
+  it('неизвестная роль и отсутствие роли — pending, то есть запрет', () => {
+    expect(resolveErpRole('kto-to', null)).toBe('pending');
+    expect(resolveErpRole(undefined, undefined)).toBe('pending');
   });
 });
 

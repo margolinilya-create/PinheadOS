@@ -17,20 +17,48 @@ import { ERP_PERMISSIONS } from '../permissionKeys';
 /** Роли профиля Order Studio с полным доступом ко всем цехам */
 export const FULL_ACCESS_PROFILE_ROLES = ['admin', 'director', 'rop'];
 
-/** Роль профиля (Order Studio) → цеховая роль, если сотрудник не заведён в erp_employees */
+/**
+ * Роль профиля (Order Studio) → цеховая роль, если сотрудник не заведён в erp_employees
+ *
+ * **`designer` → `designer`, а не `worker` (код-ревью 23.09, находка 2).**
+ * До 24.09 здесь стоял `worker`, и довод был тот, что записан в `CLAUDE.md`:
+ * совпадение имени в двух перечнях не делает роли одной величиной. Довод верен
+ * как утверждение о РАЗНЫХ перечнях, но следствие оказалось обратным замыслу:
+ * у цеховой роли `designer` права — `files.manage`, `sku.view`, `sku.edit`,
+ * а у `worker` — работа на этапах. Человек, заведённый профилем `designer`
+ * без строки в `erp_employees`, получал права цеха, которыми не может
+ * воспользоваться (он не привязан к участку), и терял `files.manage` — ровно
+ * то единственное, ради чего роль заведена правкой 14.09 («дизайнеры…
+ * поддерживают эту папку без обращения к администратору»).
+ *
+ * На бою такой человек был: из двух профилей `designer` активная строка
+ * сотрудника заведена у одного. Решение владельца 24.09 — резолвить
+ * в `designer`; серверное зеркало правится той же миграцией.
+ */
 const PROFILE_ROLE_FALLBACK: Record<string, EmployeeRole> = {
   admin: 'director',
   director: 'director',
   rop: 'dispatcher',
   manager: 'manager',
   production: 'worker',
-  designer: 'worker',
+  designer: 'designer',
 };
 
 /**
  * Единая роль для матрицы прав.
  * admin/director всегда «director» — руководство не должно терять доступ из-за того,
  * что кто-то поставил ему цеховую роль «сотрудник цеха».
+ *
+ * **НЕИЗВЕСТНАЯ РОЛЬ ПРОФИЛЯ ДАЁТ `pending`, А НЕ `worker`** (код-ревью 23.09,
+ * находка 4). Прежний `?? 'worker'` был МЯГЧЕ сервера: серверный
+ * `erp_role_of_caller()` в том же случае возвращает пустую роль, после чего
+ * `erp_has_permission` отвечает `false` на любое право. Расхождение давало
+ * худший вид отказа — «кнопки цеха есть, сервер отвечает 42501».
+ *
+ * `pending` выбран не как заглушка, а по смыслу: это роль «новичок до
+ * назначения должности», и прав у неё нет ни в `DEFAULT_PERMISSIONS`, ни
+ * в матрице на бою (18 строк, ноль разрешённых). То есть обе стороны теперь
+ * читают одну строку матрицы и одинаково отвечают «нельзя».
  */
 export function resolveErpRole(
   profileRole: string | null | undefined,
@@ -38,7 +66,7 @@ export function resolveErpRole(
 ): EmployeeRole {
   if (profileRole === 'admin' || profileRole === 'director') return 'director';
   if (employeeRole) return employeeRole;
-  return PROFILE_ROLE_FALLBACK[profileRole ?? ''] ?? 'worker';
+  return PROFILE_ROLE_FALLBACK[profileRole ?? ''] ?? 'pending';
 }
 
 /**

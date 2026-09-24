@@ -24,6 +24,21 @@ import { ERP_PERMISSIONS } from '../types';
  */
 
 const SQL = migration('20260803160000_erp_permissions_server_side.sql');
+/**
+ * ФУНКЦИИ ЧИТАЮТСЯ ИЗ ПОСЛЕДНЕГО ОПРЕДЕЛЕНИЯ, А НЕ ИЗ ПРИБИТОГО ФАЙЛА
+ * (код-ревью 23.09, находка 8).
+ *
+ * Константа `SQL` выше прибита к имени миграции, и для политик, заведённых
+ * там однажды, это верно. Но резолюция роли, проверка права и страж плана —
+ * функции, а применённую функцию в этом проекте правят НОВОЙ миграцией.
+ * Пока таких правок не было, сторож оставался верным случайно; первая же
+ * правка оставила бы его зелёным на старом эталоне — ровно тот отказ,
+ * от которого предостерегает правило «сверяйте с живой базой, а не с прошлой
+ * формулировкой». Соседние стражи уже читаются через `latestDefining`.
+ */
+const ROLE_SQL = latestDefining('erp_role_of_caller');
+const PERM_SQL = latestDefining('erp_has_permission');
+const CALENDAR_SQL = latestDefining('erp_calendar_guard');
 /** Настройки производства: таблица заводится один раз, политики — вместе с ней */
 const SETTINGS_SQL = latestMatching(
   /create table if not exists public\.erp_settings/, 'таблицу erp_settings');
@@ -48,7 +63,7 @@ describe('серверная резолюция роли повторяет кл
   it('admin и director профиля приводятся к цеховой роли director', () => {
     expect(resolveErpRole('admin', 'worker')).toBe('director');
     expect(resolveErpRole('director', null)).toBe('director');
-    expect(SQL).toMatch(/in \('admin', 'director'\) then 'director'/);
+    expect(ROLE_SQL).toMatch(/in \('admin', 'director'\) then 'director'/);
   });
 
   it('таблица соответствия ролей Order Studio совпадает с SQL', () => {
@@ -56,25 +71,46 @@ describe('серверная резолюция роли повторяет кл
       ['rop', 'dispatcher'],
       ['manager', 'manager'],
       ['production', 'worker'],
-      ['designer', 'worker'],
+      ['designer', 'designer'],
     ];
     for (const [profileRole, erpRole] of pairs) {
       // Клиент
       expect(resolveErpRole(profileRole, null)).toBe(erpRole);
       // Сервер: та же пара записана в CASE
-      expect(SQL).toMatch(new RegExp(`when '${profileRole}' then '${erpRole}'`));
+      expect(ROLE_SQL).toMatch(new RegExp(`when '${profileRole}' then '${erpRole}'`));
     }
   });
 
   it('роль из erp_employees важнее таблицы соответствия', () => {
     expect(resolveErpRole('manager', 'foreman')).toBe('foreman');
-    expect(SQL).toMatch(/employee_role from me\) is not null then/);
+    expect(ROLE_SQL).toMatch(/employee_role from me\) is not null then/);
+  });
+
+  /**
+   * Находка 4 код-ревью: клиент был МЯГЧЕ сервера. `?? 'worker'` рисовал
+   * кнопки цеха там, где сервер отвечал 42501. Теперь обе стороны дают
+   * `pending` — роль с пустым набором прав и в дефолтах, и в матрице.
+   */
+  it('неизвестная роль профиля запрещена с обеих сторон', () => {
+    expect(resolveErpRole('кладовщик-стажёр', null)).toBe('pending');
+    expect(resolveErpRole(null, null)).toBe('pending');
+    expect(DEFAULT_PERMISSIONS.pending).toEqual([]);
+    expect(ROLE_SQL).toMatch(/else 'pending'/);
+  });
+
+  /**
+   * А вот ОТСУТСТВИЕ профиля к `pending` не сводится: выдай админ этой роли
+   * любое право, его получил бы неодобренный пользователь — человек за первой
+   * стеной доступа. Сервер в этом случае обязан вернуть пустоту.
+   */
+  it('нет профиля или он не одобрен — роли нет вовсе, а не pending', () => {
+    expect(ROLE_SQL).toMatch(/profile_role from me\) is null then null/);
   });
 
   it('сервер берёт роль только у активного и одобренного профиля', () => {
     // Иначе неодобренный пользователь получил бы права рядового сотрудника цеха
-    expect(SQL).toMatch(/p\.active is true and p\.approved is true/);
-    expect(SQL).toMatch(/e\.active is true/);
+    expect(ROLE_SQL).toMatch(/p\.active is true and p\.approved is true/);
+    expect(ROLE_SQL).toMatch(/e\.active is true/);
   });
 });
 
@@ -82,8 +118,8 @@ describe('серверный гейт плана', () => {
   it('отсутствие права в матрице означает запрет, а не дефолт', () => {
     // На клиенте пустая матрица падает на DEFAULT_PERMISSIONS — это защита от
     // неудачной загрузки. На сервере таблица засеяна миграциями целиком.
-    expect(SQL).toMatch(/coalesce\(\(\s*select rp\.allowed/);
-    expect(SQL).toMatch(/\), false\)/);
+    expect(PERM_SQL).toMatch(/coalesce\(\(\s*select rp\.allowed/);
+    expect(PERM_SQL).toMatch(/\), false\)/);
   });
 
   it('ставить и снимать задачи вправе только plan.manage', () => {
@@ -96,13 +132,13 @@ describe('серверный гейт плана', () => {
       'department_id', 'stage_id', 'work_date', 'qty_planned',
       'priority', 'sort_order', 'comment', 'created_by',
     ]) {
-      expect(SQL).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+      expect(CALENDAR_SQL).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
     }
   });
 
   it('колонки факта и проблемы в стража НЕ входят — их вносит цех', () => {
     for (const col of ['qty_done', 'qty_defect', 'fact_comment', 'deviation_reason', 'problem_type']) {
-      expect(SQL).not.toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+      expect(CALENDAR_SQL).not.toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
     }
   });
 
@@ -293,10 +329,56 @@ describe('страж заказа совпадает с интерфейсом',
     expect(ORDER_CARD.match(/disabled=\{!canManageOrder\}/g) ?? []).toHaveLength(5);
   });
 
-  it('колонки, которые сторожит SQL, — это те же поля, что правит карточка', () => {
+  /**
+   * СТРАЖ ПЕРЕЧИСЛЯЕТ ИСКЛЮЧЕНИЯ, А НЕ ОХРАНЯЕМЫЕ КОЛОНКИ (код-ревью 23.09).
+   *
+   * Прежняя редакция этого теста брала пять полей карточки и требовала для
+   * каждого строку `new.X is distinct from old.X`. Тест был зелёным — и всё
+   * же четыре колонки (`purchase_required`, `delivered_at`, `tz_order_id`,
+   * `tz_number`) не охранялись ничем: он сторожил ПРИСУТСТВИЕ известных полей
+   * в списке, а дыру давало ОТСУТСТВИЕ неизвестных. Проверить «все колонки
+   * на месте» перечислением нельзя в принципе: список в тесте отстаёт от
+   * схемы ровно так же, как отставал список в страже.
+   *
+   * Поэтому сторожится конструкция: страж сравнивает снимки строки целиком
+   * и вычитает из них ровно оговорённые поля. Тогда новая колонка защищена
+   * по умолчанию, и тесту не нужно знать её имя.
+   */
+  it('страж сравнивает строку целиком, а не перечисляет колонки', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    expect(body).toMatch(/to_jsonb\(new\)/);
+    expect(body).toMatch(/to_jsonb\(old\)/);
+    expect(body).toMatch(/is distinct from/);
+  });
+
+  it('из сравнения вычтены ТОЛЬКО отгрузка и updated_at', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    // Всё, что вычитается из снимка, — это то, что НЕ требует order.manage
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    expect(excluded).toEqual(new Set([
+      'status', 'shipped_status', 'shipped_at', 'shipped_by', 'updated_at',
+    ]));
+  });
+
+  it('поля карточки заказа под order.manage — они не в исключениях', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
     for (const field of ['customer', 'manager', 'launch_date', 'due_date', 'notes']) {
-      expect(ORDER_SQL).toMatch(new RegExp(`new\\.${field}\\s+is distinct from old\\.${field}`));
+      expect(excluded.has(field)).toBe(false);
       expect(ORDER_CARD).toContain(`saveOrderField({ ${field}:`);
+    }
+  });
+
+  /**
+   * Четыре колонки из находки: интерфейс их не правит, но и открытыми они
+   * быть не должны — именно их отсутствие в прежнем перечне давало рабочему
+   * цеха возможность переписать отметку о сдаче через REST.
+   */
+  it('колонки, найденные открытыми, теперь охраняются', () => {
+    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    for (const field of ['purchase_required', 'delivered_at', 'tz_order_id', 'tz_number']) {
+      expect(excluded.has(field)).toBe(false);
     }
   });
 
@@ -636,13 +718,26 @@ describe('страж заказа охраняет отгрузку', () => {
     expect(GUARD).toMatch(/order\.manage/);
   });
 
-  it('прежние правила стража не потеряны', () => {
-    // Пересоздание функции целиком уже теряло колонки — сторожим и это
-    expect(GUARD).toMatch(/new\.due_date/);
-    expect(GUARD).toMatch(/new\.manager/);
-    // Вместо снятой 12.09 `is_demo` сторожим соседнюю колонку того же списка:
-    // проверка «пересоздание не потеряло поимённое перечисление» обязана
-    // остаться, иначе удаление одной ветки ослабило бы весь сторож
-    expect(GUARD).toMatch(/new\.tz_required/);
+  /**
+   * ПРЕЖНЯЯ РЕДАКЦИЯ ТРЕБОВАЛА ОБРАТНОГО — и была права для своего времени.
+   *
+   * Она проверяла, что пересоздание функции не потеряло поимённое перечисление
+   * (`new.due_date`, `new.manager`, `new.tz_required`), потому что удаление
+   * ветки однажды уже теряло колонки. Но у перечисления обнаружился второй,
+   * противоположный отказ: колонка, добавленная в таблицу ПОЗЖЕ, в список
+   * не попадала вовсе, и четыре такие (`purchase_required`, `delivered_at`,
+   * `tz_order_id`, `tz_number`) не охранялись ничем при зелёном тесте.
+   *
+   * С 24.09 страж сравнивает снимки строки и вычитает исключения, поэтому
+   * «потерять колонку» больше нечем: её нельзя потерять из списка, которого
+   * нет. Проверяем теперь ОТСУТСТВИЕ перечисления — иначе следующая правка
+   * молча вернёт прежний принцип вместе с его дырой.
+   */
+  it('поимённого перечисления полей заказа больше нет', () => {
+    for (const col of ['due_date', 'manager', 'tz_required', 'customer', 'notes']) {
+      expect(GUARD).not.toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+    }
+    // Охрана этих колонок теперь следует из сравнения снимков
+    expect(GUARD).toMatch(/to_jsonb\(new\)/);
   });
 });
