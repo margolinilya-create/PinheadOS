@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { latestDefining, latestMatching, withoutJsComments } from './migrations.testutil';
+import {
+  functionBody, latestDefining, latestMatching, snapshotExclusions, withoutJsComments,
+} from './migrations.testutil';
 import { ERP_PERMISSIONS, ERP_PERMISSION_LABELS, EMPLOYEE_ROLE_LABELS } from '../types';
 import { DEFAULT_PERMISSIONS, DEPT_BOUND_ROLES } from './permissions';
 import { SCREEN_ACCESS } from './screenAccess';
@@ -334,23 +336,35 @@ describe('стражи покрывают колонки, которые пиш�
    */
   const stageGuard = latestDefining('erp_stage_guard');
 
-  /** Колонки этапа, которые страж намеренно НЕ охраняет (с объяснением в миграции) */
-  const UNGUARDED = ['updated_at', 'created_at', 'id'];
+  /** Служебная колонка: её проставляет соседний триггер `erp_item_stages_touch` */
+  const UNGUARDED = ['updated_at'];
 
   /** Плановые даты: своё право (`order.manage`) и своя проверка вне `v_guarded` */
   const PLANNED = ['planned_start', 'planned_end'];
 
   /**
-   * Проверять «колонка упомянута где-то в файле» недостаточно: страж выходит
-   * РАНЬШЕ всех проверок, если изменение не задело ни одной колонки из списка
-   * `v_guarded`. Убери колонку только оттуда — правило ниже останется в коде,
-   * но исполняться перестанет. Мутационная проверка это и показала, поэтому
-   * сверяемся именно со списком `v_guarded`.
+   * `v_guarded` С СЕССИИ 68 — СРАВНЕНИЕ СНИМКОВ, А НЕ ПЕРЕЧЕНЬ.
+   *
+   * Страж выходит РАНЬШЕ всех проверок, если изменение не задело «охраняемых»
+   * колонок. Пока их перечисляли поимённо, колонка вне списка не проверялась
+   * вообще ничем — так `id` и `created_at` этапа были открыты любому участнику
+   * ERP, а смена `id` молча рвала граф `depends_on`. Теперь «охраняемо» всё,
+   * кроме явно вычтенного, и сторожится именно этот вычет.
    */
-  const GUARDED_BLOCK = stageGuard.match(/v_guarded :=[\s\S]*?;/)?.[0] ?? '';
+  const EXCLUDED = snapshotExclusions(functionBody(stageGuard, 'erp_stage_guard'));
 
-  it('список v_guarded в страже не пуст и разбирается', () => {
-    expect(GUARDED_BLOCK).toContain('new.status');
+  it('v_guarded вычитает из снимка ровно служебное поле и плановые даты', () => {
+    expect(EXCLUDED).toEqual(new Set([...UNGUARDED, ...PLANNED]));
+    expect(stageGuard).toMatch(/v_guarded := \(to_jsonb\(new\)/);
+  });
+
+  it('идентификатор и дата создания этапа не меняются никем', () => {
+    const body = functionBody(stageGuard, 'erp_stage_guard');
+    const check = body.indexOf('new.id is distinct from old.id');
+    expect(check, 'нет проверки неизменности id').toBeGreaterThan(0);
+    expect(body.slice(check, check + 200)).toMatch(/new\.created_at is distinct from old\.created_at/);
+    // До раннего выхода — иначе изменение одного id вернулось бы из стража молча
+    expect(check).toBeLessThan(body.indexOf('if not v_guarded then'));
   });
 
   it('каждая колонка erp_item_stages из стора либо охраняется, либо явно исключена', () => {
@@ -366,14 +380,14 @@ describe('стражи покрывают колонки, которые пиш�
     for (const col of stageColumns) {
       if (!written.has(col)) continue;
       if (UNGUARDED.includes(col)) {
-        expect(GUARDED_BLOCK, `колонка ${col} не должна охраняться`).not.toContain(`new.${col}`);
+        expect(EXCLUDED?.has(col), `колонка ${col} не должна охраняться`).toBe(true);
       } else if (PLANNED.includes(col)) {
-        // Плановые даты проверяются ОТДЕЛЬНО и ДО `v_guarded`: изменение одних
-        // только дат в этот список не входит и вернулось бы из стража раньше.
-        expect(GUARDED_BLOCK, `${col} не должна быть в v_guarded`).not.toContain(`new.${col}`);
+        // Плановые даты проверяются ОТДЕЛЬНО и ДО `v_guarded`: из снимка они
+        // вычтены, поэтому их обязана ловить собственная проверка
+        expect(EXCLUDED?.has(col)).toBe(true);
         expect(stageGuard, `${col} не охраняется вовсе`).toContain(`new.${col} is distinct`);
       } else {
-        expect(GUARDED_BLOCK, `колонка ${col} не входит в v_guarded`).toContain(`new.${col}`);
+        expect(EXCLUDED?.has(col), `колонка ${col} вычтена из v_guarded`).toBe(false);
       }
     }
   });
@@ -391,12 +405,15 @@ describe('стражи покрывают колонки, которые пиш�
   });
 
   it('страж плана охраняет плановые колонки и не трогает колонки факта', () => {
-    const planGuard = latestDefining('erp_calendar_guard');
+    // С сессии 68 страж плана вычитает из снимка поля цеха: плановое — всё прочее
+    const fact = snapshotExclusions(
+      functionBody(latestDefining('erp_calendar_guard'), 'erp_calendar_guard'),
+    );
     for (const col of ['qty_planned', 'work_date', 'priority', 'sort_order', 'comment']) {
-      expect(planGuard).toContain(`new.${col}`);
+      expect(fact?.has(col), `${col} — плановое поле`).toBe(false);
     }
     for (const col of ['qty_done', 'qty_defect', 'fact_comment', 'problem_type']) {
-      expect(planGuard).not.toContain(`new.${col} `);
+      expect(fact?.has(col), `${col} вносит цех`).toBe(true);
     }
   });
 

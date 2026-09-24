@@ -77,6 +77,47 @@ export function functionBody(sql: string, fn: string): string {
 }
 
 /**
+ * Поля, ВЫЧТЕННЫЕ из сравнения снимков строки в страже (`to_jsonb(new) - …`).
+ *
+ * Стражи с 24.09 перечисляют не охраняемые колонки, а исключения: снимок
+ * `to_jsonb(new)` минус разрешённые поля сравнивается с тем же снимком
+ * `to_jsonb(old)` — тогда колонка, добавленная позже, защищена по умолчанию.
+ * Сторож проверяет конструкцию, а не имена, поэтому ему нужен НАБОР исключений.
+ *
+ * Понимает три записи: цепочку `- 'a' - 'b'`, массив `- array['a', 'b']`
+ * и константу `- v_x`, объявленную как `v_x constant text[] := array[…]`.
+ * Возвращает `null`, если сравнения снимков в теле нет, и бросает, если
+ * у `new` и `old` вычитаются РАЗНЫЕ наборы: такое сравнение ложно всегда
+ * и выглядело бы как работающий страж.
+ */
+export function snapshotExclusions(body: string): Set<string> | null {
+  const code = withoutComments(body);
+  const side = (who: 'new' | 'old'): string[] | null => {
+    const at = code.indexOf(`to_jsonb(${who})`);
+    if (at < 0) return null;
+    const rest = code.slice(at + `to_jsonb(${who})`.length);
+    // Хвост вычитаний — до закрывающей скобки группы или до `is distinct from`
+    const tail = /^([\s\S]*?)(\)|is distinct from)/.exec(rest)?.[1] ?? '';
+    const names = [...tail.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    for (const v of tail.matchAll(/-\s*(v_\w+)/g)) {
+      const decl = new RegExp(`${v[1]}\\s+(?:constant\\s+)?text\\[\\]\\s*:=\\s*array\\[([^\\]]*)\\]`).exec(code);
+      if (!decl) throw new Error(`не найдено объявление ${v[1]}`);
+      names.push(...[...decl[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
+    }
+    return names;
+  };
+  const fromNew = side('new');
+  const fromOld = side('old');
+  if (fromNew === null && fromOld === null) return null;
+  const a = new Set(fromNew ?? []);
+  const b = new Set(fromOld ?? []);
+  if (a.size !== b.size || [...a].some((x) => !b.has(x))) {
+    throw new Error(`снимки new и old вычитают разные поля: [${[...a]}] против [${[...b]}]`);
+  }
+  return a;
+}
+
+/**
  * Исходник JS/TS без комментариев — тот же приём, что `withoutComments`,
  * но для клиентского кода: она снимает только строки `--` и на JavaScript
  * не действует.

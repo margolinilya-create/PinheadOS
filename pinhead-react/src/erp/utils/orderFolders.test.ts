@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   ORDER_FOLDERS, canMoveBetweenFolders, filesInFolder, folderOf, kindForFolder, moveTargetOf,
 } from './orderFolders';
-import { latestMatching, withoutComments } from './migrations.testutil';
+import {
+  functionBody, latestMatching, snapshotExclusions, withoutComments,
+} from './migrations.testutil';
 import type { ErpAttachmentKind } from '../types';
 
 /**
@@ -113,9 +115,20 @@ describe('серверный страж вложений', () => {
     expect(sql).toMatch(/if \(select auth\.uid\(\)\) is null then\s*\n\s*return new;/);
   });
 
+  /**
+   * СРАВНЕНИЕ СНИМКОВ, А НЕ ПЕРЕЧЕНЬ (сессия 68). Прежняя проверка требовала
+   * строку `new.X is distinct from old.X` для пяти известных колонок и была
+   * зелёной, пока `message_id` — колонка, дописанная чатом ПОСЛЕ стража, —
+   * не охранялась ничем: держатель `files.manage` перепривязывал чужое
+   * вложение к своему сообщению и удалял его через `erp_chat_delete`.
+   * Сторожится конструкция: из снимка строки вычтена РОВНО папка.
+   */
   it('прочие колонки вложения неизменны — замена файла это новая строка', () => {
-    for (const column of ['order_id', 'file_path', 'item_id', 'stage_id', 'print_id']) {
-      expect(sql, `${column} не сторожится`).toContain(`new.${column} is distinct from old.${column}`);
+    const body = functionBody(sql, 'erp_attachment_guard');
+    expect(snapshotExclusions(body)).toEqual(new Set(['kind']));
+    // Поимённого перечня больше нет — он отстал от схемы и не видел message_id
+    for (const column of ['order_id', 'file_path', 'item_id', 'stage_id', 'message_id']) {
+      expect(body).not.toContain(`new.${column} is distinct from old.${column}`);
     }
   });
 });
