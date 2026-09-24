@@ -122,7 +122,12 @@ UPDATE-триггеров нет; CHECK, связывающего `message_id` �
 - `erp_sku_card_guard` — ещё один страж по списку: `id`, `experimental_id`,
   `source_item_id`, `created_by`, `created_at` не охраняются ничем; держатель
   `sku.edit` (технолог, дизайнер) перепривязывает карточку к чужой разработке.
-  Перед переводом на исключения — сверить писателей (`erp_sku_from_dev`).
+  **НЕ делать `experimental_id` неизменным «для всех»**: `erp_sku_from_dev`
+  (security definer, под `sku.publish`) меняет его у существующей карточки
+  через `insert … on conflict (code) do update set experimental_id = …` — это
+  UPDATE, и страж его видит. Правильно: `experimental_id` — под `sku.publish`,
+  `id`/`created_at`/`created_by`/`source_item_id` — неизменны; проба двумя
+  знаками, как у стражей 24.09.
 - Решение владельца по `erp_materials`: закупочные поля открыты любому
   участнику на сервере (решение 10.08), а экран закупки с тех пор закрыт
   правами `material.receive`/`order.manage` — сервер мягче интерфейса.
