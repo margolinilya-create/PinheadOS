@@ -39,14 +39,18 @@
  * `--min-age-hours 0` снимает защиту и годится, только когда молодых сирот
  * проверили поимённо.
  *
- * ЧТО СЧИТАЕТСЯ НИЧЬИМ. Объект бакета, чей ключ не встречается ни в
- * `erp_order_attachments.file_path`, ни в `erp_tz_documents.file_path`.
- * Проверено 13.09, что других носителей пути нет: колонок, чьё имя содержит
- * `file`, `path` или `url`, в схеме больше нет, и ни одна JSONB-колонка
- * (`erp_order_drafts.payload`, `erp_experimental.final_package`,
- * `orders.data`, `erp_stage_reports.extra`, `order_templates.data`)
- * подстрок `att/` и `tz/` не содержит. Появится третий носитель — впишите
- * его в REFERENCES, иначе скрипт сотрёт живой файл.
+ * ЧТО СЧИТАЕТСЯ НИЧЬИМ. Объект бакета, чей ключ не встречается ни в одной
+ * колонке из REFERENCES ниже. Проверкой 13.09 носителей было два, и ни одна
+ * JSONB-колонка (`erp_order_drafts.payload`, `erp_experimental.final_package`,
+ * `orders.data`, `erp_stage_reports.extra`, `order_templates.data`) подстрок
+ * `att/` и `tz/` не содержала.
+ *
+ * ТРЕТИЙ НОСИТЕЛЬ ДОПИСАН 24.09 (сессия 68). 15.09 появилась
+ * `erp_sku_card_files.file_path` — снимок ключа вложения разработки без
+ * копии в бакете. Сессия 67 вписала её в edge-функцию `storage-gc`, а сюда
+ * нет: сторож `storageGc.test.ts` читал только функцию. Запуск
+ * `npm run storage:gc -- --apply` удалил бы техпакет модели, как только
+ * у файла пропало бы исходное вложение. Теперь сторож читает ОБЕ реализации.
  *
  * БЕЗ `--apply` НИЧЕГО НЕ УДАЛЯЕТСЯ. Умолчание — показать список и объём:
  * у необратимого действия умолчанием не бывает «сделать».
@@ -56,10 +60,16 @@ import { createClient } from '@supabase/supabase-js';
 
 const BUCKET = 'erp-attachments';
 
-/** Таблицы и колонки, которые ДЕРЖАТ ключ объекта в этом бакете */
+/**
+ * Таблицы и колонки, которые ДЕРЖАТ ключ объекта в этом бакете. Состав тот же,
+ * что в `supabase/functions/storage-gc/index.ts`; обе копии сторожит
+ * `src/erp/utils/storageGc.test.ts` — каждая таблица с `file_path` из миграций
+ * обязана стоять в каждой.
+ */
 const REFERENCES = [
   { table: 'erp_order_attachments', column: 'file_path' },
   { table: 'erp_tz_documents', column: 'file_path' },
+  { table: 'erp_sku_card_files', column: 'file_path' },
 ];
 
 const url = process.env.SUPABASE_URL;
