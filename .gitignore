@@ -37,10 +37,13 @@ strix_runs/
 # отслеживались вопреки записи. Сняты `git rm --cached`, на диске остались.
 #
 # Перечислением идёт то, что ОСТАЁТСЯ: что не названо — вендорное.
-# `.claude/helpers/` с 24.09 (сессия 67) ни на что не ссылается: хуки
+# `.claude/helpers/` и `proven-config` удалены 24.09 (сессия 67): хуки
 # и сервер claude-flow сняты из settings.json и .mcp.json (MCP не поднимался
-# ни в 53-й, ни в 67-й сессии, применён один раз). Каталог, proven-config
-# и .claude-flow/ подлежат удалению `git rm -r` — за владельцем.
+# ни в 53-й, ни в 67-й сессии, применён один раз). Установщик ruflo кладёт
+# их обратно — поэтому они здесь.
+.claude/helpers/
+.claude/proven-config.json
+.claude/.proven-config-version
 .claude/commands/
 .claude/skills/*
 !.claude/skills/changelog-generator/

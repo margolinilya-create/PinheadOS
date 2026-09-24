@@ -21,10 +21,11 @@
 | 3 | `main` не защищён, Vercel деплоит мимо CI | **за владельцем** — настройки репозитория и Vercel |
 | 4 | Leaked password protection выключен | **за владельцем** — тумблер Supabase Auth |
 | 5 | Память проекта разошлась с реальностью | **частично**: запись о миграциях и ссылки в `CLAUDE.md` поправлены; перенос истории — отдельная работа |
-| 6 | claude-flow / ruflo — мёртвый груз | **частично**: сервер и хуки выключены, allow-list переписан; файлы `.claude/helpers/` и `.claude-flow/` удаляет владелец (см. ниже) |
-| 7 | Наблюдаемость | **частично**: таблица на бою создана; файл миграции и клиентская запись заблокированы классификатором |
+| 6 | claude-flow / ruflo — мёртвый груз | **исправлено**: сервер и хуки выключены, allow-list переписан, 47 вендорных файлов удалены |
+| 7 | Наблюдаемость | **частично**: таблица на бою и в репозитории; клиентская запись заблокирована классификатором |
 | 10 | Типы клиента | **сторож вместо типизации**: `schemaNames.test.ts`, найдена несуществующая `generate_order_number` |
-| 8, 9, 11–15 | остальное | не начато, порядок ниже |
+| 8 | 67 веток на GitHub | **за владельцем**: сессия не может пушить в чужие ветки; готовая команда — раздел «Ветки» |
+| 9, 11–15 | остальное | не начато, порядок ниже |
 
 ---
 
@@ -223,3 +224,128 @@ UPDATE и DELETE) и запись в неё из `reportError`, когда ад�
 
 Правило то же, что записано в код-ревью 23.09: перед выводом о системе
 сверять с живым источником, а не с прошлой формулировкой.
+
+---
+
+## Ветки (сверка 24.09)
+
+Из сессии удалить не удалось: git-прокси пускает пуш только в рабочую
+ветку сессии. Классификация — по статусу PR и по `git merge-base --is-ancestor`.
+Сквош-мерж в `main` оставляет ветку «несмерженной» для git, поэтому
+статус PR проверен отдельно.
+
+| Группа | Сколько | Что теряется при удалении |
+|---|---|---|
+| Смержены (предок `main` или PR смержен) | 63 | ничего |
+| Открытый PR | 4 | PR закроется; коммиты остаются в `refs/pull/N/head` |
+| Без PR, есть несмерженные коммиты | 21 | коммиты — если не сохранить тегом |
+
+Открытые PR (закроются): #90 `fix-mobile-readability` (11.04), #142
+`login-error` (20.08), #155 `erp-visual-lag-test` (01.09), #163
+`bencho-dev-integration` (12.09).
+
+Без PR — крупнейшие: `redesign/v2` (58 коммитов, 07.05),
+`erp-production-navigation-queue` (30, 28.07), `agent-erp-review`
+(33 после мержа #161). Содержимое, скорее всего, уже в `main` сквошем,
+но это не проверено построчно — поэтому сначала теги.
+
+Команда (локально, из клона с правом пуша):
+
+```bash
+git fetch origin --prune
+# 1. Сохранить несмерженные ветки без PR тегами archive/*
+git tag archive/claude/review-changes-mmbrxcm58mpbz6zb-DVbsI dc709e420e037bacc87396efd3dc18ab76f863a2
+git tag archive/claude/add-agent-install-script-ObJfi 5bb68b8d76ba53fba8342bfb5236a3ef1086348c
+git tag archive/redesign/v2 d5eeb0be6dcd5ec8f67b240e24a81af55679dde5
+git tag archive/claude/archive-tz-project-n8xotb d54335622b316c45ab216bda3808f79933c1b316
+git tag archive/claude/gstack-permission-setup-rh230j a41de8d6a4a0414fdecc465bb896e7ba03705a55
+git tag archive/claude/pinhead-qa-security-audit-uqbu4c 6c9da936d093a97092ae080c5994621886f293bc
+git tag archive/claude/warehouse-auto-fill-plan-hlvzf1 9cfbd87c89d5a70544ac8be0c64caacc969b49c6
+git tag archive/claude/add-skills-to-projects-koogjf 6d0bf8492c8d68fbfa84d95145f12b73a0833c07
+git tag archive/claude/erp-production-navigation-queue-ttnhzv 873315b7b9080452cbb47a3e9bbe78dfb0ede416
+git tag archive/claude/comprehensive-project-testing-r8h941 be2599cc79c8b5dbefdea75f199023b83fce245f
+git tag archive/claude/new-session-gandrj 6462b2d41f0a8e984ea6c0dde26d747ba97618d8
+git tag archive/claude/registration-error-si9hjd 41a559b1aa5281007dbdf42a3b48360ee878c063
+git tag archive/claude/project-slop-cleanup-qvsdcp 901650573f15b3dd773ae8253695beac856bcfa4
+git tag archive/claude/erp-consilium-passport-nrzfz0 84f7c15961a4546a91c2ad0a5b251d08aadfe098
+git tag archive/claude/project-improvements-jyygwo a618257305250fd11ced3b89c094b67b66ab1944
+git tag archive/claude/full-project-review-ih7w4y 625dcb3618d2a7452bb0cba7c6b1942f986bf8c2
+git tag archive/claude/erp-audit-apparel-production-k1omg0 90653b211e3c56ecacc66f11550bb85802475f30
+git tag archive/claude/agent-erp-review-snjnyi 44e1aca6bb7875ea9f6719adea17b4bac45945e8
+git tag archive/claude/erp-orders-cleanup-b2l464 3ae5b59c43845d79ba55acd7b9d56cee01b12b31
+git tag archive/claude/remove-oil-from-project-6oah01 e26332544086ae812e7f01d6f1ff4f40f04da8e6
+git tag archive/claude/new-edits-plan-ot5t9c bde50b797e4efad8c3d69656149841c7c20a5518
+git push origin --tags
+# 2. Удалить все ветки, кроме main и текущей
+git push origin --delete \
+  claude/gather-project-data-3XKzo \
+  dev \
+  claude/project-overview-jooe83 \
+  claude/workshop-orders-usability-review-7uk82y \
+  claude/manager-updates-60p2tl \
+  claude/pinhead-erp-audit-optimize-7ol921 \
+  claude/full-code-review-nft4ls \
+  claude/erp-new-edits-gw2kf0 \
+  claude/registration-error-check-6m9cvy \
+  claude/project-updates-0vh0zg-route \
+  claude/new-document-edits-knjwn4 \
+  claude/erp-shop-implementation-ob9bek \
+  claude/ui-ux-improvements-nx5hu8 \
+  claude/frontend-design-skill-check-c778mz \
+  claude/ux-ui-pro-max-skill-ksdfc6 \
+  claude/review-updates-0709-zaaz3g \
+  claude/install-all-skills-k44xbb \
+  claude/erp-materials-price-error-ydm8z0 \
+  claude/fixes-12-09-2v6ecs \
+  claude/erp-design-markup-quality-9bhylo \
+  claude/project-improvements-o4mlta \
+  claude/skills-agents-chat-integration-xsrvcm \
+  claude/fixes-20-09-k46sy9 \
+  claude/continue-sku-implementation-3gSL2 \
+  claude/dynamic-zones-per-sku \
+  claude/mobile-sku-fixes \
+  claude/sku-audit-fixes \
+  claude/tests-dynamic-zones \
+  claude/project-manager-edits-5bw6mj \
+  claude/warehouse-auto-fill-plan-9f9bhq \
+  claude/design-frontend-erp-agents-knwnh4 \
+  claude/project-updates-0vh0zg \
+  claude/new-edits-2zv77y \
+  claude/new-edits-17cv96 \
+  claude/new-edits-01-09-5r6eww \
+  claude/new-edits-02-09-dd9d7f \
+  claude/agentation-erp-integration-cjmv3n \
+  claude/agents-erp-integration-audit-0b1ru0 \
+  claude/plugin-marketplace-buildwithclaude-9c9gq8 \
+  claude/правки-13-09-d1cgf6 \
+  claude/pravki-21-9-opt8ul \
+  claude/erp-code-review-pz0jpw \
+  claude/review-changes-mmbrxcm58mpbz6zb-DVbsI \
+  claude/add-agent-install-script-ObJfi \
+  redesign/v2 \
+  claude/archive-tz-project-n8xotb \
+  claude/gstack-permission-setup-rh230j \
+  claude/pinhead-qa-security-audit-uqbu4c \
+  claude/warehouse-auto-fill-plan-hlvzf1 \
+  claude/add-skills-to-projects-koogjf \
+  claude/erp-production-navigation-queue-ttnhzv \
+  claude/comprehensive-project-testing-r8h941 \
+  claude/new-session-gandrj \
+  claude/registration-error-si9hjd \
+  claude/project-slop-cleanup-qvsdcp \
+  claude/erp-consilium-passport-nrzfz0 \
+  claude/project-improvements-jyygwo \
+  claude/full-project-review-ih7w4y \
+  claude/erp-audit-apparel-production-k1omg0 \
+  claude/agent-erp-review-snjnyi \
+  claude/erp-orders-cleanup-b2l464 \
+  claude/remove-oil-from-project-6oah01 \
+  claude/new-edits-plan-ot5t9c \
+  claude/fix-mobile-readability-JjJwr \
+  claude/login-error-ltwkzq \
+  claude/erp-visual-lag-test-j6srb3 \
+  claude/bencho-dev-integration-i6vyr3
+```
+
+После — включить **Settings → General → Automatically delete head branches**,
+чтобы ветки не копились снова.
