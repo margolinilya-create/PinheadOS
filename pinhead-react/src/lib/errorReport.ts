@@ -14,8 +14,15 @@
  * (сессии, трассировки, релизы) — эта точка станет местом его подключения.
  *
  * Адрес приёмника — из `.env` (`VITE_ERROR_REPORT_URL`), как и ключи Supabase.
- * Без него модуль НИЧЕГО не делает: неподнятая наблюдаемость не должна ни
- * ломать сборку, ни слать запросы в никуда с цехового планшета.
+ *
+ * ВСТРОЕННЫЙ ПРИЁМНИК (обзор 24.09, сессия 67). До этой правки модуль без
+ * адреса не делал НИЧЕГО — а адреса не было, и о белом экране в цеху
+ * по-прежнему узнавали по телефону. Теперь без внешнего адреса отчёт пишется
+ * в `erp_client_errors` от имени вошедшего и читается во вкладке админки
+ * «Ошибки». Внешний адрес, если задан, главнее: ему доверили отчёты сознательно.
+ *
+ * Не вошёл — отчёт не пишется: вставка открыта только `authenticated`,
+ * а открыть её `anon` значило бы дать запись в базу любому с ключом из бандла.
  */
 
 /** Куда слать. Пусто — отправка выключена */
@@ -71,12 +78,16 @@ export function buildReport(
  */
 export function reportError(error: unknown, source: string, extra?: string): boolean {
   try {
-    if (!ENDPOINT) return false;
     const report = buildReport(error, source, extra);
     const key = keyOf(report.message, report.stack);
     if (seen.has(key) || sent >= MAX_REPORTS) return false;
     seen.add(key);
     sent += 1;
+
+    if (!ENDPOINT) {
+      void toDatabase(report);
+      return true;
+    }
 
     const body = JSON.stringify(report);
     if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
@@ -91,6 +102,34 @@ export function reportError(error: unknown, source: string, extra?: string): boo
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Запись отчёта в `erp_client_errors`.
+ *
+ * Клиент Supabase берётся ДИНАМИЧЕСКИМ импортом: модуль отчётов грузит
+ * `main.jsx` до React, и статический импорт втащил бы `supabase-js` во вход
+ * мимо бюджета критического пути.
+ *
+ * Ошибка записи глотается молча и отчётом НЕ становится: иначе упавшая
+ * вставка порождала бы следующую — петля, которую держал бы только потолок.
+ */
+async function toDatabase(report: ErrorReport): Promise<void> {
+  try {
+    const { supabase } = await import('./supabase');
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) return;
+    await supabase.from('erp_client_errors').insert({
+      source: report.source.slice(0, 40),
+      message: report.message,
+      stack: report.stack ?? null,
+      url: report.url.slice(0, 1000) || null,
+      release: report.release?.slice(0, 100) ?? null,
+      user_agent: report.userAgent?.slice(0, 400) ?? null,
+    });
+  } catch {
+    // см. выше: отчёт об отчёте не пишется
   }
 }
 
@@ -111,7 +150,7 @@ export function _resetReports(): void {
  * ради того, чего можно просто не делать, незачем.
  */
 export function installGlobalErrorReporting(): void {
-  if (typeof window === 'undefined' || !ENDPOINT) return;
+  if (typeof window === 'undefined') return;
   window.addEventListener('error', (e) => {
     reportError(e.error ?? e.message, 'window');
   });

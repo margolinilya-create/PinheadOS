@@ -1,5 +1,4 @@
 // E2E Test: Order Creation Wizard — Full Happy Path
-// Plan: tests/E2E-TEST-PLAN.md, scenario 2.1
 
 import { test, expect } from '@playwright/test';
 
