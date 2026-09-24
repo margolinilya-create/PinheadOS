@@ -2208,6 +2208,13 @@
       "files": [
         "20260924231233_erp_guards_snapshot_exceptions.sql"
       ]
+    },
+    {
+      "version": "20260924233145",
+      "name": "orders_erp_order_id_index",
+      "files": [
+        "20260924233145_orders_erp_order_id_index.sql"
+      ]
     }
   ]
 }
