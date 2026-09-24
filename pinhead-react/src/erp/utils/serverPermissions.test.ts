@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  functionBody, latestDefining, latestMatching, migration, withoutComments, withoutJsComments,
+  functionBody, latestDefining, latestMatching, migration, snapshotExclusions, withoutComments,
+  withoutJsComments,
 } from './migrations.testutil';
 import {
   DEFAULT_PERMISSIONS,
@@ -127,19 +128,36 @@ describe('серверный гейт плана', () => {
     expect(SQL).toMatch(/снятие задачи из плана требует права plan\.manage/);
   });
 
-  it('страж перечисляет ВСЕ плановые колонки — иначе plan.fact правит план', () => {
+  /**
+   * ПЛАН ОХРАНЯЕТСЯ ПО УМОЛЧАНИЮ (сессия 68). Прежняя проверка требовала
+   * строку `new.X is distinct from old.X` для восьми плановых колонок — то
+   * есть сторожила ПРИСУТСТВИЕ известных, а `id` и `created_at` при этом были
+   * открыты держателю `plan.fact`. Теперь страж вычитает из снимка строки
+   * поля цеха, и сторожится этот набор: всё, чего в нём нет, — план.
+   */
+  const FACT_FIELDS = new Set([
+    'qty_done', 'qty_defect', 'fact_comment', 'deviation_reason', 'fact_by', 'fact_at',
+    'problem_type', 'problem_note', 'problem_affects_due', 'problem_needs_help',
+    'problem_can_continue', 'assignee', 'status', 'updated_at',
+  ]);
+
+  it('без plan.manage правятся ровно поля факта и проблемы — всё прочее план', () => {
+    const body = functionBody(CALENDAR_SQL, 'erp_calendar_guard');
+    expect(snapshotExclusions(body)).toEqual(FACT_FIELDS);
     for (const col of [
       'department_id', 'stage_id', 'work_date', 'qty_planned',
-      'priority', 'sort_order', 'comment', 'created_by',
+      'priority', 'sort_order', 'comment', 'created_by', 'id', 'created_at',
     ]) {
-      expect(CALENDAR_SQL).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+      expect(FACT_FIELDS.has(col), `${col} — плановое поле, plan.fact его править не должен`).toBe(false);
     }
   });
 
-  it('колонки факта и проблемы в стража НЕ входят — их вносит цех', () => {
+  it('колонки факта и проблемы вносит цех — они в исключениях стража', () => {
     for (const col of ['qty_done', 'qty_defect', 'fact_comment', 'deviation_reason', 'problem_type']) {
-      expect(CALENDAR_SQL).not.toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+      expect(FACT_FIELDS.has(col)).toBe(true);
     }
+    // Снятие из плана — статус, но решение планового права: отдельная ветка
+    expect(CALENDAR_SQL).toMatch(/new\.status = 'cancelled'[\s\S]{0,200}plan\.manage/);
   });
 
   it('права плана заведены в матрице прав приложения', () => {

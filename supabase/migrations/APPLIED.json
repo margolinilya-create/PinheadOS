@@ -2194,6 +2194,20 @@
       "files": [
         "20260924222445_order_studio_generate_order_number.sql"
       ]
+    },
+    {
+      "version": "20260924230014",
+      "name": "storage_backup_bucket",
+      "files": [
+        "20260924230014_storage_backup_bucket.sql"
+      ]
+    },
+    {
+      "version": "20260924231233",
+      "name": "erp_guards_snapshot_exceptions",
+      "files": [
+        "20260924231233_erp_guards_snapshot_exceptions.sql"
+      ]
     }
   ]
 }

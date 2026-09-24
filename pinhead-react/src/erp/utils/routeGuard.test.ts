@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { functionBody, latestDefining, latestMatching } from './migrations.testutil';
+import {
+  functionBody, latestDefining, latestMatching, snapshotExclusions,
+} from './migrations.testutil';
 
 /**
  * Страж этапов и новые колонки исполнителя.
@@ -21,18 +23,28 @@ const GUARD = functionBody(GUARD_SQL, 'erp_stage_guard');
 const MOVE = functionBody(latestDefining('erp_stage_move_department'), 'erp_stage_move_department');
 
 describe('страж этапов знает про исполнителя', () => {
+  /**
+   * С сессии 68 `v_guarded` — сравнение снимков строки, и «охраняется ли
+   * колонка до раннего выхода» значит «не вычтена ли она из снимка». Прежняя
+   * проверка искала три строки в поимённом списке — после его упразднения она
+   * стала бы бессмысленной, а не зелёной.
+   */
   it('executor, contractor и operation охраняются (иначе ранний выход их пропустит)', () => {
+    const excluded = snapshotExclusions(GUARD);
+    expect(excluded, 'v_guarded больше не сравнивает снимки строки').not.toBeNull();
     for (const col of ['executor', 'contractor', 'operation']) {
       expect(
-        GUARD,
-        `колонки ${col} нет в v_guarded — страж пропустит её изменение без единой проверки`,
-      ).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
+        excluded?.has(col),
+        `колонка ${col} вычтена из v_guarded — страж пропустит её изменение без единой проверки`,
+      ).toBe(false);
     }
-    // Все три обязаны стоять ДО раннего выхода, а не где-то ниже
+    // Сравнение снимков стоит ДО раннего выхода, а не где-то ниже
     const exit = GUARD.indexOf('if not v_guarded then');
     expect(exit).toBeGreaterThan(0);
+    expect(GUARD.indexOf('to_jsonb(new)')).toBeLessThan(exit);
+    // И у трёх колонок остаётся своя проверка права — order.manage
     for (const col of ['executor', 'contractor', 'operation']) {
-      expect(GUARD.indexOf(`new.${col}`)).toBeLessThan(exit);
+      expect(GUARD).toMatch(new RegExp(`new\\.${col}\\s+is distinct from old\\.${col}`));
     }
   });
 

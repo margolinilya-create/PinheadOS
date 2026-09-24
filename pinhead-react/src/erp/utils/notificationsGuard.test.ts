@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  functionBody, latestDefining, latestMatching, withoutComments,
+  functionBody, latestDefining, latestMatching, snapshotExclusions, withoutComments,
 } from './migrations.testutil';
 import { columnTypesOf } from '../../types/schema.testutil';
 
@@ -58,15 +58,17 @@ describe('уведомления: страж', () => {
   const guardSql = withoutComments(latestDefining('erp_notification_guard'));
   const guard = withoutComments(functionBody(guardSql, 'erp_notification_guard'));
 
+  /**
+   * Без этого право «отметить своё прочитанным» было бы правом переписать
+   * себе ссылку и открыть чужую сделку «на нужном месте». С сессии 68 страж
+   * сравнивает снимки строки и вычитает РОВНО отметку о прочтении — новая
+   * колонка уведомления защищена по умолчанию, перечня колонок больше нет.
+   */
   it('меняется только отметка о прочтении', () => {
-    // Без этого право «отметить своё прочитанным» было бы правом переписать
-    // себе ссылку и открыть чужую сделку «на нужном месте»
-    for (const column of ['user_id', 'kind', 'order_id', 'message_id',
-      'title', 'body', 'link', 'created_at']) {
-      expect(guard, `${column} не сторожится`)
-        .toContain(`new.${column} is distinct from old.${column}`);
+    expect(snapshotExclusions(guard)).toEqual(new Set(['read_at']));
+    for (const column of ['user_id', 'title', 'link', 'message_id']) {
+      expect(guard).not.toContain(`new.${column} is distinct from old.${column}`);
     }
-    expect(guard).not.toContain('new.read_at is distinct from old.read_at');
   });
 
   it('service_role проходит: пустой auth.uid() не запирает починку через SQL', () => {

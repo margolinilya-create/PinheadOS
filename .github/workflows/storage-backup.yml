@@ -1,20 +1,54 @@
-# Ночная выгрузка Storage.
+# Ночная копия Storage — в ПРИВАТНЫЙ бакет того же проекта.
 #
 # Зачем. Бэкапы Supabase и PITR покрывают Postgres, но НЕ объекты Storage:
 # версионирования у бакетов нет, а код удаляет через remove() — это hard delete.
-# Значит одна ошибка при замене файла ТЗ ломает техзадание у всех цехов группы,
-# и восстановить его неоткуда. При этом объём смешной: на 29.07.2026 в обоих
-# бакетах 5 объектов на 134 КБ.
+# Одна ошибка при замене файла ТЗ ломает техзадание у всех цехов группы,
+# и восстановить его неоткуда.
 #
-# Что делает. Скачивает содержимое `erp-attachments` и `sku-photos` через
-# Storage API и кладёт архивом в артефакты запуска (retention 30 дней).
-# Это не «настоящий» бэкап в чужое хранилище, но он превращает потерю файла
-# из безвозвратной в «достать из вчерашнего артефакта».
+# ПОЧЕМУ НЕ АРТЕФАКТ, КАК БЫЛО ДО 24.09 (сессия 68). Прежняя редакция качала
+# оба бакета целиком, печатала в лог путь каждого объекта и клала архив
+# в артефакты на 30 дней. 57 прогонов падали на проверке секретов; первый
+# зелёный (#58, 24.09) показал три беды сразу:
+#   · репозиторий был ПУБЛИЧНЫМ, а артефакт публичного репозитория скачивает
+#     любой вошедший на GitHub — архив всех файлов компании лежал в открытом
+#     доступе, а лог выдал путь каждого файла публичного бакета (путь и есть
+#     ссылка);
+#   · в приватном репозитории та же схема упирается в квоту хранилища
+#     артефактов: 398 МБ каждую ночь × 30 дней — это ~12 ГБ при квоте
+#     от 0,5 ГБ, и при исчерпании перестают грузиться артефакты и у CI;
+#   · полная копия каждую ночь переписывает одно и то же: весь бакет моложе
+#     двух недель, прирост ~26 МБ в сутки.
 #
-# ТРЕБУЕТ СЕКРЕТОВ (добавить в Settings → Secrets and variables → Actions):
+# Что делает теперь. СЕРВЕРНОЕ копирование Storage (`copy` с
+# `destinationBucket`) из `erp-attachments` и `sku-photos` в приватный
+# бакет `storage-backup` под префиксом имени исходного бакета. Байты через
+# раннер не идут, в GitHub не остаётся ничего.
+#   · Копируется только то, чего в копии ещё нет (инкремент): ночью уходит
+#     прирост, а не весь бакет.
+#   · Если объект с тем же ключом сменил размер — прежняя копия
+#     переименовывается в `<ключ>~<время>` и сохраняется, новая ложится
+#     на её место. Ключи в проекте по правилу неизменны (замена файла —
+#     новая строка и новый ключ), так что это страховка, а не режим.
+#   · Из копии НИЧЕГО не удаляется: ради этого она и заведена. Файл,
+#     удалённый из рабочего бакета, в копии остаётся.
+#   · В лог — только счётчики. Путей нет.
+#
+# Чего это НЕ покрывает: потерю самого проекта Supabase — копия лежит в том
+# же проекте. Это защита от ошибки приложения и уборщика (`storage-gc`
+# трогает только `erp-attachments`), а не от катастрофы площадки.
+#
+# Восстановление: Supabase → Storage → `storage-backup` → нужный файл
+# (`erp-attachments/<ключ>`) скачать и загрузить по тому же ключу в рабочий
+# бакет, либо `copy` обратно тем же API с `destinationBucket: 'erp-attachments'`.
+#
+# Бакет заводит миграция `*_storage_backup_bucket.sql`: `public = false`,
+# политик на `storage.objects` для него нет — читать и писать может только
+# service_role. Сторож — `src/erp/utils/storageBackup.test.ts`.
+#
+# ТРЕБУЕТ СЕКРЕТОВ (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL          — https://glhwbktsokphgksdvcxj.supabase.co
 #   SUPABASE_SERVICE_KEY  — service_role ключ (Dashboard → Settings → API)
-# Без них job падает с понятным сообщением, а не молча выгружает пустоту.
+# Без них job падает с понятным сообщением, а не молча копирует пустоту.
 
 name: Storage backup
 
@@ -24,9 +58,13 @@ on:
     - cron: '30 2 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  dump:
+  copy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -38,11 +76,11 @@ jobs:
           KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           if [ -z "$URL" ] || [ -z "$KEY" ]; then
-            echo "::error::Не заданы SUPABASE_URL и/или SUPABASE_SERVICE_KEY — выгрузка невозможна."
+            echo "::error::Не заданы SUPABASE_URL и/или SUPABASE_SERVICE_KEY — копирование невозможно."
             exit 1
           fi
 
-      - name: Выгрузить бакеты
+      - name: Скопировать новое в storage-backup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -50,42 +88,67 @@ jobs:
           npm install --no-save @supabase/supabase-js@2
           node --input-type=module <<'JS'
           import { createClient } from '@supabase/supabase-js';
-          import { mkdir, writeFile } from 'node:fs/promises';
-          import { dirname, join } from 'node:path';
 
-          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-          const BUCKETS = ['erp-attachments', 'sku-photos'];
-          let total = 0;
+          const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+            auth: { persistSession: false },
+          });
+          const SOURCES = ['erp-attachments', 'sku-photos'];
+          const TARGET = 'storage-backup';
 
-          /** Рекурсивный обход: Storage отдаёт «папки» как записи без id */
-          async function walk(bucket, prefix = '') {
-            const { data, error } = await sb.storage.from(bucket).list(prefix, { limit: 1000 });
-            if (error) throw new Error(`${bucket}/${prefix}: ${error.message}`);
-            for (const entry of data) {
-              const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-              if (entry.id === null) { await walk(bucket, path); continue; }
-              const { data: blob, error: dlErr } = await sb.storage.from(bucket).download(path);
-              if (dlErr) throw new Error(`скачивание ${bucket}/${path}: ${dlErr.message}`);
-              const out = join('backup', bucket, path);
-              await mkdir(dirname(out), { recursive: true });
-              await writeFile(out, Buffer.from(await blob.arrayBuffer()));
-              total += 1;
-              console.log(`${bucket}/${path}`);
+          /**
+           * Рекурсивный обход с постраничным чтением: `list` отдаёт максимум
+           * страницу за раз, а у «папки» нет `id` — это единственный признак,
+           * по которому её видно (тот же приём, что в `storage-gc`).
+           */
+          async function listAll(bucket, prefix = '', acc = []) {
+            const PAGE = 100;
+            for (let offset = 0; ; offset += PAGE) {
+              const { data, error } = await sb.storage.from(bucket)
+                .list(prefix, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } });
+              if (error) throw new Error(`обход ${bucket}: ${error.message}`);
+              if (!data || data.length === 0) break;
+              for (const e of data) {
+                const path = prefix ? `${prefix}/${e.name}` : e.name;
+                if (e.id === null) await listAll(bucket, path, acc);
+                else acc.push({ path, size: e.metadata?.size ?? 0 });
+              }
+              if (data.length < PAGE) break;
+            }
+            return acc;
+          }
+
+          const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '');
+          const total = { seen: 0, copied: 0, versioned: 0, bytes: 0 };
+
+          for (const src of SOURCES) {
+            const have = new Map(
+              (await listAll(TARGET, src)).map((o) => [o.path.slice(src.length + 1), o]),
+            );
+            for (const o of await listAll(src)) {
+              total.seen += 1;
+              const kept = have.get(o.path);
+              if (kept && kept.size === o.size) continue;
+              const dest = `${src}/${o.path}`;
+              if (kept) {
+                // Тот же ключ, другое содержимое: прежняя копия сохраняется рядом
+                const { error } = await sb.storage.from(TARGET).move(dest, `${dest}~${stamp}`);
+                if (error) throw new Error(`сохранение прежней версии: ${error.message}`);
+                total.versioned += 1;
+              }
+              const { error } = await sb.storage.from(src).copy(o.path, dest, { destinationBucket: TARGET });
+              if (error) throw new Error(`копирование из ${src}: ${error.message}`);
+              total.copied += 1;
+              total.bytes += o.size;
             }
           }
 
-          for (const b of BUCKETS) await walk(b);
-          // Пустая выгрузка — это либо сбой прав, либо реально пустые бакеты.
-          // Молча класть пустой артефакт нельзя: он выглядит как успешный бэкап.
-          if (total === 0) {
-            console.error('::error::Не выгружено ни одного файла — проверьте права service_role.');
+          // Пустой рабочий бакет — это сбой прав, а не «нечего копировать»:
+          // молча зелёный прогон выглядел бы как работающий бэкап
+          if (total.seen === 0) {
+            console.error('::error::В рабочих бакетах не найдено ни одного объекта — проверьте права service_role.');
             process.exit(1);
           }
-          console.log(`Всего файлов: ${total}`);
+          const mb = (total.bytes / 1024 / 1024).toFixed(1);
+          console.log(`Объектов в рабочих бакетах: ${total.seen}`);
+          console.log(`Скопировано новых: ${total.copied} (${mb} МБ), из них заменённых версий: ${total.versioned}`);
           JS
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: storage-backup-${{ github.run_id }}
-          path: backup/
-          retention-days: 30

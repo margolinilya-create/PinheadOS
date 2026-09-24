@@ -17,12 +17,20 @@ import { DEFAULT_PERMISSIONS } from './permissions';
  * Поэтому сторож ВЫВОДИТ список из миграций, а не проверяет известные имена:
  * всякая таблица с колонкой `file_path` обязана стоять в `REFERENCES` уборщика
  * и учитываться клиентом при удалении объекта.
+ *
+ * УБОРЩИКОВ ДВА, И СТОРОЖИТСЯ КАЖДЫЙ (сессия 68). Edge-функция и npm-скрипт
+ * `storage:gc` — равноправные дороги уборки (`CLAUDE.md`), а сторож читал
+ * только функцию. Сессия 67 дописала третий носитель в неё одну, и скрипт
+ * остался с двумя: его `--apply` удалил бы техпакет модели. Тот же урок
+ * этажом выше — копия списка, которую никто не сверяет, отстаёт молча.
  */
 
-const GC_SRC = readFileSync(
-  join(process.cwd(), '../supabase/functions/storage-gc/index.ts'),
-  'utf8',
-);
+const GC_SOURCES = {
+  'edge-функция storage-gc': readFileSync(
+    join(process.cwd(), '../supabase/functions/storage-gc/index.ts'), 'utf8'),
+  'npm-скрипт storage:gc': readFileSync(
+    join(process.cwd(), 'scripts/storage-gc.mjs'), 'utf8'),
+};
 
 /** Таблицы, у которых миграции объявляют колонку `file_path` (в create или add column) */
 function tablesWithFilePath(): Set<string> {
@@ -52,15 +60,20 @@ describe('storage-gc: носители ключа выводятся из схе
     expect(tables.has('erp_sku_card_files')).toBe(true);
   });
 
-  it('каждая таблица с file_path перечислена в REFERENCES уборщика', () => {
-    const refs = new Set(
-      [...GC_SRC.matchAll(/\{\s*table:\s*'(\w+)',\s*column:\s*'file_path'\s*\}/g)]
-        .map((m) => m[1]),
-    );
-    for (const t of tables) {
-      expect(refs.has(t), `${t} держит file_path, но уборщик его не читает`).toBe(true);
-    }
-  });
+  it.each(Object.entries(GC_SOURCES))(
+    'каждая таблица с file_path перечислена в REFERENCES: %s',
+    (_name, src) => {
+      const refs = new Set(
+        [...src.matchAll(/\{\s*table:\s*'(\w+)',\s*column:\s*'file_path'\s*\}/g)]
+          .map((m) => m[1]),
+      );
+      // Пустой разбор — сломанная регулярка, а не «носителей нет»
+      expect(refs.size).toBeGreaterThanOrEqual(3);
+      for (const t of tables) {
+        expect(refs.has(t), `${t} держит file_path, но уборщик его не читает`).toBe(true);
+      }
+    },
+  );
 });
 
 describe('удаление объекта на клиенте спрашивает карточки модели', () => {
