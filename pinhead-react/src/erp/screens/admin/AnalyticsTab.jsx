@@ -92,7 +92,7 @@ export function AnalyticsTab() {
   const delta = released - prev;
 
   const hasAnything = released > 0
-    || (analytics?.byDept ?? []).some((r) => r.released > 0 || r.defect > 0);
+    || (analytics?.byDept ?? []).some((r) => r.done_qty > 0 || r.defect > 0);
 
   return (
     <div className={styles.matSection}>
@@ -215,7 +215,7 @@ export function AnalyticsTab() {
                   {analytics.byDept.map((row) => (
                     <tr key={row.department_id}>
                       <th scope="row">{deptName.get(row.department_id) ?? '—'}</th>
-                      <td>{row.released}</td>
+                      <td>{row.done_qty}</td>
                       <td>{row.defect}</td>
                       <td>{row.rework}</td>
                       <td>{num(row.defect_pct, '%')}</td>
