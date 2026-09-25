@@ -2215,6 +2215,13 @@
       "files": [
         "20260924233145_orders_erp_order_id_index.sql"
       ]
+    },
+    {
+      "version": "20260924235701",
+      "name": "erp_sku_card_guard_snapshot",
+      "files": [
+        "20260924235701_erp_sku_card_guard_snapshot.sql"
+      ]
     }
   ]
 }
