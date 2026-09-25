@@ -31,6 +31,7 @@
 - `pravila-erp-progon-04-09-sessiya-48.md`
 - `pravila-erp-pred-prodakshen-audit-22-08-sessiya-35.md`
 - `pravila-kataloga-sku-v-erp-pravka-14-09-p-6-pr-3-sessiya-61.md`
+- `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← стражи на исключениях: семь из девяти; ссылка `on delete set null` у таблицы со стражем — ветка «родитель удалён»
 
 ## Сторожа и тесты
 
