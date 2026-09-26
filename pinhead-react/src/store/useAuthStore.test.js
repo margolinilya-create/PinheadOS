@@ -281,6 +281,32 @@ describe('useAuthStore — init и сессия', () => {
     expect(useAuthStore.getState().user?.name).toBe('Настоящий');
   });
 
+  /**
+   * Дедупликация (обзор 26.09, п. 1): `main.jsx` и, прежде, эффект `App`
+   * звали `init()` дважды — два `getSession` и два чтения профиля до первого
+   * кадра. Мутация: убрать `initInFlight` — два вызова `getSession`.
+   */
+  it('два параллельных init — один getSession', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockClear();
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+
+    await Promise.all([useAuthStore.getState().init(), useAuthStore.getState().init()]);
+
+    expect(supabase.auth.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('после завершения init можно позвать снова (повторная проверка сессии)', async () => {
+    const { supabase } = await import('../lib/supabase');
+    supabase.auth.getSession.mockClear();
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+
+    await useAuthStore.getState().init();
+    await useAuthStore.getState().init();
+
+    expect(supabase.auth.getSession).toHaveBeenCalledTimes(2);
+  });
+
   it('getSession БРОСАЕТ (нет сети) — не виснем в загрузке', async () => {
     const { supabase } = await import('../lib/supabase');
     supabase.auth.getSession.mockRejectedValueOnce(new TypeError('Load failed'));

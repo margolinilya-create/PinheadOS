@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
@@ -381,7 +381,8 @@ export default function OrdersScreen() {
     if (pageIds) void loadChatUnreadMany(pageIds.split(','));
   }, [pageIds, chatPing, loadChatUnreadMany]);
 
-  const onDelete = async (order) => {
+  // `useCallback`: строки списка в `memo`, новая функция на рендер обнуляла его
+  const onDelete = useCallback(async (order) => {
     const ok = await confirm({
       title: 'Удалить заказ?',
       message: `«${order.title}» и все его позиции, этапы и материалы будут удалены.`,
@@ -392,7 +393,7 @@ export default function OrdersScreen() {
       const done = await deleteOrder(order.id);
       if (done) toast.success('Заказ удалён');
     }
-  };
+  }, [deleteOrder]);
 
   /**
    * ОТГРУЗКА ИЗ СПИСКА — С КЛЮЧОМ ПОПЫТКИ (правка 20.09, п. 1).
@@ -409,7 +410,7 @@ export default function OrdersScreen() {
   const shipAttempt = useRef(createAttemptKeeper());
   const [shippingId, setShippingId] = useState(null);
 
-  const onShip = async (order) => {
+  const onShip = useCallback(async (order) => {
     // Второй клик гасится ДО подтверждения: `confirm` асинхронный, и без
     // этой проверки два диалога встают друг на друга.
     if (shippingId) return;
@@ -425,7 +426,7 @@ export default function OrdersScreen() {
     });
     if (done) shipAttempt.current.reset();
     setShippingId(null);
-  };
+  }, [shippingId, shipOrder]);
 
   return (
     <>
@@ -601,20 +602,6 @@ export default function OrdersScreen() {
           </div>
         </details>
       )}
-
-      {/*
-        БЛОКА «ЧЕРНОВИКИ ЗАКАЗОВ» БОЛЬШЕ НЕТ (правки заказчика 07.09, п. 15 —
-        аннотация указывает на группу из семи элементов с кнопками
-        «Продолжить» и «Удалить»).
-
-        САМО АВТОСОХРАНЕНИЕ ОСТАЛОСЬ, и это следствие удаления списка, а не
-        недосмотр: форма пишет снимок в `erp_order_drafts` каждые 500 мс, и
-        снять его вместе со списком значило бы терять набранный заказ при
-        случайном закрытии формы. Продолжить прерванное можно и без списка —
-        `+ Новый заказ` открывает ПОСЛЕДНИЙ черновик (`latestDraftId`), а
-        полоса «Восстановлен черновик · Очистить» внутри формы от него
-        отказывается: без неё восстановление стало бы навязанным.
-      */}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="заказы" />}
       {/* Скелетон на `!loaded && !loadError`, а НЕ на `loading` (правка 03.09):

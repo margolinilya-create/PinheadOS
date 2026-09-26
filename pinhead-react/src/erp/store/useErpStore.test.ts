@@ -243,7 +243,10 @@ attachDomainSlices();
 // стартовать с чистой, иначе соседний тест «оплатит» их запрос.
 const { clearQueryCache } = await import('./queryCache');
 const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
-const { REALTIME_DEFER_ATTEMPTS } = await import('./shared');
+const { REALTIME_DEFER_ATTEMPTS, REALTIME_DEFER_MS } = await import('./shared');
+const {
+  ORDER_RELOAD_DEBOUNCE_MS, EXPERIMENTAL_RELOAD_DEBOUNCE_MS, CHAT_PING_DEBOUNCE_MS,
+} = await import('./realtimeCoalesce');
 const { toast } = await import('../../store/useToastStore');
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1593,6 +1596,92 @@ describe('applyRealtimeEvent — защита от race (pendingMutations, п.29
     expect(_pendingMutations.has('stage:st1')).toBe(true);
     await p;
     expect(_pendingMutations.has('stage:st1')).toBe(false);
+  });
+});
+
+/**
+ * КОАЛЕСЦЕНЦИЯ СОБЫТИЙ (обзор 26.09, пп. 3–5; модуль `realtimeCoalesce`).
+ *
+ * Событие приходит по строке, перечитывание — по сущности. Применение
+ * маршрута из N этапов давало N `loadOne` одного заказа, каждое событие
+ * задачи разработки — полный `loadExperimental`, каждое сообщение —
+ * четыре перезапроса подписчиков `chatPing`. Мутации (проверены 26.09):
+ * заменить `scheduleOrderReload` на прямой `loadOne` — пять вызовов;
+ * убрать проверку `route:` — событие применяется до ответа сервера.
+ */
+describe('applyRealtimeEvent — коалесценция серий событий', () => {
+  // Подменённые действия возвращаются: общий `beforeEach` состояние
+  // сбрасывает, а функции стора — нет
+  const original = {
+    loadOne: useErpStore.getState().loadOne,
+    loadExperimental: useErpStore.getState().loadExperimental,
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    useErpStore.setState({ ...original, experimentalLoaded: false });
+  });
+
+  it('пять INSERT этапов одного заказа → один loadOne', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    for (let i = 0; i < 5; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_item_stages', eventType: 'INSERT',
+        new: { id: `new-${i}`, item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+      });
+    }
+    expect(loadOne).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne).toHaveBeenCalledTimes(1);
+    expect(loadOne).toHaveBeenCalledWith('o1');
+  });
+
+  it('INSERT этапа при применении маршрута позиции (route:<item>) откладывается', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    _pendingMutations.add('route:it1');
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_item_stages', eventType: 'INSERT',
+      new: { id: 'new-1', item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+    });
+    await vi.advanceTimersByTimeAsync(ORDER_RELOAD_DEBOUNCE_MS * 2);
+    expect(loadOne).not.toHaveBeenCalled(); // маршрут ещё применяется
+    _pendingMutations.delete('route:it1');
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS + ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('три события задач разработки → один loadExperimental', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadExperimental = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadExperimental, experimentalLoaded: true });
+    for (let i = 0; i < 3; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_experimental_tasks', eventType: 'UPDATE',
+        new: { id: `t${i}`, experimental_id: 'e1', status: 'done' }, old: null,
+      });
+    }
+    await vi.advanceTimersByTimeAsync(EXPERIMENTAL_RELOAD_DEBOUNCE_MS);
+    expect(loadExperimental).toHaveBeenCalledTimes(1);
+  });
+
+  it('четыре сообщения чата → chatPing +1', async () => {
+    vi.useFakeTimers();
+    seed();
+    const before = useErpStore.getState().chatPing;
+    for (let i = 0; i < 4; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_chat_messages', eventType: 'INSERT',
+        new: { id: `m${i}`, order_id: 'o1', body: 'x' }, old: null,
+      });
+    }
+    await vi.advanceTimersByTimeAsync(CHAT_PING_DEBOUNCE_MS);
+    expect(useErpStore.getState().chatPing).toBe(before + 1);
   });
 });
 

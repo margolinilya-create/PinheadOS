@@ -278,8 +278,11 @@ export const experimentalSlice: StateCreator<ErpStore, [], [], ExperimentalSlice
       return false;
     }
     set((s) => ({ experimental: patchTaskIn(s.experimental, taskId, () => row) }));
-    // Этап появился у заказа — список заданий его ещё не видит
-    void get().loadAll();
+    // Этап появился у заказа — список заданий его ещё не видит. Перечитывается
+    // ОДИН заказ разработки, а не все активные (обзор 26.09, п. 4)
+    const orderId = get().experimental.find((e) => (e.tasks ?? []).some((t) => t.id === taskId))?.order_id;
+    if (orderId && get().orders.some((o) => o.id === orderId)) void get().loadOne(orderId);
+    else void get().loadAll();
     return true;
   },
 

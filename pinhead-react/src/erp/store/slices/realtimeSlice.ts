@@ -11,15 +11,20 @@ import {
   _pendingMutations,
   REALTIME_DEFER_MS,
   REALTIME_DEFER_ATTEMPTS,
-  FULL_RELOAD_DEBOUNCE_MS,
 } from '../shared';
+import {
+  clearRealtimeTimers,
+  scheduleExperimentalReload,
+  scheduleFullReload,
+  scheduleOrderReload,
+  schedulePing,
+} from '../realtimeCoalesce';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
 import { flushQueue } from '../offlineQueue';
-import type { ErpOrderFull, ErpStore, RealtimeSlice } from '../types';
+import type { ErpStore, RealtimeSlice } from '../types';
+import { dropChannel, upsertChildRow } from '../realtimeHelpers';
 
 /** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
-let fullReloadTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
  * Переподключение канала.
  *
@@ -46,7 +51,7 @@ function clearReconnect() {
 }
 
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
-type ChildKey =
+export type ChildKey =
   | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
   | 'tz_documents' | 'developments' | 'items';
 const TABLE_TO_CHILD: Record<string, ChildKey> = {
@@ -79,41 +84,6 @@ const TABLE_TO_CHILD: Record<string, ChildKey> = {
  */
 const AFFECTS_READINESS = new Set<ChildKey>(['materials', 'procurement_tasks', 'tz_documents']);
 
-/**
- * Отписка от канала — АСИНХРОННАЯ операция, и её отказ никто не ждёт.
- *
- * `supabase.removeChannel()` возвращает промис; вызванный голым, при отказе
- * он всплывает необработанным — ровно тот класс, от которого в проекте уже
- * обёрнуто фоновое сохранение формы. Нашёл это не человек, а включённый
- * 15.09 `@typescript-eslint/no-floating-promises`: два вызова, оба в путях
- * уборки (переподключение и размонтирование).
- *
- * Сообщать не о чем: отписка от канала, который и так оборван, — нормальный
- * исход, а второй тост на потерянной связи превратил бы оболочку в мигалку.
- * `void` здесь не годится: он гасит ПРАВИЛО, а не отказ промиса.
- */
-function dropChannel(channel: Parameters<typeof supabase.removeChannel>[0]) {
-  supabase.removeChannel(channel).catch(() => { /* канал уже мёртв — уборке это не мешает */ });
-}
-
-/**
- * Точечный upsert/удаление дочерней строки заказа (материал/закупка/склад).
- * Раньше эти события вызывали полный loadOne заказа — а он затирал оптимистичные
- * мутации ЭТАПОВ, если прилетал во время незавершённой мутации (регрессия волны 4.1:
- * триггер складских задач шлёт события на каждом переходе этапа). Точечный патч
- * массива готовность этапов не ломает (она считается из материалов при рендере).
- */
-function upsertChildRow(
-  order: ErpOrderFull, key: ChildKey, row: Record<string, unknown>, id: string, eventType: string,
-): ErpOrderFull {
-  const list = (order[key] ?? []) as { id: string }[];
-  let next: unknown[];
-  if (eventType === 'DELETE') next = list.filter((r) => r.id !== id);
-  else if (list.some((r) => r.id === id)) next = list.map((r) => (r.id === id ? { ...r, ...row } : r));
-  else next = [...list, row];
-  return { ...order, [key]: next };
-}
-
 export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set, get) => ({
   /**
    * Живой ли канал. `true` по умолчанию — до первой подписки говорить «связи
@@ -136,6 +106,8 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
   resyncRealtime: async () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    // Уже перечитываем — второй запуск дал бы второй полный loadAll
+    if (get().realtimeResyncing) return;
     set({ realtimeResyncing: true });
     try {
       /**
@@ -157,16 +129,12 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     const row = (ev.eventType === 'DELETE' ? ev.old : ev.new) ?? {};
     const id = row.id as string | undefined;
 
-    // Последний fallback: точечно применить нельзя — debounced полная перезагрузка
-    const scheduleFullReload = () => {
-      if (fullReloadTimer) clearTimeout(fullReloadTimer);
-      fullReloadTimer = setTimeout(() => {
-        fullReloadTimer = null;
-        void withNewWorkToast(get, () => get().loadAll());
-      }, FULL_RELOAD_DEBOUNCE_MS);
-    };
+    // Последний fallback: точечно применить нельзя — одна полная перезагрузка на серию
+    const fullReload = () => scheduleFullReload(() => {
+      void withNewWorkToast(get, () => get().loadAll());
+    });
     if (!id) {
-      scheduleFullReload();
+      fullReload();
       return;
     }
 
@@ -265,7 +233,10 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
           }));
         }
       }
-      if (get().experimentalLoaded) void get().loadExperimental();
+      // Серия событий задач одной разработки — одно перечитывание доски
+      if (get().experimentalLoaded) {
+        scheduleExperimentalReload(() => { void get().loadExperimental(); });
+      }
       return;
     }
 
@@ -280,7 +251,14 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * экране оставалось состояние, которого в базе уже нет, до следующего события.
      */
     const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
-    if (_pendingMutations.has(key)) {
+    /**
+     * Применение маршрута идёт под ключом ПОЗИЦИИ (`route:<item>`), а его этапы
+     * приезжают INSERT-ами со своими id — по ключу этапа их не отложить.
+     * Без этой проверки каждый INSERT перечитывал заказ ДО ответа сервера.
+     */
+    const itemKey = ev.table === 'erp_item_stages' && ev.new?.item_id
+      ? `route:${ev.new.item_id as string}` : null;
+    if (_pendingMutations.has(key) || (itemKey && _pendingMutations.has(itemKey))) {
       const attempt = (left: number) => {
         setTimeout(() => {
           if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
@@ -323,7 +301,12 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       const order = itemId
         ? get().orders.find((o) => o.items.some((it) => it.id === itemId))
         : null;
-      if (order) void withNewWorkToast(get, () => get().loadOne(order.id));
+      // Маршрут из N этапов — N событий, но одно перечитывание заказа
+      if (order) {
+        scheduleOrderReload(order.id, () => {
+          void withNewWorkToast(get, () => get().loadOne(order.id));
+        });
+      }
       return;
     }
 
@@ -392,7 +375,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * только вместе с доменным чанком, поэтому читатель у звонка всегда есть.
      */
     if (ev.table === 'erp_chat_messages') {
-      set({ chatPing: get().chatPing + 1 });
+      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
       return;
     }
 
@@ -403,12 +386,12 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * (а `mine` в событии вообще нет — оно про чужую строку).
      */
     if (ev.table === 'erp_chat_reactions') {
-      set({ chatPing: get().chatPing + 1 });
+      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
       return;
     }
 
     // Неизвестная таблица — старый путь
-    scheduleFullReload();
+    fullReload();
   },
 
   subscribeRealtime: () => {
@@ -581,22 +564,19 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * Слушателей `visibilitychange`/`online`/`focus` в проекте не было ни
      * одного, поэтому планшет после сна показывал устаревшую очередь молча.
      */
+    // `focus` не слушается: у возврата вкладки он приходит ВМЕСТЕ
+    // с `visibilitychange`, и два слушателя давали два полных loadAll
     const onWake = () => { void get().resyncRealtime(); };
     if (typeof window !== 'undefined') {
       window.addEventListener('online', onWake);
-      window.addEventListener('focus', onWake);
       document.addEventListener('visibilitychange', onWake);
     }
 
     return () => {
-      if (fullReloadTimer) {
-        clearTimeout(fullReloadTimer);
-        fullReloadTimer = null;
-      }
+      clearRealtimeTimers();
       clearReconnect();
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', onWake);
-        window.removeEventListener('focus', onWake);
         document.removeEventListener('visibilitychange', onWake);
       }
       // Канал мог быть пересоздан переподключением — отписываем ТОТ, что живёт

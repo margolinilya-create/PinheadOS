@@ -3,6 +3,7 @@ import {
   missingMaterialsForStage, waitingReason,
 } from './routes';
 import { stageMissingTz } from './tz';
+import { deptById as deptsById, deptNameById as deptNamesById } from './deptMap';
 import { bypassFor, isBypassed, materialsAfterBypass } from './bypass';
 import { isOutsourced } from './outsourcing';
 import { findSupplyDept, isSupplyWait } from './supply';
@@ -35,8 +36,8 @@ export function buildQueueEntries(
   departments,
   { departmentId = null, includeInactive = false, bypasses = [] } = {},
 ) {
-  const deptById = new Map(departments.map((d) => [d.id, d]));
-  const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+  const deptById = deptsById(departments);
+  const deptNameById = deptNamesById(departments);
   // Участок закупки — из справочника: код `supply` живёт только в utils/supply
   const supplyDeptId = findSupplyDept(departments)?.id ?? null;
   const list = [];

@@ -12,9 +12,16 @@ on:
         type: boolean
         default: false
 
+# Новый пуш в ту же ветку отменяет прогон предыдущего: результат по
+# устаревшему коммиту никому не нужен, а минуты раннера — общие
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: pinhead-react
@@ -76,6 +83,7 @@ jobs:
   # Эталонные скриншоты сюда не входят, у них свой job ниже.
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: pinhead-react
@@ -90,7 +98,21 @@ jobs:
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
+      # Браузер — из кэша по версии @playwright/test (обзор 26.09, п. 16):
+      # скачивание Chromium стояло в двух джобах на каждом пуше. Системные
+      # пакеты ставятся всегда — их кэш не хранит
+      - name: Версия Playwright
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - run: npx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
       - run: npx playwright test --grep-invert "visual:"
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -114,6 +136,7 @@ jobs:
   # и коммит идёт в ТЕКУЩУЮ ветку, а не в main. Обновление проходит ревью в своём PR.
   visual:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
     defaults:
@@ -127,6 +150,9 @@ jobs:
     env:
       VITE_SUPABASE_URL: https://mock.supabase.co
       VITE_SUPABASE_ANON_KEY: mock-anon-key
+      # Один visual.spec.ts против dev-сервера: сборка dist-e2e для офлайн-
+      # и perf-спек здесь не нужна, а webServer в конфиге общий
+      E2E_SKIP_PREVIEW: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -135,7 +161,21 @@ jobs:
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
+      # Браузер — из кэша по версии @playwright/test (обзор 26.09, п. 16):
+      # скачивание Chromium стояло в двух джобах на каждом пуше. Системные
+      # пакеты ставятся всегда — их кэш не хранит
+      - name: Версия Playwright
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - run: npx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
       # Dev-сервер поднимает сам Playwright (webServer в playwright.config.ts,
       # команда `VITE_FEATURE_ORDER_STUDIO=1 npm run dev`).
       # Пустая папка эталонов больше НЕ включает обновление: это была команда

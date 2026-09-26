@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { confirm } from '../../../store/useConfirmStore';
@@ -44,7 +45,9 @@ const GROUPS = [
 ];
 
 export function DevFilesTab({ dev, files, tasks, typeNames }) {
-  const { uploadDevFile, deleteDevFile } = useErpStore();
+  const { uploadDevFile, deleteDevFile } = useErpStore(useShallow((s) => ({
+    uploadDevFile: s.uploadDevFile, deleteDevFile: s.deleteDevFile,
+  })));
   const canManage = useErpAccess().can('files.manage');
   const [busy, setBusy] = useState(false);
 

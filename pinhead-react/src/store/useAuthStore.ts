@@ -5,6 +5,7 @@ import { toast } from './useToastStore';
 import { runAppResets } from './appReset';
 import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus, Profile } from '../types/auth';
+import { appOrigin, isAlreadyRegistered, isEmailNotConfirmed } from './authHelpers';
 
 /**
  * Dev-автологин: фиктивный администратор ВМЕСТО отсутствующей сессии.
@@ -41,35 +42,6 @@ const DEV_USER: User = {
  * приглашений это перестало быть правдой для основного пути.
  */
 export type RegisterOutcome = 'confirm_email' | 'signed_in' | 'already_registered' | 'failed';
-
-/**
- * Куда вернуть человека по ссылке из письма — в то приложение, откуда он
- * регистрировался. Без этого адрес берётся из Site URL проекта, а там может
- * стоять чей-то `localhost`, и ссылка уводит в никуда.
- */
-function appOrigin(): string | undefined {
-  return typeof window !== 'undefined' ? window.location.origin : undefined;
-}
-
-/**
- * Адрес уже заведён.
- *
- * Для приглашения это ТУПИК, а не обычная ошибка формы: `signUp` вторую учётную
- * запись на существующий адрес не создаёт, поэтому ссылка не сработает никогда,
- * сколько её ни открывай. На проде так и вышло — девять попыток подряд с одним
- * и тем же `422 user_already_exists`, потому что экран показывал сухое
- * «Пользователь уже зарегистрирован» и не говорил, куда идти.
- */
-function isAlreadyRegistered(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  return error.code === 'user_already_exists' || error.message === 'User already registered';
-}
-
-/** Отказ входа именно из-за неподтверждённого адреса, а не из-за пароля */
-function isEmailNotConfirmed(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  return error.code === 'email_not_confirmed' || error.message === 'Email not confirmed';
-}
 
 interface AuthStore {
   user: User | null;
@@ -109,6 +81,8 @@ interface AuthStore {
   savingPassword: boolean;
 
   init: () => Promise<void>;
+  /** Тело инициализации без дедупликации — зовёт только `init` */
+  initOnce: () => Promise<void>;
   fetchProfile: (id: string, email: string) => Promise<void>;
   /** Перечитать свой профиль по требованию — админ мог одобрить доступ только что */
   refreshProfile: () => Promise<void>;
@@ -142,6 +116,14 @@ interface AuthStore {
   isDesigner: () => boolean;
 }
 
+/**
+ * Идущая инициализация (обзор 26.09, п. 1). `init()` звали ДВАЖДЫ — из
+ * `main.jsx` до рендера и эффектом `App` — и до первого кадра уходили два
+ * `getSession` и два чтения профиля. Второй вызов теперь возвращает промис
+ * первого; эффект из `App` снят.
+ */
+let initInFlight: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   profileStatus: 'no_profile' as ProfileStatus,
@@ -159,7 +141,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   savingPassword: false,
 
   // Инициализация — сначала настоящая сессия, и только потом всё остальное
-  init: async () => {
+  init: () => {
+    if (initInFlight) return initInFlight;
+    initInFlight = get().initOnce().finally(() => { initInFlight = null; });
+    return initInFlight;
+  },
+
+  initOnce: async () => {
     // `finally`, а не строка в конце: у веток ниже свои `return`, и экран
     // загрузки, оставшийся висеть на одной из них, — это белый экран навсегда
     try {
@@ -210,7 +198,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     let data: Partial<Profile> | null = null;
     let error: { message: string } | null = null;
     try {
-      ({ data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle());
+      ({ data, error } = await supabase.from('profiles')
+      .select('name, role, approved, active').eq('id', id).maybeSingle());
     } catch (e) {
       // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS)
       error = { message: networkFailureMessage(e) };

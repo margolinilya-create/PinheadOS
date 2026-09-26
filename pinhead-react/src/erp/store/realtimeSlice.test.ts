@@ -168,13 +168,48 @@ describe('subscribeRealtime: пробуждение вкладки', () => {
     unsubscribe = null;
   });
 
-  it.each(['online', 'focus'] as const)('событие %s перечитывает данные', async (event) => {
+  it('событие online перечитывает данные', async () => {
     const loadAll = vi.fn().mockResolvedValue(undefined);
     useErpStore.setState({ loadAll });
     unsubscribe = useErpStore.getState().subscribeRealtime();
 
-    window.dispatchEvent(new Event(event));
+    window.dispatchEvent(new Event('online'));
     await vi.waitFor(() => expect(loadAll).toHaveBeenCalled());
+  });
+
+  /**
+   * Возврат вкладки приносит `visibilitychange` И `focus` в одном тике
+   * (обзор 26.09, п. 2). Два слушателя давали два полных `loadAll`
+   * (~351 КБ) на каждый alt-tab; `focus` больше не слушается, а
+   * `resyncRealtime` не запускается поверх идущего. Мутация: вернуть
+   * слушатель `focus` — два вызова.
+   */
+  it('visibilitychange + focus в одном тике → один loadAll', async () => {
+    let release: () => void = () => {};
+    const loadAll = vi.fn(() => new Promise<void>((r) => { release = r; }));
+    useErpStore.setState({ loadAll });
+    unsubscribe = useErpStore.getState().subscribeRealtime();
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+    // `loadAll` стартует после `flushQueue()` — дождаться, потом отпустить
+    await vi.waitFor(() => expect(loadAll).toHaveBeenCalled());
+    release();
+    await vi.waitFor(() => expect(useErpStore.getState().realtimeResyncing).toBe(false));
+    expect(loadAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('второй resync поверх идущего не запускается', async () => {
+    let release: () => void = () => {};
+    const loadAll = vi.fn(() => new Promise<void>((r) => { release = r; }));
+    useErpStore.setState({ loadAll });
+
+    const first = useErpStore.getState().resyncRealtime();
+    const second = useErpStore.getState().resyncRealtime();
+    await vi.waitFor(() => expect(loadAll).toHaveBeenCalled());
+    release();
+    await Promise.all([first, second]);
+    expect(loadAll).toHaveBeenCalledTimes(1);
   });
 
   it('возврат вкладки перечитывает данные', async () => {
