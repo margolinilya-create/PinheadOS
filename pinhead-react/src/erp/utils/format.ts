@@ -16,7 +16,7 @@
  * в плотных строках и карточках. Оба обязаны пережить `null`.
  */
 
-import { weekdayIndex } from '../../utils/date';
+import { parseDateLocal, weekdayIndex } from '../../utils/date';
 
 /**
  * Прозаическая метка срока: дашборд, карточка заказа, страница задания.
@@ -181,9 +181,5 @@ export function weekdayShort(d: string | null | undefined): string {
   return WEEKDAY_SHORT[weekdayIndex(d.slice(0, 10))];
 }
 
-/** `YYYY-MM-DD` → локальная полночь; полный ISO — как есть; мусор → null */
-function parseLocal(d: string): Date | null {
-  const iso = d.length === 10 ? `${d}T00:00:00` : d;
-  const dt = new Date(iso);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-}
+// Разбор даты для показа — общий `parseDateLocal` из `utils/date` (26.09)
+const parseLocal = parseDateLocal;

@@ -78,7 +78,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
           <div className={styles.rowFlexGap6}>
             {dlInfo && (
               <span className="kb-deadline-badge" style={{
-                background: dlInfo.color, color: dlInfo.color === '#888' ? '#444' : '#fff',
+                background: dlInfo.color, color: dlInfo.tone === 'ok' ? 'var(--text)' : '#fff',
               }}>
                 {dlInfo.label}
               </span>

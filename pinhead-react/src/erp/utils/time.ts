@@ -1,4 +1,4 @@
-import { addDays, diffDays, factoryDate, factoryToday } from '../../utils/date';
+import { addDays, diffDays, factoryDate, factoryToday, parseDateLocal } from '../../utils/date';
 import { isSubcontractTerminal } from './subcontractPhase';
 import type { SubcontractPhase } from '../types';
 
@@ -69,10 +69,8 @@ export function stageOverdue(
  * ('YYYY-MM-DD' парсим как локальную полночь, чтобы не сдвинуть на день).
  */
 export function formatDateShort(d: string | null | undefined): string {
-  if (!d) return '';
-  const iso = d.length === 10 ? `${d}T00:00:00` : d;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return '';
+  const dt = parseDateLocal(d);
+  if (!dt) return '';
   return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -85,10 +83,8 @@ export function formatDateShort(d: string | null | undefined): string {
  * а «14 авг.» нельзя понять неправильно.
  */
 export function formatDateHuman(d: string | null | undefined): string {
-  if (!d) return '';
-  const iso = d.length === 10 ? `${d}T00:00:00` : d;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return '';
+  const dt = parseDateLocal(d);
+  if (!dt) return '';
   return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 

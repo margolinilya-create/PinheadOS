@@ -146,3 +146,19 @@ export function monthDates(iso: string): string[] {
 export function parseIsoDate(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T00:00:00`);
 }
+
+/**
+ * Дата из строки для ПОКАЗА: `YYYY-MM-DD` — как местная полночь, полный ISO
+ * с временем — как есть, мусор и пустота — `null`.
+ *
+ * Одна на проект (обзор 26.09, п. 17): та же «достройка до полуночи» жила
+ * в трёх модулях (`erp/utils/time`, `erp/utils/format`, инлайн), а там, где
+ * её не было (`utils/deadline`, канбан Order Studio), строка без времени
+ * разбиралась как UTC-полночь и западнее Гринвича печаталась ПРЕДЫДУЩИМ днём.
+ */
+export function parseDateLocal(d: string | null | undefined): Date | null {
+  if (!d) return null;
+  const iso = d.length === 10 ? `${d}T00:00:00` : d;
+  const dt = new Date(iso);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}

@@ -30,7 +30,6 @@ import type { ChatSlice, ErpStore } from '../types';
 import type { ChatReadReceipt, ChatReactionPerson, ChatSearchHit } from '../../types';
 
 /** Сколько сообщений в странице. Совпадает с умолчанием `erp_chat_page` */
-export const CHAT_PAGE_SIZE = 50;
 
 /** Ответ `erp_chat_page` — ровно то, что собирает функция */
 interface ChatPage {

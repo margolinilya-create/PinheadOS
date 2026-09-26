@@ -26,7 +26,7 @@ import {
 import { CapacityBar } from '../components/CapacityBar';
 import DeptBindingNotice from '../components/DeptBindingNotice';
 import { monthCapacityReport, monthLabel } from '../utils/capacity';
-import { factoryToday } from '../../utils/date';
+import { factoryToday, parseDateLocal } from '../../utils/date';
 import styles from '../styles';
 import { dueLabel } from '../utils/format';
 
@@ -518,7 +518,7 @@ export default function ErpDashboard() {
                 <EmptyState icon="calendar" title="Горящих сроков нет." />
               ) : (
                 data.burning.map(({ order, days }) => {
-                  const dt = order.due_date ? new Date(order.due_date) : null;
+                  const dt = parseDateLocal(order.due_date);
                   const label = dueLabel(days);
                   return (
                     <OrderLink key={order.id} orderId={order.id} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
