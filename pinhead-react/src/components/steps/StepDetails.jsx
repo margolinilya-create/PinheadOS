@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { sanitizeText, validateEmail, validatePhone } from '../../utils/validate';
-import { diffDays, factoryToday } from '../../utils/date';
-import { URGENT_DAYS } from '../../erp/utils/time';
+import { diffDays, factoryToday, URGENT_DAYS } from '../../utils/date';
 
 const ROLES = [
   { key: 'manager', label: '👔 Менеджер' },

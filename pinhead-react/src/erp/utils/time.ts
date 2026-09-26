@@ -1,4 +1,4 @@
-import { addDays, diffDays, factoryDate, factoryToday, parseDateLocal } from '../../utils/date';
+import { addDays, diffDays, factoryDate, factoryToday, parseDateLocal, URGENT_DAYS } from '../../utils/date';
 import { isSubcontractTerminal } from './subcontractPhase';
 import type { SubcontractPhase } from '../types';
 
@@ -16,15 +16,13 @@ export function daysLeft(dueDate: string | null | undefined, now: Date = new Dat
 }
 
 /**
- * Порог «горящего» срока в днях.
- *
- * Объявлен ЗДЕСЬ, где и применяется. До 07.09 такая константа жила
- * в `format.ts` с подписью «тот же, что у `isUrgent` в time.ts», а сам
- * `isUrgent` сравнивал с литералом `3`: константа, заведённая ради одного
- * источника правды, не была им ни дня — её единственным вхождением во всём
- * `src` была строка собственного объявления.
+ * Порог «горящего» срока в днях — объявлен в `utils/date` (26.09): его читают
+ * и ERP, и Order Studio, а модуль времени ERP тянуть в визард ради числа
+ * незачем. Здесь реэкспорт, чтобы прежние импорты из `time` не менялись.
+ * История: до 07.09 такая константа жила в `format.ts` с подписью «тот же,
+ * что у `isUrgent`», а сам `isUrgent` сравнивал с литералом `3`.
  */
-export const URGENT_DAYS = 3;
+export { URGENT_DAYS } from '../../utils/date';
 
 /**
  * «Горящий» срок: осталось 0–`URGENT_DAYS` дней включительно.

@@ -156,6 +156,13 @@ export function parseIsoDate(iso: string): Date {
  * её не было (`utils/deadline`, канбан Order Studio), строка без времени
  * разбиралась как UTC-полночь и западнее Гринвича печаталась ПРЕДЫДУЩИМ днём.
  */
+/**
+ * «Горящий» срок: осталось 0–`URGENT_DAYS` дней включительно. Живёт здесь,
+ * а не в `erp/utils/time`: константу читают и ERP, и Order Studio, а тянуть
+ * в визард модуль времени ERP ради числа — лишний код в чанке (ревью 26.09).
+ */
+export const URGENT_DAYS = 3;
+
 export function parseDateLocal(d: string | null | undefined): Date | null {
   if (!d) return null;
   const iso = d.length === 10 ? `${d}T00:00:00` : d;

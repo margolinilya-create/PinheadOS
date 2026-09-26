@@ -2,8 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { relative } from 'node:path';
 import { deadlineTone, formatDeadlineShort, getDeadlineColor, getDeadlineInfo, getDeadlineLabel } from './deadline';
-import { addDays, factoryToday, parseDateLocal } from './date';
-import { URGENT_DAYS } from '../erp/utils/time';
+import { addDays, factoryToday, parseDateLocal, URGENT_DAYS } from './date';
 import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
 
 /**

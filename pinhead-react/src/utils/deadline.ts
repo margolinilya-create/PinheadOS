@@ -2,8 +2,7 @@
 // Deadline helpers — unified across Kanban + Dashboard
 // ═══════════════════════════════════════════
 
-import { diffDays, factoryDate, factoryToday, parseDateLocal } from './date';
-import { URGENT_DAYS } from '../erp/utils/time';
+import { diffDays, factoryDate, factoryToday, parseDateLocal, URGENT_DAYS } from './date';
 
 /** Срок «скоро»: до недели включительно — жёлтая зона канбана */
 export const SOON_DAYS = 7;

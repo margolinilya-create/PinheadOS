@@ -13,9 +13,13 @@ import type { ErpStageEvent } from '../types';
 import { cachedQuery } from './queryCache';
 import { erpQuery } from './shared';
 
-export async function loadReworkEvents(stageIds: string[]): Promise<Record<string, ErpStageEvent>> {
+export async function loadReworkEvents(
+  stageIds: string[], cacheKey?: string,
+): Promise<Record<string, ErpStageEvent>> {
   if (stageIds.length === 0) return {};
-  const key = `rework:${[...stageIds].sort().join(',')}`;
+  // Ключ кэша несёт версию набора (id + qty_rework от вызывающего): второй
+  // возврат по тому же этапу меняет qty и получает свежий ответ (ревью 26.09)
+  const key = `rework:${cacheKey ?? [...stageIds].sort().join(',')}`;
   return cachedQuery(key, async () => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_stage_events')

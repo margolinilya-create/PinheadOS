@@ -741,7 +741,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return item?.order_id ?? null;
   },
 
-  loadStageReworkEvents: (stageIds) => loadReworkEvents(stageIds),
+  loadStageReworkEvents: (stageIds, cacheKey) => loadReworkEvents(stageIds, cacheKey),
 
   ackStageOverdue: async (stageId, comment) => {
     const prev = get().orders;

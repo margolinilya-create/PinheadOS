@@ -162,7 +162,9 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
     if (ev.table === 'erp_subcontracting') {
-      if (get().subcontractingLoaded) void get().loadSubcontracting();
+      // Раздел, посеянный пакетом оболочки (строки есть, флаг ещё нет), тоже
+      // перечитывается: иначе бейдж сайдбара застыл бы на снимке входа
+      if (get().subcontractingLoaded || get().subcontracting.length > 0) void get().loadSubcontracting();
       return;
     }
     /**
@@ -234,7 +236,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         }
       }
       // Серия событий задач одной разработки — одно перечитывание доски
-      if (get().experimentalLoaded) {
+      if (get().experimentalLoaded || get().experimental.length > 0) {
         scheduleExperimentalReload(() => { void get().loadExperimental(); });
       }
       return;
@@ -258,10 +260,13 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      */
     const itemKey = ev.table === 'erp_item_stages' && ev.new?.item_id
       ? `route:${ev.new.item_id as string}` : null;
-    if (_pendingMutations.has(key) || (itemKey && _pendingMutations.has(itemKey))) {
+    const pending = () => _pendingMutations.has(key) || (itemKey !== null && _pendingMutations.has(itemKey));
+    if (pending()) {
+      // Повтор проверяет ОБА ключа: иначе событие, отложенное из-за маршрута,
+      // заходило бы в applyRealtimeEvent заново с полным запасом попыток
       const attempt = (left: number) => {
         setTimeout(() => {
-          if (!_pendingMutations.has(key)) get().applyRealtimeEvent(ev);
+          if (!pending()) get().applyRealtimeEvent(ev);
           else if (left > 0) attempt(left - 1);
         }, REALTIME_DEFER_MS);
       };

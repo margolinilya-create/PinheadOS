@@ -618,7 +618,8 @@ export interface StagesSlice {
   loadStageReports: (stageIds: string[]) => Promise<ReportWithSizes[]>;
   reportDefect: (stageId: string, opts: ReportDefectOptions) => Promise<boolean>;
   /** Последние события возврата брака по этапам (для баннера получателю) */
-  loadStageReworkEvents: (stageIds: string[]) => Promise<Record<string, ErpStageEvent>>;
+  /** `cacheKey` — версия набора (id с qty_rework): новый возврат по этапу обходит кэш */
+  loadStageReworkEvents: (stageIds: string[], cacheKey?: string) => Promise<Record<string, ErpStageEvent>>;
   /** Заказ, которому принадлежит этап — для диплинка на страницу задания (правка 5) */
   findOrderIdByStage: (stageId: string) => Promise<string | null>;
   /** Обработка просрочки этапа (правка 8): комментарий причины + отметка времени */

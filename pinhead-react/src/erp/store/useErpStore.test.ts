@@ -1618,7 +1618,7 @@ describe('applyRealtimeEvent — коалесценция серий событ�
   };
   afterEach(() => {
     vi.useRealTimers();
-    useErpStore.setState({ ...original, experimentalLoaded: false });
+    useErpStore.setState({ ...original, experimentalLoaded: false, experimental: [] });
   });
 
   it('пять INSERT этапов одного заказа → один loadOne', async () => {
@@ -1653,6 +1653,38 @@ describe('applyRealtimeEvent — коалесценция серий событ�
     _pendingMutations.delete('route:it1');
     await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS + ORDER_RELOAD_DEBOUNCE_MS);
     expect(loadOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('INSERT этапа под route: — попытки ограничены, как и под stage:', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    _pendingMutations.add('route:it1');
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_item_stages', eventType: 'INSERT',
+      new: { id: 'new-1', item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+    });
+    // Ключ маршрута не снимается заведомо дольше потолка попыток
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS * (REALTIME_DEFER_ATTEMPTS + 2));
+    _pendingMutations.delete('route:it1');
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS * 3 + ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne, 'попытки не исчерпались — повтор заходил с полным запасом').not.toHaveBeenCalled();
+  });
+
+  it('раздел, посеянный пакетом оболочки, перечитывается по событию (бейдж не застывает)', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadExperimental = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({
+      loadExperimental, experimentalLoaded: false, experimental: [{ id: 'e1' }] as never,
+    });
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_experimental', eventType: 'UPDATE',
+      new: { id: 'e1', outcome: 'ready' }, old: null,
+    });
+    await vi.advanceTimersByTimeAsync(EXPERIMENTAL_RELOAD_DEBOUNCE_MS);
+    expect(loadExperimental).toHaveBeenCalledTimes(1);
   });
 
   it('три события задач разработки → один loadExperimental', async () => {
