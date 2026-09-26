@@ -13,11 +13,13 @@
 
 ### Что сделано
 
-- **Leaked password protection включена.** `password_hibp_enabled = true`
-  через Management API, повторное чтение подтвердило, advisor
-  `auth_leaked_password_protection` из списка исчез. `SUPABASE_ACCESS_TOKEN`
-  в окружении сессии лежит в угловых скобках `<…>` — скобки снимались
-  на лету; переменную стоит поправить.
+- ~~**Leaked password protection включена.**~~ **НЕ ПОДТВЕРДИЛОСЬ** (сверка
+  26.09, сессия 69): advisor `auth_leaked_password_protection` снова в списке
+  `get_advisors security`. Либо запись через Management API не закрепилась,
+  либо повторное чтение сессии 68 смотрело не туда. Тумблер — у владельца:
+  Dashboard → Authentication → Password security → «Leaked password
+  protection». `SUPABASE_ACCESS_TOKEN` в окружении сессии лежит в угловых
+  скобках `<…>` — переменную стоит поправить.
 - **`generate_order_number` заведена** — миграция
   `20260924222445_order_studio_generate_order_number`, применена до мержа
   (журнал 291 = `APPLIED.json` 291, md5 `9dcf969c4921a1bab601903cbe442776`).
@@ -208,8 +210,8 @@ UPDATE-триггеров нет; CHECK, связывающего `message_id` �
 2. ~~**Защита `main`** — `protected: false`~~ — **ВКЛЮЧЕНА** владельцем
    (сверка сессии 68: `protected: true`, PR до зелёного CI — `blocked`).
    Гейт деплоя Vercel по CI — не сверялся.
-3. ~~**Leaked password protection**~~ — **ВКЛЮЧЕНА** в сессии 68 через
-   Management API, advisor пуст.
+3. **Leaked password protection** — сессия 68 записала «включена», но
+   advisor 26.09 показывает выключено (см. сессию 69). Тумблер за владельцем.
 4. **Удалить старые ветки на GitHub** — сессия не может: git-прокси пускает
    пуш только в рабочую ветку. Список и команда — в отчёте сессии 67
    (`docs/2026-09-24-project-review.md`, «Ветки»). Вендорные файлы ruflo

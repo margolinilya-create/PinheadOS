@@ -217,10 +217,16 @@ export const STAGE_EVENT_RETRY_MS = 1500;
  * Запись события аудита — fire-and-forget, ошибки не блокируют работу.
  * При ошибке — 1 повторная попытка через ~1.5с; если обе неудачны —
  * toast.error + console.warn.
+ *
+ * Обе попытки идут через `erpQuery`: supabase-js возвращает `error` на ответ
+ * сервера, но БРОСАЕТ на сбое до ответа (нет сети, обрыв). Голый `then`
+ * без `catch` на таком броске давал unhandled rejection — то есть событие
+ * терялось молча, а в консоли планшета всплывала ошибка вне всякого экрана
+ * (обзор 26.09, п. 12).
  */
 export function logStageEvent(ev: Omit<ErpStageEvent, 'id' | 'created_at' | 'actor'>) {
   const row = { ...ev, actor: currentActor() };
-  const attempt = () => supabase.from('erp_stage_events').insert(row);
+  const attempt = () => erpQuery(() => supabase.from('erp_stage_events').insert(row));
   void attempt().then(({ error }) => {
     if (!error) return;
     setTimeout(() => {

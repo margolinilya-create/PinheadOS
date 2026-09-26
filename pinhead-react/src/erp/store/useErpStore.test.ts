@@ -1693,9 +1693,16 @@ describe('число запросов: оболочка и карточка за
     expect(st.subcontracting).toHaveLength(1);
     expect(st.experimental).toHaveLength(1);
     expect(st.myDeptId).toBe('d1');
-    // Все флаги «загружено» подняты — иначе экраны дозапросят то же самое
-    expect(st.permissionsLoaded && st.dictionariesLoaded
-      && st.subcontractingLoaded && st.experimentalLoaded && st.myDeptLoaded).toBe(true);
+    expect(st.permissionsLoaded && st.dictionariesLoaded && st.myDeptLoaded).toBe(true);
+    /**
+     * Подряд и разработка — ПЕРВЫЙ КАДР, а не загруженный раздел (обзор 26.09):
+     * форма строк в пакете беднее (нет `moves`, `attachments`, `order.due_date`),
+     * и поднятый флаг оставлял журнал перемещений и файлы разработки пустыми
+     * до первой мутации. Флаг остаётся экрану — он дозагрузит полную форму.
+     * Мутация: вернуть `subcontractingLoaded: true` в пакет — красный.
+     */
+    expect(st.subcontractingLoaded).toBe(false);
+    expect(st.experimentalLoaded).toBe(false);
   });
 
   /**
@@ -1735,24 +1742,28 @@ describe('число запросов: оболочка и карточка за
     ).toBe('sewing');
   });
 
-  it('повторная загрузка раздел ОБНОВЛЯЕТ — иначе «Повторить» ничего не делает', async () => {
-    // Отличие от предыдущего случая ровно одно: на старте запроса раздел уже
-    // был загружен. Проверять «загружено ли сейчас» здесь недостаточно —
-    // на этом первая версия починки и сломала кнопку повтора
+  it('загруженный раздел пакет не трогает — его форма беднее полной', async () => {
+    /**
+     * До 26.09 пакет ОБНОВЛЯЛ раздел, загруженный до старта запроса, — и клал
+     * поверх полной формы (с `moves`/`attachments`) бедную: журнал и файлы
+     * исчезали. «Повторить» на экране зовёт собственный `load*` раздела,
+     * а не пакет, поэтому обновлять здесь нечего.
+     */
     useErpStore.setState({
-      experimental: [{ id: 'stale' }] as never,
+      experimental: [{ id: 'full', attachments: [{ id: 'a1' }] }] as never,
       experimentalLoaded: true,
       bootstrapLoaded: false,
     });
     h.rpcResult = {
       data: {
         departments: [dept], permissions: [], dictionaries: [],
-        subcontracting: [], experimental: [{ id: 'fresh' }], my_employee: null,
+        subcontracting: [], experimental: [{ id: 'full' }], my_employee: null,
       },
       error: null,
     };
     await useErpStore.getState().loadBootstrap();
-    expect(useErpStore.getState().experimental[0].id).toBe('fresh');
+    const row = useErpStore.getState().experimental[0] as { attachments?: unknown[] };
+    expect(row.attachments, 'пакет унёс файлы разработки').toHaveLength(1);
   });
 
   /**
