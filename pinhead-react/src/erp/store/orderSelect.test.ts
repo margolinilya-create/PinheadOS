@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { columnsOf } from '../../types/schema.testutil';
+import { sourceFiles } from '../../testutil/sourceFiles';
 import { ORDER_SELECT, ORDER_LIST_SELECT } from './orderHelpers';
 
 /**
@@ -17,14 +19,6 @@ import { ORDER_SELECT, ORDER_LIST_SELECT } from './orderHelpers';
 
 const SRC = join(process.cwd(), 'src');
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const p = join(dir, entry);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx|js|jsx)$/.test(entry) && !/\.test\./.test(entry)) out.push(p);
-  }
-  return out;
-}
 
 /**
  * Настоящие колонки `erp_item_stages` — из машинного снимка схемы
@@ -267,7 +261,7 @@ describe('списочный запрос заказов', () => {
   });
 
   it('walk находит исходники (иначе список потребителей мог протухнуть)', () => {
-    expect(walk(join(SRC, 'erp/utils')).length).toBeGreaterThan(10);
+    expect(sourceFiles(join(SRC, 'erp/utils')).length).toBeGreaterThan(10);
     for (const rel of LIST_CONSUMERS) {
       expect(() => readFileSync(join(SRC, rel), 'utf8'), `${rel} не найден`).not.toThrow();
     }

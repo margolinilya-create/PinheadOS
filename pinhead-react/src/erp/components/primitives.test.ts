@@ -1,7 +1,9 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+// @vitest-environment node
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { withoutJsComments } from '../utils/migrations.testutil';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * §4.3 обхода 04.09: примитивов не хватало там, где паттерн повторялся.
@@ -21,15 +23,8 @@ import { withoutJsComments } from '../utils/migrations.testutil';
 
 const ROOT = join(process.cwd(), 'src/erp');
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) return walk(full);
-    return full.endsWith('.jsx') && !full.endsWith('.test.jsx') ? [full] : [];
-  });
-}
 
-const FILES = walk(ROOT).map((f) => ({
+const FILES = sourceFiles(ROOT, { ext: /\.jsx$/ }).map((f) => ({
   rel: f.slice(process.cwd().length + 1),
   src: withoutJsComments(readFileSync(f, 'utf8')),
 }));

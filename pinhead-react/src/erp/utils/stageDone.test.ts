@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { stageDoneWarning, dependentStageNames, stageCompletionBlock } from './stageDone';
 import type { ErpMaterial, MaterialStatus } from '../types';

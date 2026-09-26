@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { sourceFiles } from '../testutil/sourceFiles';
 
 /**
  * КАЖДЫЙ `styles.X` обязан разрешаться в объявленный класс.
@@ -62,16 +64,6 @@ function localClasses(cssPath: string): Set<string> {
 }
 
 /** Файлы кода раздела (без тестов) */
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) { sourceFiles(p, acc); continue; }
-    if (!/\.(jsx?|tsx?)$/.test(name)) continue;
-    if (/\.test\.(jsx?|tsx?)$/.test(name)) continue;
-    acc.push(p);
-  }
-  return acc;
-}
 
 interface Usage {
   file: string;

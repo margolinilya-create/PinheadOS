@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { sourceFiles } from './testutil/sourceFiles';
 
 /**
  * РАТЧЕТ РАЗМЕРА ФАЙЛОВ (обзор 24.09, п. 11; сессия 68).
@@ -67,16 +69,6 @@ const CEILINGS: Record<string, number> = {
 const SRC = join(process.cwd(), 'src');
 
 /** Модули приложения: код, без тестов, тестовых утилит и объявлений типов */
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) sourceFiles(p, acc);
-    else if (/\.(ts|tsx|js|jsx)$/.test(name) && !/\.test\.|\.testutil\.|\.d\.ts$/.test(name)) {
-      acc.push(p);
-    }
-  }
-  return acc;
-}
 
 /** Строки так, как их считает `wc -l` */
 function lineCount(file: string): number {

@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { withoutJsComments } from '../utils/migrations.testutil';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * ЗОНА СБРОСА БЕЗ ТАЧ-ПОЛИФИЛЛА — МЁРТВЫЙ ЖЕСТ НА ПЛАНШЕТЕ ЦЕХА.
@@ -49,20 +51,12 @@ const EXEMPT: Record<string, string> = {
     + '(правка 20.09, п. 4)',
 };
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) walk(full, out);
-    else if (name.endsWith('.jsx')) out.push(full);
-  }
-  return out;
-}
 
 describe('тач-перетаскивание в разделе', () => {
   it('файл с зоной сброса подключает useTouchDndPolyfill', () => {
     const offenders: string[] = [];
 
-    for (const file of walk(ROOT)) {
+    for (const file of sourceFiles(ROOT, { ext: /\.jsx$/, tests: true })) {
       const rel = relative(ROOT, file).split('\\').join('/');
       // Комментарии снимаем ДО поиска: объяснение, почему полифилл здесь
       // не нужен, содержит и слово `onDrop`, и имя самого хука

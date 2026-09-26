@@ -57,36 +57,47 @@ vi.mock('./lib/supabase', () => ({
   },
 }));
 
-// Mock window.print
-window.print = vi.fn();
-
-// Mock navigator.clipboard
-Object.defineProperty(navigator, 'clipboard', {
-  value: { writeText: vi.fn().mockResolvedValue(undefined) },
-  writable: true,
-});
-
-// Mock localStorage
-const localStorageMock = (() => {
-  let store = {};
-  return {
-    getItem: vi.fn((key) => store[key] || null),
-    setItem: vi.fn((key, value) => { store[key] = String(value); }),
-    removeItem: vi.fn((key) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
-  };
-})();
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
-
 /**
- * scrollIntoView — jsdom его НЕ РЕАЛИЗУЕТ вовсе (в нём нет раскладки, а значит
- * и прокрутки), и любой вызов падает с «is not a function». Заглушка живёт
- * здесь, а не проверкой `typeof` в компоненте: доступность метода — свойство
- * СРЕДЫ, а не условие предметной области, и продуктовый код не должен носить
- * в себе знание о том, чего не умеет тестовый рендерер.
+ * DOM-МОКИ — ТОЛЬКО В jsdom (обзор 26.09, п. 14).
  *
- * Понадобилось с 06.09: сайдбар доводит активный пункт до видимой области —
- * до этого он мог оказаться ниже прокрутки, и человек видел меню без единой
- * подсветки (см. комментарий в `erp/layout/Sidebar.jsx`).
+ * Файлы-сторожа, которые читают миграции и исходники через `node:fs`,
+ * помечены `// @vitest-environment node`: им jsdom не нужен, а его подъём
+ * стоил ~230 с суммарного времени среды на прогон. В node-среде `window`
+ * нет, и обращение к нему здесь роняло бы каждый такой файл на setup.
+ * Мок Supabase выше остаётся общим: его импортируют и сторожа.
  */
-Element.prototype.scrollIntoView = vi.fn();
+if (typeof window !== 'undefined') {
+  // Mock window.print
+  window.print = vi.fn();
+
+  // Mock navigator.clipboard
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    writable: true,
+  });
+
+  // Mock localStorage
+  const localStorageMock = (() => {
+    let store = {};
+    return {
+      getItem: vi.fn((key) => store[key] || null),
+      setItem: vi.fn((key, value) => { store[key] = String(value); }),
+      removeItem: vi.fn((key) => { delete store[key]; }),
+      clear: vi.fn(() => { store = {}; }),
+    };
+  })();
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+  /**
+   * scrollIntoView — jsdom его НЕ РЕАЛИЗУЕТ вовсе (в нём нет раскладки, а значит
+   * и прокрутки), и любой вызов падает с «is not a function». Заглушка живёт
+   * здесь, а не проверкой `typeof` в компоненте: доступность метода — свойство
+   * СРЕДЫ, а не условие предметной области, и продуктовый код не должен носить
+   * в себе знание о том, чего не умеет тестовый рендерер.
+   *
+   * Понадобилось с 06.09: сайдбар доводит активный пункт до видимой области —
+   * до этого он мог оказаться ниже прокрутки, и человек видел меню без единой
+   * подсветки (см. комментарий в `erp/layout/Sidebar.jsx`).
+   */
+  Element.prototype.scrollIntoView = vi.fn();
+}

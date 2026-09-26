@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { withoutJsComments } from '../../erp/utils/migrations.testutil';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * ТОЧКА МОНТИРОВАНИЯ ВИДЖЕТА ОБРАТНОЙ СВЯЗИ — ОДНА.
@@ -25,17 +26,6 @@ import { withoutJsComments } from '../../erp/utils/migrations.testutil';
 const SRC = join(process.cwd(), 'src');
 
 /** Обход всех исходников раздела, кроме самих тестов */
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      sourceFiles(full, acc);
-    } else if (/\.(jsx?|tsx?)$/.test(name) && !/\.test\./.test(name)) {
-      acc.push(full);
-    }
-  }
-  return acc;
-}
 
 describe('точка монтирования одна', () => {
   /**
