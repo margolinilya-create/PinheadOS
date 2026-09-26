@@ -32,6 +32,7 @@
 - `pravila-erp-pred-prodakshen-audit-22-08-sessiya-35.md`
 - `pravila-kataloga-sku-v-erp-pravka-14-09-p-6-pr-3-sessiya-61.md`
 - `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← стражи на исключениях: семь из девяти; ссылка `on delete set null` у таблицы со стражем — ветка «родитель удалён»
+- `pravila-obzora-26-09-sessiya-69.md`  ← пакет оболочки — первый кадр; коалесценция realtime; один init; сторожа в node; индекс снимается по статистике, не по имени
 
 ## Сторожа и тесты
 
@@ -42,6 +43,7 @@
 - `pravila-pravok-20-09-sessiya-64.md`  ← «сделано ≠ работает»: проверка на распределении живых данных
 - `pravila-obzora-proekta-24-09-sessiya-67.md`  ← документ-память — не источник истины; надстройка оценивается по факту использования
 - `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← неглубокий клон лжёт о смерженности; числа отчёта сверяются суммой; 403 прокси не обходится
+- `pravila-obzora-26-09-sessiya-69.md`  ← кэш ответа не видит новую строку сам — ключ версии приносит вызывающий; сырой NUL в исходнике запрещён; тесты и линт в контейнере — по очереди
 - `pravila-erp-krasnyy-ci-sessiya-36-razbor.md`
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
 - `pravila-ustoychivosti-raskladki-sessiya-44.md`

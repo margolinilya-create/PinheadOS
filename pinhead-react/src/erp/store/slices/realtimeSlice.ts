@@ -162,8 +162,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
     if (ev.table === 'erp_subcontracting') {
-      // Раздел, посеянный пакетом оболочки (строки есть, флаг ещё нет), тоже
-      // перечитывается: иначе бейдж сайдбара застыл бы на снимке входа
+      // Раздел, посеянный пакетом оболочки (строки есть, флага нет), тоже перечитывается — иначе бейдж застывает
       if (get().subcontractingLoaded || get().subcontracting.length > 0) void get().loadSubcontracting();
       return;
     }
@@ -253,17 +252,13 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * экране оставалось состояние, которого в базе уже нет, до следующего события.
      */
     const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
-    /**
-     * Применение маршрута идёт под ключом ПОЗИЦИИ (`route:<item>`), а его этапы
-     * приезжают INSERT-ами со своими id — по ключу этапа их не отложить.
-     * Без этой проверки каждый INSERT перечитывал заказ ДО ответа сервера.
-     */
+    // Маршрут применяется под ключом ПОЗИЦИИ (`route:<item>`), а его этапы приезжают
+    // INSERT-ами со своими id — без этой проверки заказ перечитывался ДО ответа сервера
     const itemKey = ev.table === 'erp_item_stages' && ev.new?.item_id
       ? `route:${ev.new.item_id as string}` : null;
     const pending = () => _pendingMutations.has(key) || (itemKey !== null && _pendingMutations.has(itemKey));
     if (pending()) {
-      // Повтор проверяет ОБА ключа: иначе событие, отложенное из-за маршрута,
-      // заходило бы в applyRealtimeEvent заново с полным запасом попыток
+      // Повтор проверяет ОБА ключа — иначе отложенное маршрутом событие заходило бы с полным запасом попыток
       const attempt = (left: number) => {
         setTimeout(() => {
           if (!pending()) get().applyRealtimeEvent(ev);

@@ -322,16 +322,14 @@ export default function DepartmentQueue() {
     [entries],
   );
 
-  // Причины возврата брака (баннер получателю). Зависимость — ключ из id, а не
-  // `visible`: тот пересобирается на каждое событие realtime (обзор 26.09, п. 8)
-  // В ключе и qty_rework: повторный возврат по тому же этапу меняет число и обходит кэш
+  // Причины возврата брака: ключ `id:qty_rework` вместо `visible` (тот пересобирается на каждое событие)
   const reworkKey = useMemo(() => visible
     .filter((e) => (e.stage.qty_rework ?? 0) > 0).map((e) => `${e.stage.id}:${e.stage.qty_rework}`).sort().join(','), [visible]);
   useEffect(() => {
     let alive = true;
-    const ids = reworkKey ? reworkKey.split(',').map((k) => k.split(':')[0]) : [];
     // loadStageReworkEvents([]) сразу резолвится в {} — setState только в async-колбэке
-    loadStageReworkEvents(ids, reworkKey).then((map) => { if (alive) setReworkByStage(map); });
+    loadStageReworkEvents(reworkKey ? reworkKey.split(',').map((k) => k.split(':')[0]) : [], reworkKey)
+      .then((map) => { if (alive) setReworkByStage(map); });
     return () => { alive = false; };
   }, [reworkKey, loadStageReworkEvents]);
 
