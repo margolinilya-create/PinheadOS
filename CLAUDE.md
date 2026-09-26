@@ -359,7 +359,9 @@ NULL читается как `purchased`) — у давальческого из
 1. `SESSION-STATE.md` — текущее состояние, новые решения, next steps. В файле живут
    ДВЕ последние сессии: старший раздел переезжает в `docs/sessions/` и вписывается
    в `docs/sessions/INDEX.md` (сторож `src/sessionsIndex.test.ts`)
-2. `PROJECT.md` — запись сессии в Changelog (что сделано)
+2. `docs/changelog/<YYYY-MM>.md` — запись сессии (что сделано), выше прежних;
+   новый месяц — новый файл и строка в `docs/changelog/INDEX.md`
+   (сторож `src/changelogIndex.test.ts`). `PROJECT.md` — только статистика и roadmap
 3. `docs/DESIGN.md` — если менялся визуал/компоненты
 4. `CLAUDE.md` (корневой и pinhead-react/) — если менялась структура/правила
 Также: удалить временные QA-политики из БД (tmp_*), остановить dev-серверы.
@@ -544,16 +546,19 @@ NULL читается как `purchased`) — у давальческого из
 | `docs/rules/INDEX.md` | **Указатель правил по темам** (66 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
-| `PROJECT.md` | История, changelog, roadmap |
+| `PROJECT.md` | История, статистика, roadmap |
+| `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
+| `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
 | `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (79 файлов, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-07-27-erp-ux-audit.md` | Аудит UI/UX раздела ERP |
-| `docs/2026-07-27-skills-audit.md` | Аудит по чек-листам скилов: 16 находок + план работ |
 | `docs/2026-09-23-erp-code-review.md` | Код-ревью ERP: 13 находок, статус правок |
 | `docs/2026-09-24-project-review.md` | Обзор проекта целиком: 15 находок по приоритетам, порядок работ |
+| `docs/2026-09-26-project-review.md` | Обзор 26.09: 32 находки разведки, что сделано, бэклог |
+| `docs/2026-07-29-full-audit.md`, `docs/2026-08-03-erp-audit.md`, `docs/2026-09-03-erp-audit.md`, `docs/2026-09-04-erp-ux-review.md`, `docs/2026-08-11-load-test.md` | Прежние аудиты — помечены superseded, читать как снимок на дату |
 
 ## Команды
 

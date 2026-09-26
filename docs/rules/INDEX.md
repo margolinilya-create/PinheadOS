@@ -44,7 +44,6 @@
 - `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← неглубокий клон лжёт о смерженности; числа отчёта сверяются суммой; 403 прокси не обходится
 - `pravila-erp-krasnyy-ci-sessiya-36-razbor.md`
 - `pravila-vykladki-v-prod-07-09-chemu-nauchil-krasnyy-ci-na-main.md`
-- `pravila-erp-kod-revyu-05-08.md`
 - `pravila-ustoychivosti-raskladki-sessiya-44.md`
 
 ## Миграции и журнал
