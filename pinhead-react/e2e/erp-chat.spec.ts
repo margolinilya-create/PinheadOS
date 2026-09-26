@@ -45,7 +45,14 @@ test.describe('Чат сделки', () => {
     const field = page.getByRole('textbox', { name: 'Новое сообщение' });
     await field.fill('Закрой начал');
     await page.getByRole('button', { name: /Отправить/ }).click();
-    await expect(page.getByText('Закрой начал')).toBeVisible();
+    /**
+     * Искать В ЛЕНТЕ, а не по всей странице: сообщение появляется в ней
+     * раньше, чем композер очищает поле, и в этот кадр `getByText` находит
+     * два элемента — реплику и textarea с тем же текстом (strict mode,
+     * падение на мобильной раскладке в CI 26.09). Гонка настоящая, но
+     * проверяемое свойство одно: реплика в ленте.
+     */
+    await expect(page.getByRole('article').filter({ hasText: 'Закрой начал' })).toBeVisible();
   });
 
   /**
