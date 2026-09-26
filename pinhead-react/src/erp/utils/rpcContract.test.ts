@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * Каждая функция, которую код зовёт через `supabase.rpc('erp_…')`, обязана
@@ -21,14 +23,6 @@ import { join } from 'node:path';
 const SRC = join(process.cwd(), 'src');
 const MIGRATIONS = join(process.cwd(), '../supabase/migrations');
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const p = join(dir, entry);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx|js|jsx)$/.test(entry) && !/\.test\./.test(entry)) out.push(p);
-  }
-  return out;
-}
 
 /** Вызовы `supabase.rpc('name', { args })` во всём исходнике */
 export function rpcCallSites(files: string[]): { file: string; fn: string; args: string[] }[] {
@@ -71,7 +65,7 @@ const ALL_SQL = readdirSync(MIGRATIONS)
   .join('\n');
 
 const SIGNATURES = functionSignatures(ALL_SQL);
-const CALLS = rpcCallSites(walk(SRC));
+const CALLS = rpcCallSites(sourceFiles(SRC));
 
 describe('контракт RPC: клиент и миграции', () => {
   it('вызовы вообще есть — иначе тест сторожит пустоту', () => {

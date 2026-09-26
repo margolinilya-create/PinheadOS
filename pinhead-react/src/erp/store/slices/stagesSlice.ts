@@ -8,6 +8,7 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
+import { loadReworkEvents } from '../reworkEvents';
 import { deptShortName } from '../../data/departments';
 import type { ErpItemStage, ErpStageEvent, StageReportSizeInput } from '../../types';
 import type { ReportWithSizes } from '../../utils/stageSizes';
@@ -740,21 +741,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     return item?.order_id ?? null;
   },
 
-  loadStageReworkEvents: async (stageIds) => {
-    if (stageIds.length === 0) return {};
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_stage_events')
-      .select('*')
-      .in('stage_id', stageIds)
-      .not('qty_rework', 'is', null)
-      .order('created_at', { ascending: false }));
-    if (error) return {};
-    const map: Record<string, ErpStageEvent> = {};
-    for (const ev of (data ?? []) as ErpStageEvent[]) {
-      if (!map[ev.stage_id]) map[ev.stage_id] = ev;
-    }
-    return map;
-  },
+  loadStageReworkEvents: (stageIds, cacheKey) => loadReworkEvents(stageIds, cacheKey),
 
   ackStageOverdue: async (stageId, comment) => {
     const prev = get().orders;

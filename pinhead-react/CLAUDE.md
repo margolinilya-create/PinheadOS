@@ -56,13 +56,16 @@ URL: https://pinhead-os.vercel.app
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
   + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
   orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
+  realtimeCoalesce.ts (серия событий → одно перечитывание), realtimeHelpers.ts, reworkEvents.ts (журнал
+  переделок с кэшем по `id:qty`), authHelpers.ts у useAuthStore;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
   читателей)/cutRolls/cutExtras (производственный «плюс», накопительно)/
-  fabricLeftovers/attachmentView),
+  fabricLeftovers/attachmentView/deptMap (карты участков, WeakMap по массиву)/cellKey (`CELL_SEP`)),
+  orderFormGrid.ts (размерная сетка формы, реэкспорт из orderForm),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
@@ -136,6 +139,10 @@ URL: https://pinhead-os.vercel.app
   волны 1, 88 тестов
 - erp/utils/tz.ts — резолюция версий и гейт ТЗ, 38 тестов
 - erp/utils/queueEntries.js — единый источник групп очереди, 21 тест
+
+Сторожа, читающие файлы, — под `// @vitest-environment node` (сторож `guardEnv.test.ts`);
+обходчик исходников один — `src/testutil/sourceFiles.ts`. Полный прогон и линт
+в контейнере 16 ГБ — по очереди (`--maxWorkers=3`), иначе процесс убивается.
 
 ## Тесты
 ```bash

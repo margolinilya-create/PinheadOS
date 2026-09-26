@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { functionBody, latestDefining, withoutComments } from './migrations.testutil';
 import { readFileSync, readdirSync, statSync } from 'node:fs';

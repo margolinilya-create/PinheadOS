@@ -20,19 +20,47 @@ import { join } from 'node:path';
 
 export const MIGRATIONS_DIR = join(process.cwd(), '../supabase/migrations');
 
+/**
+ * КЭШ НА МОДУЛЬ (обзор 26.09, п. 13). Каталог миграций читается один раз
+ * на воркер, текст файла — один раз, ответ `latestMatching` — один раз
+ * на шаблон. До кэша каждый из 146 вызовов `latestDefining` в 43 файлах
+ * заново листал каталог и перечитывал все ~265 SQL-файлов (≈39 тысяч чтений
+ * и сотни мегабайт регулярных выражений за прогон). Миграции в тесте
+ * не пишутся, поэтому кэш безопасен; сторож — `migrations.testutil.test.ts`.
+ */
+let sqlFiles: string[] | null = null;
+const texts = new Map<string, string>();
+const latest = new Map<string, string>();
+
+/** Имена SQL-миграций по порядку применения */
+export function migrationFiles(): string[] {
+  sqlFiles ??= readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  return sqlFiles;
+}
+
 /** Текст миграции по имени файла */
 export function migration(name: string): string {
-  return readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
+  let text = texts.get(name);
+  if (text === undefined) {
+    text = readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
+    texts.set(name, text);
+  }
+  return text;
 }
 
 /** Последняя миграция, подходящая под шаблон, — та, что реально работает в базе */
 export function latestMatching(pattern: RegExp, what: string): string {
-  const hit = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort()
-    .filter((f) => pattern.test(migration(f)));
+  const key = `${pattern.flags}/${pattern.source}`;
+  const cached = latest.get(key);
+  if (cached !== undefined) return cached;
+  const hit = migrationFiles().filter((f) => {
+    pattern.lastIndex = 0;
+    return pattern.test(migration(f));
+  });
   if (hit.length === 0) throw new Error(`нет миграции, определяющей ${what}`);
-  return migration(hit[hit.length - 1]);
+  const text = migration(hit[hit.length - 1]);
+  latest.set(key, text);
+  return text;
 }
 
 /** Последняя миграция, пересоздающая функцию `public.<fn>(…)` */

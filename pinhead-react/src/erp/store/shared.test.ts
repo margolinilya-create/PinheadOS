@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { deptsSettled, erpQuery, erpRead, networkFailureMessage } from './shared';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  deptsSettled, erpQuery, erpRead, logStageEvent, networkFailureMessage, STAGE_EVENT_RETRY_MS,
+} from './shared';
+import { supabase } from '../../lib/supabase';
+import { toast } from '../../store/useToastStore';
 
 /**
  * Сбой ДО ответа сервера.
@@ -126,5 +130,35 @@ describe('deptsSettled — когда место под участки резе�
 
   it('пакет ОТВЕТИЛ ошибкой — цехов нет, но резерв снимается: иначе заглушка навсегда', () => {
     expect(deptsSettled([], true)).toBe(true);
+  });
+});
+
+/**
+ * `logStageEvent` — fire-and-forget, но не «fire-and-crash» (обзор 26.09, п. 12).
+ *
+ * supabase-js БРОСАЕТ на сбое до ответа. Голый `attempt().then(…)` без
+ * обработки броска давал unhandled rejection: событие терялось молча, а
+ * vitest такой прогон роняет — это и есть мутационная проверка: убрать
+ * `erpQuery` из `attempt` — тест красный.
+ */
+describe('logStageEvent — бросок клиента не становится unhandled rejection', () => {
+  it('обе попытки сорвались на сети → предупреждение и тост, без исключения', async () => {
+    vi.useFakeTimers();
+    const insert = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+    vi.mocked(supabase.from).mockReturnValueOnce({ insert } as never)
+      .mockReturnValueOnce({ insert } as never);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorToast = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    try {
+      logStageEvent({ stage_id: 's1', event_type: 'start' } as never);
+      await vi.advanceTimersByTimeAsync(STAGE_EVENT_RETRY_MS + 10);
+      expect(insert).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith('stage event not logged:', 'нет связи с сервером');
+      expect(errorToast).toHaveBeenCalledWith('Событие истории не записалось');
+    } finally {
+      warn.mockRestore();
+      errorToast.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

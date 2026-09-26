@@ -736,3 +736,41 @@ describe('черновики внутри формы', () => {
     expect(screen.queryByText(/Сохранить черновик\?/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * КЛЮЧ ПОЗИЦИИ — СВОЙ, А НЕ ИНДЕКС (обзор 26.09, п. 23).
+ *
+ * Пока позиции рендерились с `key={i}`, удаление средней позиции оставляло
+ * React те же узлы под новыми данными: раскрытый `<details>` техблока третьей
+ * позиции оказывался у второй, а у бывшей третьей — закрытым. Человек видел,
+ * как «уехало» не то, что он убрал. Проверяется РЕЗУЛЬТАТ: раскрытие остаётся
+ * у той позиции, у которой его открыли.
+ *
+ * Мутация: вернуть `key={i}` в `CreateOrderModal.jsx` — тест красный.
+ */
+describe('CreateOrderModal — позиции', () => {
+  beforeEach(() => {
+    uploadCalls = [];
+    uploadResult = { data: { path: 'ok' }, error: null };
+  });
+
+  it('удаление средней позиции не переносит раскрытый техблок на соседку', async () => {
+    setup();
+    const add = screen.getByRole('button', { name: '+ Добавить позицию' });
+    fireEvent.click(add);
+    fireEvent.click(add);
+    expect(screen.getAllByText(/^Позиция \d/)).toHaveLength(3);
+
+    const techSummaries = () => screen.getAllByText(/^Технический блок изделия/);
+    const third = techSummaries()[2].closest('details');
+    third.open = true;
+    expect(techSummaries()[1].closest('details').open).toBe(false);
+
+    // Вторая позиция пуста — подтверждения не будет
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать позицию 2' }));
+    await waitFor(() => expect(screen.getAllByText(/^Позиция \d/)).toHaveLength(2));
+
+    const after = techSummaries().map((s) => s.closest('details').open);
+    expect(after, 'раскрытие уехало на другую позицию').toEqual([false, true]);
+  });
+});

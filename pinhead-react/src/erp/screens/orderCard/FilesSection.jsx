@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { confirm } from '../../../store/useConfirmStore';
@@ -23,7 +24,11 @@ import {
  * которая уже используется в заказе», и «ту же» здесь значит тот же код.
  */
 export function FilesSection({ orderId, attachments }) {
-  const { uploadOrderAttachment, deleteOrderAttachment, moveOrderAttachment } = useErpStore();
+  const { uploadOrderAttachment, deleteOrderAttachment, moveOrderAttachment } = useErpStore(useShallow((s) => ({
+    uploadOrderAttachment: s.uploadOrderAttachment,
+    deleteOrderAttachment: s.deleteOrderAttachment,
+    moveOrderAttachment: s.moveOrderAttachment,
+  })));
   const canManage = useErpAccess().can('files.manage');
   const [busy, setBusy] = useState(false);
 

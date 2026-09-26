@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense } from 'react'
+import React, { Suspense } from 'react'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
@@ -75,10 +75,9 @@ function AccessWall({ icon, title, children, email, actions }) {
 }
 
 function App() {
-  const { user, initializing, init, profileStatus, checkingProfile, passwordRecovery } = useAuthStore(useShallow(s => ({
+  const { user, initializing, profileStatus, checkingProfile, passwordRecovery } = useAuthStore(useShallow(s => ({
     user: s.user,
     initializing: s.initializing,
-    init: s.init,
     profileStatus: s.profileStatus,
     checkingProfile: s.checkingProfile,
     passwordRecovery: s.passwordRecovery,
@@ -99,10 +98,6 @@ function App() {
    * не переходят ниоткуда.
    */
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-
-  useEffect(() => {
-    init();
-  }, [init]);
 
   /**
    * Пустой экран загрузки — ТОЛЬКО на первичную проверку сессии.

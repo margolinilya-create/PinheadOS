@@ -1,6 +1,7 @@
-import { useMemo, useState, memo } from 'react';
+import { useState, memo } from 'react';
 import { orderQty } from '../../utils/shipment';
 import { deptShortName } from '../../data/departments';
+import { deptById as deptsById } from '../../utils/deptMap';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
 import { OrderLink } from '../../components/OrderLink';
@@ -21,10 +22,7 @@ import { Button } from '../../components/Button';
 /** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
 function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, shipping = false, chatUnread = 0 }) {
   const [open, setOpen] = useState(false);
-  const deptById = useMemo(
-    () => new Map(departments.map((d) => [d.id, d])),
-    [departments],
-  );
+  const deptById = deptsById(departments);
   const totalQty = orderQty(order);
   const ready = isOrderReadyToShip(order);
   /**

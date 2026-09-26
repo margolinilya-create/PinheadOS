@@ -1,6 +1,7 @@
-import { useMemo, memo } from 'react';
+import { memo } from 'react';
 import { orderQty } from '../../utils/shipment';
 import { deptShortName } from '../../data/departments';
+import { deptById as deptsById } from '../../utils/deptMap';
 import { formatDateShort } from '../../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
 import { orderProgress } from '../../utils/progress';
@@ -18,10 +19,7 @@ import { Button } from '../../components/Button';
 function OrderCardMobileBase({
   order, departments, now, onDelete, canDelete, onShip, shipping = false, chatUnread = 0,
 }) {
-  const deptById = useMemo(
-    () => new Map(departments.map((d) => [d.id, d])),
-    [departments],
-  );
+  const deptById = deptsById(departments);
   const totalQty = orderQty(order);
   const progress = orderProgress(order);
   const ready = isOrderReadyToShip(order);

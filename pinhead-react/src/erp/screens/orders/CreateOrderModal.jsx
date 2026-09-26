@@ -9,7 +9,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
 import {
-  EMPTY_ITEM,
+  newDraftItem,
   clearOrderDraft,
   effectiveQty,
   emptyPrint,
@@ -189,7 +189,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     () => initial?.form ?? restoredDraft?.form ?? emptyOrderForm(initialLaunch),
   );
   const [items, setItems] = useState(
-    () => initial?.items ?? restoredDraft?.items ?? [{ ...EMPTY_ITEM }],
+    () => initial?.items ?? restoredDraft?.items ?? [newDraftItem()],
   );
   /*
     СТРОК-ПОДСКАЗОК ЛИСТА ЗАКУПКИ БОЛЬШЕ НЕТ (правки 07.09, п. 14): состояние
@@ -408,7 +408,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     if (!src) return;
     const prints = (src.prints ?? []).map((p) => ({ ...p, key: crypto.randomUUID() }));
     const labels = (src.labels ?? []).map((l) => ({ ...l, key: crypto.randomUUID() }));
-    setItems((arr) => [...arr, { ...src, route: undefined, prints, labels }]);
+    setItems((arr) => [...arr, { ...src, key: crypto.randomUUID(), route: undefined, prints, labels }]);
     // Макеты и файлы бирок копируются вместе со строками (п. 5.4): копируют
     // затем, чтобы не заводить одно и то же дважды
     (src.prints ?? []).forEach((p, j) => attach.copyOwner(p.key, prints[j].key));
@@ -651,7 +651,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
       return;
     }
     setForm({ ...emptyOrderForm(initialLaunch), ...draft.form });
-    setItems(draft.items.length > 0 ? draft.items : [{ ...EMPTY_ITEM }]);
+    setItems(draft.items.length > 0 ? draft.items : [newDraftItem()]);
     setNotes(draft.notes ?? []);
     attach.replaceAll(draft.attachments ?? []);
     setTzDocs((draft.tzDocs ?? []).filter((d) => d?.path && d.state === 'uploaded'));
@@ -687,7 +687,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     rowIdRef.current = null;
     setRowId(null);
     setForm(emptyOrderForm(initialLaunch));
-    setItems([{ ...EMPTY_ITEM }]);
+    setItems([newDraftItem()]);
     setNotes([]);
     attach.replaceAll([]);
     setTzDocs([]);
@@ -1379,7 +1379,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         >
         {items.map((it, i) => (
           <ItemBlock
-            key={i}
+            key={it.key ?? i}
             it={it}
             i={i}
             itemsCount={items.length}
@@ -1397,7 +1397,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           />
         ))}
         <div className={styles.checkRow}>
-          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, { ...EMPTY_ITEM }])}>
+          <Button variant="secondary" onClick={() => setItems((arr) => [...arr, newDraftItem()])}>
             + Добавить позицию
           </Button>
           {/*

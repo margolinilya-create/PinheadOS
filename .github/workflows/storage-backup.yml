@@ -130,8 +130,11 @@ jobs:
               if (kept && kept.size === o.size) continue;
               const dest = `${src}/${o.path}`;
               if (kept) {
-                // Тот же ключ, другое содержимое: прежняя копия сохраняется рядом
-                const { error } = await sb.storage.from(TARGET).move(dest, `${dest}~${stamp}`);
+                // Тот же ключ, другое содержимое: прежняя копия сохраняется рядом.
+                // Разделитель — точка: `~` не входит в набор символов ключа Storage
+                // (тот же InvalidKey, что ловил tzFilePath), и первый же изменённый
+                // объект ронял бы всю ночную копию (ревью 26.09)
+                const { error } = await sb.storage.from(TARGET).move(dest, `${dest}.v${stamp}`);
                 if (error) throw new Error(`сохранение прежней версии: ${error.message}`);
                 total.versioned += 1;
               }

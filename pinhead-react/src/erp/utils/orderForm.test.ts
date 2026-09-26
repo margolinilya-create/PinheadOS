@@ -5,6 +5,7 @@ import {
   emptyPrint,
   normalizeDraft,
   ORDER_DRAFT_KEY,
+  newDraftItem,
   clearOrderDraft,
   effectiveQty,
   emptyOrderForm,
@@ -844,5 +845,39 @@ describe('заказ → черновик формы (правка 12.09, п. 7)
     expect(items[0].garment_source).toBe('purchased');
     expect(items[0].packaging).toBe('inherit');
     expect(items[0].has_branding).toBe(false);
+  });
+});
+
+/**
+ * Ключ строки позиции (обзор 26.09, п. 23): у каждой позиции свой, ключи
+ * дописываются старым черновикам и заказу из базы. Без ключа форма вернулась
+ * бы к индексу — и раскрытые блоки переезжали бы при удалении соседки.
+ */
+describe('DraftItem.key — ключ строки формы', () => {
+  it('newDraftItem даёт уникальный ключ и остальные поля EMPTY_ITEM', () => {
+    const a = newDraftItem();
+    const b = newDraftItem();
+    expect(a.key).toBeTruthy();
+    expect(a.key).not.toBe(b.key);
+    expect({ ...a, key: undefined }).toEqual({ ...EMPTY_ITEM, key: undefined });
+  });
+
+  it('черновик без ключей позиций получает их при восстановлении', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: { title: 'Без ключей' },
+      items: [{ product_type: 'Футболка' }, { product_type: 'Худи' }],
+    }));
+    const restored = loadOrderDraft();
+    const keys = (restored?.items ?? []).map((it) => it.key);
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('позиции заказа из базы получают ключи', () => {
+    const { items } = draftFromOrder({
+      items: [{ id: 'i1', product_type: 'Футболка' }, { id: 'i2', product_type: 'Худи' }],
+    } as never);
+    expect(items.map((it) => it.key).every(Boolean)).toBe(true);
+    expect(items[0].key).not.toBe(items[1].key);
   });
 });

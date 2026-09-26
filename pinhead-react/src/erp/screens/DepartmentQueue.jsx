@@ -322,16 +322,16 @@ export default function DepartmentQueue() {
     [entries],
   );
 
-  // Подтягиваем причины возврата брака для этапов с qty_rework (баннер получателю)
+  // Причины возврата брака: ключ `id:qty_rework` вместо `visible` (тот пересобирается на каждое событие)
+  const reworkKey = useMemo(() => visible
+    .filter((e) => (e.stage.qty_rework ?? 0) > 0).map((e) => `${e.stage.id}:${e.stage.qty_rework}`).sort().join(','), [visible]);
   useEffect(() => {
-    const ids = visible
-      .filter((e) => (e.stage.qty_rework ?? 0) > 0)
-      .map((e) => e.stage.id);
     let alive = true;
     // loadStageReworkEvents([]) сразу резолвится в {} — setState только в async-колбэке
-    loadStageReworkEvents(ids).then((map) => { if (alive) setReworkByStage(map); });
+    loadStageReworkEvents(reworkKey ? reworkKey.split(',').map((k) => k.split(':')[0]) : [], reworkKey)
+      .then((map) => { if (alive) setReworkByStage(map); });
     return () => { alive = false; };
-  }, [visible, loadStageReworkEvents]);
+  }, [reworkKey, loadStageReworkEvents]);
 
   // --- Перетаскивание строк = приоритет (правка 3) ---------------------------
   const dragRef = useRef(null);

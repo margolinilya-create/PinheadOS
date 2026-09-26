@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * Каждый `upsert(..., { onConflict })` обязан опираться на НЕ частичный уникальный
@@ -24,14 +26,6 @@ import { join } from 'node:path';
 const SRC = join(process.cwd(), 'src');
 const MIGRATIONS = join(process.cwd(), '../supabase/migrations');
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const p = join(dir, entry);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx|js|jsx)$/.test(entry) && !/\.test\./.test(entry)) out.push(p);
-  }
-  return out;
-}
 
 export interface UpsertSite {
   file: string;
@@ -46,7 +40,7 @@ export interface UpsertSite {
  */
 function collectUpsertSites(): UpsertSite[] {
   const sites: UpsertSite[] = [];
-  for (const file of walk(SRC)) {
+  for (const file of sourceFiles(SRC)) {
     const src = readFileSync(file, 'utf8');
     const froms = [...src.matchAll(/\.from\(\s*['"]([\w.]+)['"]\s*\)/g)];
     for (const m of src.matchAll(/onConflict:\s*['"]([^'"]+)['"]/g)) {

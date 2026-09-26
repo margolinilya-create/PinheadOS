@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MIGRATIONS_DIR, withoutComments } from './migrations.testutil';
+import { sourceFiles } from '../../testutil/sourceFiles';
 
 /**
  * Каждое имя, которое клиент передаёт в `supabase.rpc('…')` и
@@ -31,14 +33,6 @@ const KNOWN_MISSING: Record<string, string> = {};
 
 const SRC = join(process.cwd(), 'src');
 
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) sourceFiles(p, acc);
-    else if (/\.(ts|tsx|js|jsx)$/.test(name) && !/\.test\.|\.testutil\./.test(name)) acc.push(p);
-  }
-  return acc;
-}
 
 const code = sourceFiles(SRC).map((f) => readFileSync(f, 'utf8')).join('\n');
 const sql = readdirSync(MIGRATIONS_DIR)

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { deptById as deptsById, deptNameById as deptNamesById } from '../../utils/deptMap';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
 import { useErpStore } from '../../store/useErpStore';
@@ -123,8 +124,8 @@ export function useOrderDetail(orderId) {
     return employees.find((x) => x.profile_id === order.shipped_by)?.full_name ?? null;
   }, [order, profilesList, employees]);
 
-  const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
-  const deptNameById = useMemo(() => new Map(departments.map((d) => [d.id, d.name])), [departments]);
+  const deptById = deptsById(departments);
+  const deptNameById = deptNamesById(departments);
   const stageById = useMemo(() => {
     const m = new Map();
     for (const it of order?.items ?? []) for (const st of it.stages) m.set(st.id, { st, it });

@@ -50,7 +50,12 @@ export default defineConfig({
       url: 'http://localhost:5173',
       reuseExistingServer: true,
     },
-    {
+    /**
+     * Сборка для офлайн- и perf-спек нужна не каждому прогону: визуальная
+     * джоба CI гоняет один `visual.spec.ts` против dev-сервера и ставит
+     * `E2E_SKIP_PREVIEW=1`, чтобы не платить за лишнюю сборку (обзор 26.09).
+     */
+    ...(process.env.E2E_SKIP_PREVIEW === '1' ? [] : [{
       /*
        * СОБРАННОЕ приложение — единственная среда, где существует service
        * worker: `setupServiceWorker` регистрирует его только при
@@ -76,8 +81,14 @@ export default defineConfig({
        */
       reuseExistingServer: false,
       timeout: 120_000,
-    },
+    }]),
   ],
+  /**
+   * Воркеры на CI заданы явно (обзор 26.09, п. 16): по умолчанию Playwright
+   * берёт половину ядер, и на раннере с четырьмя это два — e2e шёл пять
+   * минут и был критическим путём всего прогона. Локально — умолчание.
+   */
+  workers: process.env.CI ? 3 : undefined,
   use: {
     baseURL: 'http://localhost:5173',
     screenshot: 'on',

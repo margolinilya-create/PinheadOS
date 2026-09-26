@@ -18,7 +18,6 @@ import type { ChatContext, ErpChatMessage } from '../types';
  */
 
 /** Пустой контекст — вся сделка. Один литерал, чтобы не плодить `{}` по коду */
-export const WHOLE_DEAL: ChatContext = {};
 
 /** Есть ли у контекста хоть один якорь (иначе это «вся сделка») */
 export function isWholeDeal(ctx: ChatContext | null | undefined): boolean {

@@ -1,6 +1,4 @@
 import { Component } from 'react';
-// eslint-disable-next-line no-unused-vars
-import styles from './ErrorBoundary.module.css';
 import { reportError } from '../../lib/errorReport';
 import { isChunkLoadError, UPDATE_TITLE, UPDATE_MESSAGE } from '../../lib/appUpdate';
 

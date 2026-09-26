@@ -1,6 +1,8 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { sourceFiles } from './testutil/sourceFiles';
 
 /**
  * РАТЧЕТ РАЗМЕРА ФАЙЛОВ (обзор 24.09, п. 11; сессия 68).
@@ -38,12 +40,12 @@ const EXEMPT: Record<string, string> = {
 /** Размеры на 24.09 — только вниз */
 const CEILINGS: Record<string, number> = {
   'erp/screens/orders/CreateOrderModal.jsx': 1643,
-  'erp/store/slices/stagesSlice.ts': 988,
+  'erp/store/slices/stagesSlice.ts': 975,
   'erp/screens/FabricPurchasing.jsx': 982,
   'erp/screens/orders/create/ItemBlock.jsx': 941,
-  'erp/utils/orderForm.ts': 920,
+  'erp/utils/orderForm.ts': 855,
   'erp/utils/experimentalBoard.ts': 821,
-  'erp/screens/OrdersScreen.jsx': 806,
+  'erp/screens/OrdersScreen.jsx': 793,
   'erp/screens/experimental/DevCard.jsx': 790,
   'erp/screens/Experimental.jsx': 734,
   'erp/screens/PlanScreen.jsx': 722,
@@ -53,30 +55,20 @@ const CEILINGS: Record<string, number> = {
   'components/editors/sku/SkuDetailModal.jsx': 631,
   'erp/utils/routeDraft.ts': 624,
   'erp/utils/routes.ts': 618,
-  'erp/store/slices/realtimeSlice.ts': 607,
-  'store/useAuthStore.ts': 586,
+  'erp/store/slices/realtimeSlice.ts': 587,
+  'store/useAuthStore.ts': 575,
   'components/editors/sku/PricingTabContent.jsx': 576,
   'erp/screens/ErpDashboard.jsx': 560,
   'erp/screens/queue/StageActionsPanel.jsx': 558,
-  'erp/store/slices/chatSlice.ts': 530,
+  'erp/store/slices/chatSlice.ts': 529,
   'erp/components/StageReportForm.jsx': 525,
-  'components/analytics/Dashboard.jsx': 523,
+  'components/analytics/Dashboard.jsx': 521,
   'erp/screens/Warehouse.jsx': 510,
 };
 
 const SRC = join(process.cwd(), 'src');
 
 /** Модули приложения: код, без тестов, тестовых утилит и объявлений типов */
-function sourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) sourceFiles(p, acc);
-    else if (/\.(ts|tsx|js|jsx)$/.test(name) && !/\.test\.|\.testutil\.|\.d\.ts$/.test(name)) {
-      acc.push(p);
-    }
-  }
-  return acc;
-}
 
 /** Строки так, как их считает `wc -l` */
 function lineCount(file: string): number {

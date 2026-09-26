@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { money } from '../utils/itemEconomics';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { PageHead } from '../components/PageHead';
@@ -50,9 +51,6 @@ export default function FabricLeftovers() {
       .filter(Boolean).some((v) => v.toLowerCase().includes(q)));
   }, [all, query]);
   const totals = useMemo(() => leftoverTotals(rows), [rows]);
-
-  const money = (v) => (v === null || v === undefined
-    ? '—' : `${v.toLocaleString('ru-RU')} ₽`);
 
   return (
     <>

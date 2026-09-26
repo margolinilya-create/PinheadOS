@@ -1,79 +1,39 @@
-# Pinhead Order Studio — Frontend
+# PinheadOS — pinhead-react
 
-ERP/CRM для типографии (печать на одежде). SPA на React 19.
+ERP/CRM для типографии (печать на одежде). SPA на React 19; два раздела
+с переключением в шапке: **🏭 Производство** (ERP, по умолчанию) и
+**✏️ ТЗ** (Order Studio, за флагом `VITE_FEATURE_ORDER_STUDIO`).
 
 **URL:** https://pinhead-os.vercel.app
 
 ## Стек
 
-- React 19 + Vite 7
-- Zustand 5 (state management)
-- Supabase (БД, auth)
-- Recharts (аналитика)
-- Vitest + Testing Library (unit)
-- Playwright (E2E)
-- ESLint 9 + Husky
+React 19 · Vite 7 · Zustand 5 · react-router-dom 7 · Supabase (БД, auth,
+storage, edge-функции) · Chart.js · Vitest + Testing Library · Playwright ·
+ESLint 9 + Husky. TypeScript `strict`; компоненты `.jsx`, стор и утилиты `.ts`.
 
 ## Быстрый старт
 
 ```bash
-# Установка
-npm install
+npm ci                     # Node 24 (см. .nvmrc)
+cp .env.example .env       # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+npm run dev                # http://localhost:5173
 
-# Скопировать .env
-cp .env.example .env
-# Заполнить VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY
-
-# Dev server
-npm run dev        # → http://localhost:5173
-
-# Тесты
-npm run test       # 721 unit тестов
-npm run e2e        # 33 E2E сценариев (Playwright)
-npm run lint       # ESLint
-npm run build      # Production build
+npm run test               # unit (Vitest)
+npm run e2e                # Playwright — .env не нужен, ключи фиктивные в конфиге
+npm run lint               # ESLint, потолок предупреждений — ратчет
+npm run typecheck          # tsc --noEmit
+npm run build              # production
 ```
 
-## Структура
+## Где что
 
-```
-src/
-├── components/
-│   ├── steps/           # Визард: 5 шагов оформления заказа
-│   │   └── garment/     # Подкомпоненты шага "Изделие"
-│   ├── orders/          # Kanban-доска заказов
-│   ├── editors/         # PriceEditor, SkuEditor, ExpressCalc
-│   │   └── sku/         # Подкомпоненты SkuEditor (табы, модалки)
-│   ├── analytics/       # Dashboard (графики, метрики)
-│   ├── auth/            # AuthScreen, AdminPanel
-│   ├── layout/          # Header, ProgressBar
-│   ├── output/          # PrintPreview (ТЗ для печати)
-│   └── shared/          # ErrorBoundary, Toast, PageHeader
-├── store/               # Zustand (все файлы — TypeScript)
-│   ├── useStore.ts      # Главный store (7 слайсов)
-│   ├── slices/          # wizardSlice, productSlice, designSlice и др.
-│   └── use*Store.ts     # Auth, Orders, Comments, Toast, Confirm
-├── utils/               # pricing.ts, validate.ts, mockup.ts, deadline.ts, i18n.ts
-├── lib/                 # supabase.ts, api.ts, storage.ts, catalogs.ts
-├── types/               # TypeScript типы: order, catalog, auth, pricing
-├── data/                # Статические данные: цены, SKU, ткани, цвета
-├── hooks/               # useDraft, useFocusTrap
-└── styles/              # CSS + CSS Modules
-```
+- `src/erp/` — Производство: экраны, стор (`store/useErpStore.ts` + слайсы),
+  чистая логика в `utils/`.
+- `src/components/`, `src/store/` — Order Studio: визард, каталоги, канбан.
+- `src/lib/` — клиент Supabase, storage, отчёты об ошибках.
+- `../supabase/migrations/` — схема; журнал прода — `APPLIED.json`.
 
-## Роуты
-
-| Путь | Страница | Доступ |
-|------|----------|--------|
-| `/` | Визард (5 шагов) | Все |
-| `/orders` | Kanban-доска | Все |
-| `/print` | ТЗ для печати | Все |
-| `/express` | Экспресс-калькулятор | Не production/designer |
-| `/prices` | Редактор цен | admin, director |
-| `/sku` | Каталог SKU | admin, director |
-| `/admin` | Управление пользователями | admin, director |
-| `/analytics` | Аналитика | admin, director, rop, production |
-
-## Роли
-
-`admin` · `director` · `manager` · `rop` · `designer` · `production`
+Контекст и правила — `CLAUDE.md` (корень и здесь), `docs/rules/INDEX.md`,
+карта подсистем — `docs/rules/react/INDEX.md`, changelog —
+`docs/changelog/INDEX.md`.

@@ -1,4 +1,4 @@
-import { addDays, diffDays, factoryDate, factoryToday } from '../../utils/date';
+import { addDays, diffDays, factoryDate, factoryToday, parseDateLocal, URGENT_DAYS } from '../../utils/date';
 import { isSubcontractTerminal } from './subcontractPhase';
 import type { SubcontractPhase } from '../types';
 
@@ -16,15 +16,13 @@ export function daysLeft(dueDate: string | null | undefined, now: Date = new Dat
 }
 
 /**
- * Порог «горящего» срока в днях.
- *
- * Объявлен ЗДЕСЬ, где и применяется. До 07.09 такая константа жила
- * в `format.ts` с подписью «тот же, что у `isUrgent` в time.ts», а сам
- * `isUrgent` сравнивал с литералом `3`: константа, заведённая ради одного
- * источника правды, не была им ни дня — её единственным вхождением во всём
- * `src` была строка собственного объявления.
+ * Порог «горящего» срока в днях — объявлен в `utils/date` (26.09): его читают
+ * и ERP, и Order Studio, а модуль времени ERP тянуть в визард ради числа
+ * незачем. Здесь реэкспорт, чтобы прежние импорты из `time` не менялись.
+ * История: до 07.09 такая константа жила в `format.ts` с подписью «тот же,
+ * что у `isUrgent`», а сам `isUrgent` сравнивал с литералом `3`.
  */
-export const URGENT_DAYS = 3;
+export { URGENT_DAYS } from '../../utils/date';
 
 /**
  * «Горящий» срок: осталось 0–`URGENT_DAYS` дней включительно.
@@ -69,10 +67,8 @@ export function stageOverdue(
  * ('YYYY-MM-DD' парсим как локальную полночь, чтобы не сдвинуть на день).
  */
 export function formatDateShort(d: string | null | undefined): string {
-  if (!d) return '';
-  const iso = d.length === 10 ? `${d}T00:00:00` : d;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return '';
+  const dt = parseDateLocal(d);
+  if (!dt) return '';
   return dt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -85,10 +81,8 @@ export function formatDateShort(d: string | null | undefined): string {
  * а «14 авг.» нельзя понять неправильно.
  */
 export function formatDateHuman(d: string | null | undefined): string {
-  if (!d) return '';
-  const iso = d.length === 10 ? `${d}T00:00:00` : d;
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return '';
+  const dt = parseDateLocal(d);
+  if (!dt) return '';
   return dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 

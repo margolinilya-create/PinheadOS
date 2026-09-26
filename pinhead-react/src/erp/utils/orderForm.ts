@@ -11,6 +11,8 @@ import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
 import { itemNeedsPurchase } from './garmentSource';
 import type { RouteGroup } from './routeDraft';
+// Реэкспорт ниже имени в модуль не вводит — валидации и пустоте формы нужен импорт
+import { effectiveQty, gridTotal } from './orderFormGrid';
 
 export const ORDER_DRAFT_KEY = 'erp_order_draft';
 
@@ -105,6 +107,14 @@ export interface DraftItem {
    * к чужому изделию. У новой позиции его нет вовсе.
    */
   id?: string;
+  /**
+   * Ключ строки ФОРМЫ — не колонка и в базу не уходит (обзор 26.09, п. 23).
+   * По нему React отличает позиции при удалении: пока ключом был индекс,
+   * у следующей позиции «переезжало» состояние соседки — раскрытые `<details>`
+   * техблока, упаковки и бирок. Ключ есть у каждой позиции: `newDraftItem()`,
+   * копия, восстановленный черновик и заказ из базы его дописывают.
+   */
+  key?: string;
   product_type: string;
   variant: string;
   /**
@@ -285,6 +295,11 @@ const EMPTY_PRINT_FIELDS = {
   comment: '',
 } as const;
 
+/** Новая позиция формы — со своим ключом строки (см. `DraftItem.key`) */
+export function newDraftItem(patch: Partial<DraftItem> = {}): DraftItem {
+  return { ...EMPTY_ITEM, key: crypto.randomUUID(), ...patch };
+}
+
 /**
  * Новое нанесение. Функция, а не константа: у каждого свой ключ, по которому
  * к нему привязывается макет. Общий объект дал бы всем нанесениям один ключ,
@@ -389,92 +404,9 @@ export function normalizeBrandingOn(productionType: string, brandingOn: string):
   return allowed.includes(brandingOn) ? brandingOn : allowed[0];
 }
 
-// --- Размерная сетка ----------------------------------------------------------
+// --- Размерная сетка — `orderFormGrid.ts` (вынесено 26.09, реэкспорт) -------
 
-/** Сумма количеств по АКТИВНЫМ размерам сетки (убранные чипсы не считаются) */
-export function gridTotal(grid: DraftGrid | null | undefined): number {
-  const rows = grid?.rows ?? [];
-  const active = grid?.sizes ?? [];
-  if (rows.length === 0 || active.length === 0) return 0;
-  return rows.reduce(
-    (sum, row) => sum + active.reduce((s, sz) => s + (Number(row.sizes?.[sz]) || 0), 0),
-    0,
-  );
-}
-
-/**
- * Итог по ОДНОМУ цвету (правки 07.09, п. 6: «Справа показывать итог по цвету,
- * отдельно общий итог по позиции»).
- *
- * Считается по тем же АКТИВНЫМ размерам, что и `gridTotal`: иначе сумма строк
- * не сошлась бы с общим итогом ровно тогда, когда человек снял чипс размера,
- * не обнулив количества.
- */
-export function rowTotal(
-  row: SizeGridRow | null | undefined,
-  sizes: readonly string[] = [],
-): number {
-  if (!row) return 0;
-  return sizes.reduce((s, sz) => s + (Number(row.sizes?.[sz]) || 0), 0);
-}
-
-/** Эффективное количество позиции: сетка заполнена → сумма сетки, иначе ручной ввод */
-export function effectiveQty(item: Pick<DraftItem, 'qty' | 'size_grid'>): number {
-  const total = gridTotal(item.size_grid);
-  return total > 0 ? total : Number(item.qty) || 0;
-}
-
-/**
- * Добавить/убрать размер-чипс. Количества в rows НЕ теряются:
- * ключ остаётся в row.sizes и вернётся при повторном добавлении размера.
- */
-export function toggleSize(grid: DraftGrid | null | undefined, size: string): DraftGrid {
-  const sizes = grid?.sizes ?? [];
-  const rows = grid?.rows ?? [];
-  const next = sizes.includes(size) ? sizes.filter((s) => s !== size) : [...sizes, size];
-  return { sizes: next, rows };
-}
-
-/**
- * size_grid формы → payload: только активные размеры, пустые строки отброшены.
- *
- * ДВЕ СТРОКИ ОДНОГО ЦВЕТА СКЛЕИВАЮТСЯ (правка 21.09, п. 8). Форма их допускает
- * (цвет по умолчанию пуст, то есть «—» у всех новых строк), а вся система
- * адресует ячейку сеткой «цвет × размер»: две строки с одним ключом дают
- * таблицу, где оба поля читают одно значение, а обратная сборка их складывает.
- * Склейка стоит ЗДЕСЬ, на выходе формы, чтобы дубль не попадал в базу вовсе;
- * уже записанные лечит `gridCells` при чтении и разовая миграция. Собирается
- * сразу по цветам, а не «список строк, потом дедупликация»: второй проход
- * по тем же данным — это второе место, где живёт правило склейки.
- *
- * Позвать готовую склейку из `utils/sizeGrid` нельзя: тот модуль импортирует
- * `SIZE_PRESETS` отсюда, и обратный импорт замкнул бы модули кольцом —
- * со шкалой, которая читается на уровне модуля, это не «предупреждение
- * линтера», а падение при инициализации.
- */
-export function gridToPayload(grid: DraftGrid | null | undefined): SizeGridRow[] | null {
-  const rows = grid?.rows ?? [];
-  const active = grid?.sizes ?? [];
-  if (rows.length === 0) return null;
-
-  const byColor = new Map<string, Record<string, number>>();
-  const order: string[] = [];
-  for (const row of rows) {
-    if (!row.color.trim() && !active.some((sz) => Number(row.sizes?.[sz]) > 0)) continue;
-    const color = row.color.trim() || '—';
-    if (!byColor.has(color)) {
-      byColor.set(color, {});
-      order.push(color);
-    }
-    const sizes = byColor.get(color)!;
-    for (const sz of active) {
-      if (row.sizes?.[sz] === undefined) continue;
-      // Ноль сохраняется: «размер заведён, количество ещё не проставили»
-      sizes[sz] = (sizes[sz] ?? 0) + (Number(row.sizes[sz]) || 0);
-    }
-  }
-  return order.length > 0 ? order.map((color) => ({ color, sizes: byColor.get(color)! })) : null;
-}
+export { gridTotal, rowTotal, effectiveQty, toggleSize, gridToPayload } from './orderFormGrid';
 
 // --- Пустота формы (для confirm при закрытии и автосейва) ----------------------
 
@@ -736,8 +668,10 @@ function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
       ...it,
       /**
        * Ключи дописываются восстановленному черновику: он мог быть сохранён
-       * до правки 22.08, а без ключа макет не к чему привязать.
+       * до правки 22.08, а без ключа макет не к чему привязать. Ключ самой
+       * позиции — по той же причине (черновики до 26.09 его не несли).
        */
+      key: it.key || crypto.randomUUID(),
       prints: (Array.isArray(it.prints) ? it.prints : [])
         .map((p) => ({ ...p, key: p.key || crypto.randomUUID() })),
       labels: (Array.isArray(it.labels) ? it.labels : [])
@@ -861,6 +795,7 @@ export function draftFromOrder(order: OrderLike): { form: DraftForm; items: Draf
     const labels = Array.isArray(it.labels) ? it.labels : [];
     return {
       ...EMPTY_ITEM,
+      key: crypto.randomUUID(),
       id: str(it.id) || undefined,
       product_type: str(it.product_type),
       variant: str(it.variant),
@@ -916,5 +851,5 @@ export function draftFromOrder(order: OrderLike): { form: DraftForm; items: Draf
 
   // Заказ без позиций в форме не открывается пустым: одна пустая позиция —
   // то же состояние, что у нового заказа, иначе править было бы нечего
-  return { form, items: items.length > 0 ? items : [{ ...EMPTY_ITEM }] };
+  return { form, items: items.length > 0 ? items : [newDraftItem()] };
 }

@@ -243,7 +243,10 @@ attachDomainSlices();
 // стартовать с чистой, иначе соседний тест «оплатит» их запрос.
 const { clearQueryCache } = await import('./queryCache');
 const { ARCHIVE_PAGE_SIZE } = await import('./slices/ordersSlice');
-const { REALTIME_DEFER_ATTEMPTS } = await import('./shared');
+const { REALTIME_DEFER_ATTEMPTS, REALTIME_DEFER_MS } = await import('./shared');
+const {
+  ORDER_RELOAD_DEBOUNCE_MS, EXPERIMENTAL_RELOAD_DEBOUNCE_MS, CHAT_PING_DEBOUNCE_MS,
+} = await import('./realtimeCoalesce');
 const { toast } = await import('../../store/useToastStore');
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1597,6 +1600,124 @@ describe('applyRealtimeEvent — защита от race (pendingMutations, п.29
 });
 
 /**
+ * КОАЛЕСЦЕНЦИЯ СОБЫТИЙ (обзор 26.09, пп. 3–5; модуль `realtimeCoalesce`).
+ *
+ * Событие приходит по строке, перечитывание — по сущности. Применение
+ * маршрута из N этапов давало N `loadOne` одного заказа, каждое событие
+ * задачи разработки — полный `loadExperimental`, каждое сообщение —
+ * четыре перезапроса подписчиков `chatPing`. Мутации (проверены 26.09):
+ * заменить `scheduleOrderReload` на прямой `loadOne` — пять вызовов;
+ * убрать проверку `route:` — событие применяется до ответа сервера.
+ */
+describe('applyRealtimeEvent — коалесценция серий событий', () => {
+  // Подменённые действия возвращаются: общий `beforeEach` состояние
+  // сбрасывает, а функции стора — нет
+  const original = {
+    loadOne: useErpStore.getState().loadOne,
+    loadExperimental: useErpStore.getState().loadExperimental,
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    useErpStore.setState({ ...original, experimentalLoaded: false, experimental: [] });
+  });
+
+  it('пять INSERT этапов одного заказа → один loadOne', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    for (let i = 0; i < 5; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_item_stages', eventType: 'INSERT',
+        new: { id: `new-${i}`, item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+      });
+    }
+    expect(loadOne).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne).toHaveBeenCalledTimes(1);
+    expect(loadOne).toHaveBeenCalledWith('o1');
+  });
+
+  it('INSERT этапа при применении маршрута позиции (route:<item>) откладывается', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    _pendingMutations.add('route:it1');
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_item_stages', eventType: 'INSERT',
+      new: { id: 'new-1', item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+    });
+    await vi.advanceTimersByTimeAsync(ORDER_RELOAD_DEBOUNCE_MS * 2);
+    expect(loadOne).not.toHaveBeenCalled(); // маршрут ещё применяется
+    _pendingMutations.delete('route:it1');
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS + ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('INSERT этапа под route: — попытки ограничены, как и под stage:', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadOne = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadOne });
+    _pendingMutations.add('route:it1');
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_item_stages', eventType: 'INSERT',
+      new: { id: 'new-1', item_id: 'it1', department_id: 'd1', status: 'waiting' }, old: null,
+    });
+    // Ключ маршрута не снимается заведомо дольше потолка попыток
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS * (REALTIME_DEFER_ATTEMPTS + 2));
+    _pendingMutations.delete('route:it1');
+    await vi.advanceTimersByTimeAsync(REALTIME_DEFER_MS * 3 + ORDER_RELOAD_DEBOUNCE_MS);
+    expect(loadOne, 'попытки не исчерпались — повтор заходил с полным запасом').not.toHaveBeenCalled();
+  });
+
+  it('раздел, посеянный пакетом оболочки, перечитывается по событию (бейдж не застывает)', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadExperimental = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({
+      loadExperimental, experimentalLoaded: false, experimental: [{ id: 'e1' }] as never,
+    });
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_experimental', eventType: 'UPDATE',
+      new: { id: 'e1', outcome: 'ready' }, old: null,
+    });
+    await vi.advanceTimersByTimeAsync(EXPERIMENTAL_RELOAD_DEBOUNCE_MS);
+    expect(loadExperimental).toHaveBeenCalledTimes(1);
+  });
+
+  it('три события задач разработки → один loadExperimental', async () => {
+    vi.useFakeTimers();
+    seed();
+    const loadExperimental = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadExperimental, experimentalLoaded: true });
+    for (let i = 0; i < 3; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_experimental_tasks', eventType: 'UPDATE',
+        new: { id: `t${i}`, experimental_id: 'e1', status: 'done' }, old: null,
+      });
+    }
+    await vi.advanceTimersByTimeAsync(EXPERIMENTAL_RELOAD_DEBOUNCE_MS);
+    expect(loadExperimental).toHaveBeenCalledTimes(1);
+  });
+
+  it('четыре сообщения чата → chatPing +1', async () => {
+    vi.useFakeTimers();
+    seed();
+    const before = useErpStore.getState().chatPing;
+    for (let i = 0; i < 4; i++) {
+      useErpStore.getState().applyRealtimeEvent({
+        table: 'erp_chat_messages', eventType: 'INSERT',
+        new: { id: `m${i}`, order_id: 'o1', body: 'x' }, old: null,
+      });
+    }
+    await vi.advanceTimersByTimeAsync(CHAT_PING_DEBOUNCE_MS);
+    expect(useErpStore.getState().chatPing).toBe(before + 1);
+  });
+});
+
+/**
  * D2 аудита: список грузится облегчённым select-ом, полный — только по заказу.
  * Без отметки `detailIds` карточка не узнала бы, что ей нужна дозагрузка, и
  * молча нарисовала бы позицию без размерной сетки.
@@ -1693,9 +1814,16 @@ describe('число запросов: оболочка и карточка за
     expect(st.subcontracting).toHaveLength(1);
     expect(st.experimental).toHaveLength(1);
     expect(st.myDeptId).toBe('d1');
-    // Все флаги «загружено» подняты — иначе экраны дозапросят то же самое
-    expect(st.permissionsLoaded && st.dictionariesLoaded
-      && st.subcontractingLoaded && st.experimentalLoaded && st.myDeptLoaded).toBe(true);
+    expect(st.permissionsLoaded && st.dictionariesLoaded && st.myDeptLoaded).toBe(true);
+    /**
+     * Подряд и разработка — ПЕРВЫЙ КАДР, а не загруженный раздел (обзор 26.09):
+     * форма строк в пакете беднее (нет `moves`, `attachments`, `order.due_date`),
+     * и поднятый флаг оставлял журнал перемещений и файлы разработки пустыми
+     * до первой мутации. Флаг остаётся экрану — он дозагрузит полную форму.
+     * Мутация: вернуть `subcontractingLoaded: true` в пакет — красный.
+     */
+    expect(st.subcontractingLoaded).toBe(false);
+    expect(st.experimentalLoaded).toBe(false);
   });
 
   /**
@@ -1735,24 +1863,28 @@ describe('число запросов: оболочка и карточка за
     ).toBe('sewing');
   });
 
-  it('повторная загрузка раздел ОБНОВЛЯЕТ — иначе «Повторить» ничего не делает', async () => {
-    // Отличие от предыдущего случая ровно одно: на старте запроса раздел уже
-    // был загружен. Проверять «загружено ли сейчас» здесь недостаточно —
-    // на этом первая версия починки и сломала кнопку повтора
+  it('загруженный раздел пакет не трогает — его форма беднее полной', async () => {
+    /**
+     * До 26.09 пакет ОБНОВЛЯЛ раздел, загруженный до старта запроса, — и клал
+     * поверх полной формы (с `moves`/`attachments`) бедную: журнал и файлы
+     * исчезали. «Повторить» на экране зовёт собственный `load*` раздела,
+     * а не пакет, поэтому обновлять здесь нечего.
+     */
     useErpStore.setState({
-      experimental: [{ id: 'stale' }] as never,
+      experimental: [{ id: 'full', attachments: [{ id: 'a1' }] }] as never,
       experimentalLoaded: true,
       bootstrapLoaded: false,
     });
     h.rpcResult = {
       data: {
         departments: [dept], permissions: [], dictionaries: [],
-        subcontracting: [], experimental: [{ id: 'fresh' }], my_employee: null,
+        subcontracting: [], experimental: [{ id: 'full' }], my_employee: null,
       },
       error: null,
     };
     await useErpStore.getState().loadBootstrap();
-    expect(useErpStore.getState().experimental[0].id).toBe('fresh');
+    const row = useErpStore.getState().experimental[0] as { attachments?: unknown[] };
+    expect(row.attachments, 'пакет унёс файлы разработки').toHaveLength(1);
   });
 
   /**

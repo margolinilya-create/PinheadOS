@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { sanitizeText, validateEmail, validatePhone } from '../../utils/validate';
-import { factoryToday } from '../../utils/date';
+import { diffDays, factoryToday, URGENT_DAYS } from '../../utils/date';
 
 const ROLES = [
   { key: 'manager', label: '👔 Менеджер' },
@@ -100,7 +100,7 @@ export default function StepDetails() {
         <div className="form-field">
           <label htmlFor="field-deadline">Дедлайн <span style={{color:'var(--color-text-danger)',fontSize:11}}>важно</span></label>
           <input id="field-deadline" type="date" value={deadline} min={factoryToday()} onChange={e => setField('deadline', e.target.value)} />
-          {deadline && (new Date(deadline) - new Date()) < 3 * 24 * 60 * 60 * 1000 && (
+          {deadline && diffDays(factoryToday(), deadline) <= URGENT_DAYS && (
             <div style={{fontSize:12, color:'var(--color-text-warning)', marginTop:4}}>
               Срочный срок — уточните с производством
             </div>
