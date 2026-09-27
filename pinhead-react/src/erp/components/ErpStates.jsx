@@ -1,5 +1,6 @@
 import { Icon } from './Icon';
 import { Button } from './Button';
+import { isChunkLoadError, UPDATE_TITLE, UPDATE_MESSAGE } from '../../lib/appUpdate';
 import styles from './States.module.css';
 
 /**
@@ -38,6 +39,47 @@ export function LoadFailed({ onRetry, what = 'данные' }) {
       )}
     </div>
   );
+}
+
+/**
+ * «Вышло обновление» — вкладка открыта со старой версией.
+ *
+ * Чанк ленивого экрана или формы (например, «Новый заказ» — она едет отдельным
+ * файлом) после выкатки исчезает под прежним именем, и импорт падает. Это НЕ
+ * поломка и НЕ обрыв связи: «Проверьте связь и попробуйте ещё раз» здесь ложь
+ * дважды — связь есть, а «Повторить» не поможет, потому что `React.lazy`
+ * запоминает отказ до перезагрузки страницы. Лечится одной кнопкой, и она
+ * должна называться своим именем. Тексты общие с полноэкранной границей
+ * и диалогом из `lib/appUpdate` — одно событие, одни слова.
+ *
+ * Перезагрузка ТОЛЬКО по нажатию: в соседней форме может быть набранное.
+ */
+export function UpdateAvailable({ onReload = () => window.location.reload() }) {
+  return (
+    <div className={styles.state} role="alert">
+      <span className={styles.icon}><Icon name="refresh" size={30} /></span>
+      <span className={styles.title}>{UPDATE_TITLE}</span>
+      <span className={styles.text}>{UPDATE_MESSAGE}</span>
+      <span className={styles.action}>
+        <Button variant="primary" icon="refresh" onClick={onReload}>Обновить</Button>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Фолбэк границы ошибок ЭКРАНА ERP: один на оболочку (`ErpApp`).
+ *
+ * Устаревшую вкладку отличаем от настоящего падения: у первой единственный
+ * выход — перезагрузка, у второго — «Повторить» (сброс границы) и сам текст
+ * ошибки, по которому её найдут в отчётах. До 27.09 оба случая рисовались
+ * как «Не удалось загрузить экран (Failed to fetch dynamically imported
+ * module: …)» — сырая формулировка браузера, которую в цеху читали как
+ * «программа сломалась».
+ */
+export function ScreenCrashed({ error, onRetry }) {
+  if (isChunkLoadError(error)) return <UpdateAvailable />;
+  return <LoadFailed what={`экран (${error?.message || 'непредвиденная ошибка'})`} onRetry={onRetry} />;
 }
 
 /**
