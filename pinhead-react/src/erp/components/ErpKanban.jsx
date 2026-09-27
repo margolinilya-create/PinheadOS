@@ -6,6 +6,7 @@ import { deptShortName } from '../data/departments';
 import { buildKanbanColumns } from '../utils/kanbanColumns';
 import { kanbanDropIntent, ALLOWED_LANE_DROP } from '../utils/kanbanDrop';
 import { confirmStageDone } from '../utils/stageDone';
+import { stageDonePatch } from '../utils/stageRemaining';
 import { materialsForItem } from '../utils/routes';
 import { materialsAfterBypass } from '../utils/bypass';
 import { useStageMove } from '../hooks/useStageMove';
@@ -220,7 +221,12 @@ export default function ErpKanban({ filters }) {
         dept: departments.find((d) => d.id === dragged.stage.department_id),
       });
       if (!ok) return;
-      await setStageStatus(dragged.stage.id, 'done', { qty_done: dragged.item.qty });
+      // Что писать — решает `stageDonePatch` (правка 27.09, п. 7): участок
+      // с формой результата закрывается учтённым, остальные — тиражом
+      await setStageStatus(dragged.stage.id, 'done', stageDonePatch(
+        dragged.stage, dragged.item.qty,
+        departments.find((d) => d.id === dragged.stage.department_id),
+      ));
     }
   };
 

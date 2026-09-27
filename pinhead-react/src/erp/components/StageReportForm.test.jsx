@@ -144,7 +144,45 @@ describe('результат пошива по размерам (правка 16
       target: { value: '12' },
     });
 
-    expect(screen.getByText(/введено 12 шт при принятых из закроя 10/)).toBeInTheDocument();
+    expect(screen.getByText(/больше 10 шт сдать нельзя.*введено 12/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
+  });
+
+  /**
+   * ВТОРАЯ СДАЧА ВИДИТ ОСТАТОК (правка заказчика 27.09, п. 7): «после сдачи
+   * 368 сшитых оставшиеся 104 пропали из учёта». Принято XS 10 / S 20;
+   * первая сдача — XS 7 годных + 1 брак, S 20. Вторая обязана видеть
+   * «осталось 2» по XS, «Осталось сдать 2» в шапке и не давать сдать 3.
+   */
+  it('вторая сдача считает остаток из принятых минус прежние сдачи', async () => {
+    const own = [{
+      id: 'r-own', stage_id: 'st1', qty_in: 30, qty_good: 27, qty_defect: 1, qty_rework: 0,
+      sizes: [
+        { color: '—', size: 'XS', qty_good: 7, qty_defect: 1, qty_rework: 0 },
+        { color: '—', size: 'S', qty_good: 20, qty_defect: 0, qty_rework: 0 },
+      ],
+    }];
+    useErpStore.setState({
+      loadStageReports: async (ids) => (ids.includes('st1') ? own : cutReport({ XS: 10, S: 20 })),
+    });
+    render(
+      <StageReportForm
+        entry={{ ...ENTRY, item: ITEM, stage: { ...STAGE, qty_done: 27 } }}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    await screen.findByRole('table');
+    // Потолок учёта 100 (тираж) − 27 сдано − 1 брак = 72 в шапке
+    expect(await screen.findByText(/осталось сдать 72/)).toBeInTheDocument();
+    const xs = screen.getByRole('row', { name: /XS/ });
+    expect(xs).toHaveTextContent('осталось 2');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /XS, Сшито/ }), {
+      target: { value: '3' },
+    });
+    expect(screen.getByText(/больше 2 шт сдать нельзя/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
   });
 
@@ -193,7 +231,7 @@ describe('результат пошива по размерам (правка 16
     fireEvent.change(screen.getByRole('spinbutton', { name: /XS, Сшито/ }), {
       target: { value: '999' },
     });
-    expect(screen.queryByText(/при принятых из закроя/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/столько осталось из принятых/)).not.toBeInTheDocument();
   });
 });
 
@@ -329,7 +367,7 @@ describe('швейка: размеры и стоимость сборки без
     fireEvent.change(field, { target: { value: '40' } }); // покроено 30
 
     expect(field).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByText('Нельзя указать больше, чем покроено')).toBeInTheDocument();
+    expect(screen.getByText('Нельзя указать больше, чем осталось')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
   });
 });

@@ -195,6 +195,12 @@ export interface SizeInputRow {
   label: string;
   /** Принято на этап; `null` — размерных данных нет */
   expected: number | null;
+  /**
+   * Осталось из принятых: принято − уже сдано годных − уже списано в брак
+   * своими отчётами (правка 27.09, п. 7). `null` — размерных данных нет.
+   * Именно остаток, а не «принято», — потолок каждой следующей сдачи.
+   */
+  remaining: number | null;
 }
 
 /**
@@ -217,17 +223,21 @@ export function sizeInputRows(
    * то есть у половины швейка сдавала результат одним числом.
    */
   fromPrevious: readonly SizeCell[] = [],
+  /** Уже учтено своими отчётами по ключу ячейки (`reportedAccountedBySize`) */
+  accounted: Record<string, number> = {},
 ): SizeInputRow[] {
   const cells = gridCells(grid);
   const source = cells.length > 0 ? cells : fromPrevious;
   return source.map((cell: SizeCell) => {
     const key = sizeKey(cell.color, cell.size);
+    const expected = input ? (input[key] ?? 0) : null;
     return {
       key,
       color: cell.color,
       size: cell.size,
       label: cell.color === '—' ? cell.size : `${cell.size} · ${cell.color}`,
-      expected: input ? (input[key] ?? 0) : null,
+      expected,
+      remaining: expected === null ? null : Math.max(expected - (accounted[key] ?? 0), 0),
     };
   });
 }
@@ -250,11 +260,16 @@ export function sizeReportBlock(
 ): string | null {
   for (const row of rows ?? []) {
     // Размерных данных нет — потолка по размеру не существует (fail-open)
-    if (row.expected === null) continue;
+    if (row.remaining === null) continue;
     const entered = rowEntered(values?.[row.key]);
-    if (entered > row.expected) {
-      return `${row.label}: введено ${entered} шт при принятых из закроя ${row.expected}`
-        + ` — на ${entered - row.expected} больше`;
+    /**
+     * Потолок — ОСТАТОК из принятых, а не «принято» (правка 27.09, п. 7):
+     * прежние сдачи этого же этапа уже забрали своё. Слова совпадают
+     * с отказом `erp_stage_submit_report` — один текст в форме и в ответе.
+     */
+    if (entered > row.remaining) {
+      return `${row.label}: больше ${row.remaining} шт сдать нельзя — столько осталось`
+        + ` из принятых (введено ${entered})`;
     }
   }
   return null;
@@ -264,10 +279,11 @@ export function sizeReportBlock(
 export function sizeTotals(
   rows: readonly SizeInputRow[] | null | undefined,
   values: Record<string, Record<string, unknown>> | null | undefined,
-): { good: number; defect: number; rework: number; expected: number } {
-  const acc = { good: 0, defect: 0, rework: 0, expected: 0 };
+): { good: number; defect: number; rework: number; expected: number; remaining: number } {
+  const acc = { good: 0, defect: 0, rework: 0, expected: 0, remaining: 0 };
   for (const row of rows ?? []) {
     acc.expected += Math.max(row.expected ?? 0, 0);
+    acc.remaining += Math.max(row.remaining ?? 0, 0);
     for (const code of ['good', 'defect', 'rework'] as const) {
       acc[code] += Math.max(Number(values?.[row.key]?.[code]) || 0, 0);
     }

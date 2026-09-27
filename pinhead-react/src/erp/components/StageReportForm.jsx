@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { stageInputQty, stageRemainingQty } from '../utils/stageInput';
+import { stageInputQty } from '../utils/stageInput';
+import { reportedAccountedBySize, reportedDefect, stageUnaccounted } from '../utils/stageRemaining';
 import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
 import { confirm } from '../../store/useConfirmStore';
 import { useEffect } from 'react';
@@ -144,13 +145,20 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * Сервер считает то же и по тем же строкам; здесь они нужны, чтобы цех
    * ВИДЕЛ плюс до нажатия кнопки, а не узнавал о нём из журнала.
    */
+  /**
+   * И ДЛЯ ОСТАТКА (правка 27.09, п. 7): «Осталось сдать» и потолок каждой
+   * строки считаются от ПРИНЯТОГО минус уже сданное и списанное в брак —
+   * без прежних отчётов вторая сдача видела бы 472 вместо 104.
+   */
   useEffect(() => {
-    if (!byRolls) return undefined;
     let alive = true;
     loadStageReports([stage.id]).then((rows) => { if (alive) setOwnReports(rows); });
     return () => { alive = false; };
-  }, [byRolls, stage.id, loadStageReports]);
+  }, [stage.id, loadStageReports]);
   const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
+  // Только СВОИ отчёты: выборка по id и так своя, но сумма обязана не зависеть от того
+  const accountedBySize = useMemo(() => reportedAccountedBySize(ownReports, stage.id), [ownReports, stage.id]);
+  const defectReported = useMemo(() => reportedDefect(ownReports, stage.id), [ownReports, stage.id]);
 
   const sizeInput = useMemo(
     () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
@@ -161,8 +169,10 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     [bySizes, stage, item.stages, prevReports],
   );
   const sizeRows = useMemo(
-    () => (bySizes ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev) : []),
-    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev],
+    () => (bySizes
+      ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize)
+      : []),
+    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize],
   );
   /**
    * ТАБЛИЦА ЕСТЬ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ СТРОКИ (правка 20.09, п. 8).
@@ -230,9 +240,16 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     () => stageInputQty(stage, item.stages ?? [], item.qty),
     [stage, item],
   );
+  /**
+   * «Осталось сдать» — по учтённому (правка 27.09, п. 7): потолок минус
+   * сдано минус окончательный брак. Формула одна с сервером
+   * (`erp_stage_unaccounted`), и после сдачи 368 из 472 здесь 104.
+   */
   const remaining = useMemo(
-    () => stageRemainingQty(stage, item.stages ?? [], item.qty),
-    [stage, item],
+    () => stageUnaccounted({
+      stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported,
+    }),
+    [stage, item, defectReported],
   );
   /**
    * ПОТОЛОК ФАКТА (правка 12.09, вторая порция, п. 4): «плюсы» появляются

@@ -5,6 +5,7 @@ import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
 import { confirmStageDone } from '../../utils/stageDone';
 import { isFileResultStage } from '../../utils/stageResult';
+import { stageDonePatch, stageUnaccounted } from '../../utils/stageRemaining';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
 import { confirmWithInput } from '../../../store/useConfirmStore';
@@ -133,16 +134,21 @@ export function useStageActions() {
      * после кроя получает свой тираж как прежде.
      */
     const fileResult = isFileResultStage(entry.stage);
-    const saved = await setStageStatus(
-      entry.stage.id, 'done', fileResult ? {} : { qty_done: entry.item.qty },
-    );
+    /**
+     * Что писать — решает `stageDonePatch` (правка 27.09, п. 7): у участка
+     * с формой результата `qty_done` остаётся учтённым, у остальных —
+     * весь тираж, как прежде.
+     */
+    const dept = departments.find((d) => d.id === entry.stage.department_id);
+    const patch = stageDonePatch(entry.stage, entry.item.qty, dept);
+    const saved = await setStageStatus(entry.stage.id, 'done', patch);
     // Называем количество и следующий цех: задание уходит из списка, и это
     // единственный след того, что именно записано
     if (saved) {
       const next = dependentDeptNames(entry);
       const what = fileResult
         ? 'Этап завершён: программа приложена'
-        : `Этап завершён: ${entry.item.qty} шт`;
+        : `Этап завершён: ${patch.qty_done ?? entry.stage.qty_done ?? 0} шт`;
       toast.success(next.length > 0 ? `${what} · открыт ${next.join(', ')}` : what);
     }
     return saved;
@@ -161,8 +167,12 @@ export function useStageActions() {
   const onProgress = useCallback(async (entry, qty) => {
     const ok = await reportProgress(entry.stage.id, qty);
     if (ok) {
-      const done = (entry.stage.qty_done ?? 0) + qty;
-      const left = Math.max(entry.item.qty - done, 0);
+      // Остаток — от потолка учёта (тираж либо принятое с плюсом закроя),
+      // а не от тиража (правка 27.09, п. 7)
+      const left = stageUnaccounted({
+        stage: entry.stage, allStages: entry.item.stages ?? [], itemQty: entry.item.qty,
+        defectReported: 0, addedGood: qty,
+      });
       // Остаток в тексте: рабочий вводит числа подряд и должен видеть,
       // сколько ещё числится за ним, не пересчитывая в уме
       toast.success(left > 0

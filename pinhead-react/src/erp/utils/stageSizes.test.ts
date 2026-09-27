@@ -106,6 +106,22 @@ describe('sizeReportBlock — проверка превышения', () => {
     expect(block).toContain('10');
   });
 
+  /**
+   * ПОТОЛОК — ОСТАТОК ИЗ ПРИНЯТЫХ (правка 27.09, п. 7): прежние сдачи этого
+   * этапа уже забрали своё. Принято 10, сдано 7 и списано 1 → сдать можно 2.
+   */
+  it('после прежних сдач потолок строки — остаток, а не «принято»', () => {
+    const later = sizeInputRows(GRID, { [k('XS')]: 10 }, [], { [k('XS')]: 8 });
+    expect(later[0].expected).toBe(10);
+    expect(later[0].remaining).toBe(2);
+    expect(sizeReportBlock(later, { [k('XS')]: { good: 2 } })).toBeNull();
+    const block = sizeReportBlock(later, { [k('XS')]: { good: 3 } });
+    expect(block).toContain('больше 2 шт сдать нельзя');
+    expect(block).toContain('введено 3');
+    // Итоги несут и остаток
+    expect(sizeTotals(later, {}).remaining).toBe(2);
+  });
+
   it('ровно столько, сколько принято, — не превышение', () => {
     expect(sizeReportBlock(rows, { [k('XS')]: { good: 7, defect: 2, rework: 1 } })).toBeNull();
   });
@@ -129,7 +145,7 @@ describe('итоги и полезная нагрузка', () => {
   };
 
   it('итоги считаются по колонкам, а не вводятся', () => {
-    expect(sizeTotals(rows, values)).toEqual({ good: 27, defect: 1, rework: 2, expected: 45 });
+    expect(sizeTotals(rows, values)).toEqual({ good: 27, defect: 1, rework: 2, expected: 45, remaining: 45 });
   });
 
   it('в отчёт уезжают только заполненные строки', () => {

@@ -20,6 +20,7 @@ import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
 import { isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
 import { useStageMove } from '../../hooks/useStageMove';
 import { deptShortName } from '../../data/departments';
@@ -55,8 +56,15 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
 
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const needsAck = overdue && !stage.overdue_ack_at;
-  const qtyDone = stage.qty_done ?? 0;
-  const remaining = Math.max(item.qty - qtyDone, 0);
+  /**
+   * Остаток — от ПОТОЛКА учёта (большее из тиража и принятого), а не от
+   * тиража (правка 27.09, п. 7): при 472 принятых и тираже 350 после 368
+   * сданных здесь 104. Окончательный брак по отчётам панель не читает —
+   * точное «не учтено» с ним показывает форма результата.
+   */
+  const remaining = stageUnaccounted({
+    stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported: 0,
+  });
 
   // Норматив участка (правка 12) и справочники быстрых причин (правка 12)
   const normDays = useErpStore(

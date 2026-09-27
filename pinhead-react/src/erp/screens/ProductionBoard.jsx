@@ -21,6 +21,7 @@ import {
 import { buildQueueEntries } from '../utils/queueEntries';
 import { materialsAfterBypass, isBypassed } from '../utils/bypass';
 import { confirmStageDone } from '../utils/stageDone';
+import { stageDonePatch } from '../utils/stageRemaining';
 import { isProductionDept, deptShortName } from '../data/departments';
 import { daysLeft, formatDateShort } from '../utils/time';
 import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
@@ -271,7 +272,8 @@ export default function ProductionBoard() {
       dept: deptById.get(stage.department_id),
     });
     if (!ok) return;
-    await setStageStatus(stage.id, 'done', { qty_done: item.qty });
+    // Участок с формой результата закрывается учтённым, а не тиражом (27.09, п. 7)
+    await setStageStatus(stage.id, 'done', stageDonePatch(stage, item.qty, deptById.get(stage.department_id)));
   };
 
   return (

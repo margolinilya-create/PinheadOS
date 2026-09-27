@@ -38,6 +38,23 @@ describe('stageDoneWarning', () => {
     expect(msg).toContain('100 шт');
   });
 
+  /**
+   * УЧАСТОК С ФОРМОЙ РЕЗУЛЬТАТА НИЧЕГО НЕ ДОПИСЫВАЕТ (правка 27.09, п. 7):
+   * его остаток — изделия на участке, и вопрос «записать оставшиеся
+   * выполненными?» ему задать нельзя. Отказ при остатке даёт писатель.
+   */
+  it('у участка с формой результата диалога о недосдаче нет', () => {
+    expect(stageDoneWarning({
+      stage: { id: 's-sew', qty_done: 40 }, qty: 100, allStages: stages, deptNameById: deptNames,
+      dept: { result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }] },
+    })).toBeNull();
+    // Без формы — как прежде
+    expect(stageDoneWarning({
+      stage: { id: 's-vto', qty_done: 40 }, qty: 100, allStages: stages, deptNameById: deptNames,
+      dept: { result_fields: [] },
+    })).toContain('40 из 100');
+  });
+
   it('qty_done не проставлен — считается за ноль', () => {
     const msg = stageDoneWarning({
       stage: { id: 's-cut', qty_done: null }, qty: 50, allStages: stages, deptNameById: deptNames,

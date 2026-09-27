@@ -21,7 +21,10 @@ import {
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
 import { stageCompletionBlock } from '../../utils/stageDone';
-import { stageResultFileBlock } from '../../utils/stageResult';
+import { isFileResultStage, stageResultFileBlock } from '../../utils/stageResult';
+import {
+  deptAccountsByReports, reportedDefect, stageCeiling, stageUnaccountedBlock,
+} from '../../utils/stageRemaining';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
@@ -190,6 +193,30 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
         toast.error(blocked);
         return false;
       }
+      /**
+       * НЕ УЧТЁННЫЕ ИЗДЕЛИЯ ДЕРЖАТ ЗАКРЫТИЕ (правка 27.09, п. 7) — у участка,
+       * который отчитывается формой. Окончательный брак лежит в журнале
+       * отчётов, а не на этапе, поэтому писатель читает его сам: кнопка,
+       * дорожка канбана и чип доски проходят здесь все, и ни одной
+       * не нужно помнить о запросе. Файловый результат изделий не имеет.
+       */
+      const dept = get().departments.find((d) => d.id === found.stage.department_id);
+      if (deptAccountsByReports(dept) && !isFileResultStage(found.stage)) {
+        const reports = await get().loadStageReports([stageId]);
+        const unaccounted = stageUnaccountedBlock({
+          stage: found.stage,
+          allStages: found.item.stages ?? [],
+          itemQty: found.item.qty,
+          defectReported: reportedDefect(reports),
+          addedGood: extra.qty_done !== undefined
+            ? Math.max(extra.qty_done - (found.stage.qty_done ?? 0), 0) : 0,
+          dept,
+        });
+        if (unaccounted) {
+          toast.error(unaccounted);
+          return false;
+        }
+      }
     }
 
     // optimistic с rollback (нетронутые заказы сохраняют идентичность)
@@ -294,7 +321,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      */
     const optimistic = before + qty;
     const patch: Partial<ErpItemStage> = { qty_done: optimistic };
-    if (optimistic >= total) {
+    /**
+     * Закрытие — по потолку учёта (большее из тиража и принятого), как
+     * на сервере (`erp_stage_unaccounted`, правка 27.09, п. 7). Брак
+     * по отчётам здесь не учтён — это картинка на секунду, истину отдаст
+     * ответ RPC.
+     */
+    if (optimistic >= stageCeiling(stage, item.stages ?? [], total)) {
       patch.status = 'done';
       patch.finished_at = new Date().toISOString();
     }

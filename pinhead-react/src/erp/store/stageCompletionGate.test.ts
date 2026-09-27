@@ -77,6 +77,11 @@ const GATED_DEPT = {
 };
 /** Участок без гейта — на нём ни один писатель отказывать не должен */
 const OPEN_DEPT = { ...GATED_DEPT, id: 'd-vto', code: 'vto', name: 'ВТО', gate_material_kinds: [] };
+/** Участок с формой результата и без материального гейта — швейка без ткани в гейте */
+const FORM_DEPT = {
+  ...OPEN_DEPT, id: 'd-sew', code: 'sewing', name: 'Швейный цех',
+  result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }],
+};
 
 /** Ткань, которой ещё нет на фабрике: не received / reserved / not_needed */
 const PENDING_FABRIC = {
@@ -105,7 +110,7 @@ function seed(opts: {
     finished_at: null,
   };
   useErpStore.setState({
-    departments: [GATED_DEPT, OPEN_DEPT] as never,
+    departments: [GATED_DEPT, OPEN_DEPT, FORM_DEPT] as never,
     bypasses: (opts.bypasses ?? []) as never,
     orders: [{
       id: 'o1',
@@ -192,5 +197,31 @@ describe('аварийное снятие материального гейта 
   it('возвращённое снятие (restored_at) снова держит гейт', async () => {
     seed({ bypasses: [{ ...BYPASS[0], restored_at: '2026-09-03T10:00:00Z' }] });
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+  });
+});
+
+/**
+ * НЕ УЧТЁННЫЕ ИЗДЕЛИЯ ДЕРЖАТ ЗАКРЫТИЕ (правка заказчика 27.09, п. 7).
+ *
+ * «Блокировать обычное завершение этапа, пока остаются изделия в работе
+ * или в переделке». Гейт у ПИСАТЕЛЯ: кнопка, дорожка канбана и чип доски
+ * проходят через `setStageStatus`, и ни одной не нужно помнить о проверке.
+ * Только у участка с формой результата — остальным нечем сдать иначе.
+ */
+describe('не учтённые изделия держат «Завершить этап» у участка с формой', () => {
+  it('сдано 40 из 100 — отказ с числом, записи нет', async () => {
+    seed({ deptId: FORM_DEPT.id, qtyDone: 40 });
+    expect(await s().setStageStatus('st1', 'done', {})).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+
+  it('учтено всё — закрывается', async () => {
+    seed({ deptId: FORM_DEPT.id, qtyDone: 100 });
+    expect(await s().setStageStatus('st1', 'done', {})).toBe(true);
+  });
+
+  it('участок без формы результата закрывается тиражом, как прежде', async () => {
+    seed({ deptId: OPEN_DEPT.id, qtyDone: 40 });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
   });
 });

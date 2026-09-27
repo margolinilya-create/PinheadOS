@@ -16,6 +16,7 @@ import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockingCompletion } from './supply';
 import { isFileResultStage } from './stageResult';
+import { deptAccountsByReports } from './stageRemaining';
 import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
 
 /**
@@ -45,6 +46,13 @@ export interface StageDoneWarningInput {
   allStages: Pick<ErpItemStage, 'id' | 'department_id' | 'depends_on'>[];
   /** id цеха → короткое имя */
   deptNameById?: Map<string, string>;
+  /**
+   * Участок этапа — ради `result_fields` (правка 27.09, п. 7): у участка
+   * с формой результата остаток не дописывается, а учитывается, и диалога
+   * «будут записаны как выполненные» у него нет. Необязателен здесь, чтобы
+   * тексты последствий тестировались без справочника цехов.
+   */
+  dept?: Pick<ErpDepartment, 'result_fields'> | null;
 }
 
 /**
@@ -59,8 +67,11 @@ export interface StageDoneWarningInput {
 export interface StageDoneInput extends StageDoneWarningInput {
   /** Материалы ПОЗИЦИИ (`materialsForItem`), а не всего заказа */
   materials: readonly ErpMaterial[];
-  /** Цех этапа — от его `gate_material_kinds` зависит, гейтится ли он вовсе */
-  dept: Pick<ErpDepartment, 'gate_material_kinds'> | null | undefined;
+  /**
+   * Цех этапа — от его `gate_material_kinds` зависит, гейтится ли он вовсе,
+   * а от `result_fields` — дописывается ли остаток при закрытии
+   */
+  dept: Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields'> | null | undefined;
 }
 
 /** Этапы, которые ждут именно этот (после закрытия они откроются) */
@@ -86,6 +97,14 @@ export function stageDoneWarning(input: StageDoneWarningInput): string | null {
    * о самой сути этапа, а не просто лишним вопросом.
    */
   if (isFileResultStage(stage)) return null;
+  /**
+   * УЧАСТОК С ФОРМОЙ РЕЗУЛЬТАТА НИЧЕГО НЕ ДОПИСЫВАЕТ (правка 27.09, п. 7):
+   * его остаток — изделия на участке, и кнопка либо закрывает учтённое
+   * как есть, либо получает отказ от писателя («не учтено N»). Вопрос
+   * «записать оставшиеся выполненными?» ему задать нельзя — это ровно
+   * та потеря 104 изделий, только в другую сторону.
+   */
+  if (deptAccountsByReports(input.dept)) return null;
   const done = stage.qty_done ?? 0;
   const remaining = qty - done;
   if (remaining <= 0) return null;

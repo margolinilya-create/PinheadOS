@@ -24,9 +24,9 @@ export function SizeReportSection({ rows, values, onChange, canDefect, disabled 
             label: 'Сшито, шт',
             /* Подсветка ИМЕННО этого поля: документ просит показать,
                какую строку исправлять, а не «где-то превышение» */
-            invalid: (row, vals) => row.expected !== null
-              && row.expected !== '—'
-              && rowEntered(vals) > Number(row.expected),
+            invalid: (row, vals) => row.remaining !== null
+              && row.remaining !== undefined
+              && rowEntered(vals) > Number(row.remaining),
           },
           ...(canDefect ? [
             { code: 'defect', label: 'Брак, шт' },
@@ -37,20 +37,26 @@ export function SizeReportSection({ rows, values, onChange, canDefect, disabled 
             label: 'Статус',
             /* Колонка-ВЫВОД: считается, а не вводится. Мастер видит
                состояние строки, не сверяя два числа глазами */
+            /* Остаток — из ПРИНЯТЫХ минус прежние сдачи этого этапа
+               (правка 27.09, п. 7): вторая сдача видит 104, а не 472 */
             render: (row, vals) => {
-              if (row.expected === null || row.expected === '—') {
+              if (row.remaining === null || row.remaining === undefined) {
                 return <span className={styles.subText}>—</span>;
               }
               const entered = rowEntered(vals);
-              if (entered === 0) return <span className={styles.subText}>не заполнено</span>;
-              if (entered > Number(row.expected)) {
+              const left = Number(row.remaining) - entered;
+              if (entered === 0) {
+                return left > 0
+                  ? <span className={styles.subText}>осталось {left}</span>
+                  : <span className={styles.subText}>учтено</span>;
+              }
+              if (left < 0) {
                 return (
                   <span className={styles.cellError}>
-                    Нельзя указать больше, чем покроено
+                    Нельзя указать больше, чем осталось
                   </span>
                 );
               }
-              const left = Number(row.expected) - entered;
               return left > 0
                 ? <span className={styles.subText}>осталось {left}</span>
                 : <span className={styles.subText}>готово</span>;

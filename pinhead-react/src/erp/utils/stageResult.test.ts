@@ -122,7 +122,13 @@ describe('Завершение файлового этапа не пишет к�
     const fn = src.slice(src.indexOf('const onDone ='));
     const body = fn.slice(0, fn.indexOf('}, [setStageStatus'));
     expect(body).toContain('isFileResultStage(');
-    // Пустой патч у файлового этапа, `qty_done` — только у обычного
-    expect(body).toMatch(/fileResult \? \{\} : \{ qty_done/);
+    /**
+     * Что писать, решает `stageDonePatch` (правка 27.09, п. 7): пустой патч
+     * у файлового этапа и у участка с формой результата, `qty_done` — только
+     * у обычного. Поведение самой функции — в `stageRemaining.test.ts`;
+     * здесь сторожится, что кнопка не завела свою ветку рядом.
+     */
+    expect(body).toContain('stageDonePatch(');
+    expect(body).not.toMatch(/\{ qty_done: entry\.item\.qty \}/);
   });
 });
