@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-do
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import ErpLayout from './layout/ErpLayout';
 import { ScreenSkeleton } from './components/ErpSkeletons';
-import { LoadFailed } from './components/ErpStates';
+import { ScreenCrashed } from './components/ErpStates';
 import { Icon } from './components/Icon';
 import { FEATURES } from '../config/features';
 import { useErpAccess } from './store/useErpAccess';
@@ -129,12 +129,12 @@ export default function ErpApp({ user }) {
   return (
     <ErpLayout user={user}>
       {/* key={pathname}: падение одного экрана не роняет всю оболочку, а уход
-          в другой раздел пересоздаёт границу — экран восстанавливается сам. */}
+          в другой раздел пересоздаёт границу — экран восстанавливается сам.
+          Сюда же долетает пропавший после выкатки чанк ленивой формы
+          («Новый заказ») — `ScreenCrashed` отличает его от поломки. */}
       <ErrorBoundary
         key={pathname}
-        fallback={(error, reset) => (
-          <LoadFailed what={`экран (${error?.message || 'непредвиденная ошибка'})`} onRetry={reset} />
-        )}
+        fallback={(error, reset) => <ScreenCrashed error={error} onRetry={reset} />}
       >
         <Suspense fallback={<ScreenSkeleton />}>
           <Routes>
