@@ -126,6 +126,38 @@ export function isMaterialSettled(m: MaterialReadiness): boolean {
 }
 
 /**
+ * Материал поступил ПОЛНОСТЬЮ (правка заказчика 27.09, п. 9) — условие
+ * автозакрытия закупки, и оно СТРОЖЕ «на месте».
+ *
+ * Документ: «автоматически завершать закупку после полного поступления всех
+ * необходимых материалов… проверять фактически принятое количество, а не
+ * только статус „Пришло". При частичном поступлении или нерешённой проблеме
+ * оставлять закупку открытой». `isMaterialSettled` для этого не годится:
+ * он считает годным `accepted_partial` (решение 22.07 — цех работает тем,
+ * что приехало) и не сравнивает количество. Гейты ЦЕХА на нём и остаются;
+ * закупка же закрывается только когда довезли всё.
+ *
+ * Плановое количество обязательно: без него сверять не с чем, и строка ждёт
+ * закупщика (тот же `missingPlan`). Числа из PostgREST приходят строками —
+ * сравнение через `Number`.
+ *
+ * ПИШЕТ ЭТАП СЕРВЕР: `erp_material_fully_received` + триггер
+ * `erp_supply_autoclose` в транзакции приёмки. Клиентская копия нужна, чтобы
+ * сказать человеку, чего ещё ждут, и перечитать заказ после закрытия —
+ * сторож `materialSettled.test.ts` сверяет обе формулы.
+ */
+export function isMaterialFullyReceived(
+  m: Pick<ErpMaterial, 'status' | 'accept_status' | 'qty_expected' | 'qty_received'>,
+): boolean {
+  const status = m.status ?? '';
+  if (status === 'reserved' || status === 'not_needed') return true;
+  if (status !== 'received' || m.accept_status !== 'accepted_full') return false;
+  const need = Number(m.qty_expected ?? 0);
+  const got = Number(m.qty_received ?? 0);
+  return need > 0 && got >= need;
+}
+
+/**
  * Что склад ответил закупке: `null` — вопросов нет, иначе код расхождения.
  *
  * ЭТО ОБРАТНАЯ СВЯЗЬ СКЛАД → ЗАКУПКА, КОТОРОЙ НЕ БЫЛО ВОВСЕ. Кладовщик
@@ -221,6 +253,10 @@ export interface SupplyMaterialSummary {
   settled: number;
   /** Все материалы на месте И их вообще завели */
   allSettled: boolean;
+  /** Сколько поступило полностью (`isMaterialFullyReceived`) */
+  fullyReceived: number;
+  /** Все материалы поступили полностью И их вообще завели — условие автозакрытия */
+  allFullyReceived: boolean;
   /**
    * Закупаемые позиции без планового количества. Приёмка на складе сверяет
    * факт с планом, и без него сделка дальше не идёт (правка 4.1.3).
@@ -248,10 +284,13 @@ export function supplyMaterialSummary(
 ): SupplyMaterialSummary {
   const list = materials ?? [];
   const settled = list.filter(isMaterialSettled).length;
+  const fullyReceived = list.filter(isMaterialFullyReceived).length;
   return {
     total: list.length,
     settled,
     allSettled: list.length > 0 && settled === list.length,
+    fullyReceived,
+    allFullyReceived: list.length > 0 && fullyReceived === list.length,
     missingPlan: list.filter(
       (m) => m.source === 'purchase' && (m.qty_expected == null || m.qty_expected <= 0)),
     /**

@@ -722,7 +722,11 @@ export interface MaterialsSlice {
   selectSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
   deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
-  /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
+  /**
+   * Все материалы заказа поступили полностью → перечитать заказ и сказать,
+   * что закупка закрыта. Сам этап закрывает СЕРВЕР (триггер
+   * `erp_supply_autoclose`, правка 27.09, п. 9); клиент его не пишет.
+   */
   maybeCloseSupply: (orderId: string) => Promise<void>;
   /**
    * Взять закупку по заказу в работу — все её открытые этапы разом.

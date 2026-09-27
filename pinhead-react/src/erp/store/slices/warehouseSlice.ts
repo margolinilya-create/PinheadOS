@@ -17,6 +17,7 @@ import { currentActor, erpError, erpQuery, erpWrite } from '../shared';
 import { enqueue } from '../offlineQueue';
 import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
 import { factoryToday } from '../../../utils/date';
+import { findSupplyDept, openSupplyStages } from '../../utils/supply';
 
 /** Тип складской операции для приёмки по статусу приёмки */
 function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
@@ -159,6 +160,14 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
       erpError('Приёмка не записана', error);
       return false;
     }
+    /**
+     * Сколько этапов закупки было открыто ДО приёмки — чтобы после
+     * перечитывания сказать кладовщику, что закупка закрылась. Закрывает её
+     * сервер в той же транзакции (`erp_supply_autoclose`, правка 27.09, п. 9);
+     * клиент этап больше не пишет — от лица кладовщика страж его не пускал.
+     */
+    const supplyDept = findSupplyDept(get().departments);
+    const openBefore = supplyDept ? openSupplyStages(order, supplyDept.id).length : 0;
     // Сумму журнала пересчитал триггер — перечитываем заказ, чтобы её увидели
     // и гейты, и экран. Не optimistic по той же причине: считает сервер.
     await get().loadOne(order.id);
@@ -197,21 +206,16 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     }
 
     /**
-     * ПРИЁМКА ЗАКРЫВАЕТ И ЗАКУПКУ (правка 12.09, п. 8): «после фактической
-     * приёмки материала складом соответствующая задача закупки должна
-     * автоматически закрываться. Закупщик не отмечает приход вручную».
-     *
-     * Гейт для этого уже был правильный: с 04.09 закупка закрывается только
-     * по годным материалам (`isMaterialSettled` требует вердикта приёмки).
-     * Не хватало ВЫЗОВА — `maybeCloseSupply` звали лишь два писателя строки
-     * материала, то есть закупка закрывалась, когда закупщик в следующий раз
-     * что-нибудь правил. Событие, которого могло и не случиться.
-     *
-     * Правило не копируется: `maybeCloseSupply` считает готовность тем же
-     * `supplyMaterialSummary`, и третьей формулы «все ли материалы на месте»
-     * здесь не появляется.
+     * ПРИЁМКА ЗАКРЫВАЕТ И ЗАКУПКУ (правка 12.09, п. 8; с 27.09 — на сервере).
+     * Здесь только результат для человека: этапы закупки были открыты,
+     * а после перечитывания их нет — значит, сервер закрыл закупку.
      */
-    await get().maybeCloseSupply(order.id);
+    if (openBefore > 0 && supplyDept) {
+      const after = get().orders.find((o) => o.id === order.id);
+      if (after && openSupplyStages(after, supplyDept.id).length === 0) {
+        toast.success('Материалы приняты полностью — закупка по заказу закрыта');
+      }
+    }
     return true;
   },
 

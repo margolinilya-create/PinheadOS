@@ -81,7 +81,8 @@ describe('лимит размера вложения не расходится �
     const sources = [
       'erp/hooks/useAttachmentUploads.js',
       'erp/store/slices/tzSlice.ts',
-      'erp/screens/orders/CreateOrderModal.jsx',
+      // ТЗ формы заказа — свой хук с 27.09 (правка 12)
+      'erp/screens/orders/create/useTzDocs.js',
     ];
     for (const rel of sources) {
       /**
