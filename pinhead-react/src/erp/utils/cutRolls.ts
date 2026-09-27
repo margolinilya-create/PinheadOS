@@ -22,7 +22,7 @@
  * видимым всегда — иначе строка исчезала бы из-под рук.
  */
 
-import type { ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
+import type { ErpItemStage, ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
 import { materialsForItem } from './routes';
 import { gridCells, NO_COLOR } from './sizeGrid';
 import type { SizeCell } from './sizeGrid';
@@ -335,4 +335,57 @@ export function cutRollsPayload(
           })),
       };
     });
+}
+
+/**
+ * РУЛОНЫ, У КОТОРЫХ НЕ РЕШЕНА СУДЬБА ОСТАТКА (правка заказчика 27.09, п. 2).
+ *
+ * «Сейчас этап закройки можно завершить при наличии остатка по рулону без
+ * указания его пригодности. Из-за этого пригодный остаток не попадает
+ * в раздел „Остатки ткани"». Рулон, оставленный «в работе» прежней сдачей
+ * (галочку «работа закончена» не поставили), после закрытия этапа повисает:
+ * ни в остатках (там только `usable`), ни в экономике.
+ *
+ * Пока в заказе открыт ДРУГОЙ этап того же участка (соседняя позиция
+ * кроится с того же рулона), решать рано — список пуст. Рулон без веса
+ * остатка не имеет (fail-open). Материалы — те же, что видит форма
+ * (`materialsForItem`: заказа целиком и этой позиции).
+ */
+export function rollsAwaitingFate(
+  materials: readonly ErpMaterial[] | null | undefined,
+  itemId: string | null | undefined,
+  stage: Pick<ErpItemStage, 'id'> & { department_id?: string | null },
+  orderItems: readonly { stages?: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[] }[] | null | undefined,
+): RollOption[] {
+  const othersOpen = (orderItems ?? []).some((it) => (it.stages ?? []).some(
+    (s) => s.id !== stage.id
+      && s.department_id === stage.department_id
+      && s.status !== 'done' && s.status !== 'skipped',
+  ));
+  if (othersOpen) return [];
+  const out: RollOption[] = [];
+  for (const material of materialsForItem([...(materials ?? [])], itemId)) {
+    for (const roll of material.rolls ?? []) {
+      if (roll.status !== 'in_use') continue;
+      if (!(Number(roll.qty_left ?? 0) > 0)) continue;
+      if (roll.leftover_kind) continue;
+      out.push({ roll, material, label: rollLabel(roll, material) });
+    }
+  }
+  return out.sort((a, b) => a.roll.seq - b.roll.seq);
+}
+
+/**
+ * Почему закрой нельзя закрыть по рулонам, или `null`. Слова совпадают
+ * с серверным `erp_stage_rolls_fate_block` — один текст в кнопке и в отказе.
+ */
+export function rollsFateBlock(pending: readonly RollOption[]): string | null {
+  if (pending.length === 0) return null;
+  const list = pending
+    .map(({ roll, material }) => {
+      const unit = roll.unit ?? material.unit;
+      return `${roll.label} (${roll.qty_left}${unit ? ` ${unit}` : ''})`;
+    })
+    .join(', ');
+  return `Не решена судьба остатка: ${list} — отметьте «Остаток пригоден» или «Малый остаток, не учитывать».`;
 }

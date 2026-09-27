@@ -99,6 +99,9 @@ function completionBlockFor(
       store.bypasses,
     ),
     dept: store.departments.find((d) => d.id === stage.department_id),
+    // Судьба остатков рулонов (правка 27.09, п. 2): нужны этапы всего заказа
+    orderItems: order.items,
+    itemId: item.id,
   });
 }
 

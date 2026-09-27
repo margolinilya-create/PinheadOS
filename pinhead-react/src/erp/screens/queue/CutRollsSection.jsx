@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
-  rollsForItem, cutTotals, rollTotal, cellKey, rollLeft,
+  rollsForItem, cutTotals, rollTotal, cellKey, rollLeft, rollsAwaitingFate,
 } from '../../utils/cutRolls';
 import {
   sizeChoicesFor, choiceKey, isSizeTaken, freeChoices, normalizeSize, hasPlannedSizes,
@@ -39,12 +39,25 @@ const OTHER = '__other__';
  * человек заполняет сам, разошлось бы со строками на первой же правке.
  */
 export function CutRollsSection({
-  order, item, entries, onChange, unit = 'кг', disabled = false, reported = {},
+  order, item, stage = null, entries, onChange, onRollFate = null,
+  unit = 'кг', disabled = false, reported = {},
 }) {
   const options = useMemo(
     () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId)),
     [order, item, entries],
   );
+  /**
+   * РУЛОНЫ БЕЗ СУДЬБЫ ОСТАТКА (правка 27.09, п. 2): оставлены «в работе»
+   * прежней сдачей, остаток есть, вид не выбран. Пока они не закрыты,
+   * последний этап участка в заказе не закроется — и решить это можно
+   * прямо здесь, без новой строки расхода. Рулон, уже добавленный
+   * в форму, решается его же галочкой ниже.
+   */
+  const inEntries = new Set(entries.map((e) => e.rollId).filter(Boolean));
+  const awaitingFate = useMemo(
+    () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items) : []),
+    [order, item, stage],
+  ).filter((o) => !inEntries.has(o.roll.id));
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
   const totals = useMemo(() => cutTotals(entries), [entries]);
@@ -365,6 +378,35 @@ export function CutRollsSection({
           </div>
         );
       })}
+
+      {awaitingFate.length > 0 && onRollFate && (
+        <div className={styles.queueBlockForm} role="group" aria-label="Рулоны без судьбы остатка">
+          <span className={styles.queueReason}>
+            <Icon name="alert" size={13} />
+            {' '}
+            Работа по этим рулонам не закончена, а остаток есть — без решения этап не закроется:
+          </span>
+          {awaitingFate.map(({ roll, material, label }) => (
+            <div key={roll.id} className={styles.queueActions}>
+              <span className={styles.subText}>
+                {label} · остаток {roll.qty_left} {roll.unit ?? material.unit ?? unit}
+              </span>
+              <Button
+                variant="secondary" size="sm" disabled={disabled}
+                onClick={() => onRollFate(roll.id, 'usable')}
+              >
+                Остаток пригоден
+              </Button>
+              <Button
+                variant="ghost" size="sm" disabled={disabled}
+                onClick={() => onRollFate(roll.id, 'scrap')}
+              >
+                Малый остаток, не учитывать
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className={styles.queueActions}>
         <Button variant="secondary" size="sm" disabled={disabled || free.length === 0} onClick={addRoll}>

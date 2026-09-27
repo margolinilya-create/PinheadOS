@@ -83,6 +83,15 @@ const FORM_DEPT = {
   result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }],
 };
 
+/** Закрой как на проде: разбор по рулонам, без материального гейта в этом тесте */
+const ROLLS_DEPT = { ...OPEN_DEPT, id: 'd-cut2', code: 'cutting', name: 'Закрой', result_detail: 'rolls' };
+/** Ткань принята, рулон оставлен «в работе» с остатком и без вида */
+const FABRIC_WITH_ROLL = {
+  id: 'm2', order_id: 'o1', item_id: null, kind: 'fabric', name: 'Кулирка 180',
+  status: 'received', accept_status: 'accepted_full',
+  rolls: [{ id: 'r1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5, leftover_kind: null, unit: 'кг' }],
+};
+
 /** Ткань, которой ещё нет на фабрике: не received / reserved / not_needed */
 const PENDING_FABRIC = {
   id: 'm1', order_id: 'o1', item_id: null, kind: 'fabric',
@@ -110,7 +119,7 @@ function seed(opts: {
     finished_at: null,
   };
   useErpStore.setState({
-    departments: [GATED_DEPT, OPEN_DEPT, FORM_DEPT] as never,
+    departments: [GATED_DEPT, OPEN_DEPT, FORM_DEPT, ROLLS_DEPT] as never,
     bypasses: (opts.bypasses ?? []) as never,
     orders: [{
       id: 'o1',
@@ -223,5 +232,31 @@ describe('не учтённые изделия держат «Завершить
   it('участок без формы результата закрывается тиражом, как прежде', async () => {
     seed({ deptId: OPEN_DEPT.id, qtyDone: 40 });
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
+  });
+});
+
+/**
+ * СУДЬБА ОСТАТКА РУЛОНА ДЕРЖИТ ЗАКРЫТИЕ ЗАКРОЯ (правка заказчика 27.09, п. 2):
+ * рулон «в работе» с остатком и без вида после закрытия повисает мимо
+ * «Остатков ткани». Гейт у писателя — все три пути закрытия.
+ */
+describe('рулон без судьбы остатка держит закрытие закроя', () => {
+  it('«Завершить этап» — отказ, записи нет', async () => {
+    seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 100 });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+
+  it('судьба выбрана — закрывается', async () => {
+    seed({
+      deptId: ROLLS_DEPT.id, qtyDone: 100,
+      materials: [{ ...FABRIC_WITH_ROLL, rolls: [{ ...FABRIC_WITH_ROLL.rolls[0], status: 'used', leftover_kind: 'usable' }] }],
+    });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
+  });
+
+  it('частичная сдача при таком рулоне законна — гейт только на закрытии', async () => {
+    seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 0 });
+    expect(await s().reportProgress('st1', 40)).toBe(true);
   });
 });

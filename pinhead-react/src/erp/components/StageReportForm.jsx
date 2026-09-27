@@ -113,6 +113,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const [ownReports, setOwnReports] = useState([]);
 
   const loadStageReports = useErpStore(useShallow((st) => st.loadStageReports));
+  const setRollLeftover = useErpStore((st) => st.setRollLeftover);
 
   /**
    * Отчёты предшественников — точечной загрузкой при открытии формы: журнал
@@ -380,8 +381,10 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         <CutRollsSection
           order={fullOrder}
           item={fullItem}
+          stage={stage}
           entries={rollEntries}
           onChange={setRollEntries}
+          onRollFate={setRollLeftover}
           reported={reportedSizes}
           disabled={busy}
         />

@@ -270,6 +270,8 @@ export default function ProductionBoard() {
       // Аварийное снятие учитывается и здесь (правка 03.09)
       materials: materialsAfterBypass(materialsForItem(order.materials, item.id), order.id, bypasses),
       dept: deptById.get(stage.department_id),
+      orderItems: order.items,
+      itemId: item.id,
     });
     if (!ok) return;
     // Участок с формой результата закрывается учтённым, а не тиражом (27.09, п. 7)

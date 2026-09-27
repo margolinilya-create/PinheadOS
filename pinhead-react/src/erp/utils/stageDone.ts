@@ -17,6 +17,7 @@ import { toast } from '../../store/useToastStore';
 import { materialsBlockingCompletion } from './supply';
 import { isFileResultStage } from './stageResult';
 import { deptAccountsByReports } from './stageRemaining';
+import { rollsAwaitingFate, rollsFateBlock } from './cutRolls';
 import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
 
 /**
@@ -33,6 +34,8 @@ export interface StageDoneWarningInput {
    */
   stage: Pick<ErpItemStage, 'id'> & {
     qty_done: number | null;
+    /** Участок этапа — для судьбы остатков рулонов (правка 27.09, п. 2) */
+    department_id?: string | null;
     /**
      * Вид результата этапа (правка 13.09, п. 9). Нужен ЗДЕСЬ, а не у кнопки:
      * у этапа, чей результат — файл, количественного предупреждения быть
@@ -69,9 +72,20 @@ export interface StageDoneInput extends StageDoneWarningInput {
   materials: readonly ErpMaterial[];
   /**
    * Цех этапа — от его `gate_material_kinds` зависит, гейтится ли он вовсе,
-   * а от `result_fields` — дописывается ли остаток при закрытии
+   * от `result_fields` — дописывается ли остаток при закрытии, от
+   * `result_detail` — спрашивается ли судьба остатков рулонов
    */
-  dept: Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields'> | null | undefined;
+  dept: Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields' | 'result_detail'>
+    | null | undefined;
+  /**
+   * Позиции ЗАКАЗА с этапами (правка 27.09, п. 2): судьба остатка рулона
+   * спрашивается, только когда в заказе не осталось других открытых этапов
+   * того же участка — рулон мог ждать соседнюю позицию. Без списка —
+   * считается, что других нет.
+   */
+  orderItems?: readonly { id?: string; stages?: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[] }[] | null;
+  /** id позиции этапа — отбор материалов и рулонов тот же, что у формы */
+  itemId?: string | null;
 }
 
 /** Этапы, которые ждут именно этот (после закрытия они откроются) */
@@ -130,7 +144,17 @@ export function stageDoneWarning(input: StageDoneWarningInput): string | null {
  */
 export function stageCompletionBlock(input: StageDoneInput): string | null {
   const blocking = materialsBlockingCompletion(input.materials, input.dept);
-  if (blocking.length === 0) return null;
+  if (blocking.length === 0) {
+    /**
+     * СУДЬБА ОСТАТКОВ РУЛОНОВ (правка 27.09, п. 2) — у участка с разбором
+     * по рулонам. Рулон «в работе» с остатком и без вида после закрытия
+     * последнего этапа участка повисает мимо «Остатков ткани».
+     */
+    if (input.dept?.result_detail !== 'rolls') return null;
+    return rollsFateBlock(rollsAwaitingFate(
+      input.materials, input.itemId ?? null, input.stage, input.orderItems,
+    ));
+  }
   const names = blocking.slice(0, 4).map((m) => m.name).join(', ');
   const rest = blocking.length > 4 ? ` и ещё ${blocking.length - 4}` : '';
   /**

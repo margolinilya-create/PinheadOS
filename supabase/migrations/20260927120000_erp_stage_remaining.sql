@@ -1,4 +1,5 @@
--- ОСТАТОК ПРИ ЧАСТИЧНОЙ СДАЧЕ (правка заказчика 27.09, п. 7).
+-- ОСТАТОК ПРИ ЧАСТИЧНОЙ СДАЧЕ (правка заказчика 27.09, п. 7)
+-- И СУДЬБА ОСТАТКА РУЛОНА (п. 2 — см. раздел про рулоны ниже).
 --
 -- ЧТО БЫЛО. «Выкроено и принято в пошив 472 изделия. После сдачи 368 сшитых
 -- оставшиеся 104 пропали из учёта. Частичная сдача не должна закрывать весь
@@ -229,6 +230,61 @@ comment on function public.erp_stage_unaccounted(uuid, int, int) is
 revoke execute on function public.erp_stage_unaccounted(uuid, int, int) from public, anon;
 grant execute on function public.erp_stage_unaccounted(uuid, int, int) to authenticated;
 
+-- ── Судьба остатков рулонов при закрытии закроя (правка 27.09, п. 2) ──
+--
+-- Рулон со статусом «в работе», остатком и без вида остатка после закрытия
+-- последнего этапа участка в заказе повисает: «Остатки ткани» показывают
+-- только `usable`, экономика — тоже. Пока в заказе открыт другой этап того же
+-- участка (соседняя позиция кроится с того же рулона), решать рано.
+-- Fail-open у рулона без веса — остатка у него не существует.
+-- Слова совпадают с клиентским `cutRolls.rollsFateBlock`.
+create or replace function public.erp_stage_rolls_fate_block(p_stage_id uuid)
+returns text
+language sql
+stable
+set search_path = public as $$
+  with me as (
+    select s.id, s.department_id, i.order_id, d.result_detail
+      from public.erp_item_stages s
+      join public.erp_order_items i on i.id = s.item_id
+      left join public.erp_departments d on d.id = s.department_id
+     where s.id = p_stage_id
+  ),
+  others_open as (
+    select 1
+      from me
+      join public.erp_order_items i2 on i2.order_id = me.order_id
+      join public.erp_item_stages s2 on s2.item_id = i2.id
+     where s2.department_id = me.department_id
+       and s2.id <> me.id
+       and s2.status not in ('done', 'skipped')
+     limit 1
+  ),
+  pending as (
+    select r.label, r.qty_left, coalesce(r.unit, m.unit) as unit, r.seq
+      from me
+      join public.erp_materials m on m.order_id = me.order_id
+      join public.erp_material_rolls r on r.material_id = m.id
+     where me.result_detail = 'rolls'
+       and not exists (select 1 from others_open)
+       and r.status = 'in_use'
+       and coalesce(r.qty_left, 0) > 0
+       and r.leftover_kind is null
+  )
+  select case when count(*) = 0 then null else
+    'Не решена судьба остатка: '
+    || string_agg(label || ' (' || qty_left || coalesce(' ' || unit, '') || ')', ', ' order by seq)
+    || ' — отметьте «Остаток пригоден» или «Малый остаток, не учитывать».'
+  end
+  from pending;
+$$;
+
+comment on function public.erp_stage_rolls_fate_block(uuid) is
+  'Почему закрой нельзя закрыть по рулонам, или NULL: рулоны заказа «в работе» с остатком и без вида, когда других открытых этапов участка в заказе нет. Зеркало клиентского cutRolls.rollsFateBlock (правка 27.09, п. 2).';
+
+revoke execute on function public.erp_stage_rolls_fate_block(uuid) from public, anon;
+grant execute on function public.erp_stage_rolls_fate_block(uuid) to authenticated;
+
 -- ── Сдача результата: потолок по размеру и закрытие по учтённому ──
 -- Подлинный текст `20260921214250` с двумя вставками (см. шапку).
 create or replace function public.erp_stage_submit_report(
@@ -275,6 +331,7 @@ declare
   v_cell    record;
   v_cap_cell int;
   v_prior   int;
+  v_label   text;
 begin
   v_total := public.erp_stage_item_qty(p_stage_id);
   if v_total is null then
@@ -400,16 +457,32 @@ begin
        * цех из-за отсутствующего поля — то же правило, что у гейта ТЗ.
        */
       if v_roll_id is not null then
-        select r.qty, coalesce((
+        select r.qty, r.label, coalesce((
                  select sum(rr.qty_used) from public.erp_stage_report_rolls rr
                   where rr.roll_id = r.id), 0)
-          into v_cap, v_spent
+          into v_cap, v_label, v_spent
           from public.erp_material_rolls r where r.id = v_roll_id;
 
         if v_cap is not null and v_spent + v_used > v_cap + 0.01 then
           raise exception
             'erp_stage_submit_report: с рулона уже израсходовано %, в нём %, а вы списываете ещё %',
             v_spent, v_cap, v_used using errcode = '22023';
+        end if;
+
+        /**
+         * У ЗАКОНЧЕННОГО РУЛОНА С ОСТАТКОМ ВИД ОБЯЗАТЕЛЕН (правка 27.09, п. 2).
+         * Клиент это требовал с 21.09, сервер — нет: через REST рулон
+         * закрывался с остатком без судьбы, и на бою 27.09 вид не выбран
+         * ни у одного из 60 рулонов. Fail-open у рулона без веса — остатка
+         * у него не существует.
+         */
+        if v_fin and v_kind is null and v_cap is not null
+           and v_cap - (v_spent + v_used) > 0.0005 then
+          raise exception
+            '%: остался % — выберите «Остаток пригоден» или «Малый остаток, не учитывать»',
+            coalesce(v_label, 'рулон'),
+            round(v_cap - (v_spent + v_used), 3)
+            using errcode = '22023';
         end if;
       end if;
 
@@ -561,6 +634,20 @@ begin
    * приращение — только годные). Переделка остаток не уменьшает —
    * она вернётся годными или браком в следующих сдачах.
    */
+  /**
+   * ЗАКРЫТИЕ ЗАКРОЯ ТРЕБУЕТ СУДЬБЫ КАЖДОГО ОСТАТКА (правка 27.09, п. 2):
+   * рулон, оставленный «в работе» прежней сдачей, с остатком и без вида
+   * не попадает ни в «Остатки ткани», ни в экономику. Проверяется только
+   * когда эта сдача закрывает этап и в заказе не осталось других открытых
+   * этапов того же участка (рулон мог ждать соседнюю позицию).
+   */
+  if public.erp_stage_unaccounted(p_stage_id, v_good, 0) <= 0 then
+    v_block := public.erp_stage_rolls_fate_block(p_stage_id);
+    if v_block is not null then
+      raise exception '%', v_block using errcode = 'P0001';
+    end if;
+  end if;
+
   update public.erp_item_stages s
      set qty_done = public.erp_clamp_done(s.qty_done, v_good, v_total),
          qty_rework = public.erp_clamp_rework(s.qty_rework, v_rework),

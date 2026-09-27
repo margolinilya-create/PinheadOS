@@ -169,6 +169,32 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
+  setRollLeftover: async (rollId, kind) => {
+    if (kind !== 'usable' && kind !== 'scrap') return false;
+    const ok = await erpWrite('Остаток рулона не записан', () => supabase
+      .from('erp_material_rolls')
+      .update({ leftover_kind: kind, status: 'used' })
+      .eq('id', rollId)
+      .select());
+    if (!ok) return false;
+    // Не optimistic: судьба остатка — необратимое решение, и показать его
+    // записанным раньше ответа сервера значило бы соврать закройщику
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        materials: o.materials.map((m) => ({
+          ...m,
+          rolls: (m.rolls ?? []).map((r) => (
+            r.id === rollId ? { ...r, leftover_kind: kind, status: 'used' as const } : r)),
+        })),
+      })),
+    }));
+    toast.success(kind === 'usable'
+      ? 'Остаток записан как пригодный — он появится в «Остатках ткани»'
+      : 'Малый остаток списан');
+    return true;
+  },
+
   confirmStockMaterial: async (id) => {
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
     const ok = await get().updateMaterial(id, {

@@ -604,6 +604,8 @@ export interface StagesSlice {
       material_id?: string | null;
       qty_used: number;
       finished?: boolean;
+      /** Судьба остатка законченного рулона (правка 21.09, п. 5; обязательна с 27.09, п. 2) */
+      leftover?: 'usable' | 'scrap' | null;
       sizes: StageReportSizeInput[];
     }[];
   }) => Promise<boolean>;
@@ -707,6 +709,12 @@ export interface MaterialsSlice {
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
   /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
   confirmStockMaterial: (id: string) => Promise<boolean>;
+  /**
+   * Судьба остатка рулона, оставленного «в работе» прежней сдачей (правка
+   * 27.09, п. 2): закрыть рулон видом остатка без новой строки расхода.
+   * Пишет прямо в `erp_material_rolls` под политикой прав этапа.
+   */
+  setRollLeftover: (rollId: string, kind: 'usable' | 'scrap') => Promise<boolean>;
 
   /** Варианты поставщиков на позицию закупки (правка 10) */
   addSupplierOption: (

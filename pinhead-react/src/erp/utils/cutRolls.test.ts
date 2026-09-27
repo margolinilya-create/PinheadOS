@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
 import {
+  rollsAwaitingFate, rollsFateBlock,
   rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock, rollLeft,
   cutSizesPayload, cutRollsPayload, sizeCellsOf, cellKey,
 } from './cutRolls';
@@ -322,5 +323,50 @@ describe('cutBlock — остаток и потолок расхода', () => {
     // Работа не закончена — остаток промежуточный, объявлять его рано
     const going = cutRollsPayload([entry({ finished: false, leftover: 'usable' })], options);
     expect(going[0]).toMatchObject({ finished: false, leftover: null });
+  });
+});
+
+/**
+ * СУДЬБА ОСТАТКА ОБЯЗАТЕЛЬНА ПРИ ЗАКРЫТИИ ЗАКРОЯ (правка заказчика 27.09, п. 2).
+ *
+ * «Сейчас этап закройки можно завершить при наличии остатка по рулону без
+ * указания его пригодности. Из-за этого пригодный остаток не попадает
+ * в раздел „Остатки ткани"». На бою 27.09 вид не выбран ни у одного из 60
+ * рулонов. Рулон, оставленный «в работе» без галочки, после закрытия
+ * последнего этапа участка повисает — здесь он находится и называется.
+ */
+describe('rollsAwaitingFate / rollsFateBlock (27.09, п. 2)', () => {
+  const stage = { id: 's-cut', department_id: 'd-cut' };
+  const noOthers = [{ stages: [{ id: 's-cut', status: 'in_progress', department_id: 'd-cut' }] }] as never;
+  const mats = [fabric({ rolls: [
+    roll(1, { status: 'in_use', qty: 20, qty_left: 5 }),
+    roll(2, { status: 'in_use', qty: 20, qty_left: 0 }),
+    roll(3, { status: 'used', qty: 20, qty_left: 4, leftover_kind: 'usable' }),
+    roll(4, { status: 'in_use', qty: null, qty_left: null }),
+  ] })];
+
+  it('находит рулон «в работе» с остатком и без вида — и только его', () => {
+    const pending = rollsAwaitingFate(mats, 'i1', stage, noOthers);
+    expect(pending.map((p) => p.roll.id)).toEqual(['r1']);
+  });
+
+  it('пока в заказе открыт другой этап того же участка — решать рано', () => {
+    const others = [{ stages: [
+      { id: 's-cut', status: 'in_progress', department_id: 'd-cut' },
+      { id: 's-cut-2', status: 'waiting', department_id: 'd-cut' },
+    ] }] as never;
+    expect(rollsAwaitingFate(mats, 'i1', stage, others)).toEqual([]);
+    // Открытый этап ДРУГОГО участка не мешает
+    const sew = [{ stages: [
+      { id: 's-cut', status: 'in_progress', department_id: 'd-cut' },
+      { id: 's-sew', status: 'waiting', department_id: 'd-sew' },
+    ] }] as never;
+    expect(rollsAwaitingFate(mats, 'i1', stage, sew)).toHaveLength(1);
+  });
+
+  it('текст называет рулон, остаток и что нажать — слово в слово с сервером', () => {
+    const text = rollsFateBlock(rollsAwaitingFate(mats, 'i1', stage, noOthers));
+    expect(text).toBe('Не решена судьба остатка: Рулон №1 (5 кг) — отметьте «Остаток пригоден» или «Малый остаток, не учитывать».');
+    expect(rollsFateBlock([])).toBeNull();
   });
 });

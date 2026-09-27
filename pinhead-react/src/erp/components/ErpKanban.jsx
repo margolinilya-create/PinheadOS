@@ -219,6 +219,8 @@ export default function ErpKanban({ filters }) {
           bypasses,
         ),
         dept: departments.find((d) => d.id === dragged.stage.department_id),
+        orderItems: dragged.order.items,
+        itemId: dragged.item.id,
       });
       if (!ok) return;
       // Что писать — решает `stageDonePatch` (правка 27.09, п. 7): участок

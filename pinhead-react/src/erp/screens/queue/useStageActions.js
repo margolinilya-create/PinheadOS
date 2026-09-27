@@ -118,6 +118,9 @@ export function useStageActions() {
         materialsForItem(entry.order.materials, entry.item.id), entry.order.id, bypasses,
       ),
       dept: departments.find((d) => d.id === entry.stage.department_id),
+      // Судьба остатков рулонов (правка 27.09, п. 2) — этапы всего заказа
+      orderItems: entry.order.items,
+      itemId: entry.item.id,
     });
     if (!ok) return false;
     /**
