@@ -8,6 +8,7 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import DevAnnotations from './components/shared/DevAnnotations'
+import UpdateBanner from './components/shared/UpdateBanner'
 import { FEATURES } from './config/features'
 import { JOIN_PATH } from './erp/utils/invite'
 
@@ -38,12 +39,14 @@ function LoadingScreen() {
  * одинаково нужно и в «Производстве», и в Order Studio, и на экранах входа,
  * а две точки монтирования — это два условия показа, которые разъедутся.
  * В прод-сборке компонент вырождается в `null` вместе со своим чанком.
+ * `UpdateBanner` — здесь по той же причине: выкатка касается любого экрана.
  */
 function GlobalHosts() {
   return (
     <>
       <ToastContainer />
       <ConfirmDialogHost />
+      <UpdateBanner />
       <DevAnnotations />
     </>
   );

@@ -66,7 +66,8 @@ pinhead-react/src/
 │   ├── useOrdersStore.ts    # CRUD заказов, Kanban
 │   ├── useCommentsStore.ts  # Комментарии к заказам
 │   ├── useToastStore.ts     # Уведомления
-│   └── useConfirmStore.ts   # Imperative confirm dialog
+│   ├── useConfirmStore.ts   # Imperative confirm dialog
+│   └── useAppUpdateStore.ts # «Вышло обновление»: признак + «Позже» на полчаса
 ├── hooks/
 │   ├── useDraft.js          # Авто-сохранение черновика
 │   ├── useFocusTrap.js      # Focus trap для модалок
@@ -75,6 +76,8 @@ pinhead-react/src/
 │   ├── supabase.ts          # Supabase client
 │   ├── api.ts               # API-функции (orders, comments, templates)
 │   ├── storage.ts           # localStorage/sessionStorage обёртки + storageClearAll + Supabase Storage (sku-photos)
+│   ├── appUpdate.ts         # Распознавание пропавшего чанка (устаревшая вкладка) — реакция ПОСЛЕ отказа
+│   ├── appVersion.ts        # Сверка /version.json с маркером сборки — плашка ДО отказа (27.09)
 │   └── catalogs.ts          # Загрузка каталогов из Supabase (catalog_config + app_config)
 ├── data/                    # Статические данные: цвета, ткани, цены, SKU, extras
 ├── types/                   # TypeScript типы: order, catalog, auth, pricing

@@ -8,6 +8,7 @@ import { toast } from './store/useToastStore'
 import { installGlobalErrorReporting, reportError } from './lib/errorReport'
 import { handlePossibleUpdate } from './lib/appUpdate'
 import { setupServiceWorker } from './lib/serviceWorker'
+import { startVersionWatch } from './lib/appVersion'
 import { isNetworkFailure } from './utils/i18n'
 
 // Ошибки вне React (события, таймеры, промисы) до ErrorBoundary не доходят.
@@ -88,6 +89,14 @@ watchAuthState();
  * в `public/sw.js`, аварийный выключатель — адрес `?sw=off`.
  */
 setupServiceWorker();
+
+/*
+ * «Вышло обновление» — ЗАРАНЕЕ. Обработчики выше ловят уже случившийся отказ
+ * чанка; наблюдатель версии сверяет `/version.json` с зашитым маркером при
+ * возврате вкладки и раз в несколько минут и показывает плашку до того,
+ * как человек нажмёт на сломанную кнопку (`lib/appVersion`).
+ */
+startVersionWatch();
 
 // Черновик визарда и каталоги Order Studio запускает САМ РАЗДЕЛ
 // (`orderstudio/OrderStudioApp`): здесь их инициализация тянула его стор,
