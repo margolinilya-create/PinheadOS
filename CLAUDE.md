@@ -218,6 +218,23 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
 
+Правки 27.09 (сессия 72, PR 1) добавили **серверные гейты закрытия**:
+`erp_supply_autoclose` (триггер на `erp_materials`: закупка закрывается САМА,
+когда все материалы заказа `erp_material_fully_received` — `accepted_full`
+и `qty_received ≥ qty_expected`; идёт под меткой `erp.supply_autoclose`,
+которую `erp_stage_guard` пропускает только для перехода этапа `supply`
+в `done`), `erp_stage_unaccounted` (не учтено = greatest(тираж, принято) −
+сдано − брак; обе RPC сдачи закрывают этап по нему, а не по тиражу),
+`erp_stage_size_output`/`erp_stage_size_input` (размеры сквозь нанесение —
+зеркало `sizeInputFor`), `erp_stage_rolls_fate_block` (судьба остатков
+рулонов при закрытии последнего этапа участка), `erp_stage_program_block`
+(вышивка ждёт «Разработку программы» той же позиции),
+`erp_stage_completion_block(uuid, int, p_final)` с четырьмя ветками
+и триггер `erp_stage_done_gate` на прямом переходе в `done` (пропуск
+service role и меток `erp.force_complete`/`erp.moving`/
+`erp.subcontract_rollup`/`erp.supply_autoclose`). Это ГЕЙТЫ «можно ли
+закрыть», а не стражи колонок — стражей по-прежнему девять.
+
 Правки 21.09 (сессия 65) добавили **вес рулона, остаток полотна и плюс
 закроя**: `erp_material_rolls.qty` теперь заполняется приёмкой (`erp_material_accept`
 принимает `p_roll_weights` — пары «рулон → вес», сумма сверяется с приходом),
@@ -306,7 +323,8 @@ watermark `erp_chat_reads` остаётся — по ней считаются �
 этапа файл, а не штуки), `erp_departments.allows_over_plan` (участок может сдать
 больше тиража — включён у закроя), вид вложения `stage_result` (файл, который цех
 СДАЁТ, в отличие от `subcontract` — тех, что подрядчику отдают) и функцию
-`erp_stage_input_qty` (серверное зеркало клиентского `stageInputQty`).
+`erp_stage_input_qty` (серверное зеркало клиентского `stageInputQty`; с 27.09 рядом
+`erp_stage_size_input` — по размерам, и `erp_stage_unaccounted` — «не учтено»).
 
 Правки 07.09 (сессия 52) добавили: размер упаковки в мм у заказа и позиции
 (`packaging_width_mm`/`packaging_height_mm`), `erp_item_prints.garment_kind`

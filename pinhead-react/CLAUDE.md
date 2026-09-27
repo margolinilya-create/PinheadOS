@@ -9,12 +9,15 @@ URL: https://pinhead-os.vercel.app
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
   screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal
-  (+ create/: SizeGridEditor (не даёт завести вторую строку того же цвета —
+  (+ create/: useTzDocs (ТЗ формы: загрузка при выборе, снимок для черновика
+  с именем/типом/размером — 27.09 п. 12), SizeGridEditor (не даёт завести вторую строку того же цвета —
   дубли удваивали ввод, правка 21.09 п. 8), DraftPicker (выбор черновика прямо
   в форме; окна подтверждения при выходе больше нет — 21.09 п. 6),
   FormParts, ItemBlock, TzSection — форма разрезана);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
+  MoveStageSelect (перенос в цех из панели)/CutRollsSection (закрой по рулонам;
+  кнопки судьбы остатка у рулонов «в работе» — 27.09 п. 2)/
   DefectWizard (мастер брака: 2 шага в Drawer);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
   screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
@@ -45,22 +48,28 @@ URL: https://pinhead-os.vercel.app
   screens/FabricLeftovers.jsx — «Остатки ткани» (/leftovers, правка 21.09 п. 5):
   рулоны с ненулевым остатком, вес, цена и заказ-источник; остаток это САМ рулон,
   отдельной сущности нет;
-  screens/purchasing/ — SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
+  screens/purchasing/ — AddPurchaseModal (модалка «Новая закупка», подсветка
+  обязательных полей — 27.09 п. 1), SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
   purchaseLabels.js (подписи; `pricePerUnitLabel` — цена по ЕДИНИЦЕ материала,
   одна функция на таблицу, карточку планшета, инлайн-правку и модалку),
-  components (ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
+  components (StageReportForm + SizeReportSection (размерная таблица сдачи, остаток
+  по размерам) + useStageReports (отчёты предков и свои — 27.09 пп. 6, 7),
+  ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
   Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
   RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
   + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
-  orders/stages/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
+  orders/stages (+ stageGates.ts — гейты закрытия у писателя: файл → программа
+  вышивки → тираж → закупка/рулоны, не учтённые изделия)/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
   realtimeCoalesce.ts (серия событий → одно перечитывание), realtimeHelpers.ts, reworkEvents.ts (журнал
   переделок с кэшем по `id:qty`), authHelpers.ts у useAuthStore;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
-  utils (routes/time/stageUi/orderForm/progress/filterStages/queueEntries/queueOrder/
+  utils (routes/time/stageUi/orderForm (+ orderDraftEnvelope — снимок черновика,
+  файлы проходят нормализацию)/stageRemaining (не учтено = greatest(тираж, принято)
+  − сдано − брак; stageDonePatch)/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
   читателей)/cutRolls/cutExtras (производственный «плюс», накопительно)/
