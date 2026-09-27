@@ -3,10 +3,35 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { qaSupabaseBridge } from './scripts/qa-supabase-bridge.mjs'
 
+/**
+ * Маркер сборки — для проверки «вышло обновление» ДО того, как человек
+ * нажмёт на сломанную кнопку (`lib/appVersion`).
+ *
+ * Выкатка меняет имена чанков, а вкладка, открытая до неё, узнаёт об этом
+ * только первым неудачным ленивым импортом — то есть ошибкой на ровном
+ * месте (снимки владельца 27.09). Чтобы узнавать раньше, приложение
+ * периодически читает `/version.json` и сравнивает с маркером, зашитым
+ * в свой код. Оба берутся из ОДНОГО значения здесь: коммит на Vercel,
+ * иначе — момент сборки. Маркер не проходит через `/assets/`, поэтому
+ * service worker его не кеширует (он кеширует только `/assets/` и `/fonts/`).
+ */
+const buildId = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || new Date().toISOString();
+
+function buildVersionFile() {
+  return {
+    name: 'pinhead-build-version',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: buildId }) });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
+  plugins: [react(), buildVersionFile(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
   base: '/',
+  define: { __BUILD_ID__: JSON.stringify(buildId) },
   build: {
     // Манифест нужен бюджету критического пути (scripts/bundle-budget.mjs):
     // из index.html виден только вход и его modulepreload, а оболочка ERP
