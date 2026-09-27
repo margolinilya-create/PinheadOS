@@ -15,7 +15,7 @@
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockingCompletion } from './supply';
-import { isFileResultStage } from './stageResult';
+import { embroideryProgramBlock, isFileResultStage } from './stageResult';
 import { deptAccountsByReports } from './stageRemaining';
 import { rollsAwaitingFate, rollsFateBlock } from './cutRolls';
 import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
@@ -45,8 +45,12 @@ export interface StageDoneWarningInput {
   };
   /** Тираж позиции */
   qty: number;
-  /** Все этапы позиции — чтобы назвать те, что разблокируются */
-  allStages: Pick<ErpItemStage, 'id' | 'department_id' | 'depends_on'>[];
+  /**
+   * Все этапы позиции — чтобы назвать те, что разблокируются, и найти
+   * незавершённую «Разработку программы вышивки» (правка 27.09, п. 3)
+   */
+  allStages: (Pick<ErpItemStage, 'id' | 'department_id' | 'depends_on'>
+    & Partial<Pick<ErpItemStage, 'status' | 'result_kind'>>)[];
   /** id цеха → короткое имя */
   deptNameById?: Map<string, string>;
   /**
@@ -55,7 +59,7 @@ export interface StageDoneWarningInput {
    * «будут записаны как выполненные» у него нет. Необязателен здесь, чтобы
    * тексты последствий тестировались без справочника цехов.
    */
-  dept?: Pick<ErpDepartment, 'result_fields'> | null;
+  dept?: (Pick<ErpDepartment, 'result_fields'> & { is_production?: boolean | null }) | null;
 }
 
 /**
@@ -75,8 +79,8 @@ export interface StageDoneInput extends StageDoneWarningInput {
    * от `result_fields` — дописывается ли остаток при закрытии, от
    * `result_detail` — спрашивается ли судьба остатков рулонов
    */
-  dept: Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields' | 'result_detail'>
-    | null | undefined;
+  dept: (Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields' | 'result_detail'>
+    & { is_production?: boolean | null }) | null | undefined;
   /**
    * Позиции ЗАКАЗА с этапами (правка 27.09, п. 2): судьба остатка рулона
    * спрашивается, только когда в заказе не осталось других открытых этапов
@@ -179,7 +183,17 @@ export async function confirmStageDone(input: StageDoneInput): Promise<boolean> 
    * а не выбор, и спрашивать «записать остаток?» у действия, которое всё
    * равно не состоится, значит предлагать несуществующее решение.
    */
-  const blocked = stageCompletionBlock(input);
+  /**
+   * Программа вышивки раньше вышивки (правка 27.09, п. 3): у самой вышивки
+   * `department_id` тот же, что у этапа программы, и `allStages` — этапы
+   * позиции; ниже тот же отказ даст писатель, здесь он звучит раньше.
+   */
+  const program = input.stage.department_id !== undefined
+    ? embroideryProgramBlock(
+      { id: input.stage.id, department_id: input.stage.department_id ?? '', status: 'in_progress', result_kind: input.stage.result_kind },
+      input.allStages.map((s) => ({ ...s, status: s.status ?? 'waiting' })),
+    ) : null;
+  const blocked = program ?? stageCompletionBlock(input);
   if (blocked) {
     toast.error(blocked);
     return false;

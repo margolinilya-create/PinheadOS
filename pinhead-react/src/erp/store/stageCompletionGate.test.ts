@@ -260,3 +260,43 @@ describe('рулон без судьбы остатка держит закры�
     expect(await s().reportProgress('st1', 40)).toBe(true);
   });
 });
+
+/**
+ * ПРОГРАММА ВЫШИВКИ РАНЬШЕ ВЫШИВКИ (правка заказчика 27.09, п. 3) — у писателя:
+ * и кнопка, и сдача, добирающая тираж, и частичная готовность на остаток
+ * закрыли бы вышивку без программы. Этап программы — той же позиции и того же
+ * участка; программа другой позиции ограничение не снимает.
+ */
+describe('незавершённая программа вышивки держит закрытие вышивки', () => {
+  const EMB_DEPT = { ...OPEN_DEPT, id: 'd-emb', code: 'embroidery', name: 'Вышивка' };
+  const withProgram = (status: string) => {
+    seed({ deptId: EMB_DEPT.id, qtyDone: 0 });
+    useErpStore.setState((st) => ({
+      departments: [...st.departments, EMB_DEPT] as never,
+      orders: st.orders.map((o) => ({
+        ...o,
+        items: o.items.map((it) => ({
+          ...it,
+          stages: [...it.stages, {
+            id: 'prog', item_id: 'it1', department_id: EMB_DEPT.id, status, qty_done: 0,
+            qty_rework: 0, depends_on: [], sort_order: 5, result_kind: 'embroidery_program',
+          }],
+        })),
+      })) as never,
+    }));
+  };
+
+  it('все три писателя отказывают, пока программа не завершена', async () => {
+    withProgram('in_progress');
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+    expect(await s().reportProgress('st1', 100)).toBe(false);
+    expect(await s().submitStageReport('st1', { qtyGood: 100 })).toBe(false);
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it('программа завершена — вышивка закрывается', async () => {
+    withProgram('done');
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
+  });
+});

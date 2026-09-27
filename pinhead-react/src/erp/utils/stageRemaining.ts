@@ -30,7 +30,6 @@ import type { ErpDepartment, ErpItemStage } from '../types';
 import { stageInputQty, type InputStage } from './stageInput';
 import { sizeKey } from './stageSizes';
 import { isFileResultStage } from './stageResult';
-import { pluralize } from '../../utils/i18n';
 
 /** Минимум отчёта для сумм: брак и размерные строки */
 export interface AccountedReport {
@@ -70,11 +69,18 @@ export function reportedAccountedBySize(
   return out;
 }
 
-/** Участок отчитывается формой — значит остаток учитывается, а не дописывается */
+/**
+ * ПРОИЗВОДСТВЕННЫЙ участок с формой результата — остаток у него учитывается,
+ * а не дописывается. Непроизводственные (склад, закупка) тоже носят
+ * `result_fields`, но их этапы закрывают складские задачи и отгрузка
+ * (`erp_warehouse_task_derive`, `erp_ship_order`), а не сдача изделий —
+ * гейт «не учтено N изделий» им не по адресу. То же условие у сервера.
+ */
 export function deptAccountsByReports(
-  dept: Pick<ErpDepartment, 'result_fields'> | null | undefined,
+  dept: Pick<ErpDepartment, 'result_fields'> & { is_production?: boolean | null } | null | undefined,
 ): boolean {
-  return Array.isArray(dept?.result_fields) && dept.result_fields.length > 0;
+  return Boolean(dept?.is_production)
+    && Array.isArray(dept?.result_fields) && dept.result_fields.length > 0;
 }
 
 /** Потолок учёта: большее из тиража и принятого — то же, что у `stageQtyCap` */
@@ -145,9 +151,12 @@ export function stageUnaccountedBlock(
   if (!deptAccountsByReports(input.dept)) return null;
   const left = stageUnaccounted(input);
   if (left <= 0) return null;
-  const items = pluralize(left, 'изделие', 'изделия', 'изделий');
+  /**
+   * Форма «изделий — N» одна и на сервере (`erp_stage_completion_block`):
+   * в SQL число и предмет разводятся, чтобы не заводить второе склонение.
+   */
   const detail = input.breakdown ? ` (${input.breakdown})` : '';
-  return `Нельзя завершить этап: не учтено ${left} ${items}${detail}. `
+  return `Нельзя завершить этап: не учтено изделий — ${left}${detail}. `
     + 'Сдайте оставшиеся изделия или укажите окончательный брак.';
 }
 

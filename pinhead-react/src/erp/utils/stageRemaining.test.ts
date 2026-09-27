@@ -17,8 +17,10 @@ import { join } from 'node:path';
  */
 const cut = { id: 'cut', status: 'done' as const, depends_on: [], qty_done: 472 };
 const sew = { id: 'sew', status: 'in_progress' as const, depends_on: ['cut'], qty_done: 368 };
-const FORM = { result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' as const }] };
-const NO_FORM = { result_fields: [] };
+const FORM = { is_production: true, result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' as const }] };
+const NO_FORM = { is_production: true, result_fields: [] };
+/** Склад тоже носит форму результата, но его этапы закрывают задачи и отгрузка */
+const WAREHOUSE = { is_production: false, result_fields: FORM.result_fields };
 
 describe('stageUnaccounted — формула документа', () => {
   it('принято 472, сдано 368 — не учтено 104, а не 0', () => {
@@ -62,17 +64,13 @@ describe('stageUnaccounted — формула документа', () => {
 describe('stageUnaccountedBlock — только у участка с формой результата', () => {
   const base = { stage: sew, allStages: [cut, sew], itemQty: 350, defectReported: 0 };
 
-  it('называет число, разбивку и что делать', () => {
+  it('называет число, разбивку и что делать — теми же словами, что сервер', () => {
     const text = stageUnaccountedBlock({ ...base, dept: FORM, breakdown: 'M — 60 шт, L — 44 шт' });
-    expect(text).toBe('Нельзя завершить этап: не учтено 104 изделия (M — 60 шт, L — 44 шт). '
+    expect(text).toBe('Нельзя завершить этап: не учтено изделий — 104 (M — 60 шт, L — 44 шт). '
       + 'Сдайте оставшиеся изделия или укажите окончательный брак.');
-  });
-
-  it('склоняет: 1 изделие, 5 изделий', () => {
-    expect(stageUnaccountedBlock({ ...base, stage: { ...sew, qty_done: 471 }, dept: FORM }))
-      .toContain('не учтено 1 изделие.');
-    expect(stageUnaccountedBlock({ ...base, stage: { ...sew, qty_done: 467 }, dept: FORM }))
-      .toContain('не учтено 5 изделий.');
+    // Без разбивки — ровно серверная форма
+    expect(stageUnaccountedBlock({ ...base, dept: FORM }))
+      .toBe('Нельзя завершить этап: не учтено изделий — 104. Сдайте оставшиеся изделия или укажите окончательный брак.');
   });
 
   it('учтено всё — блока нет', () => {
@@ -84,6 +82,12 @@ describe('stageUnaccountedBlock — только у участка с формо
     expect(stageUnaccountedBlock({ ...base, dept: null })).toBeNull();
     expect(deptAccountsByReports(FORM)).toBe(true);
     expect(deptAccountsByReports(NO_FORM)).toBe(false);
+  });
+
+  /** Склад и закупка носят `result_fields`, но их этапы закрывают задачи и отгрузка */
+  it('непроизводственный участок не гейтится, даже с формой результата', () => {
+    expect(stageUnaccountedBlock({ ...base, dept: WAREHOUSE })).toBeNull();
+    expect(deptAccountsByReports(WAREHOUSE)).toBe(false);
   });
 });
 
@@ -147,7 +151,7 @@ describe('серверное зеркало (миграция 27.09, п. 7)', ()
   });
 
   it('обе RPC закрывают этап по учтённому, а не по тиражу', () => {
-    expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0\s+then 'done'/);
+    expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0\s+and public\.erp_stage_program_block\(p_stage_id\) is null\s+then 'done'/);
     expect(SUBMIT).not.toMatch(/>= v_total\s+then 'done'/);
     expect(PROGRESS).toMatch(/erp_stage_unaccounted\(p_stage_id, p_qty, 0\) <= 0/);
     expect(PROGRESS).not.toMatch(/v_next >= v_total then 'done'/);

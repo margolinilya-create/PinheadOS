@@ -230,6 +230,40 @@ comment on function public.erp_stage_unaccounted(uuid, int, int) is
 revoke execute on function public.erp_stage_unaccounted(uuid, int, int) from public, anon;
 grant execute on function public.erp_stage_unaccounted(uuid, int, int) to authenticated;
 
+-- ── Программа вышивки раньше вышивки (правка 27.09, п. 3) ──
+--
+-- По вышивке заводятся два этапа одного участка: разработка программы
+-- (`result_kind = 'embroidery_program'`, зависимости в графе нет намеренно —
+-- крой она не держит) и сама вышивка. Завершение граф не проверял, и
+-- «Вышивку» можно было закрыть при незавершённой программе. Сравниваются
+-- этапы ТОЙ ЖЕ позиции и того же участка — программа другой позиции
+-- ограничение не снимает. `skipped` считается завершением. Зеркало
+-- клиентского `stageResult.embroideryProgramBlock`.
+create or replace function public.erp_stage_program_block(p_stage_id uuid)
+returns text
+language sql
+stable
+set search_path = public as $$
+  select case when exists (
+    select 1
+      from public.erp_item_stages s
+      join public.erp_item_stages p
+        on p.item_id = s.item_id
+       and p.department_id = s.department_id
+       and p.id <> s.id
+     where s.id = p_stage_id
+       and s.result_kind is null
+       and p.result_kind = 'embroidery_program'
+       and p.status not in ('done', 'skipped')
+  ) then 'Сначала завершите задачу “Разработка программы вышивки”' else null end;
+$$;
+
+comment on function public.erp_stage_program_block(uuid) is
+  'Почему вышивку нельзя закрыть, или NULL: незавершённая «Разработка программы вышивки» той же позиции и того же участка (правка 27.09, п. 3). Зеркало клиентского stageResult.embroideryProgramBlock.';
+
+revoke execute on function public.erp_stage_program_block(uuid) from public, anon;
+grant execute on function public.erp_stage_program_block(uuid) to authenticated;
+
 -- ── Судьба остатков рулонов при закрытии закроя (правка 27.09, п. 2) ──
 --
 -- Рулон со статусом «в работе», остатком и без вида остатка после закрытия
@@ -651,11 +685,15 @@ begin
   update public.erp_item_stages s
      set qty_done = public.erp_clamp_done(s.qty_done, v_good, v_total),
          qty_rework = public.erp_clamp_rework(s.qty_rework, v_rework),
+         -- Незавершённая программа вышивки НЕ закрывает этап (правка 27.09,
+         -- п. 3): факт записывается, статус остаётся — запрещён переход
          status = case
            when public.erp_stage_unaccounted(p_stage_id, v_good, 0) <= 0
+                and public.erp_stage_program_block(p_stage_id) is null
              then 'done' else s.status end,
          finished_at = case
            when public.erp_stage_unaccounted(p_stage_id, v_good, 0) <= 0
+                and public.erp_stage_program_block(p_stage_id) is null
              then now() else s.finished_at end
    where s.id = p_stage_id
   returning * into v_row;
@@ -699,8 +737,10 @@ begin
   update public.erp_item_stages s
      set qty_done    = v_next,
          status      = case when public.erp_stage_unaccounted(p_stage_id, p_qty, 0) <= 0
+                                 and public.erp_stage_program_block(p_stage_id) is null
                             then 'done' else s.status end,
          finished_at = case when public.erp_stage_unaccounted(p_stage_id, p_qty, 0) <= 0
+                                 and public.erp_stage_program_block(p_stage_id) is null
                             then now() else s.finished_at end
    where s.id = p_stage_id
   returning * into v_row;

@@ -46,7 +46,7 @@ describe('stageDoneWarning', () => {
   it('у участка с формой результата диалога о недосдаче нет', () => {
     expect(stageDoneWarning({
       stage: { id: 's-sew', qty_done: 40 }, qty: 100, allStages: stages, deptNameById: deptNames,
-      dept: { result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }] },
+      dept: { is_production: true, result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }] },
     })).toBeNull();
     // Без формы — как прежде
     expect(stageDoneWarning({

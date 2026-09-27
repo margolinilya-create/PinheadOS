@@ -1,18 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { stageInputQty } from '../utils/stageInput';
 import { reportedAccountedBySize, reportedDefect, stageUnaccounted } from '../utils/stageRemaining';
 import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
 import { confirm } from '../../store/useConfirmStore';
-import { useEffect } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { SizeReportSection } from './SizeReportSection';
+import { useStageReports } from './useStageReports';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
 import {
   sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
-  stageAncestors,
 } from '../utils/stageSizes';
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
@@ -109,53 +107,13 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
   const [assemblyCost, setAssemblyCost] = useState('');
-  const [prevReports, setPrevReports] = useState([]);
-  const [ownReports, setOwnReports] = useState([]);
-
-  const loadStageReports = useErpStore(useShallow((st) => st.loadStageReports));
+  /**
+   * Отчёты предков (столбец «Покроено» сквозь нанесение, правка 27.09, п. 6)
+   * и свои прежние (плюсы, остаток по размерам и «Осталось сдать», п. 7) —
+   * хук `useStageReports`; здесь только их производные.
+   */
+  const { prevReports, ownReports } = useStageReports(stage, item.stages ?? [], bySizes);
   const setRollLeftover = useErpStore((st) => st.setRollLeftover);
-
-  /**
-   * Отчёты предшественников — точечной загрузкой при открытии формы: журнал
-   * результатов растёт быстрее всего, и возить его в выборке заказа ради
-   * одной формы нельзя.
-   */
-  /**
-   * ГРУЗЯТСЯ ОТЧЁТЫ ВСЕХ ПРЕДКОВ, а не только прямых предшественников
-   * (правка 27.09, п. 6). При нанесении на крое между закроем и швейкой стоит
-   * вышивка без размерного отчёта — с одними `depends_on` столбец «Покроено»
-   * оставался прочерками при «Принято в работу: 472».
-   */
-  const ancestorIds = useMemo(
-    () => stageAncestors(stage, item.stages ?? []),
-    [stage, item.stages],
-  );
-  useEffect(() => {
-    if (!bySizes) return undefined;
-    let alive = true;
-    if (ancestorIds.length === 0) return undefined;
-    loadStageReports(ancestorIds).then((rows) => { if (alive) setPrevReports(rows); });
-    return () => { alive = false; };
-  }, [bySizes, ancestorIds, loadStageReports]);
-
-  /**
-   * СОБСТВЕННЫЕ прежние отчёты этого этапа — для плюсов (правка 21.09, п. 3).
-   *
-   * Закрой сдаёт частями, и плюс считается накопительно: 30 шт сегодня
-   * и 25 завтра при плане 50 — это плюс 5, а не два раза «меньше плана».
-   * Сервер считает то же и по тем же строкам; здесь они нужны, чтобы цех
-   * ВИДЕЛ плюс до нажатия кнопки, а не узнавал о нём из журнала.
-   */
-  /**
-   * И ДЛЯ ОСТАТКА (правка 27.09, п. 7): «Осталось сдать» и потолок каждой
-   * строки считаются от ПРИНЯТОГО минус уже сданное и списанное в брак —
-   * без прежних отчётов вторая сдача видела бы 472 вместо 104.
-   */
-  useEffect(() => {
-    let alive = true;
-    loadStageReports([stage.id]).then((rows) => { if (alive) setOwnReports(rows); });
-    return () => { alive = false; };
-  }, [stage.id, loadStageReports]);
   const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
   // Только СВОИ отчёты: выборка по id и так своя, но сумма обязана не зависеть от того
   const accountedBySize = useMemo(() => reportedAccountedBySize(ownReports, stage.id), [ownReports, stage.id]);
