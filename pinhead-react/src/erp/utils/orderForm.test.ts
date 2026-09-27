@@ -646,6 +646,67 @@ describe('бирки и основная ткань (правка 22.08)', () =>
 });
 
 /**
+ * ФАЙЛЫ ЧЕРНОВИКА (правка заказчика 27.09, п. 12).
+ *
+ * «После сохранения и повторного открытия черновика пропадают загруженные
+ * файлы». Снимок писал `attachments` и `tzDocs` с 20.09, а нормализатор
+ * возвращал только `{form, items, purchase, notes}`: в базе файлы лежали,
+ * форма открывалась без них. Мутация: убрать два поля из `normalizeEnvelope`
+ * — оба теста ниже красные.
+ */
+describe('файлы в черновике (правка 27.09, п. 12)', () => {
+  const base = { form: emptyOrderForm(), items: [item({ product_type: 'Худи', qty: 10 })] };
+
+  it('вложения блоков и ТЗ проходят через нормализацию', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{
+        uid: 'u1', kind: 'packaging', itemIndex: 0, ownerKey: null,
+        name: 'упаковка.jpg', state: 'uploaded', path: 'att/new/packaging/u1-upakovka.jpg',
+      }],
+      tzDocs: [{
+        groupId: 'g1', itemIndex: 0, state: 'uploaded', path: 'tz/new/g1/v1-TZ.pdf',
+        name: 'ТЗ.pdf', type: 'application/pdf', size: 1234,
+      }],
+    });
+    expect(d?.attachments).toHaveLength(1);
+    expect(d?.attachments[0].path).toBe('att/new/packaging/u1-upakovka.jpg');
+    expect(d?.tzDocs).toHaveLength(1);
+    expect(d?.tzDocs[0]).toMatchObject({ name: 'ТЗ.pdf', type: 'application/pdf', size: 1234 });
+  });
+
+  it('черновик без файлов (до 20.09) отдаёт пустые списки, а не падает', () => {
+    const d = normalizeDraft(base);
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /** Снимок с незавершённой загрузкой мог остаться от прежней формы: путь у него пустой */
+  it('незагруженное и без пути отбрасывается', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{ uid: 'u1', kind: 'tech', state: 'uploading', path: null }, 'мусор'],
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'error', path: 'tz/new/g1/v1-x.pdf' }],
+    });
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /**
+   * ТЗ, сохранённое до 27.09, имени не несёт — а показ и сабмит читали
+   * `doc.file.name` и падали бы на восстановленном документе. Имя берётся
+   * из ключа Storage: латиницей (транслит `tzFilePath`), но не пусто.
+   */
+  it('у ТЗ старого черновика имя выводится из пути', () => {
+    const d = normalizeDraft({
+      ...base,
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'uploaded', path: 'tz/new/g1/v1-TZ_59746.pdf' }],
+    });
+    expect(d?.tzDocs[0].name).toBe('TZ_59746.pdf');
+  });
+});
+
+/**
  * ПОЛЕ «ЦВЕТ / ПОСТАВЩИК» (правка 12.09, п. 3) — СТОРОЖ ВСЕГО ПУТИ.
  *
  * Главный класс дефекта при добавлении поля — «половина требования выглядит

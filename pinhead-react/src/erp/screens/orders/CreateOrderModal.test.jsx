@@ -619,6 +619,61 @@ describe('сохранение в черновики', () => {
       .toBe(uploadCalls[0].path);
   });
 
+  /**
+   * ВТОРАЯ ПОЛОВИНА ПУТИ (правка заказчика 27.09, п. 12): «после сохранения
+   * и повторного открытия черновика пропадают загруженные файлы». Снимок
+   * писался, а читатель его отрезал — и восстановленный документ не нёс
+   * `File`, на котором держались показ и сабмит.
+   *
+   * Проверяется РЕЗУЛЬТАТ: открытый черновик показывает файл, а заказ,
+   * созданный из него, уносит ТЗ в секцию `tz` с именем и путём.
+   */
+  it('черновик с ТЗ открывается с файлом и уносит его в заказ', async () => {
+    const createOrder = vi.fn().mockResolvedValue({ id: 'o-new' });
+    useErpStore.setState({
+      departments: DEPARTMENTS, orders: [], loaded: true, createOrder,
+      saveOrderDraft: vi.fn().mockResolvedValue({ id: 'd-1' }),
+      deleteOrderDraft: vi.fn().mockResolvedValue(true),
+      employees: [], profilesList: [], employeesLoaded: true,
+      loadEmployees: vi.fn().mockResolvedValue(undefined),
+      orderDrafts: [{
+        id: 'd-1', title: 'Из черновика', updated_at: '2026-09-27T10:00:00Z',
+        payload: {
+          form: { title: 'Из черновика', purchase_required: false },
+          items: [{ product_type: 'Футболка', qty: '100', prints: [], labels: [] }],
+          tzDocs: [{
+            groupId: 'g-1', itemIndex: 0, state: 'uploaded',
+            path: 'tz/new/g-1/v1-TZ_futbolka.pdf',
+            name: 'ТЗ футболка.pdf', type: 'application/pdf', size: 4321,
+          }],
+        },
+      }],
+    });
+    render(
+      <MemoryRouter>
+        <CreateOrderModal onClose={vi.fn()} draftId="d-1" />
+      </MemoryRouter>,
+    );
+
+    // Файл виден и помечен загруженным — повторно прикладывать не нужно
+    expect(screen.getByText('ТЗ футболка.pdf')).toBeInTheDocument();
+    expect(screen.getByText('ТЗ загружено')).toBeInTheDocument();
+
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(createOrder).toHaveBeenCalled());
+    const payload = createOrder.mock.calls[0][0];
+    expect(payload.tz.documents).toEqual([expect.objectContaining({
+      group_id: 'g-1',
+      item_index: 0,
+      file_path: 'tz/new/g-1/v1-TZ_futbolka.pdf',
+      file_name: 'ТЗ футболка.pdf',
+      mime_type: 'application/pdf',
+      size_bytes: 4321,
+    })]);
+    // Загрузку не повторяли: объект уже в бакете
+    expect(uploadCalls).toHaveLength(0);
+  });
+
   it('незагруженный файл сохранять не даёт — путь указывал бы в пустоту', async () => {
     // Загрузка «зависает»: состояние `uploading`, пути ещё нет
     let release;
