@@ -32,6 +32,9 @@ imported module: …/assets/CreateOrderModal-CtVzS8xJ.js)» с кнопкой «
 - `ErpStates.ScreenCrashed` — единый фолбэк границы экрана: пропавший чанк →
   `UpdateAvailable`, настоящее падение → прежний `LoadFailed` с текстом
   ошибки и «Повторить». `ErpApp` подключён к нему.
+- `isChunkLoadError` знает и «Unable to preload CSS for …» (Vite: пропал
+  CSS-файл чанка) — второй снимок владельца, полноэкранная граница
+  показывала «Что-то пошло не так».
 - Тесты: `ErpStates.test.jsx` (обе ветки, отрицательная — обычная ошибка
   кода остаётся видимой) и сторож проводки `erp/screenCrashed.test.ts`
   (тест компонента был бы зелёным при возврате рукописного фолбэка в `ErpApp`).

@@ -23,6 +23,8 @@ describe('распознавание устаревшей вкладки', () =>
     // Пока SPA-rewrite ловил /assets/*, сервер отдавал HTML вместо модуля
     'Failed to load module script: Expected a JavaScript module script but the server '
       + 'responded with a MIME type of "text/html".',
+    // Vite: пропал CSS-файл чанка (снимок с боя 27.09)
+    'Unable to preload CSS for /assets/ErpStates-CkMyt2QC.css',
   ])('узнаёт: %s', (message) => {
     expect(isChunkLoadError(new Error(message))).toBe(true);
   });

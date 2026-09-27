@@ -35,6 +35,10 @@ const CHUNK_ERROR_PATTERNS = [
   'importing a module script failed',
   // Ответ HTML вместо модуля — см. комментарий выше
   'expected a javascript module script',
+  // Vite: у чанка пропал CSS-файл (свой текст загрузчика, не браузера).
+  // Ловилось на бою 27.09: «Unable to preload CSS for /assets/ErpStates-….css»
+  // после выкатки показывало «Что-то пошло не так» вместо «Вышло обновление»
+  'unable to preload css',
   // Имя ошибки у сборщиков с runtime-загрузчиком
   'chunkloaderror',
 ];
