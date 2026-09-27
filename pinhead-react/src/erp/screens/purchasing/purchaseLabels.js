@@ -108,3 +108,34 @@ export function pricePerUnitLabel(unit, units) {
 export function priceRequiredFor(kind) {
   return kind === 'fabric';
 }
+
+/**
+ * ОБЯЗАТЕЛЬНЫЕ ПОЛЯ «НОВОЙ ЗАКУПКИ» — ОДНОЙ ЧИСТОЙ ФУНКЦИЕЙ (правка 27.09, п. 1).
+ *
+ * Документ: «при нажатии „Добавить" подсвечивать красной обводкой все
+ * незаполненные обязательные поля. Пользователь должен сразу видеть, что
+ * нужно дозаполнить». До правки `submit` останавливался на ПЕРВОЙ ошибке
+ * тостом: человек чинил одно поле, нажимал снова, получал следующий тост.
+ *
+ * Возвращает ошибки ПО ВСЕМ полям сразу, ключ — поле формы: по нему модалка
+ * ставит рамку, `aria-invalid` и текст под полем. Тост для этого не годится
+ * (правило волны UX-4) — он не показывает, ГДЕ.
+ *
+ * Правила те же, что были в `submit`:
+ *   · заказ и материал — всегда;
+ *   · «Количество к заказу» — у закупки (`source = purchase`): без него
+ *     строка не закроется автоматически никогда (`supply.missingPlan`);
+ *   · цена — у ткани (правка 21.09, п. 1; тот же гейт в триггере на INSERT).
+ */
+export function validatePurchaseForm(form, { priceRequired, priceLabel }) {
+  const errors = {};
+  if (!form.order_id) errors.order_id = 'Выберите заказ';
+  if (!String(form.name ?? '').trim()) errors.name = 'Укажите материал';
+  if (form.source === 'purchase' && !(Number(form.qty_expected) > 0)) {
+    errors.qty_expected = `Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»`;
+  }
+  if (priceRequired && !(Number(form.price_per_unit) > 0)) {
+    errors.price_per_unit = `Укажите «${priceLabel}»`;
+  }
+  return errors;
+}

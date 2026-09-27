@@ -46,12 +46,17 @@ describe('подписи количеств закупки', () => {
  * ФОРМА «НОВАЯ ЗАКУПКА» СПРАШИВАЕТ ОБА ЧИСЛА.
  *
  * Читается исходник: до 14.09 поле было ОДНО (правка 30.08, п. 8) и заполняло
- * обе колонки, а модалка не покрыта ни одним рендер-тестом. Проверка по тексту
- * ловит возврат к одному полю и потерю обязательности потребности — без неё
- * строка не закроется автоматически никогда (`supply.missingPlan`).
+ * обе колонки. Проверка по тексту ловит возврат к одному полю и потерю
+ * обязательности потребности — без неё строка не закроется автоматически
+ * никогда (`supply.missingPlan`). Модалка с 27.09 живёт своим файлом
+ * (`AddPurchaseModal.jsx`) и покрыта рендер-тестом рядом; обязательность
+ * полей считает `validatePurchaseForm`, поэтому сторож читает и его.
  */
 const screenSrc = withoutJsComments(
-  readFileSync(join(process.cwd(), 'src/erp/screens/FabricPurchasing.jsx'), 'utf8'),
+  readFileSync(join(process.cwd(), 'src/erp/screens/purchasing/AddPurchaseModal.jsx'), 'utf8'),
+);
+const labelsSrc = withoutJsComments(
+  readFileSync(join(process.cwd(), 'src/erp/screens/purchasing/purchaseLabels.js'), 'utf8'),
 );
 
 describe('форма новой закупки', () => {
@@ -63,8 +68,8 @@ describe('форма новой закупки', () => {
   it('обязательна потребность, а не факт', () => {
     // Знаменатель приёмки и условие автозакрытия закупки — это qty_expected;
     // требовать вместо него факт значит запереть заведение строки до счёта
-    expect(screenSrc).toMatch(/!form\.qty_expected \|\| Number\(form\.qty_expected\) <= 0/);
-    expect(screenSrc).toContain('Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»');
+    expect(labelsSrc).toMatch(/source === 'purchase' && !\(Number\(form\.qty_expected\) > 0\)/);
+    expect(labelsSrc).toContain('Укажите «${PURCHASE_FIELD_LABELS.qtyExpected}»');
   });
 
   it('потребность пишется из своего поля, а не из факта', () => {
