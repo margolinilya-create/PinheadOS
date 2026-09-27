@@ -7,11 +7,11 @@ import { confirm } from '../../store/useConfirmStore';
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
-import { SizeResultTable } from './SizeResultTable';
+import { SizeReportSection } from './SizeReportSection';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
 import {
   sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
-  rowEntered,
+  stageAncestors,
 } from '../utils/stageSizes';
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
@@ -118,14 +118,23 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * результатов растёт быстрее всего, и возить его в выборке заказа ради
    * одной формы нельзя.
    */
+  /**
+   * ГРУЗЯТСЯ ОТЧЁТЫ ВСЕХ ПРЕДКОВ, а не только прямых предшественников
+   * (правка 27.09, п. 6). При нанесении на крое между закроем и швейкой стоит
+   * вышивка без размерного отчёта — с одними `depends_on` столбец «Покроено»
+   * оставался прочерками при «Принято в работу: 472».
+   */
+  const ancestorIds = useMemo(
+    () => stageAncestors(stage, item.stages ?? []),
+    [stage, item.stages],
+  );
   useEffect(() => {
     if (!bySizes) return undefined;
     let alive = true;
-    const deps = stage.depends_on ?? [];
-    if (deps.length === 0) return undefined;
-    loadStageReports(deps).then((rows) => { if (alive) setPrevReports(rows); });
+    if (ancestorIds.length === 0) return undefined;
+    loadStageReports(ancestorIds).then((rows) => { if (alive) setPrevReports(rows); });
     return () => { alive = false; };
-  }, [bySizes, stage.depends_on, loadStageReports]);
+  }, [bySizes, ancestorIds, loadStageReports]);
 
   /**
    * СОБСТВЕННЫЕ прежние отчёты этого этапа — для плюсов (правка 21.09, п. 3).
@@ -364,58 +373,15 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
       ))}
 
       {useSizeTable && (
-        <>
-          <span className={styles.fieldLabel}>Размерная разбивка</span>
-          <SizeResultTable
-            rows={sizeRows.map((r) => ({ ...r, expected: r.expected ?? '—' }))}
-            columns={[
-              {
-                code: 'good',
-                label: 'Сшито, шт',
-                /* Подсветка ИМЕННО этого поля: документ просит показать,
-                   какую строку исправлять, а не «где-то превышение» */
-                invalid: (row, vals) => row.expected !== null
-                  && row.expected !== '—'
-                  && rowEntered(vals) > Number(row.expected),
-              },
-              ...(canDefect ? [
-                { code: 'defect', label: 'Брак, шт' },
-                { code: 'rework', label: 'В переделку, шт' },
-              ] : []),
-              {
-                code: 'state',
-                label: 'Статус',
-                /* Колонка-ВЫВОД: считается, а не вводится. Мастер видит
-                   состояние строки, не сверяя два числа глазами */
-                render: (row, vals) => {
-                  if (row.expected === null || row.expected === '—') {
-                    return <span className={styles.subText}>—</span>;
-                  }
-                  const entered = rowEntered(vals);
-                  if (entered === 0) return <span className={styles.subText}>не заполнено</span>;
-                  if (entered > Number(row.expected)) {
-                    return (
-                      <span className={styles.cellError}>
-                        Нельзя указать больше, чем покроено
-                      </span>
-                    );
-                  }
-                  const left = Number(row.expected) - entered;
-                  return left > 0
-                    ? <span className={styles.subText}>осталось {left}</span>
-                    : <span className={styles.subText}>готово</span>;
-                },
-              },
-            ]}
-            values={sizeValues}
-            onChange={(key, code, value) => setSizeValues((v) => ({
-              ...v, [key]: { ...v[key], [code]: value },
-            }))}
-            expectedLabel="Покроено, шт"
-            caption="Результат пошива по размерам"
-            disabled={busy}
-          />
-        </>
+        <SizeReportSection
+          rows={sizeRows}
+          values={sizeValues}
+          onChange={(key, code, value) => setSizeValues((v) => ({
+            ...v, [key]: { ...v[key], [code]: value },
+          }))}
+          canDefect={canDefect}
+          disabled={busy}
+        />
       )}
 
       {/*

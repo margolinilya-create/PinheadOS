@@ -61,7 +61,6 @@ const CEILINGS: Record<string, number> = {
   'erp/screens/ErpDashboard.jsx': 560,
   'erp/screens/queue/StageActionsPanel.jsx': 558,
   'erp/store/slices/chatSlice.ts': 529,
-  'erp/components/StageReportForm.jsx': 525,
   'components/analytics/Dashboard.jsx': 521,
   'erp/screens/Warehouse.jsx': 510,
 };

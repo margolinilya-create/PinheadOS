@@ -269,6 +269,51 @@ describe('швейка: размеры и стоимость сборки без
     expect(await screen.findByLabelText(/^L, Сшито, шт$/)).toBeInTheDocument();
   });
 
+  /**
+   * ЧЕРЕЗ НАНЕСЕНИЕ (правка 27.09, п. 6): между закроем и швейкой стоит
+   * вышивка без размерного отчёта. Форма обязана загрузить отчёты ВСЕХ
+   * предков и подтянуть «Покроено» из закроя — до правки здесь были
+   * прочерки и «Итого 0» при «Принято в работу: 472».
+   */
+  it('«Покроено» доходит через вышивку без размерного отчёта', async () => {
+    const asked = [];
+    useErpStore.setState({
+      loadStageReports: async (ids) => {
+        asked.push(...ids);
+        return [{
+          id: 'r1', stage_id: 'cut1',
+          sizes: [{ color: '—', size: 'M', qty_good: 30 }, { color: '—', size: 'L', qty_good: 20 }],
+        }];
+      },
+    });
+    render(
+      <StageReportForm
+        entry={{
+          ...withCutting,
+          item: {
+            ...withCutting.item,
+            stages: [
+              { id: 'cut1', depends_on: [] },
+              { id: 'emb1', depends_on: ['cut1'] },
+              { id: 'sew1', depends_on: ['emb1'] },
+            ],
+          },
+          stage: { ...withCutting.stage, depends_on: ['emb1'] },
+        }}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText('Покроено, шт')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^M, Сшито, шт$/)).toBeInTheDocument();
+    // Отчёты спрошены у закроя, а не только у прямого предшественника
+    expect(asked).toEqual(expect.arrayContaining(['cut1', 'emb1']));
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('30').length).toBeGreaterThan(0);
+  });
+
   it('сшито больше покроенного — поле помечено ошибкой и названа причина', async () => {
     mockCuttingReports();
     render(
