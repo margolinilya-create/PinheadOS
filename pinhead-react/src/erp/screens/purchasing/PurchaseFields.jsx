@@ -3,6 +3,7 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { OrderLink } from '../../components/OrderLink';
+import { kgPerMFromParams, pricePerM } from '../../utils/fabricMetres';
 import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
@@ -128,10 +129,21 @@ export function FabricParamsFields({ m, onUpdate }) {
       aria-label={`${label}: ${m.name}`}
     />
   );
+  /**
+   * ЦЕНА ЗА МЕТР — ТОЛЬКО ПРОСМОТР (правка 28.09): «закупка вводит только
+   * цену за кг… Поле цены за метр доступно только для просмотра». Считается
+   * по ширине и плотности; у рулона уточняется его собственным коэффициентом.
+   */
+  const perM = pricePerM(m.price_per_unit, kgPerMFromParams(width, density));
   return (
     <div className={styles.cellWithIcon}>
       {field('width_cm', 'Ширина полотна, см', width, 'см', '1')}
       {field('density_gsm', 'Плотность, г/м²', density, 'г/м²', '1')}
+      {perM !== null && (
+        <span className={styles.subText} title="Цена за метр считается системой: цена за кг × кг/м (расчёт)">
+          ≈ {perM.toFixed(2).replace('.', ',')} ₽/м (расчёт)
+        </span>
+      )}
     </div>
   );
 }

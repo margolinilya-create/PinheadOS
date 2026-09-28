@@ -151,9 +151,9 @@ describe('рулоны без судьбы остатка', () => {
     expect(group).toHaveTextContent('Рулон №1');
     expect(group).toHaveTextContent('остаток 5 кг');
     fireEvent.click(screen.getByRole('button', { name: 'Остаток пригоден' }));
-    expect(onRollFate).toHaveBeenCalledWith('r-1', 'usable');
+    expect(onRollFate).toHaveBeenCalledWith('r-1', 'usable', 'it-1');
     fireEvent.click(screen.getByRole('button', { name: 'Малый остаток, не учитывать' }));
-    expect(onRollFate).toHaveBeenCalledWith('r-1', 'scrap');
+    expect(onRollFate).toHaveBeenCalledWith('r-1', 'scrap', 'it-1');
   });
 
   it('рулон, уже добавленный в форму, решается его галочкой, а не кнопками', () => {
@@ -162,5 +162,34 @@ describe('рулоны без судьбы остатка', () => {
       entries: [entry('r-1', 3, [['XS', 5]])],
     });
     expect(screen.queryByRole('group', { name: 'Рулоны без судьбы остатка' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * ПЕРЕРАСХОД — ПРЕДЛОЖЕНИЕ УТОЧНИТЬ МЕТРАЖ (правка 28.09): «если измеренный
+ * расход превышает расчётный запас, предложить уточнить метраж рулона
+ * и подтвердить корректировку, затем сохранить расход». Прежде был только
+ * отказ, а форма уточнения показывалась лишь рулону совсем без метража.
+ */
+describe('уточнение метража', () => {
+  it('расход больше доступного — форма уточнения открывается сама', () => {
+    renderSection({ entries: [entry('r-1', 50, [['XS', 50]])], onRollParams: vi.fn() });
+    expect(screen.getByRole('group', { name: /Параметры рулона Рулон №1/ })).toBeInTheDocument();
+    expect(screen.getByText(/Расход больше доступного/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Причина уточнения/)).toBeInTheDocument();
+  });
+
+  it('в пределах метража — уточнение по кнопке, а не всегда', () => {
+    renderSection({ onRollParams: vi.fn() });
+    expect(screen.queryByRole('group', { name: /Параметры рулона/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Уточнить метраж рулона' }));
+    expect(screen.getByRole('group', { name: /Параметры рулона Рулон №1/ })).toBeInTheDocument();
+  });
+
+  it('рядом с доступным метражом — цена за метр, только для чтения', () => {
+    renderSection({
+      order: { ...ORDER, materials: [{ ...ORDER.materials[0], price_per_unit: 950 }] },
+    });
+    expect(screen.getByText(/410,40 ₽\/м/)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { EconomicsSection } from './EconomicsSection';
 import { useErpStore } from '../../store/useErpStore';
 
@@ -172,5 +172,125 @@ describe('вкладка «Экономика позиции»', () => {
     });
     render(<EconomicsSection order={ORDER} />);
     expect(screen.getByLabelText('Позиция заказа')).toBeInTheDocument();
+  });
+
+  /** П. 1 (правка 28.09): сводка по ВСЕМ позициям, строка за строкой; null не становится нулём */
+  it('сводка заказа складывает деньги всех позиций и называет нерассчитанные', () => {
+    const second = {
+      ...ECONOMICS,
+      item_id: 'i2',
+      product_type: 'Футболка',
+      economics: {
+        ...ECONOMICS.economics,
+        item_id: 'i2',
+        costs: { ...ECONOMICS.economics.costs, total: 4500 },
+        losses: { ...ECONOMICS.economics.losses, leftovers_usable_cost: null },
+      },
+    };
+    useErpStore.setState({ orderEconomics: { o1: [ECONOMICS, second] } });
+    render(<EconomicsSection order={ORDER} />);
+    const box = screen.getByRole('region', { name: 'Сводка заказа' });
+    const row = (label) => within(box).getByRole('rowheader', { name: label }).closest('tr');
+
+    expect(row('Затраты позиций')).toHaveTextContent('40 000 ₽');
+    // У второй позиции остаток не рассчитан — в сумму не вошёл, и это сказано
+    expect(row('Пригодные остатки ткани')).toHaveTextContent('4 104 ₽');
+    expect(row('Пригодные остатки ткани')).toHaveTextContent('без учёта позиций, где не рассчитано: 1');
+    // Не рассчитано ни у одной — словами, а не «0 ₽»
+    expect(row('Окончательный брак')).toHaveTextContent('Не рассчитано');
+    expect(row('Годные плюсы на складе')).toHaveTextContent('Не рассчитано');
+    // Общей суммы «дополнительных расходов» нет — документ её запрещает
+    expect(box).not.toHaveTextContent(/Дополнительные расходы/i);
+  });
+
+  /** П. 2: остаточная стоимость подтверждается кнопкой; подтверждённая показывает дату */
+  it('остаточную стоимость можно подтвердить — кнопка зовёт действие стора', async () => {
+    const confirmRollAdjustment = vi.fn(async () => true);
+    const adj = {
+      roll_id: 'r4', label: 'Рулон №4', before_m: 0.4, after_m: 0, delta_m: -0.4,
+      reason: null, author: 'Иван', created_at: '2026-09-27T10:00:00Z',
+    };
+    useErpStore.setState({
+      confirmRollAdjustment,
+      orderEconomics: {
+        o1: [{
+          ...ECONOMICS,
+          economics: {
+            ...ECONOMICS.economics,
+            losses: {
+              ...ECONOMICS.economics.losses,
+              adjustments: [
+                { ...adj, adjustment_id: 'a1', kind: 'cost_residual', cost: 164, confirmed_at: null },
+                { ...adj, adjustment_id: 'a2', kind: 'cost_residual', cost: 50, confirmed_at: '2026-09-28T09:00:00Z' },
+              ],
+              adjustments_open: 1,
+            },
+          },
+        }],
+      },
+    });
+    render(<EconomicsSection order={ORDER} />);
+
+    expect(screen.getByText(/относится на позицию после подтверждения/)).toBeInTheDocument();
+    expect(screen.getByText('подтверждено 28.09.2026')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: 'Подтвердить' });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect(confirmRollAdjustment).toHaveBeenCalledWith('a1', 'o1', 'i1');
+    await screen.findByRole('button', { name: 'Подтвердить' });
+  });
+
+  /** П. 5: счётчик возвратов в переделку уже внутри «не учтено» — не прибавляется */
+  it('переделка — «в т.ч.», а не добавка к незавершённому', () => {
+    useErpStore.setState({
+      orderEconomics: {
+        o1: [{
+          ...ECONOMICS,
+          economics: {
+            ...ECONOMICS.economics,
+            losses: {
+              ...ECONOMICS.economics.losses,
+              wip: [{ ...ECONOMICS.economics.losses.wip[0], unaccounted: 5, rework: 3 }],
+              wip_qty: 5,
+              wip_rework: 3,
+            },
+          },
+        }],
+      },
+    });
+    render(<EconomicsSection order={ORDER} />);
+    const block = screen.getByRole('region', { name: 'Остатки и потери по заказу' });
+    expect(block).toHaveTextContent('не учтено 5 шт · в т.ч. возвращалось в переделку: 3');
+    expect(block).not.toHaveTextContent('не учтено 8');
+    expect(block).not.toHaveTextContent(/в переделке 3 шт/);
+  });
+
+  /** П. 7: незаполненный пошив не принимается за ноль — показатели на единицу помечены */
+  it('без стоимости пошива показатели на единицу помечены «без пошива»', () => {
+    useErpStore.setState({
+      orderEconomics: {
+        o1: [{
+          ...ECONOMICS,
+          economics: {
+            ...ECONOMICS.economics,
+            assembly: { avg: null, covered_qty: 0, source: null, total: null },
+            costs: { fabric: 23500, scrap: null, residual: 164, assembly: null, total: 23664, missing: ['assembly'] },
+            unit_cost_good: 295.8,
+            unit_cost_plan: 236.64,
+            losses: {
+              ...ECONOMICS.economics.losses,
+              extras: { cut_extra: 2, by_size: [{ color: '—', size: 'M', qty: 2 }], finished: 2, shipped: 0, in_stock: 2, unit_cost: 295.8, value: 591.6 },
+            },
+          },
+        }],
+      },
+    });
+    render(<EconomicsSection order={ORDER} />);
+    expect(screen.getByText('295,8 ₽ без пошива')).toBeInTheDocument();
+    expect(screen.getByText('236,64 ₽ без пошива')).toBeInTheDocument();
+    expect(screen.getByText(/Остаточная стоимость рулонов 164 ₽/)).toBeInTheDocument();
+    const block = screen.getByRole('region', { name: 'Остатки и потери по заказу' });
+    expect(block).toHaveTextContent('591,6 ₽ без пошива');
+    expect(block).toHaveTextContent('по данным закроя');
   });
 });

@@ -45,4 +45,17 @@ describe('RollParamsForm', () => {
     render(<RollParamsForm roll={roll({ length_m: 46.3, length_source: 'calc', width_cm: 180, density_gsm: 240 })} material={{}} onSave={vi.fn()} />);
     expect(screen.getByLabelText(/Причина уточнения/)).toBeInTheDocument();
   });
+
+  /** Правка 28.09: «для связи с закупкой в кг при этом нужен чистый вес рулона» */
+  it('у рулона без веса спрашивает чистый вес и отправляет его', async () => {
+    const onSave = vi.fn(async () => true);
+    render(<RollParamsForm roll={roll({ qty: null })} material={{}} onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText(/Метраж рулона/), { target: { value: '45' } });
+    expect(screen.getByRole('button', { name: /Записать параметры/ })).toBeDisabled();
+    expect(screen.getByLabelText(/Чистый вес рулона/)).toHaveAttribute('aria-invalid', 'true');
+    fireEvent.change(screen.getByLabelText(/Чистый вес рулона/), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: /Записать параметры/ }));
+    await vi.waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave).toHaveBeenCalledWith('r1', expect.objectContaining({ weight_kg: 20, length_m: 45 }));
+  });
 });

@@ -27,20 +27,37 @@
  * в кг у них — единственное, что есть. Метры у такой строки — прочерк.
  */
 
-import type { ErpMaterial, ErpMaterialRoll } from '../types';
+import type { ErpOrderStatus } from '../types';
+import { ORDER_STATUS_LABELS } from '../types';
+import type { FabricLeftoverRow } from '../store/types';
 import type { LengthSource } from './fabricMetres';
 import { rollPricePerM, roundKg, roundM } from './fabricMetres';
+
+/**
+ * ОТКУДА СПИСОК (правка 28.09). До неё экран собирал остатки из заказов,
+ * которые лежат в сторе, — а без загруженного архива там только активные,
+ * и пригодный остаток закрытого заказа ИСЧЕЗАЛ со склада ровно тогда, когда
+ * заказ сдан, то есть когда его чаще всего и ищут. Теперь строки отдаёт
+ * сервер (`erp_fabric_leftovers()`: `leftover_kind = 'usable'`,
+ * `status = 'used'`, остаток > 0 — по ВСЕМ заказам), а утилита только
+ * превращает их в строки экрана. Отбор ненулевого остатка повторён здесь
+ * защитно: пустая строка списка хуже её отсутствия.
+ */
 
 /** Остаток одного рулона — строка списка на складе */
 export interface FabricLeftover {
   rollId: string;
   /** «Рулон №3» — то, что произносят в цеху */
   label: string;
+  /** Номер рулона внутри материала — для порядка (строки «№10» < «№2») */
+  seq: number | null;
+  materialId: string | null;
   material: string;
+  /** Цвет материала; `null` — не указан */
   color: string | null;
   /** Остаток, м; `null` — у рулона нет метража (принят до учёта в метрах) */
   lengthM: number | null;
-  /** Откуда метраж остатка: расчёт / поставщик / замер */
+  /** Откуда метраж: расчёт / поставщик / замер */
   lengthSource: LengthSource | null;
   /** Остаток в кг: `calc` — расчётный (метры × коэффициент), `entered` — из учёта в кг */
   kg: number | null;
@@ -49,96 +66,110 @@ export interface FabricLeftover {
   densityGsm: number | null;
   /** Цена за метр рулона; `null` — цены или коэффициента нет */
   pricePerM: number | null;
-  /** Закупочная цена за кг партии */
+  /** Закупочная цена за кг партии (снимок рулона) */
   pricePerKg: number | null;
   /** Стоимость остатка; `null`, когда цены нет: ноль тут был бы неправдой */
   cost: number | null;
+  /** Место хранения рулона на складе; `null` — не указано */
+  location: string | null;
   orderId: string | null;
   orderTitle: string;
+  orderStatus: string | null;
+  /** Заказ закрыт (сдан или отменён) — подпись статуса рядом со ссылкой */
+  orderClosed: boolean;
+  /** Подпись статуса закрытого заказа; у активного — `null` */
+  orderStatusLabel: string | null;
 }
 
-/** Минимальная форма заказа — чтобы не тянуть весь тип в утилиту */
-interface LeftoverOrder {
-  id: string;
-  title?: string | null;
-  materials?: ErpMaterial[] | null;
-}
+const num = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 /**
  * Стоимость остатка: по метрам и цене за метр, а у рулона без метража —
  * по килограммам и цене за кг. Цена — снимок рулона на момент приёмки.
  */
-function rollCost(roll: ErpMaterialRoll, material: ErpMaterial): number | null {
-  const lengthLeft = roll.length_left_m;
-  const pricePerM = rollPricePerM(roll, material);
-  if (lengthLeft !== null && lengthLeft !== undefined && pricePerM !== null) {
-    return Math.round(Number(lengthLeft) * pricePerM * 100) / 100;
+function rowCost(lengthLeft: number | null, pricePerM: number | null,
+  kg: number, pricePerKg: number | null): number | null {
+  if (lengthLeft !== null && pricePerM !== null) {
+    return Math.round(lengthLeft * pricePerM * 100) / 100;
   }
-  const price = roll.price_per_unit ?? material.price_per_unit ?? null;
-  if (price === null || price === undefined) return null;
-  const qty = Number(roll.qty_left) || 0;
-  return Math.round(qty * Number(price) * 100) / 100;
+  if (pricePerKg === null) return null;
+  return Math.round(kg * pricePerKg * 100) / 100;
+}
+
+/** Одна строка RPC → строка экрана; `null` — остатка нет */
+export function leftoverFromRow(row: FabricLeftoverRow | null | undefined): FabricLeftover | null {
+  if (!row?.roll_id) return null;
+  const leftRaw = num(row.length_left_m);
+  const lengthLeft = leftRaw === null ? null : Math.max(leftRaw, 0);
+  const kg = Math.max(num(row.qty_left) ?? 0, 0);
+  if (!(lengthLeft !== null ? lengthLeft > 0.0005 : kg > 0)) return null;
+  const pricePerKg = num(row.price_per_unit);
+  const pricePerM = rollPricePerM({
+    qty: num(row.qty) ?? 0,
+    length_m: num(row.length_m),
+    length_source: row.length_source ?? null,
+    length_left_m: lengthLeft,
+    length_left_source: null,
+    kg_per_m: num(row.kg_per_m),
+    price_per_m: num(row.price_per_m),
+    width_cm: num(row.width_cm),
+    density_gsm: num(row.density_gsm),
+    price_per_unit: pricePerKg,
+  } as Parameters<typeof rollPricePerM>[0]);
+  const status = row.order_status ?? null;
+  const closed = status !== null && status !== 'active';
+  const location = (row.location ?? '').trim() || null;
+  return {
+    rollId: row.roll_id,
+    label: row.label || 'Рулон',
+    seq: num(row.seq),
+    materialId: row.material_id ?? null,
+    material: (row.material ?? '').trim() || 'Материал без названия',
+    color: (row.color ?? '').trim() || null,
+    lengthM: lengthLeft === null ? null : roundM(lengthLeft),
+    lengthSource: lengthLeft === null ? null : ((row.length_source ?? 'calc') as LengthSource),
+    kg: kg > 0 ? roundKg(kg) : null,
+    // Метраж есть — килограммы остатка расчётные (метры × коэффициент);
+    // нет — это учёт в кг, как было до правки 27.09
+    kgSource: kg > 0 ? (lengthLeft !== null ? 'calc' : 'entered') : null,
+    widthCm: num(row.width_cm),
+    densityGsm: num(row.density_gsm),
+    pricePerM,
+    pricePerKg,
+    cost: rowCost(lengthLeft, pricePerM, kg, pricePerKg),
+    location,
+    orderId: row.order_id ?? null,
+    orderTitle: (row.order_title ?? '').trim() || 'Без названия',
+    orderStatus: status,
+    orderClosed: closed,
+    orderStatusLabel: closed
+      ? (ORDER_STATUS_LABELS[status as ErpOrderStatus] ?? 'Закрыт')
+      : null,
+  };
 }
 
 /**
- * Цвет НЕ ПОВТОРЯЕТСЯ, если он уже назван в имени материала.
- *
- * Имя ткани на бою сплошь и рядом уже содержит цвет («Футер 3-нитка,
- * чёрный»), а колонка `color` хранит его же отдельно. Экран печатал оба
- * и выдавал «Футер 3-нитка, чёрный · чёрный» — поймано глазами на стенде.
- *
- * Отбрасывать колонку нельзя: у половины материалов имя цвета не содержит,
- * и тогда со склада не понять, какой именно рулон искать.
- */
-function colorSuffix(name: string, color: string | null | undefined): string | null {
-  const c = (color || '').trim();
-  if (!c) return null;
-  return name.toLowerCase().includes(c.toLowerCase()) ? null : c;
-}
-
-/**
- * Пригодные остатки по всем переданным заказам.
+ * Пригодные остатки из строк `erp_fabric_leftovers()`.
  *
  * Порядок — по материалу и номеру рулона: на складе их ищут глазами по имени
- * ткани, а внутри неё по номеру, который написан на самом рулоне.
+ * ткани, а внутри неё по номеру, который написан на самом рулоне. Номер
+ * сравнивается числом (`seq`), а не строкой подписи: иначе «№10» встаёт
+ * перед «№2».
  */
 export function fabricLeftovers(
-  orders: readonly LeftoverOrder[] | null | undefined,
+  rows: readonly FabricLeftoverRow[] | null | undefined,
 ): FabricLeftover[] {
   const out: FabricLeftover[] = [];
-  for (const order of orders ?? []) {
-    for (const material of order?.materials ?? []) {
-      for (const roll of material?.rolls ?? []) {
-        if (roll?.leftover_kind !== 'usable') continue;
-        const lengthLeft = roll.length_left_m === null || roll.length_left_m === undefined
-          ? null : Math.max(Number(roll.length_left_m), 0);
-        const kg = Number(roll.qty_left) || 0;
-        if (!(lengthLeft !== null ? lengthLeft > 0.0005 : kg > 0)) continue;
-        const name = material.fact_name || material.name;
-        out.push({
-          rollId: roll.id,
-          label: roll.label,
-          material: name,
-          color: colorSuffix(name, material.fact_color || material.color),
-          lengthM: lengthLeft === null ? null : roundM(lengthLeft),
-          lengthSource: lengthLeft === null
-            ? null : ((roll.length_left_source ?? roll.length_source ?? 'calc') as LengthSource),
-          kg: kg > 0 ? roundKg(kg) : null,
-          // Метраж есть — килограммы остатка расчётные (метры × коэффициент);
-          // нет — это учёт в кг, как было до правки
-          kgSource: kg > 0 ? (lengthLeft !== null ? 'calc' : 'entered') : null,
-          widthCm: roll.width_cm ?? material.width_cm ?? null,
-          densityGsm: roll.density_gsm ?? material.density_gsm ?? null,
-          pricePerM: rollPricePerM(roll, material),
-          pricePerKg: roll.price_per_unit ?? material.price_per_unit ?? null,
-          cost: rollCost(roll, material),
-          orderId: order.id ?? null,
-          orderTitle: order.title || 'Без названия',
-        });
-      }
-    }
+  for (const row of rows ?? []) {
+    const item = leftoverFromRow(row);
+    if (item) out.push(item);
   }
   return out.sort((a, b) => a.material.localeCompare(b.material, 'ru')
+    || (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
     || a.label.localeCompare(b.label, 'ru'));
 }
 

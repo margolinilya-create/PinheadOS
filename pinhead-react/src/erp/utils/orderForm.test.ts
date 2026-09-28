@@ -13,6 +13,7 @@ import {
   gridTotal,
   rowTotal,
   isFormEmpty,
+  isDraftEmpty,
   isItemEmpty,
   loadOrderDraft,
   SIZE_PRESETS,
@@ -527,6 +528,12 @@ describe('isFormEmpty / isItemEmpty', () => {
 
   it('свежая форма с дефолтной датой запуска — пустая', () => {
     expect(isFormEmpty(emptyOrderForm(launch), [item()], launch)).toBe(true);
+  });
+
+  /** Правка 28.09: иначе автосохранение удаляло черновик вместе с файлами */
+  it('черновик, где приложен только файл или ТЗ, — не пустой', () => {
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 1)).toBe(false);
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 0)).toBe(true);
   });
 
   it('любое заполненное поле — форма не пустая', () => {

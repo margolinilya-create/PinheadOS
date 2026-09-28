@@ -10,6 +10,7 @@ import { erpError, erpQuery, erpWrite } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
+import { rollActions } from './rollActions';
 import { factoryToday } from '../../../utils/date';
 import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
 import { autoOrderedStatus } from '../../utils/materialStatus';
@@ -169,53 +170,8 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
-  setRollLeftover: async (rollId, kind) => {
-    if (kind !== 'usable' && kind !== 'scrap') return false;
-    const ok = await erpWrite('Остаток рулона не записан', () => supabase
-      .from('erp_material_rolls')
-      .update({ leftover_kind: kind, status: 'used' })
-      .eq('id', rollId)
-      .select());
-    if (!ok) return false;
-    // Не optimistic: судьба остатка — необратимое решение, и показать его
-    // записанным раньше ответа сервера значило бы соврать закройщику
-    set((s) => ({
-      orders: s.orders.map((o) => ({
-        ...o,
-        materials: o.materials.map((m) => ({
-          ...m,
-          rolls: (m.rolls ?? []).map((r) => (
-            r.id === rollId ? { ...r, leftover_kind: kind, status: 'used' as const } : r)),
-        })),
-      })),
-    }));
-    toast.success(kind === 'usable'
-      ? 'Остаток записан как пригодный — он появится в «Остатках ткани»'
-      : 'Малый остаток списан');
-    return true;
-  },
-
-  setRollParams: async (rollId, params) => {
-    const order = get().orders.find((o) => o.materials.some(
-      (m) => (m.rolls ?? []).some((r) => r.id === rollId)));
-    const { error } = await erpQuery(() => supabase.rpc('erp_material_roll_set_params', {
-      p_roll_id: rollId,
-      p_width_cm: params.width_cm ?? null,
-      p_density_gsm: params.density_gsm ?? null,
-      p_length_m: params.length_m ?? null,
-      p_length_source: params.length_source ?? null,
-      p_reason: params.reason ?? null,
-    }));
-    if (error) {
-      erpError('Параметры рулона не записаны', error);
-      return false;
-    }
-    // Производные (метраж, коэффициент, цена за метр) считает сервер —
-    // перечитываем заказ, а не дописываем их в сторе
-    if (order) await get().loadOne(order.id);
-    toast.success('Параметры рулона записаны');
-    return true;
-  },
+  // Действия с рулонами — отдельный модуль (ратчет размера, правка 28.09)
+  ...rollActions(set, get),
 
   confirmStockMaterial: async (id) => {
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)

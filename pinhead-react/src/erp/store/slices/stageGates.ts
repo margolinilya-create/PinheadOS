@@ -9,7 +9,38 @@ import { stageCompletionBlock } from '../../utils/stageDone';
 import { embroideryProgramBlock, isFileResultStage, stageResultFileBlock } from '../../utils/stageResult';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
-import { deptAccountsByReports, reportedDefect, stageUnaccountedBlock } from '../../utils/stageRemaining';
+import {
+  deptAccountsByReports, reportedAccountedBySize, reportedDefect, stageUnaccounted, stageUnaccountedBlock,
+} from '../../utils/stageRemaining';
+import { sizeInputCells, sizeKey, stageAncestors } from '../../utils/stageSizes';
+
+/**
+ * «M — 60 шт, L · чёрный — 44 шт»: не учтено по размерам, в порядке
+ * принятого. `null` — размерных данных нет во всей цепочке.
+ */
+export function unaccountedBreakdown(
+  stage: Parameters<typeof sizeInputCells>[0] & { id: string },
+  allStages: Parameters<typeof sizeInputCells>[1],
+  reports: Parameters<typeof sizeInputCells>[2],
+  /**
+   * Итог «не учтено» штуками. Разбивка показывается, только если сходится
+   * с ним (проба на бою 28.09): часть сдач бывает записана без размеров,
+   * и тогда по размерам «не учтено» больше, чем на самом деле, — такая
+   * разбивка вводит в заблуждение, честнее её не показать.
+   */
+  expectedTotal?: number,
+): string | null {
+  const accounted = reportedAccountedBySize(reports, stage.id);
+  const rows = sizeInputCells(stage, allStages, reports)
+    .map((c) => ({ c, left: c.qty - (accounted[sizeKey(c.color, c.size)] ?? 0) }))
+    .filter(({ left }) => left > 0);
+  if (rows.length === 0) return null;
+  const sum = rows.reduce((acc, r) => acc + r.left, 0);
+  if (expectedTotal !== undefined && sum !== expectedTotal) return null;
+  return rows
+    .map(({ c, left }) => `${c.color === '—' ? c.size : `${c.size} · ${c.color}`} — ${left} шт`)
+    .join(', ');
+}
 
 /**
  * ГЕЙТ ЗАВЕРШЕНИЯ ЭТАПА ЖИВЁТ У ПИСАТЕЛЯ, А НЕ У КНОПОК.
@@ -37,6 +68,13 @@ export function completionBlockFor(
   store: ErpStore,
   found: NonNullable<ReturnType<typeof findStage>>,
   addedGood: number,
+  /**
+   * Запись ЗАКРЫВАЕТ этап (переход в `done`), а не сдаёт часть результата.
+   * Программа вышивки держит только закрытие (правка 28.09): «запретить
+   * завершение этапа „Вышивка“», а не сдачу части. Сервер при сдаче факт
+   * пишет и этап не закрывает.
+   */
+  final = false,
 ): string | null {
   const { stage, item, order } = found;
   /**
@@ -57,7 +95,7 @@ export function completionBlockFor(
    * на тираж: сдача, добирающая тираж, закрыла бы вышивку без программы
    * ровно так же, как кнопка. Серверное зеркало — `erp_stage_program_block`.
    */
-  const programBlock = embroideryProgramBlock(stage, item.stages ?? []);
+  const programBlock = final ? embroideryProgramBlock(stage, item.stages ?? []) : null;
   if (programBlock) return programBlock;
   // Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача при
   // неприехавшем материале законна — цех отчитывается за то, что сделал.
@@ -108,14 +146,25 @@ export async function unaccountedBlockFor(
   const { stage, item } = found;
   const dept = store.departments.find((d) => d.id === stage.department_id);
   if (!deptAccountsByReports(dept) || isFileResultStage(stage)) return null;
-  const reports = await store.loadStageReports([stage.id]);
-  return stageUnaccountedBlock({
+  const allStages = item.stages ?? [];
+  // Отчёты предков нужны для разбивки по размерам: «принято» по размеру
+  // приходит с закроя, в том числе сквозь нанесение (правка 27.09, п. 6)
+  const reports = await store.loadStageReports([stage.id, ...stageAncestors(stage, allStages)]);
+  const addedGood = qtyDoneWrite !== undefined
+    ? Math.max(qtyDoneWrite - (stage.qty_done ?? 0), 0) : 0;
+  const base = {
     stage,
-    allStages: item.stages ?? [],
+    allStages,
     itemQty: item.qty,
     defectReported: reportedDefect(reports, stage.id),
-    addedGood: qtyDoneWrite !== undefined
-      ? Math.max(qtyDoneWrite - (stage.qty_done ?? 0), 0) : 0,
+    addedGood,
+  };
+  return stageUnaccountedBlock({
+    ...base,
     dept,
+    // «Показывать причину и размерную разбивку» (правка 28.09) — тем же
+    // текстом, что у сервера (`erp_stage_unaccounted_by_size`)
+    breakdown: addedGood > 0
+      ? null : unaccountedBreakdown(stage, allStages, reports, stageUnaccounted(base)),
   });
 }

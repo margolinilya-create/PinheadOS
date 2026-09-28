@@ -16,7 +16,7 @@ import {
   emptyOrderForm,
   gridToPayload,
   draftFromOrder,
-  isFormEmpty,
+  isDraftEmpty,
   isItemEmpty,
   loadOrderDraft,
   normalizeDraft,
@@ -514,7 +514,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     if (!rowIdRef.current) return undefined;
     const t = setTimeout(async () => {
       try {
-        if (isFormEmpty(form, items, initialLaunch)) {
+        if (isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
           if (rowIdRef.current) {
             const id = rowIdRef.current;
             rowIdRef.current = null;
@@ -538,7 +538,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow, draftPayload]);
+  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow, draftPayload, attach.files.length, tzDocs.length]);
 
   /**
    * ЗАГРУЗИТЬ В ФОРМУ ВЫБРАННЫЙ ЧЕРНОВИК (правка 21.09, п. 6).
@@ -556,7 +556,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const applyDraft = async (row) => {
     if (!row) return;
     if (row.id === rowId) return;
-    if (!isFormEmpty(form, items, initialLaunch)) {
+    if (!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
       const ok = await confirm({
         title: 'Заменить содержимое формы?',
         message: `Набранное сейчас не сохранено и будет потеряно. Вместо него `
@@ -592,7 +592,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * неожиданной потерей чужой работы.
    */
   const startFreshDraft = async () => {
-    if (!isFormEmpty(form, items, initialLaunch)) {
+    if (!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
       const ok = await confirm({
         title: 'Начать новый заказ?',
         message: rowId
@@ -650,7 +650,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const [savingDraft, setSavingDraft] = useState(false);
   const saveDraftNow = async () => {
     if (savingDraft || saving) return false;
-    if (isFormEmpty(form, items, initialLaunch)) {
+    if (isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
       toast.error('Черновик пустой — заполните хотя бы одно поле');
       return false;
     }
@@ -1148,7 +1148,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           <DraftPicker
             drafts={drafts}
             openId={rowId}
-            dirty={!isFormEmpty(form, items, initialLaunch)}
+            dirty={!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)}
             onPick={applyDraft}
             onFresh={startFreshDraft}
             onDelete={removeDraft}

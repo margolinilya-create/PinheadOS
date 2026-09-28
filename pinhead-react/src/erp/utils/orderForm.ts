@@ -622,7 +622,7 @@ export {
   normalizeDraft,
   loadOrderDraft,
   clearOrderDraft,
-  fileNameFromPath,
+  fileNameFromPath, isDraftEmpty,
 } from './orderDraftEnvelope';
 export type {
   OrderDraft,

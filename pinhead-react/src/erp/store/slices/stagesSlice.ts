@@ -117,7 +117,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * автозакрытие самой закупки и складских шагов этим не задето.
      */
     if (status === 'done' && found) {
-      const blocked = completionBlockFor(get(), found, extra.qty_done ?? found.item.qty);
+      const blocked = completionBlockFor(get(), found, extra.qty_done ?? found.item.qty, true);
       if (blocked) {
         toast.error(blocked);
         return false;

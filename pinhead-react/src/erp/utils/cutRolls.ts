@@ -43,7 +43,14 @@ export interface RollOption {
   material: ErpMaterial;
   /** «Рулон №3 · Футер 3-нитка · чёрный · арт. 1234» */
   label: string;
+  /**
+   * Рулон ДРУГОГО заказа — пригодный остаток, взятый в этот (правка 28.09):
+   * «если рулон используется в нескольких заказах, каждый следующий заказ
+   * получает только его доступный остаток». Заголовок исходного заказа.
+   */
+  fromOrder?: string | null;
 }
+
 
 /** Строка формы: один рулон, расход и раскрой по размерам */
 export interface CutRollEntry {
@@ -69,6 +76,8 @@ export interface CutRollEntry {
    * корректировкой — в расход и брак оно не попадает.
    */
   leftoverMeasuredM?: number | string | null;
+  /** Причина расхождения замера с расчётом — уходит в корректировку (правка 28.09) */
+  leftoverReason?: string | null;
 }
 
 /**
@@ -117,9 +126,16 @@ export function rollsForItem(
   materials: ErpMaterial[] | null | undefined,
   itemId: string | null | undefined,
   keepIds: readonly string[] = [],
+  /** Рулоны других заказов (`foreignRollOptions`): пригодные остатки и уже взятые */
+  extra: readonly RollOption[] = [],
 ): RollOption[] {
   const keep = new Set(keepIds);
   const out: RollOption[] = [];
+  for (const option of extra) {
+    const reusable = option.roll.status === 'used' && option.roll.leftover_kind === 'usable';
+    if (option.roll.status === 'used' && !reusable && !keep.has(option.roll.id)) continue;
+    out.push(option);
+  }
   for (const material of materialsForItem(materials, itemId)) {
     if (material.kind !== 'fabric') continue;
     if (!acceptedForCutting(material)) continue;
@@ -128,8 +144,14 @@ export function rollsForItem(
       out.push({ roll, material, label: rollLabel(roll, material) });
     }
   }
-  return out.sort((a, b) => a.roll.seq - b.roll.seq);
+  // Свои рулоны — по номеру, чужие остатки — после своих
+  return out.sort((a, b) => Number(Boolean(a.fromOrder)) - Number(Boolean(b.fromOrder))
+    || a.roll.seq - b.roll.seq);
 }
+
+// Рулоны чужих заказов — `utils/foreignRolls` (ратчет размера, правка 28.09)
+export { foreignRollOptions } from './foreignRolls';
+export type { ForeignRollRow } from './foreignRolls';
 
 /** Ключ ячейки размера — тот же, что в остальных формах раздела */
 export function cellKey(cell: Pick<SizeCell, 'color' | 'size'>): string {
@@ -352,6 +374,7 @@ export function cutRollsPayload(
     roll_id: string; material_id: string | null; length_used_m: number;
     finished: boolean; leftover: 'usable' | 'scrap' | null;
     leftover_measured_m: number | null;
+    leftover_reason: string | null;
     sizes: { color: string; size: string; qty_good: number }[];
   }[] {
   return (entries ?? [])
@@ -374,6 +397,7 @@ export function cutRollsPayload(
         leftover_measured_m: entry.finished && measured !== null && measured !== undefined
           && measured !== '' && Number.isFinite(Number(measured))
           ? Number(measured) : null,
+        leftover_reason: entry.finished ? ((entry.leftoverReason ?? '').trim() || null) : null,
         // Строки берутся КАК ЕСТЬ: склейки ключа и обратного разбора
         // больше нет (см. комментарий к `CutSizeRow`).
         sizes: (entry.sizes ?? [])
@@ -407,6 +431,8 @@ export function rollsAwaitingFate(
   itemId: string | null | undefined,
   stage: Pick<ErpItemStage, 'id'> & { department_id?: string | null },
   orderItems: readonly { stages?: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[] }[] | null | undefined,
+  /** Рулоны других заказов, взятые этим (правка 28.09) — их судьбу решает взявший */
+  extra: readonly RollOption[] = [],
 ): RollOption[] {
   const othersOpen = (orderItems ?? []).some((it) => (it.stages ?? []).some(
     (s) => s.id !== stage.id
@@ -414,15 +440,23 @@ export function rollsAwaitingFate(
       && s.status !== 'done' && s.status !== 'skipped',
   ));
   if (othersOpen) return [];
+  /**
+   * ОХВАТ — ВСЕ МАТЕРИАЛЫ ЗАКАЗА, как у сервера (`erp_stage_rolls_fate_block`,
+   * правка 28.09). Прежде форма брала только материалы этой позиции, и рулон
+   * соседней позиции, оставленный «в работе», держал закрытие последнего
+   * закроя без единой кнопки в интерфейсе — выход был только аварийный.
+   * `itemId` больше не сужает список: решать всё равно ему.
+   */
+  void itemId;
+  const pending = (roll: ErpMaterialRoll) => roll.status === 'in_use'
+    && Number(roll.length_left_m ?? roll.qty_left ?? 0) > 0 && !roll.leftover_kind;
   const out: RollOption[] = [];
-  for (const material of materialsForItem([...(materials ?? [])], itemId)) {
+  for (const material of materials ?? []) {
     for (const roll of material.rolls ?? []) {
-      if (roll.status !== 'in_use') continue;
-      if (!(Number(roll.length_left_m ?? roll.qty_left ?? 0) > 0)) continue;
-      if (roll.leftover_kind) continue;
-      out.push({ roll, material, label: rollLabel(roll, material) });
+      if (pending(roll)) out.push({ roll, material, label: rollLabel(roll, material) });
     }
   }
+  for (const option of extra) if (pending(option.roll)) out.push(option);
   return out.sort((a, b) => a.roll.seq - b.roll.seq);
 }
 

@@ -55,6 +55,21 @@ const REFERENCES = [
   { table: 'erp_sku_card_files', column: 'file_path' },
 ] as const;
 
+/**
+ * ЧЕТВЁРТЫЙ НОСИТЕЛЬ — JSON, А НЕ КОЛОНКА (правка 28.09). С 20.09 черновик
+ * заказа (`erp_order_drafts.payload`) хранит уже загруженные файлы блоков
+ * и ТЗ: `payload.attachments[].path` и `payload.tzDocs[].path` — форма
+ * `OrderDraftEnvelope` в `erp/utils/orderDraftEnvelope.ts`. Строки заказа
+ * у таких файлов ещё нет, и уборка считала их ничьими: черновик старше суток
+ * открывался без ТЗ, которое человек уже приложил. Колонки `file_path`
+ * у черновика нет, поэтому вывод носителей из миграций его не видит —
+ * сторож `storageGc.test.ts` требует эту запись отдельно и сверяет ключи
+ * массивов с формой снимка.
+ */
+const JSON_REFERENCES = [
+  { table: 'erp_order_drafts', column: 'payload', arrays: ['attachments', 'tzDocs'] },
+] as const;
+
 const db = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -92,6 +107,29 @@ async function referencedPaths(): Promise<Set<string>> {
       if (error) throw new Error(`${table}.${column}: ${error.message}`);
       if (!data || data.length === 0) break;
       for (const row of data) taken.add((row as Record<string, string>)[column]);
+      if (data.length < PAGE) break;
+    }
+  }
+  // Ошибка чтения здесь — тот же `throw`: не прочли носителя = не удаляем ничего
+  for (const { table, column, arrays } of JSON_REFERENCES) {
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await db.from(table)
+        .select(column).order('id').range(from, from + PAGE - 1);
+      if (error) throw new Error(`${table}.${column}: ${error.message}`);
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        const payload = (row as Record<string, unknown>)[column];
+        if (!payload || typeof payload !== 'object') continue;
+        for (const key of arrays) {
+          const list = (payload as Record<string, unknown>)[key];
+          if (!Array.isArray(list)) continue;
+          for (const entry of list) {
+            const path = (entry as { path?: unknown } | null)?.path;
+            if (typeof path === 'string' && path) taken.add(path);
+          }
+        }
+      }
       if (data.length < PAGE) break;
     }
   }

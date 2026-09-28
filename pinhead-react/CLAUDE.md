@@ -66,7 +66,8 @@ URL: https://pinhead-os.vercel.app
   components (StageReportForm + SizeReportSection (размерная таблица сдачи, остаток
   по размерам) + useStageReports (отчёты предков и свои — 27.09 пп. 6, 7) +
   RollParamsForm (параметры рулона для учёта в метрах: общая для закроя
-  и склада, расчёт виден до нажатия — 27.09 п. 4),
+  и склада, расчёт виден до нажатия — 27.09 п. 4; чистый вес у рулона без веса — 28.09) +
+  useForeignRolls (остатки других заказов для формы закроя),
   ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
   Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
@@ -77,7 +78,8 @@ URL: https://pinhead-os.vercel.app
   orders/stages (+ stageGates.ts — гейты закрытия у писателя: файл → программа
   вышивки → тираж → закупка/рулоны, не учтённые изделия)/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
   realtimeCoalesce.ts (серия событий → одно перечитывание), realtimeHelpers.ts, reworkEvents.ts (журнал
-  переделок с кэшем по `id:qty`), attempts.ts (ключи попыток сдачи по этапу —
+  переделок с кэшем по `id:qty`), slices/rollActions.ts (действия с рулонами: судьба остатка,
+  параметры, место хранения, остатки по всем заказам — 28.09), attempts.ts (ключи попыток сдачи по этапу —
   в модуле, не в состоянии: повтор не спишет метры дважды, 27.09 п. 4),
   authHelpers.ts у useAuthStore;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
@@ -91,7 +93,8 @@ URL: https://pinhead-os.vercel.app
   общие с RPC)/cutExtras (производственный «плюс», накопительно)/
   fabricMetres (формулы кг ↔ м и ₽/м, `fmtM`/`fmtKg`, рабочий метраж рулона
   с источником — 27.09 п. 4)/rollParams (параметры рулонов приёмки → payload
-  `p_roll_params`)/reportTotals (числа отчёта из разбивки — правило одно
+  `p_roll_params`)/foreignRolls (рулоны других заказов как варианты закроя — 28.09)/
+  analyticsCsv (выгрузка аналитики в CSV)/reportTotals (числа отчёта из разбивки — правило одно
   с сервером)/itemEconomics (подписи экономики: пробелы, покрытие, пересчёт)/
   fabricLeftovers/attachmentView/deptMap (карты участков, WeakMap по массиву)/cellKey (`CELL_SEP`)),
   orderFormGrid.ts (размерная сетка формы, реэкспорт из orderForm),

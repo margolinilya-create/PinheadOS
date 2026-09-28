@@ -720,9 +720,25 @@ export interface MaterialsSlice {
   /**
    * Судьба остатка рулона, оставленного «в работе» прежней сдачей (правка
    * 27.09, п. 2): закрыть рулон видом остатка без новой строки расхода.
-   * Пишет прямо в `erp_material_rolls` под политикой прав этапа.
+   * RPC `erp_roll_set_leftover` (правка 28.09): малый остаток пишется
+   * СПИСАНИЕМ со стоимостью на позицию, а не одним видом рулона.
    */
-  setRollLeftover: (rollId: string, kind: 'usable' | 'scrap') => Promise<boolean>;
+  setRollLeftover: (rollId: string, kind: 'usable' | 'scrap', itemId?: string | null) => Promise<boolean>;
+  /** Место хранения рулона — свободный текст склада (правка 28.09) */
+  setRollLocation: (rollId: string, location: string | null) => Promise<boolean>;
+  /**
+   * Пригодные остатки ткани по ВСЕМ заказам, включая закрытые
+   * (`erp_fabric_leftovers`, правка 28.09): экран «Остатки ткани» и выбор
+   * остатка закроем. `null` — не загрузилось.
+   */
+  fabricLeftovers?: FabricLeftoverRow[] | null;
+  loadFabricLeftovers: () => Promise<FabricLeftoverRow[] | null>;
+  /**
+   * Рулоны ДРУГИХ заказов, с которых кроил этот (взятые остатки, правка
+   * 28.09) — `erp_order_foreign_rolls`. Форма закроя показывает их рядом
+   * со своими: иначе взятый остаток нельзя ни доиспользовать, ни закрыть.
+   */
+  loadOrderForeignRolls: (orderId: string) => Promise<(FabricLeftoverRow & { leftover_kind: 'usable' | 'scrap' | null })[] | null>;
   /**
    * Дозаполнить или уточнить ширину, плотность и метраж рулона (правка
    * 27.09, п. 4) — RPC `erp_material_roll_set_params`. До первого расхода
@@ -735,6 +751,8 @@ export interface MaterialsSlice {
     length_m?: number | null;
     length_source?: 'supplier' | 'measured' | null;
     reason?: string | null;
+    /** Чистый вес рулона без веса (правка 28.09): без него метраж не связать с закупкой */
+    weight_kg?: number | null;
   }) => Promise<boolean>;
 
   /** Варианты поставщиков на позицию закупки (правка 10) */
@@ -842,6 +860,39 @@ export interface AnalyticsSeriesRow {
   rework: number;
   extra: number;
   fabric: number;
+  /** Часть метров пересчитана из кг по коэффициенту рулона — «Расчёт» (правка 28.09) */
+  fabric_calc?: boolean;
+  /** Часть строк пересчитать не из чего — данные неполные */
+  fabric_incomplete?: boolean;
+}
+
+/** Пригодный остаток ткани из `erp_fabric_leftovers` (правка 28.09) */
+export interface FabricLeftoverRow {
+  roll_id: string;
+  label: string;
+  seq: number | null;
+  material_id: string;
+  material: string | null;
+  kind: string | null;
+  unit: string | null;
+  order_id: string;
+  order_title: string | null;
+  order_status: string | null;
+  width_cm: number | null;
+  density_gsm: number | null;
+  length_m: number | null;
+  length_left_m: number | null;
+  length_source: 'calc' | 'supplier' | 'measured' | null;
+  qty: number | null;
+  qty_left: number | null;
+  kg_per_m: number | null;
+  price_per_unit: number | null;
+  price_per_m: number | null;
+  location: string | null;
+  status: string;
+  created_at: string;
+  /** Цвет материала (факт приёмки либо план) */
+  color?: string | null;
 }
 
 export interface AnalyticsSkuRow {
@@ -917,16 +968,25 @@ export interface EconomicsLeftoverRow {
   price_per_m: number | null;
   cost: number | null;
   owner_order_id: string | null;
+  owner_order_title?: string | null;
+  /** Место хранения рулона (правка 28.09) */
+  location?: string | null;
   /** Использовано другими позициями после этой — движение запаса */
   used_elsewhere_m: number;
 }
 
 export interface EconomicsScrapRow {
-  adjustment_id: string;
+  /** null — малый остаток, отмеченный до 28.09 без записи списания (оценка) */
+  adjustment_id: string | null;
   roll_id: string;
   label: string;
   material: string | null;
-  length_m: number;
+  length_m: number | null;
+  /** Списанное в кг (у метров — расчётное) */
+  kg?: number | null;
+  price_per_m?: number | null;
+  /** Стоимость — оценка, а не запись списания */
+  calc?: boolean;
   cost: number | null;
   reason: string | null;
   author: string | null;
@@ -946,6 +1006,8 @@ export interface EconomicsAdjustmentRow {
   reason: string | null;
   author: string | null;
   created_at: string;
+  /** Остаточная стоимость подтверждена (правка 28.09); до этого расчёт предварительный */
+  confirmed_at?: string | null;
 }
 
 export interface EconomicsDefectRow {
@@ -1032,6 +1094,8 @@ export interface ItemEconomics {
   costs: {
     fabric: number | null;
     scrap: number | null;
+    /** Подтверждённая остаточная стоимость рулонов, отнесённая на позицию (28.09) */
+    residual?: number | null;
     assembly: number | null;
     total: number | null;
     /** Какие статьи не учтены: `fabric`, `fabric_price`, `assembly` */
@@ -1059,6 +1123,11 @@ export interface AnalyticsSlice {
   orderEconomics?: Record<string, OrderEconomicsRow[]>;
   economicsLoading?: boolean;
   loadOrderEconomics: (orderId: string) => Promise<OrderEconomicsRow[] | null>;
+  /**
+   * Подтвердить остаточную стоимость рулона (правка 28.09): без этого расчёт
+   * позиции оставался предварительным навсегда. Перечитывает экономику заказа.
+   */
+  confirmRollAdjustment: (adjustmentId: string, orderId: string, itemId?: string | null) => Promise<boolean>;
   /** Последний снимок и его ключ: тот же фильтр — тот же ответ */
   analytics?: AnalyticsSnapshot | null;
   analyticsKey?: string | null;

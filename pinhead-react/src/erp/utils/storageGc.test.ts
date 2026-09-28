@@ -77,6 +77,58 @@ describe('storage-gc: носители ключа выводятся из схе
   );
 });
 
+/**
+ * ЧЕТВЁРТЫЙ НОСИТЕЛЬ — JSON ЧЕРНОВИКА (правка 28.09). С 20.09
+ * `erp_order_drafts.payload` хранит пути уже загруженных файлов блоков и ТЗ,
+ * а колонки `file_path` у черновика нет — вывод из миграций выше его
+ * не видит, и уборщики стирали файлы черновика старше суток. Поэтому набор
+ * массивов выводится из ФОРМЫ СНИМКА (`OrderDraftEnvelope`): всякое поле
+ * вида `Draft…[]`, чей тип несёт `path: string`, обязано стоять в
+ * `JSON_REFERENCES` каждого уборщика.
+ */
+function draftPathArrays(): Set<string> {
+  const src = readFileSync(join(process.cwd(), 'src/erp/utils/orderDraftEnvelope.ts'), 'utf8');
+  const envelope = src.match(/interface OrderDraftEnvelope\s*\{([\s\S]*?)\n\}/);
+  if (!envelope) return new Set();
+  const withPath = new Set(
+    [...src.matchAll(/interface (Draft\w+)\s*\{([\s\S]*?)\n\}/g)]
+      .filter((m) => /\n\s*path:\s*string;/.test(m[2]))
+      .map((m) => m[1]),
+  );
+  return new Set(
+    [...envelope[1].matchAll(/\n\s*(\w+)\??:\s*(Draft\w+)\[\];/g)]
+      .filter((m) => withPath.has(m[2]))
+      .map((m) => m[1]),
+  );
+}
+
+describe('storage-gc: черновик заказа — носитель ключа', () => {
+  const arrays = draftPathArrays();
+
+  it('форма снимка несёт пути в attachments и tzDocs (иначе парсер сломан)', () => {
+    expect(arrays.has('attachments')).toBe(true);
+    expect(arrays.has('tzDocs')).toBe(true);
+  });
+
+  it.each(Object.entries(GC_SOURCES))(
+    'erp_order_drafts.payload стоит в JSON_REFERENCES: %s',
+    (_name, src) => {
+      const decl = src.match(/const JSON_REFERENCES = \[([\s\S]*?)\n\]/);
+      expect(decl, 'нет списка JSON_REFERENCES').not.toBeNull();
+      const entry = decl![1].match(
+        /\{\s*table:\s*'erp_order_drafts',\s*column:\s*'payload',\s*arrays:\s*\[([^\]]*)\]\s*\}/,
+      );
+      expect(entry, 'уборщик не читает erp_order_drafts.payload').not.toBeNull();
+      const listed = new Set([...entry![1].matchAll(/'(\w+)'/g)].map((m) => m[1]));
+      for (const a of arrays) {
+        expect(listed.has(a), `payload.${a}[].path не читается уборщиком`).toBe(true);
+      }
+      // Список должен реально обходиться, а не просто стоять объявленным
+      expect(src).toMatch(/of JSON_REFERENCES\)/);
+    },
+  );
+});
+
 describe('удаление объекта на клиенте спрашивает карточки модели', () => {
   const read = (rel: string) => readFileSync(join(process.cwd(), 'src/erp/store', rel), 'utf8');
 

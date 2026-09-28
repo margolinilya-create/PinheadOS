@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   economicsGaps, coverageNote, fabricNote, assemblySourceNote, money, moneyOrNot, qty, sizeRowsText,
-  PLAN_COST_NOTE, COST_SCOPE_NOTE,
+  PLAN_COST_NOTE, COST_SCOPE_NOTE, missingAssembly, unitCostText, orderEconomicsSummary,
+  summaryValueText, summaryNote,
 } from './itemEconomics';
 import type { ItemEconomics } from '../store/types';
 
@@ -174,5 +175,52 @@ describe('деньги и количества: «нет данных» это �
   it('подписи документа — слово в слово', () => {
     expect(PLAN_COST_NOTE).toBe('Все затраты позиции распределены на клиентский тираж, включая изготовление плюсов');
     expect(COST_SCOPE_NOTE).toBe('Основное полотно и пошив на единицу');
+  });
+});
+
+describe('«без пошива» — незаполненная стоимость не принимается за ноль (28.09, п. 7)', () => {
+  it('пошив учтён — число без пометки', () => {
+    expect(missingAssembly(FULL)).toBe(false);
+    expect(unitCostText(355.45, false)).toBe('355,45 ₽');
+  });
+
+  it('пошив не учтён — пометка рядом с числом', () => {
+    const e = { ...FULL, costs: { ...FULL.costs, assembly: null, missing: ['assembly' as const] } };
+    expect(missingAssembly(e)).toBe(true);
+    expect(unitCostText(140.95, true)).toBe('140,95 ₽ без пошива');
+  });
+
+  it('нет знаменателя — «Нет данных для расчёта», без пометки', () => {
+    expect(unitCostText(null, true)).toBe('Нет данных для расчёта');
+  });
+});
+
+describe('orderEconomicsSummary — сводка заказа по всем позициям (28.09, п. 1)', () => {
+  const row = (item_id: string, e: Partial<ItemEconomics>) => ({
+    item_id, product_type: 'Худи', variant: null, qty: 100, economics: { ...FULL, item_id, ...e },
+  });
+
+  it('складывает только рассчитанное и считает пропуски', () => {
+    const lines = orderEconomicsSummary([
+      row('a', { losses: { ...LOSSES, leftovers_usable_cost: 100 } }),
+      row('b', { costs: { ...FULL.costs, total: 3, assembly: null, missing: ['assembly'] } }),
+    ]);
+    const total = lines.find((l) => l.key === 'total')!;
+    expect(total.sum).toBe(97396);
+    expect(total.noAssembly).toBe(1);
+    expect(summaryNote(total)).toBe('без пошива: позиций 1');
+
+    const usable = lines.find((l) => l.key === 'usable')!;
+    expect(usable.sum).toBe(100);
+    expect(summaryNote(usable)).toBe('без учёта позиций, где не рассчитано: 1');
+
+    const defects = lines.find((l) => l.key === 'defects')!;
+    expect(defects.sum).toBeNull();
+    expect(summaryValueText(defects)).toBe('Не рассчитано');
+    expect(summaryNote(defects)).toBeNull();
+  });
+
+  it('пять строк порознь — общей суммы «дополнительных расходов» нет', () => {
+    expect(orderEconomicsSummary([]).map((l) => l.key)).toEqual(['total', 'usable', 'scrap', 'defects', 'extras']);
   });
 });
