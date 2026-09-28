@@ -55,7 +55,7 @@ const CEILINGS: Record<string, number> = {
   'components/editors/sku/SkuDetailModal.jsx': 631,
   'erp/utils/routeDraft.ts': 624,
   'erp/utils/routes.ts': 618,
-  'erp/store/slices/realtimeSlice.ts': 587,
+  'erp/store/slices/realtimeSlice.ts': 525,
   'store/useAuthStore.ts': 575,
   'components/editors/sku/PricingTabContent.jsx': 576,
   'erp/screens/ErpDashboard.jsx': 560,
