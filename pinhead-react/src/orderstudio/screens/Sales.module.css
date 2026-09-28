@@ -200,6 +200,7 @@
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+  margin: var(--space-xs) 0;
 }
 
 .subCard {
@@ -249,6 +250,12 @@
 
 /* ── Сетка ── */
 
+.gridScroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: var(--space-sm) 0;
+}
+
 .gridTable { border-collapse: collapse; }
 
 .gridTable th,
@@ -261,8 +268,9 @@
 .gridTable th:first-child,
 .gridTable td:first-child { text-align: left; }
 
-.cell {
-  width: 56px;
+.gridTable .cell {
+  width: 64px;
+  min-width: 56px;
   min-height: var(--control-h-sm);
   text-align: center;
   font: inherit;
@@ -273,7 +281,7 @@
   color: var(--ink);
 }
 
-.colorInput { min-width: 140px; }
+.gridTable .colorInput { width: 160px; min-width: 112px; }
 
 .sizeToggle {
   font: inherit;

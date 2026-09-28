@@ -60,6 +60,7 @@ export default function GridEditor({ grid, onChange }) {
       </div>
 
       {sizes.length > 0 && (
+        <div className={styles.gridScroll}>
         <table className={styles.gridTable}>
           <thead>
             <tr>
@@ -102,6 +103,7 @@ export default function GridEditor({ grid, onChange }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <div className={styles.row}>
