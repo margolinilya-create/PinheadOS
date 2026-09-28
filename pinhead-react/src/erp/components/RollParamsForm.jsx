@@ -20,26 +20,34 @@ import styles from '../styles';
  * не обязательна («если есть метраж поставщика или замер, отсутствие
  * плотности не должно мешать учёту в метрах»).
  */
-export function RollParamsForm({ roll, material, onSave, disabled = false }) {
+export function RollParamsForm({ roll, material, onSave, disabled = false, note = null }) {
   const [width, setWidth] = useState(roll.width_cm ?? material?.width_cm ?? '');
   const [density, setDensity] = useState(roll.density_gsm ?? material?.density_gsm ?? '');
   const [lengthM, setLengthM] = useState('');
   const [source, setSource] = useState('supplier');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  /**
+   * ЧИСТЫЙ ВЕС — у рулона, принятого до правки 21.09 без веса (правка 28.09):
+   * «для связи с закупкой в кг при этом нужен чистый вес рулона». Записанный
+   * вес здесь не правится — это делает склад.
+   */
+  const noWeight = !(Number(roll.qty) > 0);
+  const [weightInput, setWeightInput] = useState('');
 
-  const weight = roll.qty;
+  const weight = noWeight ? weightInput : roll.qty;
   const calc = lengthFromWeight(weight, width, density);
   const kgPerM = kgPerMFromParams(width, density);
   const hasLength = Number(lengthM) > 0;
   // Уточнение уже размеченного рулона — корректировка, ей нужна причина
   const refining = roll.length_m !== null && roll.length_m !== undefined;
-  const canSave = !saving && (hasLength || calc !== null);
   const missing = {
     width: !(Number(width) > 0) && !hasLength,
     density: !(Number(density) > 0) && !hasLength,
-    weight: !(Number(weight) > 0) && !hasLength,
+    // Вес нужен всегда: для расчёта по весу и для связи метража с закупкой в кг
+    weight: !(Number(weight) > 0),
   };
+  const canSave = !saving && !missing.weight && (hasLength || calc !== null);
 
   const save = async () => {
     setSaving(true);
@@ -49,6 +57,7 @@ export function RollParamsForm({ roll, material, onSave, disabled = false }) {
       length_m: hasLength ? Number(lengthM) : null,
       length_source: hasLength ? source : null,
       reason: reason.trim() || null,
+      weight_kg: noWeight && Number(weightInput) > 0 ? Number(weightInput) : null,
     });
     setSaving(false);
     if (ok) setLengthM('');
@@ -56,7 +65,22 @@ export function RollParamsForm({ roll, material, onSave, disabled = false }) {
 
   return (
     <div className={styles.queueBlockForm} role="group" aria-label={`Параметры рулона ${roll.label}`}>
+      {note && <p className={styles.queueReason}>{note}</p>}
       <div className={styles.planFormRow}>
+        {noWeight && (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Чистый вес рулона, кг *</span>
+            <input
+              type="number" min="0" step="0.001" inputMode="decimal"
+              className={`${styles.input} ${styles.qtySmallInput}${missing.weight ? ` ${styles.inputError}` : ''}`}
+              value={weightInput}
+              disabled={disabled || saving}
+              aria-invalid={missing.weight || undefined}
+              aria-label={`Чистый вес рулона, ${roll.label}`}
+              onChange={(e) => setWeightInput(e.target.value)}
+            />
+          </label>
+        )}
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Ширина полотна, см{missing.width ? ' *' : ''}</span>
           <input
@@ -123,7 +147,7 @@ export function RollParamsForm({ roll, material, onSave, disabled = false }) {
         )}
       </div>
       <span className={styles.subText} role="status">
-        {missing.weight && 'Вес рулона не указан — его дозаполняет склад; без веса метраж только по замеру. '}
+        {missing.weight && 'Укажите чистый вес рулона без втулки и упаковки — без него метраж не связать с закупкой в кг. '}
         {hasLength
           ? `Рабочий метраж: ${fmtM(lengthM)} (${sourceLabel(source)})`
           : calc !== null

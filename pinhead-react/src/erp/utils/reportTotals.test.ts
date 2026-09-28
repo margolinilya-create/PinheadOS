@@ -33,11 +33,18 @@ describe('reportTotals', () => {
     expect(r.good).toBe(2);
   });
 
-  it('рулоны задают годное, брак и переделка — из размеров', () => {
+  /**
+   * Закрой: размерные строки несут только годные, брак — скаляр формы.
+   * Прежде брак брался из строк и терялся (правка 28.09): форма требовала
+   * комментарий к браку, а на сервер уходил 0.
+   */
+  it('рулоны задают годное, брак и переделка — скаляры формы, как у сервера', () => {
     const r = reportTotals({
-      sizes: [size(0, { qty_defect: 2 })],
+      qtyDefect: 3,
+      qtyRework: 1,
+      sizes: [size(6), size(4, { size: 'L' })],
       rolls: [{ roll_id: 'r1', sizes: [size(6)] }, { roll_id: 'r2', sizes: [size(4)] }],
     });
-    expect(r).toMatchObject({ good: 10, defect: 2 });
+    expect(r).toMatchObject({ good: 10, defect: 3, rework: 1 });
   });
 });

@@ -13,6 +13,7 @@ import {
   EMPTY_ITEM,
   emptyOrderForm,
   emptyPurchaseRow,
+  isFormEmpty,
   ORDER_DRAFT_KEY,
   type DraftForm,
   type DraftItem,
@@ -177,4 +178,19 @@ function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
 
 export function clearOrderDraft(): void {
   storageRemove(ORDER_DRAFT_KEY);
+}
+
+/**
+ * ЧЕРНОВИК ПУСТ, ЕСЛИ ПУСТЫ И ПОЛЯ, И ФАЙЛЫ (правка 28.09). `isFormEmpty`
+ * смотрит только на поля формы, и форма, где приложен один файл или ТЗ,
+ * считалась пустой: автосохранение открытого черновика удаляло его вместе
+ * с файлами, а «Сохранить в черновики» отвечало «черновик пустой».
+ */
+export function isDraftEmpty(
+  form: Parameters<typeof isFormEmpty>[0],
+  items: Parameters<typeof isFormEmpty>[1],
+  initialLaunchDate: string,
+  attachedCount: number,
+): boolean {
+  return attachedCount === 0 && isFormEmpty(form, items, initialLaunchDate);
 }

@@ -675,6 +675,8 @@ export interface ErpMaterialRoll {
   length_left_source: 'calc' | 'supplier' | 'measured' | null;
   /** Цена за метр = цена за кг × коэффициент; только для чтения, считает сервер */
   price_per_m: number | null;
+  /** Место хранения (стеллаж, ячейка) — свободный текст склада (правка 28.09) */
+  location?: string | null;
 }
 
 /**

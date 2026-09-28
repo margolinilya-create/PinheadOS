@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Button } from '../../components/Button';
 import { RollParamsForm } from '../../components/RollParamsForm';
-import { fmtM, lengthFromWeight, rollWorkingLength } from '../../utils/fabricMetres';
+import {
+  fmtM, kgPerMFromMeasure, kgPerMFromParams, lengthFromWeight, pricePerM, rollWorkingLength,
+} from '../../utils/fabricMetres';
 import { weightsFilled, weightsSum } from '../../utils/rollParams';
 import styles from '../../styles';
 
@@ -43,6 +45,18 @@ export function RollParamsFields({
         {Array.from({ length: count }, (_, i) => {
           const calc = lengthFromWeight(params[i]?.weight, width(i), density(i));
           const length = Number(params[i]?.length) > 0 ? Number(params[i].length) : null;
+          /**
+           * ПОДСВЕТКА НЕДОСТАЮЩЕГО (правка 28.09): «недостающие поля
+           * подсвечивать красным». Ширина и плотность нужны, пока нет метража
+           * по бирке; черновик приёмки сохраняется и без них — это подсказка,
+           * а не запрет.
+           */
+          const needParams = length === null && Number(params[i]?.weight) > 0;
+          const widthMissing = needParams && !(Number(width(i)) > 0);
+          const densityMissing = needParams && !(Number(density(i)) > 0);
+          const kgm = length !== null
+            ? kgPerMFromMeasure(params[i]?.weight, length) : kgPerMFromParams(width(i), density(i));
+          const perM = pricePerM(material.price_per_unit, kgm);
           return (
             <div key={i} className={styles.cutSizeRow}>
               <span className={styles.dataCardFieldLabel}>Рулон {i + 1}</span>
@@ -57,7 +71,8 @@ export function RollParamsFields({
               />
               <input
                 type="number" min="0" step="1" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}`}
+                className={`${styles.input} ${styles.qtySmallInput}${widthMissing ? ` ${styles.inputError}` : ''}`}
+                aria-invalid={widthMissing || undefined}
                 value={width(i)}
                 disabled={disabled}
                 placeholder="см"
@@ -66,7 +81,8 @@ export function RollParamsFields({
               />
               <input
                 type="number" min="0" step="1" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}`}
+                className={`${styles.input} ${styles.qtySmallInput}${densityMissing ? ` ${styles.inputError}` : ''}`}
+                aria-invalid={densityMissing || undefined}
                 value={density(i)}
                 disabled={disabled}
                 placeholder="г/м²"
@@ -86,6 +102,7 @@ export function RollParamsFields({
                 {length !== null
                   ? `${fmtM(length)} (по данным поставщика)`
                   : calc !== null ? `${fmtM(calc)} (расчёт)` : 'метраж: — (нужны вес, ширина и плотность)'}
+                {perM !== null ? ` · ≈ ${perM.toFixed(2).replace('.', ',')} ₽/м` : ''}
               </span>
             </div>
           );

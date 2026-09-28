@@ -286,13 +286,18 @@ describe('незавершённая программа вышивки держ�
     }));
   };
 
-  it('все три писателя отказывают, пока программа не завершена', async () => {
+  /**
+   * Правка 28.09: документ запрещает ЗАВЕРШЕНИЕ вышивки, а не сдачу части.
+   * Закрытие (`setStageStatus('done')`) отказывает у писателя; сдача факта
+   * уходит на сервер, а тот пишет количество и этап не закрывает, пока
+   * программа не завершена (`erp_stage_program_block` в условии статуса).
+   */
+  it('закрытие отказывает, пока программа не завершена; сдача части — нет', async () => {
     withProgram('in_progress');
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
     expect(h.updateCalls).toHaveLength(0);
-    expect(await s().reportProgress('st1', 100)).toBe(false);
-    expect(await s().submitStageReport('st1', { qtyGood: 100 })).toBe(false);
-    expect(h.rpcCalls).toHaveLength(0);
+    expect(await s().submitStageReport('st1', { qtyGood: 40 })).toBe(true);
+    expect(h.rpcCalls.map((c) => c.fn)).toContain('erp_stage_submit_report');
   });
 
   it('программа завершена — вышивка закрывается', async () => {

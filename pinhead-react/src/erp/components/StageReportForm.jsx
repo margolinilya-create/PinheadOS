@@ -9,6 +9,7 @@ import { useErpStore } from '../store/useErpStore';
 import { SizeReportSection } from './SizeReportSection';
 import { useStageReports } from './useStageReports';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
+import { useForeignRolls } from './useForeignRolls';
 import {
   sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
 } from '../utils/stageSizes';
@@ -153,12 +154,13 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * одно и то же каждый день».
    */
   const needsCost = bySizes && !fullItem.assembly_cost_per_unit && assemblyCost === '';
-  /** Рулоны, принятые складом по этой позиции: их же показывает секция */
+  /** Рулоны позиции и остатки других заказов (правка 28.09): их же показывает секция */
+  const foreignRolls = useForeignRolls(order.id, byRolls);
   const rollOptions = useMemo(
     () => (byRolls
-      ? rollsForItem(fullOrder?.materials, fullItem?.id, rollEntries.map((e) => e.rollId))
+      ? rollsForItem(fullOrder?.materials, fullItem?.id, rollEntries.map((e) => e.rollId), foreignRolls)
       : []),
-    [byRolls, fullOrder, fullItem, rollEntries],
+    [byRolls, fullOrder, fullItem, rollEntries, foreignRolls],
   );
 
   /**
@@ -344,6 +346,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           stage={stage}
           entries={rollEntries}
           onChange={setRollEntries}
+          extraRolls={foreignRolls}
           onRollFate={setRollLeftover}
           onRollParams={setRollParams}
           reported={reportedSizes}

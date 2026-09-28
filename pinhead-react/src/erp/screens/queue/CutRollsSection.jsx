@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
@@ -6,7 +6,7 @@ import {
   rollsAwaitingFate, rollLeftText, metresText,
 } from '../../utils/cutRolls';
 import {
-  fmtKg, kgFromLength, rollKgPerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
+  fmtKg, kgFromLength, rollKgPerM, rollPricePerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
 } from '../../utils/fabricMetres';
 import { sizeChoicesFor, freeChoices, hasPlannedSizes } from '../../utils/sizeChoices';
 import { cutExtras, cutExtrasText } from '../../utils/cutExtras';
@@ -40,12 +40,24 @@ import styles from '../../styles';
  */
 export function CutRollsSection({
   order, item, stage = null, entries, onChange, onRollFate = null, onRollParams = null,
-  disabled = false, reported = {},
+  disabled = false, reported = {}, extraRolls = [],
 }) {
+  /**
+   * Рулоны позиции и ОСТАТКИ ДРУГИХ ЗАКАЗОВ (правка 28.09): «каждый следующий
+   * заказ получает только доступный остаток рулона». Чужие — в конце списка
+   * и подписаны заказом-источником.
+   */
   const options = useMemo(
-    () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId)),
-    [order, item, entries],
+    () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId), extraRolls),
+    [order, item, entries, extraRolls],
   );
+  /** Рулоны, у которых закройщик открыл уточнение метража (правка 28.09) */
+  const [refining, setRefining] = useState(() => new Set());
+  const toggleRefine = (rollId) => setRefining((cur) => {
+    const next = new Set(cur);
+    if (next.has(rollId)) next.delete(rollId); else next.add(rollId);
+    return next;
+  });
   /**
    * РУЛОНЫ БЕЗ СУДЬБЫ ОСТАТКА (правка 27.09, п. 2): оставлены «в работе»
    * прежней сдачей, остаток есть, вид не выбран. Пока они не закрыты,
@@ -55,8 +67,8 @@ export function CutRollsSection({
    */
   const inEntries = new Set(entries.map((e) => e.rollId).filter(Boolean));
   const awaitingFate = useMemo(
-    () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items) : []),
-    [order, item, stage],
+    () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items, extraRolls) : []),
+    [order, item, stage, extraRolls],
   ).filter((o) => !inEntries.has(o.roll.id));
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
@@ -152,6 +164,16 @@ export function CutRollsSection({
         const measured = entry.leftoverMeasuredM;
         const leftShown = measured !== null && measured !== undefined && measured !== ''
           ? Number(measured) : left;
+        const pricePerM = option ? rollPricePerM(option.roll, option.material) : null;
+        /**
+         * ПЕРЕРАСХОД (правка 28.09): «если измеренный расход превышает
+         * расчётный запас, предложить уточнить метраж рулона и подтвердить
+         * корректировку, затем сохранить расход». Прежде был только отказ.
+         */
+        const overdraw = hasMetres && available !== null
+          && Number(entry.lengthUsedM) > available + 0.005;
+        const showRefine = option && hasMetres && onRollParams
+          && (overdraw || refining.has(option.roll.id));
         return (
           <div key={`${entry.rollId || 'new'}-${index}`} className={styles.dataCard}>
             <div className={styles.planFormRow}>
@@ -196,6 +218,7 @@ export function CutRollsSection({
                 <span className={styles.subText}>
                   доступно: {metresText(available ?? 0)}
                   {working ? ` (${sourceLabel(working.source)})` : ''}
+                  {pricePerM !== null ? ` · ${pricePerM.toFixed(2).replace('.', ',')} ₽/м` : ''}
                   {Number(entry.lengthUsedM) > 0 && kgPerM !== null
                     ? ` · ≈ ${fmtKg(kgFromLength(entry.lengthUsedM, kgPerM))} (расчёт)` : ''}
                 </span>
@@ -223,6 +246,24 @@ export function CutRollsSection({
                   />
                 )}
               </>
+            )}
+
+            {option && hasMetres && onRollParams && !overdraw && (
+              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => toggleRefine(option.roll.id)}>
+                {refining.has(option.roll.id) ? 'Скрыть уточнение метража' : 'Уточнить метраж рулона'}
+              </Button>
+            )}
+            {showRefine && (
+              <RollParamsForm
+                roll={option.roll}
+                material={option.material}
+                onSave={onRollParams}
+                disabled={disabled}
+                note={overdraw
+                  ? `Расход больше доступного (${metresText(available ?? 0)}). Уточните метраж рулона — `
+                    + 'расхождение запишется корректировкой с причиной, затем сохраните расход.'
+                  : null}
+              />
             )}
 
             <CutSizeRows
@@ -264,7 +305,7 @@ export function CutRollsSection({
                   onChange={(e) => patch(index, {
                     finished: e.target.checked,
                     // Сняли отметку — вид остатка и замер теряют смысл вместе с ней
-                    ...(e.target.checked ? {} : { leftover: null, leftoverMeasuredM: null }),
+                    ...(e.target.checked ? {} : { leftover: null, leftoverMeasuredM: null, leftoverReason: null }),
                   })}
                 />
                 {' '}
@@ -289,6 +330,19 @@ export function CutRollsSection({
                     onChange={(e) => patch(index, { leftoverMeasuredM: e.target.value })}
                   />
                 </label>
+                {measured !== null && measured !== undefined && measured !== '' && (
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Причина расхождения</span>
+                    <input
+                      className={styles.input}
+                      value={entry.leftoverReason ?? ''}
+                      disabled={disabled}
+                      placeholder="например, перемерили после раскладки"
+                      aria-label={`Причина расхождения замера, строка ${index + 1}`}
+                      onChange={(e) => patch(index, { leftoverReason: e.target.value })}
+                    />
+                  </label>
+                )}
                 {leftShown !== null && leftShown > 0.0005 && (
                   <>
                     <span className={styles.fieldLabel}>
@@ -333,13 +387,13 @@ export function CutRollsSection({
               </span>
               <Button
                 variant="secondary" size="sm" disabled={disabled}
-                onClick={() => onRollFate(roll.id, 'usable')}
+                onClick={() => onRollFate(roll.id, 'usable', item?.id ?? null)}
               >
                 Остаток пригоден
               </Button>
               <Button
                 variant="ghost" size="sm" disabled={disabled}
-                onClick={() => onRollFate(roll.id, 'scrap')}
+                onClick={() => onRollFate(roll.id, 'scrap', item?.id ?? null)}
               >
                 Малый остаток, не учитывать
               </Button>

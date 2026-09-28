@@ -48,8 +48,15 @@ export function reportTotals<R extends RollLike>(input: ReportInput & { rolls?: 
     good: rolls.length > 0
       ? rollSum
       : (sizes.length > 0 ? sizeSum((s) => s.qty_good) : scalar(input.qtyGood)),
-    defect: sizes.length > 0 ? sizeSum((s) => s.qty_defect) : scalar(input.qtyDefect),
-    rework: sizes.length > 0 ? sizeSum((s) => s.qty_rework) : scalar(input.qtyRework),
-    extraQty: sizes.length > 0 ? sizeSum((s) => s.qty_extra) : scalar(input.qtyExtra),
+    /**
+     * У сдачи ПО РУЛОНАМ (закрой) брак, переделка и плюс — скаляры формы,
+     * как и у сервера (`v_rolled` в `erp_stage_submit_report`): размерные
+     * строки закроя несут только годные. Прежде брак брался из них и терялся
+     * по дороге — форма требовала комментарий к браку, а на сервер уходил 0
+     * (правка 28.09).
+     */
+    defect: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_defect) : scalar(input.qtyDefect),
+    rework: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_rework) : scalar(input.qtyRework),
+    extraQty: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_extra) : scalar(input.qtyExtra),
   };
 }
