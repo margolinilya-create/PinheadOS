@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { money } from '../utils/itemEconomics';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
@@ -8,6 +8,8 @@ import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { ScrollHintBox } from '../components/ScrollHintBox';
 import { OrderLink } from '../components/OrderLink';
+import { Button } from '../components/Button';
+import { useErpAccess } from '../store/useErpAccess';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { fabricLeftovers, leftoverTotals } from '../utils/fabricLeftovers';
 import { fmtM, fmtKg, sourceLabel } from '../utils/fabricMetres';
@@ -31,8 +33,15 @@ import styles from '../styles';
  * метраж, вес, цена партии и заказ, в котором его открыли (`utils/fabricLeftovers`).
  * Строка остатка рядом с рулоном была бы вторым писателем того же числа.
  *
- * ЗАПРОСА НЕТ: рулоны приезжают в списочной выборке заказов с 21.09, и экран
- * читает то, что раздел уже держит.
+ * СВОЙ ЗАПРОС (правка 28.09). До неё экран читал рулоны из заказов в сторе —
+ * а там без загруженного архива только активные, и пригодный остаток сданного
+ * заказа пропадал со склада. Теперь список отдаёт `erp_fabric_leftovers()`
+ * по ВСЕМ заказам; экран перечитывает его при открытии и когда стор сбросил
+ * кэш (`fabricLeftovers = null` после решения по остатку или правки рулона).
+ *
+ * МЕСТО ХРАНЕНИЯ правят те, кто держит склад (`material.receive`,
+ * `warehouse.manage`): остаток ищут на стеллаже, и без места он «есть
+ * в системе», но не на полке.
  */
 
 /** Килограммы остатка с подписью: расчётные — «(расчёт)», как велит документ */
@@ -49,21 +58,139 @@ function paramsText(l) {
   return parts.length ? parts.join(' · ') : '—';
 }
 
+/**
+ * Место хранения рулона: текст, а у кладовщика — правка по кнопке.
+ *
+ * Своя маленькая форма, а не `InlineEdit`: у того поле без видимой подписи
+ * и сохранение по уходу фокуса, а на планшете склада фокус теряется от
+ * любого касания рядом — и недописанное место записывалось бы молча.
+ * Здесь запись — только кнопкой «Сохранить» (или Enter), Escape — отмена.
+ */
+function LocationCell({ leftover, canEdit, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+  const editRef = useRef(null);
+  const returnFocus = useRef(false);
+  const inputId = `leftover-location-${leftover.rollId}`;
+
+  useEffect(() => {
+    if (editing) { inputRef.current?.focus(); return; }
+    if (returnFocus.current) {
+      returnFocus.current = false;
+      editRef.current?.focus();
+    }
+  }, [editing]);
+
+  const close = () => { returnFocus.current = true; setEditing(false); };
+
+  if (!editing) {
+    return (
+      <span className={styles.checkRow}>
+        <span>{leftover.location || <span className={styles.subText}>не указано</span>}</span>
+        {canEdit && (
+          <Button
+            ref={editRef}
+            variant="ghost"
+            icon="pencil"
+            aria-label={`Изменить место хранения: ${leftover.material}, ${leftover.label}`}
+            onClick={() => { setDraft(leftover.location ?? ''); setEditing(true); }}
+          >
+            Изменить
+          </Button>
+        )}
+      </span>
+    );
+  }
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (saving) return;
+    const next = draft.trim();
+    if (next === (leftover.location ?? '')) { close(); return; }
+    setSaving(true);
+    const ok = await onSave(leftover.rollId, next || null);
+    setSaving(false);
+    if (ok) close();
+  };
+
+  return (
+    <form
+      className={styles.checkRow}
+      onSubmit={submit}
+    >
+      <label htmlFor={inputId} className={styles.visuallyHidden}>
+        Место хранения: {leftover.material}, {leftover.label}
+      </label>
+      <input
+        id={inputId}
+        ref={inputRef}
+        type="text"
+        className={`${styles.input} ${styles.inputXs}`}
+        value={draft}
+        maxLength={200}
+        placeholder="Стеллаж, полка"
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { e.stopPropagation(); close(); }
+        }}
+      />
+      <Button type="submit" variant="primary" loading={saving}>Сохранить</Button>
+      <Button variant="ghost" disabled={saving} onClick={close}>Отмена</Button>
+    </form>
+  );
+}
+
+/** Заказ-источник: ссылка на карточку и статус, если он уже закрыт */
+function OrderCell({ l }) {
+  if (!l.orderId) return <span>{l.orderTitle}</span>;
+  return (
+    <>
+      <OrderLink orderId={l.orderId}>{l.orderTitle}</OrderLink>
+      {l.orderClosed && <span className={styles.subText}> · {l.orderStatusLabel}</span>}
+    </>
+  );
+}
+
 export default function FabricLeftovers() {
-  const { orders, loaded, loadError, loadAll } = useErpStore(useShallow((s) => ({
-    orders: s.orders,
-    loaded: s.loaded,
-    loadError: s.loadError,
-    loadAll: s.loadAll,
+  const { leftovers, loadFabricLeftovers, setRollLocation } = useErpStore(useShallow((s) => ({
+    leftovers: s.fabricLeftovers,
+    loadFabricLeftovers: s.loadFabricLeftovers,
+    setRollLocation: s.setRollLocation,
   })));
+  const access = useErpAccess();
+  const canEditLocation = access.can('material.receive') || access.can('warehouse.manage');
   const compact = useCompactLayout();
   const [query, setQuery] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
-  const all = useMemo(() => fabricLeftovers(orders), [orders]);
+  /**
+   * Загрузка: при открытии ВСЕГДА (кэш мог устареть, пока экран был закрыт)
+   * и затем всякий раз, когда стор сбросил кэш в `null`. Флаг `requested`
+   * не даёт перечитать второй раз сразу после первой удачной загрузки —
+   * `missing` меняется и от неё самой.
+   */
+  const missing = leftovers == null;
+  const requested = useRef(false);
+  useEffect(() => {
+    if (requested.current && !missing) return undefined;
+    requested.current = true;
+    let alive = true;
+    loadFabricLeftovers().then((r) => { if (alive) setFailed(r === null); });
+    return () => { alive = false; };
+  }, [missing, attempt, loadFabricLeftovers]);
+
+  const retry = () => { setFailed(false); requested.current = false; setAttempt((n) => n + 1); };
+  const loaded = !missing;
+
+  const all = useMemo(() => fabricLeftovers(leftovers), [leftovers]);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return all;
-    return all.filter((l) => [l.material, l.color, l.label, l.orderTitle]
+    return all.filter((l) => [l.material, l.color, l.label, l.orderTitle, l.location]
       .filter(Boolean).some((v) => v.toLowerCase().includes(q)));
   }, [all, query]);
   const totals = useMemo(() => leftoverTotals(rows), [rows]);
@@ -75,8 +202,8 @@ export default function FabricLeftovers() {
         sub="Пригодные остатки рулонов: сколько метров осталось после закроя и сколько это стоит"
       />
 
-      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="остатки ткани" />}
-      {!loaded && !loadError && <TableSkeleton rows={5} label="Загрузка остатков" />}
+      {failed && !loaded && <LoadFailed onRetry={retry} what="остатки ткани" />}
+      {!loaded && !failed && <TableSkeleton rows={5} label="Загрузка остатков" />}
 
       {loaded && all.length === 0 && (
         <EmptyState
@@ -92,7 +219,7 @@ export default function FabricLeftovers() {
           <FilterBar
             search={query}
             onSearch={setQuery}
-            searchPlaceholder="Поиск: ткань, цвет, рулон, заказ"
+            searchPlaceholder="Поиск: ткань, рулон, место, заказ"
             searchLabel="Поиск остатков ткани"
           />
 
@@ -135,9 +262,7 @@ export default function FabricLeftovers() {
               {rows.map((l) => (
                 <div key={l.rollId} className={styles.dataCard} role="listitem">
                   <div className={styles.dataCardHead}>
-                    <span className={styles.dataCardTitle}>
-                      {l.material}{l.color ? ` · ${l.color}` : ''}
-                    </span>
+                    <span className={styles.dataCardTitle}>{l.material}{l.color ? ` · ${l.color}` : ''}</span>
                     <span className={styles.subText}>{l.label} · {paramsText(l)}</span>
                   </div>
                   <div className={styles.dataCardFields}>
@@ -158,7 +283,11 @@ export default function FabricLeftovers() {
                     </span>
                   </div>
                   <div className={styles.subText}>
-                    Остался от заказа <OrderLink orderId={l.orderId}>{l.orderTitle}</OrderLink>
+                    Место хранения:{' '}
+                    <LocationCell leftover={l} canEdit={canEditLocation} onSave={setRollLocation} />
+                  </div>
+                  <div className={styles.subText}>
+                    Остался от заказа <OrderCell l={l} />
                   </div>
                 </div>
               ))}
@@ -178,16 +307,14 @@ export default function FabricLeftovers() {
                     <th scope="col">Остаток, кг</th>
                     <th scope="col">Цена за м, ₽</th>
                     <th scope="col">Стоимость</th>
+                    <th scope="col">Место хранения</th>
                     <th scope="col">Заказ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((l) => (
                     <tr key={l.rollId}>
-                      <th scope="row">
-                        {l.material}
-                        {l.color && <span className={styles.subText}> · {l.color}</span>}
-                      </th>
+                      <th scope="row">{l.material}{l.color ? ` · ${l.color}` : ''}</th>
                       <td>{l.label}</td>
                       <td>{fmtM(l.lengthM)}</td>
                       <td>{l.lengthSource ? sourceLabel(l.lengthSource) : '—'}</td>
@@ -199,7 +326,10 @@ export default function FabricLeftovers() {
                           : l.pricePerM.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
                       </td>
                       <td>{money(l.cost)}</td>
-                      <td><OrderLink orderId={l.orderId}>{l.orderTitle}</OrderLink></td>
+                      <td>
+                        <LocationCell leftover={l} canEdit={canEditLocation} onSave={setRollLocation} />
+                      </td>
+                      <td><OrderCell l={l} /></td>
                     </tr>
                   ))}
                 </tbody>

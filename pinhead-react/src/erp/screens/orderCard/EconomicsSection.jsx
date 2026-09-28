@@ -8,6 +8,7 @@ import { Skeleton } from '../../../components/shared/Skeleton';
 import {
   economicsGaps, GAP_LABELS, COST_MISSING_LABELS, coverageNote, fabricNote, assemblySourceNote,
   PRICE_SOURCE_NOTE, PLAN_COST_NOTE, COST_SCOPE_NOTE, NO_DATA_TEXT, money, qty,
+  missingAssembly, unitCostText, orderEconomicsSummary, summaryValueText, summaryNote,
 } from '../../utils/itemEconomics';
 import { fmtM } from '../../utils/fabricMetres';
 import { LossesSection } from './LossesSection';
@@ -52,6 +53,7 @@ export function EconomicsSection({ order }) {
     if (!rows || rows.length === 0) return null;
     return rows.find((r) => r.item_id === itemId) ?? rows[0];
   }, [rows, itemId]);
+  const summary = useMemo(() => orderEconomicsSummary(rows), [rows]);
 
   /* Полоски, а не «Загрузка…»: вкладка — сетка плиток, и место под них
      занимается заранее, чтобы содержимое не прыгало при появлении */
@@ -80,9 +82,13 @@ export function EconomicsSection({ order }) {
   const missing = e?.costs?.missing ?? [];
   const noteFabric = fabricNote(e);
   const coverage = coverageNote(fabric?.priced_metres, fabric?.metres);
+  const noAssembly = missingAssembly(e);
+  const residual = e?.costs?.residual;
 
   return (
     <div className={styles.economics}>
+      <OrderSummary lines={summary} itemsCount={rows.length} />
+
       {/* Переключатель позиций: расчёт принадлежит ПОЗИЦИИ, а в заказе
           их бывает с десяток — сводить их в одну цифру документ не просит */}
       {rows.length > 1 && (
@@ -182,8 +188,14 @@ export function EconomicsSection({ order }) {
           <span className={styles.subText}>{PRICE_SOURCE_NOTE}</span>
         </div>
         <div className={styles.metricCard}>
-          <span className={styles.metricLabel}>Полотно на годную единицу</span>
-          <span className={styles.metricValue}>{money(e?.fabric_cost_per_good)}</span>
+          <span className={styles.metricLabel}>Полотно на единицу выпуска</span>
+          <span className={styles.metricValue}>
+            {e?.fabric_cost_per_good === null || e?.fabric_cost_per_good === undefined
+              ? NO_DATA_TEXT : money(e.fabric_cost_per_good)}
+          </span>
+          <span className={styles.subText}>
+            стоимость полотна на единицу готового выпуска ({e?.final_good ?? 0} шт, включая годные плюсы)
+          </span>
         </div>
         <div className={styles.metricCard}>
           <span className={styles.metricLabel}>Пошив за единицу</span>
@@ -195,7 +207,7 @@ export function EconomicsSection({ order }) {
         <div className={`${styles.metricCard} ${styles.metricCardAccent}`}>
           <span className={styles.metricLabel}>{COST_SCOPE_NOTE}</span>
           <span className={styles.metricValue}>{money(e?.direct_unit_cost)}</span>
-          <span className={styles.subText}>полотно на годную + пошив</span>
+          <span className={styles.subText}>полотно на единицу выпуска + пошив</span>
         </div>
       </div>
 
@@ -210,7 +222,7 @@ export function EconomicsSection({ order }) {
         <div className={styles.metricCard}>
           <span className={styles.metricLabel}>Себестоимость годной единицы</span>
           <span className={styles.metricValue}>
-            {e?.unit_cost_good === null || e?.unit_cost_good === undefined ? NO_DATA_TEXT : money(e.unit_cost_good)}
+            {unitCostText(e?.unit_cost_good, noAssembly)}
           </span>
           <span className={styles.subText}>
             затраты позиции {money(e?.costs?.total)} / готовый выпуск {e?.final_good ?? 0} шт, включая годные плюсы
@@ -219,7 +231,7 @@ export function EconomicsSection({ order }) {
         <div className={styles.metricCard}>
           <span className={styles.metricLabel}>Затраты на единицу клиентского тиража</span>
           <span className={styles.metricValue}>
-            {e?.unit_cost_plan === null || e?.unit_cost_plan === undefined ? NO_DATA_TEXT : money(e.unit_cost_plan)}
+            {unitCostText(e?.unit_cost_plan, noAssembly)}
           </span>
           <span className={styles.subText}>{PLAN_COST_NOTE} · тираж {e?.client_qty ?? current.qty} шт</span>
           {(e?.final_good ?? 0) < (e?.client_qty ?? 0) && (
@@ -233,6 +245,7 @@ export function EconomicsSection({ order }) {
       {/* Состав затрат — явно, статья за статьёй; незаполненная не считается нулём */}
       <p className={styles.subText}>
         Состав затрат: полотно {money(e?.costs?.fabric)} · списанные малые остатки {money(e?.costs?.scrap)}
+        {residual !== null && residual !== undefined && ` · Остаточная стоимость рулонов ${money(residual)}`}
         {' '}· пошив {money(e?.costs?.assembly)} · итого {money(e?.costs?.total)}.
         {missing.length > 0 && ` Не учтены: ${missing.map((m) => COST_MISSING_LABELS[m] ?? m).join('; ')}.`}
       </p>
@@ -243,12 +256,49 @@ export function EconomicsSection({ order }) {
         </p>
       )}
 
-      <LossesSection losses={e?.losses} clientQty={e?.client_qty ?? current.qty} />
+      <LossesSection
+        losses={e?.losses}
+        clientQty={e?.client_qty ?? current.qty}
+        orderId={order.id}
+        itemId={current.item_id}
+        noAssembly={noAssembly}
+      />
 
       <p className={styles.subText}>
         Считаются только основное полотно и пошив. Отделочные материалы,
         фурнитура, нанесения и упаковка в расчёт пока не входят.
       </p>
     </div>
+  );
+}
+
+/**
+ * СВОДКА ЗАКАЗА (правка 28.09, п. 1): деньги по всем позициям — строка
+ * за строкой, без общей суммы «дополнительных расходов» (документ её
+ * запрещает: брак, плюсы и отходы уже внутри затрат позиций). Позиция,
+ * где строка не рассчитана, в сумму не входит — и это сказано рядом.
+ */
+function OrderSummary({ lines, itemsCount }) {
+  return (
+    <section className={styles.dataCard} aria-label="Сводка заказа">
+      <strong>Сводка заказа</strong>
+      <span className={styles.subText}>
+        {' '}— по всем позициям заказа ({itemsCount}); ниже — расчёт выбранной позиции
+      </span>
+      <table className={styles.table}>
+        <tbody>
+          {lines.map((l) => {
+            const note = summaryNote(l);
+            return (
+              <tr key={l.key}>
+                <th scope="row">{l.label}</th>
+                <td>{summaryValueText(l)}</td>
+                <td className={styles.subText}>{note ?? ''}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
   );
 }

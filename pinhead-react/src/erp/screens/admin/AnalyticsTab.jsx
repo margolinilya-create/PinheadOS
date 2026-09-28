@@ -10,6 +10,7 @@ import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { TableSkeleton } from '../../components/ErpSkeletons';
 import { addDays, factoryToday } from '../../../utils/date';
 import { fmtM } from '../../utils/fabricMetres';
+import { analyticsCsv, analyticsCsvFileName } from '../../utils/analyticsCsv';
 import styles from '../../styles';
 
 /**
@@ -59,6 +60,49 @@ function Kpi({ label, value, hint, tone }) {
 
 /** «—» вместо нуля там, где ноль означает «нет данных», а не «ноль штук» */
 const num = (v, suffix = '') => (v === null || v === undefined ? '—' : `${v}${suffix}`);
+
+/** «Нет данных» для отсутствующих метров; ноль остаётся нулём */
+const metres = (v) => (v === null || v === undefined ? 'Нет данных' : fmtM(v));
+
+const CALC_HINT = 'Часть метров пересчитана из кг по коэффициенту рулона';
+const INCOMPLETE_HINT = 'Часть записей не пересчитана: у рулонов нет коэффициента, они исключены';
+
+/**
+ * Отметки ячейки «Ткань, м» в динамике (правка 28.09): сервер отдаёт
+ * `fabric_calc`/`fabric_incomplete` по каждой строке. Видно короткое слово,
+ * пояснение — в подсказке и для скринридера (скрытым текстом).
+ */
+function FabricMarks({ calc, incomplete }) {
+  return (
+    <>
+      {calc ? (
+        <span className={styles.subText} title={CALC_HINT}>
+          {' · расчёт'}<span className={styles.visuallyHidden}>: {CALC_HINT}</span>
+        </span>
+      ) : null}
+      {incomplete ? (
+        <span className={styles.subText} title={INCOMPLETE_HINT}>
+          {' · неполно'}<span className={styles.visuallyHidden}>: {INCOMPLETE_HINT}</span>
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Выгрузка CSV: формат целиком в `utils/analyticsCsv`, здесь только файл.
+ * Ссылка на Blob освобождается после клика — иначе память держится
+ * до закрытия вкладки.
+ */
+function downloadCsv(analytics, bucket, deptName) {
+  const text = analyticsCsv(analytics, { bucket, deptNames: deptName });
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = analyticsCsvFileName(analytics.overview);
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /** Подпись плитки ткани: рулоны, отметка «расчёт», отметка о неполноте данных */
 function fabricHint(overview) {
@@ -163,6 +207,14 @@ export function AnalyticsTab() {
             <option value="week">По неделям</option>
           </select>
         </label>
+        <Button
+          variant="secondary"
+          icon="download"
+          disabled={!overview}
+          onClick={() => downloadCsv(analytics, bucket, deptName)}
+        >
+          Выгрузить CSV
+        </Button>
       </div>
 
       {analyticsLoading && !analytics && <TableSkeleton rows={4} />}
@@ -204,7 +256,7 @@ export function AnalyticsTab() {
             */}
             <Kpi
               label="Использовано ткани, м"
-              value={overview.fabric_m > 0 ? fmtM(overview.fabric_m) : '—'}
+              value={overview.fabric_m > 0 ? fmtM(overview.fabric_m) : 'Нет данных'}
               hint={fabricHint(overview)}
             />
             <Kpi
@@ -310,7 +362,7 @@ export function AnalyticsTab() {
                         {row.incomplete ? <span className={styles.subText}> · часть не пересчитана</span> : null}
                       </td>
                       <td>{row.cut_good}</td>
-                      <td>{row.per_item === null ? 'Нет данных' : fmtM(row.per_item)}</td>
+                      <td>{metres(row.per_item)}</td>
                       <td>{row.orders}</td>
                     </tr>
                   ))}
@@ -340,7 +392,10 @@ export function AnalyticsTab() {
                       <td>{row.defect}</td>
                       <td>{row.rework}</td>
                       <td>{row.extra}</td>
-                      <td>{row.fabric ? fmtM(row.fabric) : '—'}</td>
+                      <td>
+                        {metres(row.fabric)}
+                        <FabricMarks calc={row.fabric_calc} incomplete={row.fabric_incomplete} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

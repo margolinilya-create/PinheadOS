@@ -1,4 +1,4 @@
-import type { ItemEconomics } from '../store/types';
+import type { ItemEconomics, OrderEconomicsRow } from '../store/types';
 import { fmtM } from './fabricMetres';
 
 /**
@@ -142,4 +142,89 @@ export function sizeRowsText(
     .filter((r) => r.qty > 0)
     .map((r) => `${r.size}${r.color && r.color !== '—' ? ` · ${r.color}` : ''} — ${r.qty} шт`)
     .join(', ');
+}
+
+/**
+ * «БЕЗ ПОШИВА» (правка 28.09, п. 7): пока стоимость сборки не указана,
+ * показатели на единицу посчитаны по одному полотну. Документ требует
+ * незаполненную стоимость не принимать за ноль — число без оговорки
+ * читалось бы как полная себестоимость.
+ */
+export const NO_ASSEMBLY_MARK = 'без пошива';
+
+/** Пошив не учтён в затратах позиции (`costs.missing` содержит `assembly`) */
+export function missingAssembly(e: ItemEconomics | null | undefined): boolean {
+  return (e?.costs?.missing ?? []).includes('assembly');
+}
+
+/**
+ * Показатель на единицу для показа: `null` — «Нет данных для расчёта»,
+ * при неучтённом пошиве — с пометкой «без пошива» рядом с числом.
+ */
+export function unitCostText(n: number | null | undefined, noAssembly: boolean): string {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return NO_DATA_TEXT;
+  return noAssembly ? `${money(n)} ${NO_ASSEMBLY_MARK}` : money(n);
+}
+
+/**
+ * СВОДКА ЗАКАЗА (правка 28.09, п. 1): деньги по ВСЕМ позициям заказа —
+ * пять строк порознь. В одну сумму «дополнительные расходы» их не сводим:
+ * брак, плюсы и отходы уже внутри затрат позиций (прямой запрет документа).
+ */
+export type OrderSummaryKey = 'total' | 'usable' | 'scrap' | 'defects' | 'extras';
+
+export interface OrderSummaryLine {
+  key: OrderSummaryKey;
+  label: string;
+  /** Сумма по позициям, где значение есть; null — не рассчитано ни у одной */
+  sum: number | null;
+  /** Позиций, где строка не рассчитана (null) — в сумму не вошли */
+  missing: number;
+  /** Позиций, где затраты посчитаны без пошива (только для строки затрат) */
+  noAssembly: number;
+}
+
+const SUMMARY_LINES: { key: OrderSummaryKey; label: string; pick: (e: ItemEconomics) => number | null | undefined }[] = [
+  { key: 'total', label: 'Затраты позиций', pick: (e) => e.costs?.total },
+  { key: 'usable', label: 'Пригодные остатки ткани', pick: (e) => e.losses?.leftovers_usable_cost },
+  { key: 'scrap', label: 'Списанные малые остатки', pick: (e) => e.losses?.leftovers_scrap_cost },
+  { key: 'defects', label: 'Окончательный брак', pick: (e) => e.losses?.defects_cost },
+  { key: 'extras', label: 'Годные плюсы на складе', pick: (e) => e.losses?.extras?.value },
+];
+
+/** Сложить строки сводки по позициям; `null` не превращается в ноль */
+export function orderEconomicsSummary(
+  rows: readonly OrderEconomicsRow[] | null | undefined,
+): OrderSummaryLine[] {
+  const list = rows ?? [];
+  return SUMMARY_LINES.map(({ key, label, pick }) => {
+    let sum: number | null = null;
+    let missing = 0;
+    let noAssembly = 0;
+    for (const r of list) {
+      const v = r.economics ? pick(r.economics) : null;
+      if (v === null || v === undefined || Number.isNaN(Number(v))) {
+        missing += 1;
+        continue;
+      }
+      sum = (sum ?? 0) + Number(v);
+      if (key === 'total' && missingAssembly(r.economics)) noAssembly += 1;
+    }
+    return { key, label, sum, missing, noAssembly };
+  });
+}
+
+/** Сумма строки сводки: «Не рассчитано», если не рассчитана ни у одной позиции */
+export function summaryValueText(line: OrderSummaryLine): string {
+  return line.sum === null ? NOT_CALCULATED_TEXT : money(line.sum);
+}
+
+/** Оговорка строки сводки: какие позиции в сумму не вошли / посчитаны без пошива */
+export function summaryNote(line: OrderSummaryLine): string | null {
+  const parts: string[] = [];
+  if (line.sum !== null && line.missing > 0) {
+    parts.push(`без учёта позиций, где не рассчитано: ${line.missing}`);
+  }
+  if (line.noAssembly > 0) parts.push(`${NO_ASSEMBLY_MARK}: позиций ${line.noAssembly}`);
+  return parts.length ? parts.join(' · ') : null;
 }
