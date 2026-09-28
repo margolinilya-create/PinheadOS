@@ -138,20 +138,29 @@ describe('tzToErpDraft — нанесения и бирки', () => {
   it('шелкография: мм, pantone строкой, эффект; группа размеров — в комментарий', () => {
     const p = newSalesPrint({
       method: 'silkscreen', zone: 'Грудь', width_mm: 200, height_mm: 150,
-      pantone: ['186 C', 'Black C'], special: 'puff', garment_kind: 'x', sizes: ['S'], comment: 'по центру',
+      pantone: ['186 C', 'Black C'], special: 'stone', garment_kind: 'x', sizes: ['S'], comment: 'по центру',
     });
     const [dp] = tzToErpDraft(order([sku({ prints: [p] })])).items[0].prints;
     expect(dp).toEqual({
       key: p.key, method: 'silkscreen', zone: 'Грудь', width_mm: 200, height_mm: 150,
-      offset_note: '', pantone: '186 C, Black C', special: 'puff', garment_kind: '',
+      offset_note: '', pantone: '186 C, Black C', special: 'Каменная база', garment_kind: '',
       comment: 'Размеры: S. по центру',
     });
   });
 
-  it('вышивка хранит тип изделия, но не эффект', () => {
-    const p = newSalesPrint({ method: 'embroidery', special: 'puff', garment_kind: 'patch' });
+  it('вышивка хранит тип изделия; нить — в комментарий, не в эффект', () => {
+    const p = newSalesPrint({ method: 'embroidery', special: 'metallic', garment_kind: 'patch' });
     const [dp] = tzToErpDraft(order([sku({ prints: [p] })])).items[0].prints;
-    expect(dp).toMatchObject({ method: 'embroidery', special: '', garment_kind: 'patch' });
+    expect(dp).toMatchObject({ method: 'embroidery', special: '', garment_kind: 'patch', comment: 'Нить металлизированная' });
+  });
+
+  it('эффект и тип бирки уходят НАЗВАНИЯМИ справочников ERP — так их хранит бой', () => {
+    const p = newSalesPrint({ method: 'silkscreen', special: 'puff' });
+    const l = newSalesLabel({ label_type: 'composition' });
+    const unknown = newSalesLabel({ label_type: 'Своя бирка' });
+    const [item] = tzToErpDraft(order([sku({ prints: [p], labels: [l, unknown] })])).items;
+    expect(item.prints[0].special).toBe('Puff-эффект');
+    expect(item.labels.map((x) => x.label_type)).toEqual(['Составник', 'Своя бирка']);
   });
 
   it('сублимация — «прочее» с названием техники и предупреждением', () => {
@@ -183,6 +192,6 @@ describe('tzToErpDraft — нанесения и бирки', () => {
   it('бирки переносятся без варианта библиотеки', () => {
     const l = newSalesLabel({ label_type: 'care', place: 'Левый шов', size: '30×60', variant_id: 'v1' });
     const [dl] = tzToErpDraft(order([sku({ labels: [l] })])).items[0].labels;
-    expect(dl).toEqual({ key: l.key, label_type: 'care', place: 'Левый шов', size: '30×60', comment: '' });
+    expect(dl).toEqual({ key: l.key, label_type: 'Бирка по уходу', place: 'Левый шов', size: '30×60', comment: '' });
   });
 });

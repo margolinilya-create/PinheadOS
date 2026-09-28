@@ -97,15 +97,15 @@ export const PRINT_FIELD_SOURCES: Record<keyof DraftPrint, FieldSource> = {
   height_mm: o('мм; null → пусто'),
   offset_note: o('как есть'),
   pantone: o('список через запятую'),
-  special: o('только у шелкографии, как требует форма ERP'),
+  special: o('только у шелкографии; код эффекта → название справочника ERP (EFFECT_TO_ERP)'),
   garment_kind: o('только у вышивки, как требует форма ERP'),
-  comment: o('комментарий + группа размеров + техника без кода ERP'),
+  comment: o('комментарий + группа размеров + техника без кода ERP + нить вышивки'),
 };
 
 export const LABEL_FIELD_SOURCES: Record<keyof DraftLabel, FieldSource> = {
   key: o('ключ бирки Order'),
   id: skip('id бирки ERP — только в режиме правки'),
-  label_type: o('как есть'),
+  label_type: o('код → название справочника ERP (LABEL_TYPE_TO_ERP)'),
   place: o('как есть'),
   size: o('как есть'),
   comment: o('как есть'),
@@ -144,6 +144,37 @@ export const METHOD_TO_ERP: Record<SalesPrintMethod, BrandingMethod> = {
   patch: 'other',
 };
 
+/**
+ * ERP хранит в `erp_item_prints.special` и `erp_item_labels.label_type`
+ * НАЗВАНИЯ, а не коды справочника (на бою 28.09: «Составник», «Puff-эффект»,
+ * «Каменная база»). Order держит коды — ими считается цена, — и мост
+ * переводит их в названия справочников ERP `print_effect` и `label_type`.
+ * Неизвестный код уходит как есть: справочник ERP — подсказка, не ограничение.
+ */
+export const EFFECT_TO_ERP: Record<string, string> = {
+  stone: 'Каменная база',
+  puff: 'Puff-эффект',
+  metallic: 'Металлик',
+  fluor: 'Флюор',
+};
+
+/** Нить вышивки у ERP отдельного поля не имеет — едет в комментарий */
+const EMBROIDERY_EFFECT_NOTE: Record<string, string> = {
+  metallic: 'Нить металлизированная',
+  puff: 'Объёмная вышивка (3D)',
+};
+
+export const LABEL_TYPE_TO_ERP: Record<string, string> = {
+  size: 'Размерник',
+  composition: 'Составник',
+  brand: 'Брендовая бирка',
+  care: 'Бирка по уходу',
+  extra: 'Дополнительная бирка',
+  hangtag: 'Хэнгтег',
+  sticker: 'Стикер на упаковку',
+  patch: 'Флажок / патч',
+};
+
 const METHOD_LABEL: Record<SalesPrintMethod, string> = {
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
@@ -175,6 +206,7 @@ const mm = (v: number | null): string | number => (v == null ? '' : v);
 function mapPrint(p: SalesPrint): DraftPrint {
   const notes: string[] = [];
   if (METHOD_TO_ERP[p.method] === 'other') notes.push(METHOD_LABEL[p.method]);
+  if (p.method === 'embroidery' && EMBROIDERY_EFFECT_NOTE[p.special]) notes.push(EMBROIDERY_EFFECT_NOTE[p.special]);
   if (p.sizes.length > 0) notes.push(`Размеры: ${p.sizes.join(', ')}`);
   if (p.comment.trim()) notes.push(p.comment.trim());
   return {
@@ -185,14 +217,20 @@ function mapPrint(p: SalesPrint): DraftPrint {
     height_mm: mm(p.height_mm),
     offset_note: p.offset_note,
     pantone: p.pantone.join(', '),
-    special: p.method === 'silkscreen' ? p.special : '',
+    special: p.method === 'silkscreen' ? (EFFECT_TO_ERP[p.special] ?? p.special) : '',
     garment_kind: p.method === 'embroidery' ? p.garment_kind : '',
     comment: notes.join('. '),
   };
 }
 
 function mapLabel(l: SalesLabel): DraftLabel {
-  return { key: l.key, label_type: l.label_type, place: l.place, size: l.size, comment: l.comment };
+  return {
+    key: l.key,
+    label_type: LABEL_TYPE_TO_ERP[l.label_type] ?? l.label_type,
+    place: l.place,
+    size: l.size,
+    comment: l.comment,
+  };
 }
 
 function mapItem(item: SalesItem, order: SalesOrder, warnings: BridgeWarning[]): DraftItem {
