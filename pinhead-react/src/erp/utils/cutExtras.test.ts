@@ -22,7 +22,7 @@ const GRID = [{ color: '—', sizes: { XS: 50, S: 30 } }];
 /** Строки формы: один рулон, размеры с него */
 const roll = (sizes: [string, number][]) => ({
   rollId: 'r-1',
-  qtyUsed: 10,
+  lengthUsedM: 10,
   finished: false,
   sizes: sizes.map(([size, qty]) => ({ size, color: '—', qty })),
 });
@@ -94,7 +94,7 @@ describe('cutExtras', () => {
     ];
     const entries = [{
       rollId: 'r-1',
-      qtyUsed: 5,
+      lengthUsedM: 5,
       sizes: [
         { size: 'XS', color: 'чёрный', qty: 12 },
         { size: 'XS', color: 'белый', qty: 20 },

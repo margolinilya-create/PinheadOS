@@ -39,6 +39,9 @@ import styles from '../../styles';
 const EMPTY_MAT = {
   order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
   color: '', article: '', qty: '', unit: '', price_per_unit: '', eta_date: '',
+  // Параметры полотна для учёта в метрах (правка 27.09, п. 4): ширина, см
+  // и плотность, г/м² — подставляются в рулоны при приёмке
+  width_cm: '', density_gsm: '',
   // Потребность производства (правка 14.09, п. 2) и факт закупщика
   // (документ 20.08, п. 4): сколько нужно, сколько заказал и когда
   qty_expected: '', qty_ordered: '', ordered_on: '',
@@ -170,6 +173,8 @@ export function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
       unit: form.unit.trim() || null,
       price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
+      width_cm: form.kind === 'fabric' && form.width_cm !== '' ? Number(form.width_cm) : null,
+      density_gsm: form.kind === 'fabric' && form.density_gsm !== '' ? Number(form.density_gsm) : null,
       qty_ordered: form.qty_ordered === '' ? null : Number(form.qty_ordered),
       ordered_on: form.ordered_on || null,
       /**
@@ -390,6 +395,35 @@ export function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
             <span className={styles.fieldLabel}>План прихода</span>
             <DateField value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
           </label>
+          {/*
+            ШИРИНА И ПЛОТНОСТЬ ПОЛОТНА (правка 27.09, п. 4): по ним склад
+            считает метраж каждого рулона при приёмке. Не обязательны —
+            «черновик приёмки разрешить сохранить без параметров», а закрой
+            дозаполнит до записи расхода. Только у ткани: у фурнитуры
+            плотности нет.
+          */}
+          {form.kind === 'fabric' && (
+            <>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Ширина полотна, см</span>
+                <input
+                  type="number" min="0" step="1" className={styles.input}
+                  value={form.width_cm}
+                  onChange={(e) => set({ width_cm: e.target.value.replace('-', '') })}
+                  aria-label="Ширина полотна, см"
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Плотность, г/м²</span>
+                <input
+                  type="number" min="0" step="1" className={styles.input}
+                  value={form.density_gsm}
+                  onChange={(e) => set({ density_gsm: e.target.value.replace('-', '') })}
+                  aria-label="Плотность, г/м²"
+                />
+              </label>
+            </>
+          )}
         </div>
         <div className={styles.modalActions}>
           <Button variant="ghost" onClick={onClose}>Отмена</Button>

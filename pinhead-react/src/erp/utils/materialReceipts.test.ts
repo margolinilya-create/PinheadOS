@@ -76,7 +76,9 @@ describe('приёмка материала: журнал и статус одн
    */
   it('RPC исполняется от лица вызывающего', () => {
     expect(ACCEPT_SQL).toMatch(/create or replace function public\.erp_material_accept\([\s\S]{0,900}security invoker/);
-    expect(ACCEPT_SQL).not.toMatch(/erp_material_accept\([\s\S]{0,900}security definer/);
+    // Сторожится сам CREATE, а не любое упоминание имени: в шапке миграции
+    // 27.09 функция названа рядом с `security definer` соседней внутренней
+    expect(ACCEPT_SQL).not.toMatch(/create or replace function public\.erp_material_accept\([\s\S]{0,900}security definer/);
   });
 
   /**

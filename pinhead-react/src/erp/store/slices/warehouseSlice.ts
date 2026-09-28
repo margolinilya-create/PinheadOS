@@ -86,7 +86,7 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
     materialId,
     { qty = null, accept_status, accept_comment = null, invoice = null,
       fact_name = null, fact_color = null, fact_article = null, clientKey = null,
-      sizeGrid = null, rolls = null, rollWeights = null },
+      sizeGrid = null, rolls = null, rollWeights = null, rollParams = null },
   ) => {
     const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
     if (!order) {
@@ -125,6 +125,13 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
        * уронил бы в день выката всё, что накопилось на планшетах.
        */
       p_roll_weights: rollWeights && rollWeights.length > 0 ? rollWeights : null,
+      /**
+       * ПАРАМЕТРЫ РУЛОНОВ (правка 27.09, п. 4): вес, ширина, плотность
+       * и метраж каждого. Сервер по ним заводит рулон с метражом,
+       * коэффициентом кг/м и ценой за метр (`erp_roll_recalc`). Без них —
+       * прежний путь по весам: рулон без метража, закрой дозаполнит.
+       */
+      p_roll_params: rollParams && rollParams.length > 0 ? rollParams : null,
     };
 
     /**

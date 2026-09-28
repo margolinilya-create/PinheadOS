@@ -501,6 +501,50 @@ export type Database = {
           },
         ]
       }
+      erp_client_errors: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          release: string | null
+          source: string
+          stack: string | null
+          url: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          release?: string | null
+          source: string
+          stack?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          release?: string | null
+          source?: string
+          stack?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_client_errors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_departments: {
         Row: {
           active: boolean
@@ -1172,13 +1216,92 @@ export type Database = {
           },
         ]
       }
+      erp_material_roll_adjustments: {
+        Row: {
+          after_m: number | null
+          author: string | null
+          author_id: string | null
+          before_m: number | null
+          cost: number | null
+          created_at: string
+          delta_m: number | null
+          id: string
+          item_id: string | null
+          kind: string
+          reason: string | null
+          report_id: string | null
+          roll_id: string
+        }
+        Insert: {
+          after_m?: number | null
+          author?: string | null
+          author_id?: string | null
+          before_m?: number | null
+          cost?: number | null
+          created_at?: string
+          delta_m?: number | null
+          id?: string
+          item_id?: string | null
+          kind: string
+          reason?: string | null
+          report_id?: string | null
+          roll_id: string
+        }
+        Update: {
+          after_m?: number | null
+          author?: string | null
+          author_id?: string | null
+          before_m?: number | null
+          cost?: number | null
+          created_at?: string
+          delta_m?: number | null
+          id?: string
+          item_id?: string | null
+          kind?: string
+          reason?: string | null
+          report_id?: string | null
+          roll_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_material_roll_adjustments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_material_roll_adjustments_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "erp_stage_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_material_roll_adjustments_roll_id_fkey"
+            columns: ["roll_id"]
+            isOneToOne: false
+            referencedRelation: "erp_material_rolls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_material_rolls: {
         Row: {
           created_at: string
+          density_gsm: number | null
           id: string
+          kg_per_m: number | null
+          kg_per_m_source: string | null
           label: string
           leftover_kind: string | null
+          length_calc_m: number | null
+          length_left_m: number | null
+          length_left_source: string | null
+          length_m: number | null
+          length_source: string | null
           material_id: string
+          price_per_m: number | null
           price_per_unit: number | null
           qty: number | null
           qty_left: number | null
@@ -1186,13 +1309,23 @@ export type Database = {
           seq: number
           status: string
           unit: string | null
+          width_cm: number | null
         }
         Insert: {
           created_at?: string
+          density_gsm?: number | null
           id?: string
+          kg_per_m?: number | null
+          kg_per_m_source?: string | null
           label: string
           leftover_kind?: string | null
+          length_calc_m?: number | null
+          length_left_m?: number | null
+          length_left_source?: string | null
+          length_m?: number | null
+          length_source?: string | null
           material_id: string
+          price_per_m?: number | null
           price_per_unit?: number | null
           qty?: number | null
           qty_left?: number | null
@@ -1200,13 +1333,23 @@ export type Database = {
           seq: number
           status?: string
           unit?: string | null
+          width_cm?: number | null
         }
         Update: {
           created_at?: string
+          density_gsm?: number | null
           id?: string
+          kg_per_m?: number | null
+          kg_per_m_source?: string | null
           label?: string
           leftover_kind?: string | null
+          length_calc_m?: number | null
+          length_left_m?: number | null
+          length_left_source?: string | null
+          length_m?: number | null
+          length_source?: string | null
           material_id?: string
+          price_per_m?: number | null
           price_per_unit?: number | null
           qty?: number | null
           qty_left?: number | null
@@ -1214,6 +1357,7 @@ export type Database = {
           seq?: number
           status?: string
           unit?: string | null
+          width_cm?: number | null
         }
         Relationships: [
           {
@@ -1291,6 +1435,7 @@ export type Database = {
           article: string | null
           color: string | null
           created_at: string
+          density_gsm: number | null
           eta_date: string | null
           fact_article: string | null
           fact_color: string | null
@@ -1318,6 +1463,7 @@ export type Database = {
           supplier: string | null
           unit: string | null
           updated_at: string
+          width_cm: number | null
         }
         Insert: {
           accept_comment?: string | null
@@ -1327,6 +1473,7 @@ export type Database = {
           article?: string | null
           color?: string | null
           created_at?: string
+          density_gsm?: number | null
           eta_date?: string | null
           fact_article?: string | null
           fact_color?: string | null
@@ -1354,6 +1501,7 @@ export type Database = {
           supplier?: string | null
           unit?: string | null
           updated_at?: string
+          width_cm?: number | null
         }
         Update: {
           accept_comment?: string | null
@@ -1363,6 +1511,7 @@ export type Database = {
           article?: string | null
           color?: string | null
           created_at?: string
+          density_gsm?: number | null
           eta_date?: string | null
           fact_article?: string | null
           fact_color?: string | null
@@ -1390,6 +1539,7 @@ export type Database = {
           supplier?: string | null
           unit?: string | null
           updated_at?: string
+          width_cm?: number | null
         }
         Relationships: [
           {
@@ -2461,30 +2611,48 @@ export type Database = {
       }
       erp_stage_report_rolls: {
         Row: {
+          cost: number | null
           created_at: string
           id: string
+          kg_per_m: number | null
+          kg_per_m_source: string | null
+          length_used_m: number | null
           material_id: string | null
-          qty_used: number
+          price_per_m: number | null
+          qty_source: string | null
+          qty_used: number | null
           report_id: string
           roll_finished: boolean
           roll_id: string | null
           unit: string | null
         }
         Insert: {
+          cost?: number | null
           created_at?: string
           id?: string
+          kg_per_m?: number | null
+          kg_per_m_source?: string | null
+          length_used_m?: number | null
           material_id?: string | null
-          qty_used: number
+          price_per_m?: number | null
+          qty_source?: string | null
+          qty_used?: number | null
           report_id: string
           roll_finished?: boolean
           roll_id?: string | null
           unit?: string | null
         }
         Update: {
+          cost?: number | null
           created_at?: string
           id?: string
+          kg_per_m?: number | null
+          kg_per_m_source?: string | null
+          length_used_m?: number | null
           material_id?: string | null
-          qty_used?: number
+          price_per_m?: number | null
+          qty_source?: string | null
+          qty_used?: number | null
           report_id?: string
           roll_finished?: boolean
           roll_id?: string | null
@@ -2573,6 +2741,7 @@ export type Database = {
           assembly_cost_per_unit: number | null
           author: string | null
           author_id: string | null
+          client_key: string | null
           comment: string | null
           created_at: string
           extra: Json
@@ -2589,6 +2758,7 @@ export type Database = {
           assembly_cost_per_unit?: number | null
           author?: string | null
           author_id?: string | null
+          client_key?: string | null
           comment?: string | null
           created_at?: string
           extra?: Json
@@ -2605,6 +2775,7 @@ export type Database = {
           assembly_cost_per_unit?: number | null
           author?: string | null
           author_id?: string | null
+          client_key?: string | null
           comment?: string | null
           created_at?: string
           extra?: Json
@@ -3210,7 +3381,7 @@ export type Database = {
           defect: number
           defect_pct: number
           department_id: string
-          released: number
+          done_qty: number
           rework: number
         }[]
       }
@@ -3226,6 +3397,20 @@ export type Database = {
           released: number
           rework: number
           sku_card_id: string
+        }[]
+      }
+      erp_analytics_fabric_by_sku: {
+        Args: { p_dept?: string; p_from: string; p_to: string }
+        Returns: {
+          calc: boolean
+          cut_good: number
+          fabric_m: number
+          incomplete: boolean
+          material: string
+          orders: number
+          per_item: number
+          product_type: string
+          width_cm: number
         }[]
       }
       erp_analytics_overview: {
@@ -3519,6 +3704,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_fabric_kg_per_m: {
+        Args: { p_density_gsm: number; p_width_cm: number }
+        Returns: number
+      }
+      erp_fabric_usage: {
+        Args: { p_item_id?: string }
+        Returns: {
+          at: string
+          cost: number
+          department_id: string
+          incomplete: boolean
+          item_id: string
+          kg: number
+          material: string
+          material_id: string
+          metres: number
+          order_id: string
+          price_per_m: number
+          product_type: string
+          recalced: boolean
+          report_good: number
+          report_id: string
+          report_roll_id: string
+          roll_id: string
+          roll_label: string
+          stage_id: string
+          width_cm: number
+        }[]
+      }
       erp_has_permission: { Args: { perm: string }; Returns: boolean }
       erp_invite_preview: {
         Args: { p_code: string }
@@ -3547,9 +3761,25 @@ export type Database = {
           p_material_id: string
           p_qty?: number
           p_received_on?: string
+          p_roll_params?: Json
           p_roll_weights?: Json
           p_rolls?: number
           p_size_grid?: Json
+        }
+        Returns: Json
+      }
+      erp_material_fully_received: {
+        Args: { m: Database["public"]["Tables"]["erp_materials"]["Row"] }
+        Returns: boolean
+      }
+      erp_material_roll_set_params: {
+        Args: {
+          p_density_gsm?: number
+          p_length_m?: number
+          p_length_source?: string
+          p_reason?: string
+          p_roll_id: string
+          p_width_cm?: number
         }
         Returns: Json
       }
@@ -3570,6 +3800,7 @@ export type Database = {
         Returns: boolean
       }
       erp_role_of_caller: { Args: never; Returns: string }
+      erp_roll_recalc: { Args: { p_roll_id: string }; Returns: undefined }
       erp_route_apply: {
         Args: { p_item_id: string; p_steps: Json }
         Returns: {
@@ -3671,8 +3902,12 @@ export type Database = {
         }
       }
       erp_stage_completion_block: {
-        Args: { p_added_good?: number; p_stage_id: string }
+        Args: { p_added_good?: number; p_final?: boolean; p_stage_id: string }
         Returns: string
+      }
+      erp_stage_defect_reported: {
+        Args: { p_stage_id: string }
+        Returns: number
       }
       erp_stage_force_complete: {
         Args: { p_reason: string; p_stage_id: string }
@@ -3754,6 +3989,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      erp_stage_program_block: { Args: { p_stage_id: string }; Returns: string }
       erp_stage_reorder_queue: {
         Args: { p_writes: Json }
         Returns: {
@@ -3828,9 +4064,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      erp_stage_rolls_fate_block: {
+        Args: { p_stage_id: string }
+        Returns: string
+      }
+      erp_stage_size_input: { Args: { p_stage_id: string }; Returns: Json }
+      erp_stage_size_output: {
+        Args: { p_depth?: number; p_stage_id: string }
+        Returns: Json
+      }
       erp_stage_submit_report: {
         Args: {
           p_assembly_cost?: number
+          p_client_key?: string
           p_comment?: string
           p_extra?: Json
           p_qty_defect?: number
@@ -3876,6 +4122,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      erp_stage_unaccounted: {
+        Args: {
+          p_added_defect?: number
+          p_added_good?: number
+          p_stage_id: string
+        }
+        Returns: number
       }
       erp_subcontract_apply: {
         Args: {
@@ -4015,6 +4269,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      generate_order_number: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {

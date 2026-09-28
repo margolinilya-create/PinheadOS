@@ -114,6 +114,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    */
   const { prevReports, ownReports } = useStageReports(stage, item.stages ?? [], bySizes);
   const setRollLeftover = useErpStore((st) => st.setRollLeftover);
+  /** Параметры рулона без метража — дозаполняются прямо в блоке сдачи (27.09, п. 4) */
+  const setRollParams = useErpStore((st) => st.setRollParams);
   const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
   // Только СВОИ отчёты: выборка по id и так своя, но сумма обязана не зависеть от того
   const accountedBySize = useMemo(() => reportedAccountedBySize(ownReports, stage.id), [ownReports, stage.id]);
@@ -343,6 +345,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           entries={rollEntries}
           onChange={setRollEntries}
           onRollFate={setRollLeftover}
+          onRollParams={setRollParams}
           reported={reportedSizes}
           disabled={busy}
         />

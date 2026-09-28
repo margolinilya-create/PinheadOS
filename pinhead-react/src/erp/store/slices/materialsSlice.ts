@@ -195,6 +195,28 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
+  setRollParams: async (rollId, params) => {
+    const order = get().orders.find((o) => o.materials.some(
+      (m) => (m.rolls ?? []).some((r) => r.id === rollId)));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_roll_set_params', {
+      p_roll_id: rollId,
+      p_width_cm: params.width_cm ?? null,
+      p_density_gsm: params.density_gsm ?? null,
+      p_length_m: params.length_m ?? null,
+      p_length_source: params.length_source ?? null,
+      p_reason: params.reason ?? null,
+    }));
+    if (error) {
+      erpError('Параметры рулона не записаны', error);
+      return false;
+    }
+    // Производные (метраж, коэффициент, цена за метр) считает сервер —
+    // перечитываем заказ, а не дописываем их в сторе
+    if (order) await get().loadOne(order.id);
+    toast.success('Параметры рулона записаны');
+    return true;
+  },
+
   confirmStockMaterial: async (id) => {
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
     const ok = await get().updateMaterial(id, {

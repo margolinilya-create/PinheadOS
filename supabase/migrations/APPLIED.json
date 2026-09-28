@@ -2250,6 +2250,48 @@
       "files": [
         "20260928083215_erp_stage_done_gate.sql"
       ]
+    },
+    {
+      "version": "20260928131459",
+      "name": "erp_fabric_metres",
+      "files": [
+        "20260928131459_erp_fabric_metres.sql"
+      ]
+    },
+    {
+      "version": "20260928133534",
+      "name": "erp_fabric_metres_economics",
+      "files": [
+        "20260928133534_erp_fabric_metres_economics.sql"
+      ]
+    },
+    {
+      "version": "20260928133829",
+      "name": "erp_roll_recalc_grant",
+      "files": [
+        "20260928133829_erp_roll_recalc_grant.sql"
+      ]
+    },
+    {
+      "version": "20260928134619",
+      "name": "erp_roll_adjustments_insert",
+      "files": [
+        "20260928134619_erp_roll_adjustments_insert.sql"
+      ]
+    },
+    {
+      "version": "20260928135034",
+      "name": "erp_item_economics_missing_fix",
+      "files": [
+        "20260928135034_erp_item_economics_missing_fix.sql"
+      ]
+    },
+    {
+      "version": "20260928135632",
+      "name": "erp_item_economics_wip_started",
+      "files": [
+        "20260928135632_erp_item_economics_wip_started.sql"
+      ]
     }
   ]
 }

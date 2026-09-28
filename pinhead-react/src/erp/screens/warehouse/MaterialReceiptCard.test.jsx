@@ -201,7 +201,13 @@ describe('рулоны при приёмке ткани (правка 16.09, п.
 
     await vi.waitFor(() => expect(onAccept).toHaveBeenCalled());
     expect(onAccept).toHaveBeenCalledWith('m1', expect.objectContaining({
-      qty: 100, rolls: 2, rollWeights: [60, 40],
+      qty: 100, rolls: 2,
+      // Вес уезжает внутри параметров рулона (правка 27.09, п. 4); ширины
+      // и плотности не вводили — сервер подставит их из материала
+      rollParams: [
+        expect.objectContaining({ weight_kg: 60 }),
+        expect.objectContaining({ weight_kg: 40 }),
+      ],
     }));
   });
 });

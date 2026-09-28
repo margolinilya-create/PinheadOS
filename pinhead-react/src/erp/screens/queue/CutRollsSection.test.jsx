@@ -20,17 +20,17 @@ const ORDER = {
     item_id: null,
     accept_status: 'accepted_full',
     rolls: [
-      { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_stock' },
-      { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock' },
+      { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_stock', qty: 20, length_m: 46.3, length_source: 'calc', kg_per_m: 0.432 },
+      { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock', qty: 20, length_m: 46.3, length_source: 'calc', kg_per_m: 0.432 },
     ],
   }],
 };
 
 const ITEM = { id: 'it-1', qty: 200, size_grid: [{ color: '—', sizes: { XS: 50 } }] };
 
-const entry = (rollId, qtyUsed, sizes) => ({
+const entry = (rollId, lengthUsedM, sizes) => ({
   rollId,
-  qtyUsed,
+  lengthUsedM,
   finished: false,
   sizes: sizes.map(([size, qty]) => ({ size, color: '—', qty })),
 });
@@ -50,7 +50,7 @@ function renderSection(props = {}) {
 describe('итог закроя', () => {
   it('короткий итог — два числа, разбивка отдельной строкой', () => {
     renderSection();
-    expect(screen.getByText(/Скроено:/)).toHaveTextContent('Скроено: 50 шт · Расход: 20 кг');
+    expect(screen.getByText(/Скроено:/)).toHaveTextContent('Скроено: 50 шт · Расход: 20,00 м');
     expect(screen.getByText(/По размерам:/)).toHaveTextContent('По размерам: XS — 50 шт');
   });
 
@@ -67,7 +67,7 @@ describe('итог закроя', () => {
   it('без сетки — отдельное предупреждение, а не приписка к итогу', () => {
     renderSection({ item: { id: 'it-1', qty: 200, size_grid: null } });
     expect(screen.getByText(/Размерная сетка заказа не найдена/)).toBeInTheDocument();
-    expect(screen.getByText(/Скроено:/)).toHaveTextContent('Скроено: 50 шт · Расход: 20 кг');
+    expect(screen.getByText(/Скроено:/)).toHaveTextContent('Скроено: 50 шт · Расход: 20,00 м');
   });
 
   it('с заполненной сеткой предупреждения нет', () => {
@@ -136,7 +136,7 @@ describe('рулоны без судьбы остатка', () => {
       ...ORDER.materials[0],
       rolls: [
         { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5, leftover_kind: null, unit: 'кг' },
-        { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock', qty: 20, qty_left: 20 },
+        { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock', qty: 20, qty_left: 20, length_m: 46.3, length_source: 'calc', kg_per_m: 0.432 },
       ],
     }],
   };

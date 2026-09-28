@@ -26,7 +26,8 @@ describe('судьба остатка рулона на сервере (27.09, �
   it('закрытие этапа спрашивает судьбу рулонов заказа, оставленных «в работе»', () => {
     expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0 then\s+v_block := public\.erp_stage_rolls_fate_block\(p_stage_id\)/);
     expect(FATE).toMatch(/r\.status = 'in_use'/);
-    expect(FATE).toMatch(/coalesce\(r\.qty_left, 0\) > 0/);
+    // Остаток — в метрах, а у рулона без метража (принят до 27.09 п. 4) — в кг
+    expect(FATE).toMatch(/coalesce\(r\.length_left_m, r\.qty_left, 0\) > 0/);
     expect(FATE).toMatch(/r\.leftover_kind is null/);
     // Только у участка с разбором по рулонам и только когда других открытых
     // этапов участка в заказе нет

@@ -1,5 +1,6 @@
 /**
- * РАСКРОЙ ПО РУЛОНАМ (правка заказчика 16.09, п. 4).
+ * РАСКРОЙ ПО РУЛОНАМ (правка заказчика 16.09, п. 4; расход В МЕТРАХ —
+ * правка 27.09, п. 4).
  *
  * ЧТО ПРОСИТ ДОКУМЕНТ. «При сдаче результата закройщик должен фиксировать
  * данные в структуре: „Рулон — фактический расход ткани — количество
@@ -8,13 +9,18 @@
  * или партии материала, которые склад фактически передал в закрой по данному
  * заказу».
  *
+ * РАСХОД — В ПОГОННЫХ МЕТРАХ ПОЛНОЙ ШИРИНЫ (правка 27.09, п. 4): «в блоке
+ * каждого рулона заменить поле „Фактический расход, кг" на „Фактический
+ * расход, м"… Закройщик указывает фактически израсходованные погонные метры
+ * полотна полной ширины, включая отходы раскладки в этом отрезе». Килограммы
+ * считает сервер по коэффициенту рулона; здесь они только показываются
+ * как расчётные (`fabricMetres`).
+ *
  * ОТКУДА БЕРУТСЯ РУЛОНЫ. Из материалов ПОЗИЦИИ (`materialsForItem` — тот же
  * отбор, что у материального гейта участка), у которых приёмка вынесла
  * вердикт. «Склад передал в закрой» сегодня выражается именно этим: отдельного
  * действия «выдать рулон в цех» на складе нет, и заводить под него колонку,
  * которую никто не пишет, значит завести механизм, которому нечем питаться.
- * Когда такое действие появится, поменяется ЭТА функция — одна, а не пять
- * мест разметки.
  *
  * ИЗРАСХОДОВАННЫЕ РУЛОНЫ НЕ ПРЕДЛАГАЮТСЯ. `status = 'used'` ставит сам отчёт
  * закроя («рулон израсходован»), и показывать его снова значит предлагать
@@ -27,6 +33,9 @@ import { materialsForItem } from './routes';
 import { gridCells, NO_COLOR } from './sizeGrid';
 import type { SizeCell } from './sizeGrid';
 import { cellKey as cellKeyOf } from './cellKey';
+import {
+  METRES_MISSING_TEXT, roundM, rollAvailableM, rollWorkingLength,
+} from './fabricMetres';
 
 /** Рулон вместе с материалом, которому он принадлежит — для подписи в форме */
 export interface RollOption {
@@ -39,8 +48,8 @@ export interface RollOption {
 /** Строка формы: один рулон, расход и раскрой по размерам */
 export interface CutRollEntry {
   rollId: string;
-  /** Фактический расход материала с этого рулона */
-  qtyUsed: number;
+  /** Фактический расход с этого рулона, погонных метров полной ширины */
+  lengthUsedM: number | string;
   /** Сколько скроено по каждому размеру: ключ — «цвет + NUL + размер» */
   sizes: CutSizeRow[];
   /** Работа по рулону закончена — дальше с него не кроят */
@@ -50,10 +59,16 @@ export interface CutRollEntry {
    * идёт в экономику заказа и остаётся на складе; `scrap` — «малый остаток,
    * не учитывать». Пусто — остатка нет либо работа по рулону не закончена.
    *
-   * Автоматического порога в килограммах НЕТ: «автоматический порог
-   * в килограммах пока не задавать» — решает закройщик.
+   * Автоматического порога НЕТ ни в килограммах, ни в метрах: «автоматический
+   * порог… пока не задавать» — решает закройщик.
    */
   leftover?: 'usable' | 'scrap' | null;
+  /**
+   * Измеренный остаток при завершении работы, м (правка 27.09, п. 4).
+   * Необязателен; расхождение с расчётом сервер пишет ОТДЕЛЬНОЙ
+   * корректировкой — в расход и брак оно не попадает.
+   */
+  leftoverMeasuredM?: number | string | null;
 }
 
 /**
@@ -141,27 +156,36 @@ export function rollTotal(entry: CutRollEntry | null | undefined): number {
 }
 
 /**
- * Остаток рулона после этой сдачи: первоначальный вес минус расход.
+ * Доступно на начало работы, м: остаток рулона по серверу, а у нетронутого —
+ * весь рабочий метраж. `null` — метража нет (рулон без параметров).
+ */
+export function rollAvailable(option: Pick<RollOption, 'roll' | 'material'> | null | undefined): number | null {
+  if (!option) return null;
+  return rollAvailableM(option.roll, option.material);
+}
+
+/**
+ * Остаток рулона после этой сдачи, м: доступно на начало работы − расход.
  *
- * `null` — вес рулона неизвестен (принят до правки 21.09), и вычитать не из
- * чего: прочерк честнее выдуманного числа. Уже израсходованное учитывается —
- * с рулона кроят в несколько заходов.
+ * `null` — метража у рулона нет (принят без параметров), и вычитать не из
+ * чего: прочерк честнее выдуманного числа. Уже израсходованное учтено
+ * в доступном — с рулона кроят в несколько заходов.
  */
 export function rollLeft(
-  roll: Pick<ErpMaterialRoll, 'qty' | 'qty_left'> | null | undefined,
-  qtyUsed: number | string | null | undefined,
+  option: Pick<RollOption, 'roll' | 'material'> | null | undefined,
+  lengthUsed: number | string | null | undefined,
 ): number | null {
-  const base = roll?.qty_left ?? roll?.qty;
-  if (base === null || base === undefined) return null;
-  const used = Math.max(Number(qtyUsed) || 0, 0);
+  const base = rollAvailable(option);
+  if (base === null) return null;
+  const used = Math.max(Number(lengthUsed) || 0, 0);
   // Копим и округляем один раз: 20 − 19.4 без этого даёт 0.6000000000000014
-  return Math.max(Math.round((Number(base) - used) * 1000) / 1000, 0);
+  return Math.max(roundM(base - used), 0);
 }
 
 export interface CutTotals {
   /** Всего скроено по всем рулонам */
   qty: number;
-  /** Общий фактический расход ткани */
+  /** Общий фактический расход полотна, м */
   used: number;
   /** Итог по каждому размеру: ключ ячейки → количество */
   bySize: Record<string, number>;
@@ -182,7 +206,7 @@ export function cutTotals(entries: readonly CutRollEntry[] | null | undefined): 
 
   for (const entry of entries ?? []) {
     const entryQty = rollTotal(entry);
-    const entryUsed = Math.max(Number(entry?.qtyUsed) || 0, 0);
+    const entryUsed = Math.max(Number(entry?.lengthUsedM) || 0, 0);
     if (entryQty > 0 || entryUsed > 0) rolls += 1;
     qty += entryQty;
     used += entryUsed;
@@ -194,16 +218,23 @@ export function cutTotals(entries: readonly CutRollEntry[] | null | undefined): 
       }
     }
   }
-  // Расход — дробное число (метры, килограммы): копим и округляем один раз,
-  // иначе 19.4 + 19.4 даёт 38.800000000000004 прямо в подписи цеху
-  return { qty, used: Math.round(used * 1000) / 1000, bySize, rolls };
+  // Расход — дробное число: копим и округляем один раз (до 0,01 м, как
+  // велит документ), иначе 19.4 + 19.4 даёт 38.800000000000004 в подписи цеху
+  return { qty, used: roundM(used), bySize, rolls };
+}
+
+/** «5,00 м» с запятой — слово в слово с серверным `round(x, 2)::text` */
+export function metresText(n: number): string {
+  return `${roundM(n).toFixed(2).replace('.', ',')} м`;
 }
 
 /**
  * Почему результат нельзя сдать. `null` — можно.
  *
  * Текст называет ЧИСЛА: «заполните расход» без указания рулона отправляет
- * закройщика перебирать строки заново.
+ * закройщика перебирать строки заново. Тексты про метраж — слово в слово
+ * с `erp_stage_submit_report`: отказ до нажатия и отказ сервера читаются
+ * одинаково.
  */
 export function cutBlock(
   entries: readonly CutRollEntry[] | null | undefined,
@@ -220,19 +251,27 @@ export function cutBlock(
     if (seen.has(entry.rollId)) return `${name} выбран дважды — объедините строки`;
     seen.add(entry.rollId);
 
-    if (!(Number(entry.qtyUsed) > 0)) return `${name}: укажите фактический расход материала`;
+    if (!(Number(entry.lengthUsedM) > 0)) return `${name}: укажите фактический расход, м`;
 
     /**
-     * РАСХОД НЕ БОЛЬШЕ ПРИНЯТОГО ВЕСА (правка 21.09, п. 2). Тот же гейт стоит
-     * на сервере (22023) — здесь он нужен, чтобы закройщик увидел ошибку
-     * до нажатия, а не после. Вес рулона может быть неизвестен (принят
-     * до правки) — тогда потолка нет: остановка цеха из-за отсутствующего
-     * поля хуже незамеченного перерасхода.
+     * БЕЗ РАБОЧЕГО МЕТРАЖА РАСХОД НЕ ЗАПИСЫВАЕТСЯ (правка 27.09, п. 4):
+     * «пока нет рабочего метража, показывать „Не заполнены данные для учёта
+     * в метрах" и не давать записать расход». Это НЕ fail-open, как было
+     * у веса: параметры закрой может дозаполнить прямо в форме.
      */
-    const roll = option?.roll;
-    const cap = roll?.qty_left ?? roll?.qty;
-    if (cap !== null && cap !== undefined && Number(entry.qtyUsed) > Number(cap) + 0.01) {
-      return `${name}: в рулоне ${cap}, а списывается ${entry.qtyUsed} — расход больше остатка`;
+    const available = rollAvailable(option);
+    if (option && available === null) {
+      return `${name}: ${METRES_MISSING_TEXT} — укажите ширину и плотность полотна или метраж рулона`;
+    }
+
+    /**
+     * ПОТОЛОК — ДОСТУПНЫЙ МЕТРАЖ, накопительно (сервер отвечает 22023 тем же
+     * текстом). Превышение — не обрезка и не минус: «предложить уточнить
+     * метраж рулона и подтвердить корректировку, затем сохранить расход».
+     * Допуск 0.005 — округление ввода до сотых.
+     */
+    if (available !== null && Number(entry.lengthUsedM) > available + 0.005) {
+      return `${name}: доступно ${metresText(available)}, а списывается ${metresText(Number(entry.lengthUsedM))} — уточните метраж рулона или уменьшите расход`;
     }
 
     /**
@@ -258,15 +297,21 @@ export function cutBlock(
     if (rollTotal(entry) <= 0) return `${name}: укажите, сколько изделий скроено`;
 
     /**
-     * У ЗАКОНЧЕННОГО РУЛОНА С ОСТАТКОМ ВИД ОБЯЗАТЕЛЕН (правка 21.09, п. 5).
-     * Без него остаток повисает: в экономику заказа он не попадает (там
-     * считается только «пригоден»), а на складе не появляется. Молчание тут
-     * означало бы потерянные килограммы — и никто бы не заметил.
+     * У ЗАКОНЧЕННОГО РУЛОНА С ОСТАТКОМ ВИД ОБЯЗАТЕЛЕН (правка 21.09, п. 5;
+     * в метрах — 27.09, п. 4). Остаток — измеренный, если его замерили.
+     * Без вида остаток повисает: в экономику заказа он не попадает (там
+     * считается только «пригоден»), а на складе не появляется.
      */
     if (entry.finished) {
-      const left = rollLeft(option?.roll, entry.qtyUsed);
-      if (left !== null && left > 0 && !entry.leftover) {
-        return `${name}: остался ${left} — скажите, пригоден он или это малый остаток`;
+      const measured = entry.leftoverMeasuredM;
+      if (measured !== null && measured !== undefined && measured !== '' && Number(measured) < 0) {
+        return `${name}: измеренный остаток не может быть отрицательным`;
+      }
+      const calc = rollLeft(option, entry.lengthUsedM);
+      const left = measured !== null && measured !== undefined && measured !== ''
+        ? Number(measured) : calc;
+      if (left !== null && left > 0.0005 && !entry.leftover) {
+        return `${name}: остался ${metresText(left)} — выберите «Остаток пригоден» или «Малый остаток, не учитывать»`;
       }
     }
   }
@@ -304,28 +349,33 @@ export function cutRollsPayload(
   entries: readonly CutRollEntry[] | null | undefined,
   options: readonly RollOption[] = [],
 ): {
-    roll_id: string; material_id: string | null; qty_used: number;
+    roll_id: string; material_id: string | null; length_used_m: number;
     finished: boolean; leftover: 'usable' | 'scrap' | null;
+    leftover_measured_m: number | null;
     sizes: { color: string; size: string; qty_good: number }[];
   }[] {
   return (entries ?? [])
     .filter((entry) => entry.rollId && rollTotal(entry) > 0)
     .map((entry) => {
       const option = options.find((o) => o.roll.id === entry.rollId);
+      const measured = entry.leftoverMeasuredM;
       return {
         roll_id: entry.rollId,
         material_id: option?.material.id ?? null,
-        qty_used: Math.max(Number(entry.qtyUsed) || 0, 0),
+        // Метры — то, что ввёл закройщик; килограммы сервер посчитает сам
+        length_used_m: Math.max(Number(entry.lengthUsedM) || 0, 0),
         finished: Boolean(entry.finished),
         /**
-         * Вид остатка уезжает ТОЛЬКО при законченной работе: пока с рулона
-         * ещё кроят, остаток промежуточный, и объявлять его «пригодным»
-         * значило бы положить на склад то, что завтра дорежут.
+         * Вид остатка и замер уезжают ТОЛЬКО при законченной работе: пока
+         * с рулона ещё кроят, остаток промежуточный, и объявлять его
+         * «пригодным» значило бы положить на склад то, что завтра дорежут.
          */
         leftover: entry.finished ? (entry.leftover ?? null) : null,
+        leftover_measured_m: entry.finished && measured !== null && measured !== undefined
+          && measured !== '' && Number.isFinite(Number(measured))
+          ? Number(measured) : null,
         // Строки берутся КАК ЕСТЬ: склейки ключа и обратного разбора
         // больше нет (см. комментарий к `CutSizeRow`).
-
         sizes: (entry.sizes ?? [])
           .filter((row) => row?.size && Math.max(Number(row.qty) || 0, 0) > 0)
           .map((row) => ({
@@ -347,9 +397,10 @@ export function cutRollsPayload(
  * ни в остатках (там только `usable`), ни в экономике.
  *
  * Пока в заказе открыт ДРУГОЙ этап того же участка (соседняя позиция
- * кроится с того же рулона), решать рано — список пуст. Рулон без веса
- * остатка не имеет (fail-open). Материалы — те же, что видит форма
- * (`materialsForItem`: заказа целиком и этой позиции).
+ * кроится с того же рулона), решать рано — список пуст. Остаток — в метрах,
+ * а у рулона без метража (принят до 27.09 п. 4) — в килограммах; рулон
+ * без того и другого остатка не имеет (fail-open). Материалы — те же, что
+ * видит форма (`materialsForItem`: заказа целиком и этой позиции).
  */
 export function rollsAwaitingFate(
   materials: readonly ErpMaterial[] | null | undefined,
@@ -367,12 +418,21 @@ export function rollsAwaitingFate(
   for (const material of materialsForItem([...(materials ?? [])], itemId)) {
     for (const roll of material.rolls ?? []) {
       if (roll.status !== 'in_use') continue;
-      if (!(Number(roll.qty_left ?? 0) > 0)) continue;
+      if (!(Number(roll.length_left_m ?? roll.qty_left ?? 0) > 0)) continue;
       if (roll.leftover_kind) continue;
       out.push({ roll, material, label: rollLabel(roll, material) });
     }
   }
   return out.sort((a, b) => a.roll.seq - b.roll.seq);
+}
+
+/** Остаток рулона для подписи: метры, а у рулона без метража — килограммы */
+export function rollLeftText(roll: ErpMaterialRoll, material: ErpMaterial): string {
+  if (roll.length_left_m !== null && roll.length_left_m !== undefined) {
+    return metresText(Number(roll.length_left_m));
+  }
+  const unit = roll.unit ?? material.unit;
+  return `${roll.qty_left}${unit ? ` ${unit}` : ''}`;
 }
 
 /**
@@ -382,10 +442,12 @@ export function rollsAwaitingFate(
 export function rollsFateBlock(pending: readonly RollOption[]): string | null {
   if (pending.length === 0) return null;
   const list = pending
-    .map(({ roll, material }) => {
-      const unit = roll.unit ?? material.unit;
-      return `${roll.label} (${roll.qty_left}${unit ? ` ${unit}` : ''})`;
-    })
+    .map(({ roll, material }) => `${roll.label} (${rollLeftText(roll, material)})`)
     .join(', ');
   return `Не решена судьба остатка: ${list} — отметьте «Остаток пригоден» или «Малый остаток, не учитывать».`;
+}
+
+/** Есть ли у рулона рабочий метраж — то, без чего расход в метрах не записать */
+export function rollHasMetres(option: Pick<RollOption, 'roll' | 'material'> | null | undefined): boolean {
+  return Boolean(option && rollWorkingLength(option.roll, option.material)?.stored);
 }
