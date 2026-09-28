@@ -82,13 +82,17 @@ pinhead-react/src/
 ├── data/                    # Статические данные: цвета, ткани, цены, SKU, extras
 ├── types/                   # TypeScript типы: order, catalog, auth, pricing
 ├── utils/
-│   ├── pricing.ts           # Расчёт цен (покрыт 88 тестами), TECH_TABS, priceMultiplier
+│   ├── pricing.ts           # Расчёт цен — API визарда (88 тестов), обёртки над pricingCore
+│   ├── pricingCore.ts       # Формула цены без стора: цены аргументом (Order v4, срез 0)
 │   ├── skuRules.ts          # CategoryRules резолюция, getEffectiveRules, динамические зоны (29 тестов)
 │   ├── validate.ts          # Валидация заказа
 │   ├── mockup.ts            # SVG-мокап генерация
 │   ├── deadline.ts          # Расчёт дедлайнов
 │   └── i18n.ts              # Pluralize, translateSupabaseError
-└── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
+├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
+└── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
+                             # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
+                             # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id)
 ```
 
 ```
@@ -131,6 +135,7 @@ supabase/
 | `/sku` | SkuEditor (8 табов) | admin, director |
 | `/admin` | AdminPanel | admin, director |
 | `/analytics` | Dashboard | admin, director, rop, production |
+| `/sales`, `/sales/:id` | Order v4: SalesList, SalesCard (пилот) | admin, director |
 
 ## Роли
 
@@ -160,7 +165,8 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 
 | Таблица | Назначение |
 |---------|-----------|
-| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal |
+| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3) |
+| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save(jsonb)` (security invoker) |
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
@@ -474,6 +480,12 @@ NULL читается как `purchased`) — у давальческого из
 - Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
 - Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
 - deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
+- **Order v4 пишется, ERP не трогается** (решение владельца 28.09): код Order
+  только ЧИТАЕТ типы и чистые хелперы ERP; правка `erp/` и `erp_*` — отдельным
+  решением. Поле формы ERP без записи в `ITEM_FIELD_SOURCES`/`FORM_FIELD_SOURCES`
+  моста роняет typecheck и сторож `orderstudio/bridge/tzToErpDraft.test.ts`.
+  Экраны и данные Order не импортируют РАНТАЙМ ERP (типы можно): общий модуль
+  сборщик выносит в чанк оболочки ERP — сторож `orderstudio/erpImports.test.ts`
 - ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
   кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
   приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
@@ -647,9 +659,10 @@ NULL читается как `purchased`) — у давальческого из
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (80 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (84 файла, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
+| `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |
 | `docs/PINHEAD-PORTAL-LOGIC.md` | Логика визарда |
 | `docs/2026-07-27-erp-ux-audit.md` | Аудит UI/UX раздела ERP |
 | `docs/2026-09-23-erp-code-review.md` | Код-ревью ERP: 13 находок, статус правок |

@@ -51,6 +51,9 @@ const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
 const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
+// Order v4 (срез 1) — пилот владельца, admin/director
+const SalesList = React.lazy(() => import('./screens/SalesList'));
+const SalesCard = React.lazy(() => import('./screens/SalesCard'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
  * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
@@ -198,6 +201,8 @@ export default function OrderStudioApp({ user }) {
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
+        <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
+        <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>

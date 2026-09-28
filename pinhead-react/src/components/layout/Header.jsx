@@ -72,6 +72,11 @@ export default function Header() {
           ТЗ
         </button>
         {isAdmin && (
+          <button className={`${styles['header-nav-btn']}${pathname.startsWith('/sales') ? ` ${styles.active}` : ''}`} data-nav="sales" onClick={nav('/sales')}>
+            Заказы v4
+          </button>
+        )}
+        {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/sku') ? ` ${styles.active}` : ''}`} onClick={nav('/sku')}>
             SKU
           </button>

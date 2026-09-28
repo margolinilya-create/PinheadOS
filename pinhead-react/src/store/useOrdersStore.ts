@@ -45,6 +45,9 @@ async function doFetchOrders(set: (patch: Record<string, unknown>) => void): Pro
     const userId = auth.user?.id;
 
     let query = supabase.from('orders').select('*')
+      // Только заказы визарда: у строк Order v4 (schema_version = 4) свои статусы,
+      // и старый канбан/дашборд/админка показали бы их «Черновиком»
+      .eq('schema_version', 3)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE);
 
@@ -142,6 +145,8 @@ export const useOrdersStore = create<OrdersStore>((set, get) => ({
       const userId = auth.user?.id;
 
       let query = supabase.from('orders').select('*')
+        // Только заказы визарда — см. fetchOrders
+        .eq('schema_version', 3)
         .order('created_at', { ascending: false })
         .lt('created_at', lastCreatedAt)
         .limit(PAGE_SIZE);

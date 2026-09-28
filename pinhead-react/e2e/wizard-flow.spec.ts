@@ -118,7 +118,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
 
     // Try to navigate away via header
-    await page.getByRole('button', { name: 'Заказы' }).click();
+    await page.getByRole('button', { name: 'Заказы', exact: true }).click();
 
     // Blocker dialog should appear
     await expect(page.getByText('Заказ не сохранён')).toBeVisible();
