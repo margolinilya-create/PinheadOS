@@ -23,7 +23,7 @@ ERP — рабочий продукт. В этом срезе **ни одной 
 ## 2. Работы
 
 ### 2.1 Сторож аксиомы (PR 1)
-`src/orderstudio/erpUntouched.test.ts` (node-среда): список путей, которые Order v4 не меняет (`src/erp/**`, миграции с `erp_` в DDL-операторах `alter|create|drop` кроме `create policy … for select`), и сверка с `git diff --name-only origin/main...HEAD`, если тест запущен в ветке `claude/order-v4-*`. На `main` — no-op. Проверить мутацией: правка комментария в `src/erp/types.ts` → красный.
+Чистая функция-классификатор `src/orderstudio/erpBoundary.ts`: по списку изменённых путей и тексту новых миграций отвечает, задевает ли изменение ERP. ERP — это `src/erp/**`, **все модули вне `src/erp/`, которые импортирует `src/erp/`** (список выводится обходом импортов, а не константой — иначе отстанет), и миграции с DDL по `erp_*`. Нарушение = одно изменение трогает и Order (`src/orderstudio/**`, модули только Order Studio, таблицы `order_*`), и ERP. Тест классификатора (node-среда) с мутациями: правка `src/erp/types.ts`, правка `components/Button.jsx`, миграция `alter table erp_orders` — каждая в паре с файлом Order → красный. Применение в CI — шаг в `ci.yml` для PR: `git fetch --depth=1 origin $GITHUB_BASE_REF` + `node scripts/order-erp-boundary.mjs` (checkout по умолчанию неглубокий, без fetch сторож был бы зелёным вслепую). ERP-only PR (пункты 5.1 после «да» владельца) проходят — они не трогают Order.
 
 ### 2.2 Эталонные заказы → тесты (PR 2, ждёт файлов владельца)
 3–5 реальных заказов: PDF ТЗ + итоговая цена + сетка. Для каждого:

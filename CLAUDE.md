@@ -26,11 +26,20 @@ Pinhead — внутренняя ERP/CRM-система для типограф�
 контракт, под который Order собирает данные.
 
 **Аксиома (владелец, 28.09): ERP — рабочий продукт, и он не правится ради
-Order.** Изменения Order живут за флагом `orderStudio`, в `src/orderstudio/`,
-`src/components/`, `src/store/`, `src/utils/` и в своих таблицах (`orders`,
-новые `order_*`). Из ERP Order только ЧИТАЕТ — типы, `DraftForm`,
-`erp_dictionaries`, `erp_sku_cards`; ни миграций в `erp_*`, ни правок
-`src/erp/`, ни новых видов в справочниках ERP. Свои справочники — в
+Order.** Изменения Order живут за флагом `orderStudio`: новый код — в
+`src/orderstudio/` (и в модулях, которые импортирует ТОЛЬКО Order Studio:
+`components/steps`, `orders`, `editors`, `output`, `analytics`,
+`store/slices`, `utils/pricing` и т. п.), данные — в своих таблицах
+(`orders`, новые `order_*`). **Общие модули, которые импортирует ERP, —
+территория ERP** (`components/Button`, `Icon`, `Badge`, `DateField`…,
+`store/useErpStore`, `useToastStore`, `useConfirmStore`, `useAuthStore`,
+`utils/date`, `time`, `format`, `i18n`, `lib/supabase`, `data/departments`
+и прочие, что встречаются в импортах `src/erp/`): их не менять — нужно
+иначе, заведите своё в `src/orderstudio/`. Проверка перед правкой любого
+файла вне `src/orderstudio/`: `grep -rl "<имя модуля>" src/erp` пуст.
+Из ERP Order только ЧИТАЕТ — типы, `DraftForm`, `erp_dictionaries`,
+`erp_sku_cards`; ни миграций в `erp_*`, ни правок `src/erp/`, ни новых
+видов в справочниках ERP. Свои справочники — в
 `order_dictionaries`, своя геометрия моделей — в `order_sku_geometry`
 (ссылка на карточку по `code`). Единственная точка касания — существующий
 `erp_create_order` в момент запуска. Всё, что ERP должна ПРИНЯТЬ от Order
