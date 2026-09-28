@@ -2229,6 +2229,27 @@
       "files": [
         "20260926072513_erp_drop_prefix_redundant_indexes.sql"
       ]
+    },
+    {
+      "version": "20260928082955",
+      "name": "erp_supply_autoclose",
+      "files": [
+        "20260928082955_erp_supply_autoclose.sql"
+      ]
+    },
+    {
+      "version": "20260928083145",
+      "name": "erp_stage_remaining",
+      "files": [
+        "20260928083145_erp_stage_remaining.sql"
+      ]
+    },
+    {
+      "version": "20260928083215",
+      "name": "erp_stage_done_gate",
+      "files": [
+        "20260928083215_erp_stage_done_gate.sql"
+      ]
     }
   ]
 }
