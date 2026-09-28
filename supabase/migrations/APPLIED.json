@@ -2292,6 +2292,27 @@
       "files": [
         "20260928135632_erp_item_economics_wip_started.sql"
       ]
+    },
+    {
+      "version": "20260928182342",
+      "name": "erp_pravki_27_09_dorabotki",
+      "files": [
+        "20260928182342_erp_pravki_27_09_dorabotki.sql"
+      ]
+    },
+    {
+      "version": "20260928182552",
+      "name": "erp_pravki_27_09_dorabotki_2",
+      "files": [
+        "20260928182552_erp_pravki_27_09_dorabotki_2.sql"
+      ]
+    },
+    {
+      "version": "20260928183439",
+      "name": "erp_fabric_leftovers_color",
+      "files": [
+        "20260928183439_erp_fabric_leftovers_color.sql"
+      ]
     }
   ]
 }

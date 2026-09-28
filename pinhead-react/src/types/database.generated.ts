@@ -1222,12 +1222,15 @@ export type Database = {
           author: string | null
           author_id: string | null
           before_m: number | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           cost: number | null
           created_at: string
           delta_m: number | null
           id: string
           item_id: string | null
           kind: string
+          qty_kg: number | null
           reason: string | null
           report_id: string | null
           roll_id: string
@@ -1237,12 +1240,15 @@ export type Database = {
           author?: string | null
           author_id?: string | null
           before_m?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           cost?: number | null
           created_at?: string
           delta_m?: number | null
           id?: string
           item_id?: string | null
           kind: string
+          qty_kg?: number | null
           reason?: string | null
           report_id?: string | null
           roll_id: string
@@ -1252,12 +1258,15 @@ export type Database = {
           author?: string | null
           author_id?: string | null
           before_m?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           cost?: number | null
           created_at?: string
           delta_m?: number | null
           id?: string
           item_id?: string | null
           kind?: string
+          qty_kg?: number | null
           reason?: string | null
           report_id?: string | null
           roll_id?: string
@@ -1300,6 +1309,7 @@ export type Database = {
           length_left_source: string | null
           length_m: number | null
           length_source: string | null
+          location: string | null
           material_id: string
           price_per_m: number | null
           price_per_unit: number | null
@@ -1324,6 +1334,7 @@ export type Database = {
           length_left_source?: string | null
           length_m?: number | null
           length_source?: string | null
+          location?: string | null
           material_id: string
           price_per_m?: number | null
           price_per_unit?: number | null
@@ -1348,6 +1359,7 @@ export type Database = {
           length_left_source?: string | null
           length_m?: number | null
           length_source?: string | null
+          location?: string | null
           material_id?: string
           price_per_m?: number | null
           price_per_unit?: number | null
@@ -3400,7 +3412,12 @@ export type Database = {
         }[]
       }
       erp_analytics_fabric_by_sku: {
-        Args: { p_dept?: string; p_from: string; p_to: string }
+        Args: {
+          p_dept?: string
+          p_from: string
+          p_product?: string
+          p_to: string
+        }
         Returns: {
           calc: boolean
           cut_good: number
@@ -3454,6 +3471,8 @@ export type Database = {
           defect: number
           extra: number
           fabric: number
+          fabric_calc: boolean
+          fabric_incomplete: boolean
           released: number
           rework: number
         }[]
@@ -3708,6 +3727,35 @@ export type Database = {
         Args: { p_density_gsm: number; p_width_cm: number }
         Returns: number
       }
+      erp_fabric_leftovers: {
+        Args: never
+        Returns: {
+          color: string
+          created_at: string
+          density_gsm: number
+          kg_per_m: number
+          kind: string
+          label: string
+          length_left_m: number
+          length_m: number
+          length_source: string
+          location: string
+          material: string
+          material_id: string
+          order_id: string
+          order_status: string
+          order_title: string
+          price_per_m: number
+          price_per_unit: number
+          qty: number
+          qty_left: number
+          roll_id: string
+          seq: number
+          status: string
+          unit: string
+          width_cm: number
+        }[]
+      }
       erp_fabric_usage: {
         Args: { p_item_id?: string }
         Returns: {
@@ -3727,6 +3775,7 @@ export type Database = {
           report_good: number
           report_id: string
           report_roll_id: string
+          roll_good: number
           roll_id: string
           roll_label: string
           stage_id: string
@@ -3772,6 +3821,10 @@ export type Database = {
         Args: { m: Database["public"]["Tables"]["erp_materials"]["Row"] }
         Returns: boolean
       }
+      erp_material_roll_set_location: {
+        Args: { p_location: string; p_roll_id: string }
+        Returns: undefined
+      }
       erp_material_roll_set_params: {
         Args: {
           p_density_gsm?: number
@@ -3779,6 +3832,7 @@ export type Database = {
           p_length_source?: string
           p_reason?: string
           p_roll_id: string
+          p_weight_kg?: number
           p_width_cm?: number
         }
         Returns: Json
@@ -3789,6 +3843,35 @@ export type Database = {
       }
       erp_order_detail: { Args: { p_order_id: string }; Returns: Json }
       erp_order_economics: { Args: { p_order_id: string }; Returns: Json }
+      erp_order_foreign_rolls: {
+        Args: { p_order_id: string }
+        Returns: {
+          created_at: string
+          density_gsm: number
+          kg_per_m: number
+          kind: string
+          label: string
+          leftover_kind: string
+          length_left_m: number
+          length_m: number
+          length_source: string
+          location: string
+          material: string
+          material_id: string
+          order_id: string
+          order_status: string
+          order_title: string
+          price_per_m: number
+          price_per_unit: number
+          qty: number
+          qty_left: number
+          roll_id: string
+          seq: number
+          status: string
+          unit: string
+          width_cm: number
+        }[]
+      }
       erp_order_has_open_dev: { Args: { p_order_id: string }; Returns: boolean }
       erp_pkg_flag: { Args: { p_key: string; p_pkg: Json }; Returns: boolean }
       erp_pkg_list_filled: {
@@ -3800,7 +3883,30 @@ export type Database = {
         Returns: boolean
       }
       erp_role_of_caller: { Args: never; Returns: string }
+      erp_roll_adjustment_add: {
+        Args: {
+          p_after: number
+          p_before: number
+          p_cost: number
+          p_delta: number
+          p_item_id: string
+          p_kind: string
+          p_qty_kg: number
+          p_reason: string
+          p_report_id: string
+          p_roll_id: string
+        }
+        Returns: string
+      }
+      erp_roll_adjustment_confirm: {
+        Args: { p_adjustment_id: string; p_item_id?: string }
+        Returns: Json
+      }
       erp_roll_recalc: { Args: { p_roll_id: string }; Returns: undefined }
+      erp_roll_set_leftover: {
+        Args: { p_item_id?: string; p_kind: string; p_roll_id: string }
+        Returns: Json
+      }
       erp_route_apply: {
         Args: { p_item_id: string; p_steps: Json }
         Returns: {
@@ -3863,6 +3969,10 @@ export type Database = {
       erp_sku_from_dev: {
         Args: { p_dev: string; p_sku: Json }
         Returns: string
+      }
+      erp_stage_after_role: {
+        Args: { p_role: string; p_stage_id: string }
+        Returns: boolean
       }
       erp_stage_apply_defect: {
         Args: { p_patches: Json }
@@ -4130,6 +4240,10 @@ export type Database = {
           p_stage_id: string
         }
         Returns: number
+      }
+      erp_stage_unaccounted_by_size: {
+        Args: { p_stage_id: string }
+        Returns: string
       }
       erp_subcontract_apply: {
         Args: {
