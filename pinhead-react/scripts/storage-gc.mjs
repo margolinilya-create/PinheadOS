@@ -40,10 +40,13 @@
  * проверили поимённо.
  *
  * ЧТО СЧИТАЕТСЯ НИЧЬИМ. Объект бакета, чей ключ не встречается ни в одной
- * колонке из REFERENCES ниже. Проверкой 13.09 носителей было два, и ни одна
- * JSONB-колонка (`erp_order_drafts.payload`, `erp_experimental.final_package`,
- * `orders.data`, `erp_stage_reports.extra`, `order_templates.data`) подстрок
- * `att/` и `tz/` не содержала.
+ * колонке из REFERENCES и ни в одном JSON-носителе из JSON_REFERENCES ниже.
+ * Проверкой 13.09 носителей было два, и JSONB-колонки
+ * (`erp_experimental.final_package`, `orders.data`, `erp_stage_reports.extra`,
+ * `order_templates.data`) подстрок `att/` и `tz/` не содержали. Про
+ * `erp_order_drafts.payload` это устарело 20.09: с тех пор черновик хранит
+ * пути загруженных файлов (`payload.attachments[].path`,
+ * `payload.tzDocs[].path`) — это четвёртый носитель, см. ниже.
  *
  * ТРЕТИЙ НОСИТЕЛЬ ДОПИСАН 24.09 (сессия 68). 15.09 появилась
  * `erp_sku_card_files.file_path` — снимок ключа вложения разработки без
@@ -70,6 +73,16 @@ const REFERENCES = [
   { table: 'erp_order_attachments', column: 'file_path' },
   { table: 'erp_tz_documents', column: 'file_path' },
   { table: 'erp_sku_card_files', column: 'file_path' },
+];
+
+/**
+ * JSON-носители: ключ лежит в массиве объектов `{ path }` внутри jsonb.
+ * Черновик заказа держит уже загруженные файлы блоков и ТЗ, строки заказа
+ * у них ещё нет (форма снимка — `src/erp/utils/orderDraftEnvelope.ts`).
+ * Колонки `file_path` здесь нет, поэтому сторож требует запись поимённо.
+ */
+const JSON_REFERENCES = [
+  { table: 'erp_order_drafts', column: 'payload', arrays: ['attachments', 'tzDocs'] },
 ];
 
 const url = process.env.SUPABASE_URL;
@@ -130,6 +143,29 @@ async function referencedPaths() {
       if (data.length < PAGE) break;
     }
   }
+  // Ошибка чтения — тот же `throw`: не прочли носителя = не удаляем ничего
+  for (const { table, column, arrays } of JSON_REFERENCES) {
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await db
+        .from(table).select(column).order('id')
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`${table}.${column}: ${error.message}`);
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        const payload = row[column];
+        if (!payload || typeof payload !== 'object') continue;
+        for (const k of arrays) {
+          const list = payload[k];
+          if (!Array.isArray(list)) continue;
+          for (const entry of list) {
+            if (typeof entry?.path === 'string' && entry.path) taken.add(entry.path);
+          }
+        }
+      }
+      if (data.length < PAGE) break;
+    }
+  }
   return taken;
 }
 
@@ -150,7 +186,7 @@ const bytes = doomed.reduce((sum, o) => sum + o.size, 0);
 
 console.log(`бакет:     ${BUCKET}`);
 console.log(`объектов:  ${objects.length}`);
-console.log(`занятых:   ${taken.size} (по ${REFERENCES.map((r) => r.table).join(' и ')})`);
+console.log(`занятых:   ${taken.size} (по ${[...REFERENCES, ...JSON_REFERENCES].map((r) => r.table).join(', ')})`);
 console.log(`ничьих:    ${orphans.length}`);
 console.log(`к удалению:${doomed.length}, ${human(bytes)}`);
 console.log(`придержано:${held} (моложе ${minAgeHours} ч)\n`);
