@@ -218,6 +218,43 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
 
+Правки 27.09 (сессия 72, PR 2) перевели **учёт полотна на погонные метры**
+(отменяет правило 20.09 «пересчёта единиц система не делает»): закупка
+по-прежнему вводит кг и цену за кг (`erp_materials.price_per_unit` — цена
+по единице материала, плюс `width_cm`/`density_gsm` как умолчания для
+рулонов), метры — свойство РУЛОНА: `erp_material_rolls.length_m` +
+`length_source` (`calc`/`supplier`/`measured`), `length_calc_m`, `kg_per_m`
+(+`_source`), `length_left_m` (+`_source`), `price_per_m` — считает
+`erp_roll_recalc` по `erp_fabric_kg_per_m` (кг × 1000 / (ширина_м ×
+плотность); зеркало — `utils/fabricMetres.ts`), пересчёт полной точности,
+округление только в показе. `erp_material_accept(…, p_roll_weights,
+p_roll_params jsonb)` принимает на рулон вес + ширину/плотность/метраж
+поставщика; `erp_material_roll_set_params` (`security definer`,
+`material.receive` ЛИБО `stage.progress`) дозаполняет и уточняет: до
+первого расхода — пересчёт, после — корректировка `length_refine` и новые
+коэффициенты для остатка (списанное не трогается). Журнал
+`erp_material_roll_adjustments` (`length_refine`/`leftover_measure`/
+`scrap_writeoff`, причина, автор, `item_id` у списания) — корректировки
+К РАСХОДУ НЕ ПРИБАВЛЯЮТСЯ. `erp_stage_report_rolls.length_used_m` +
+снимки `kg_per_m`/`price_per_m`/`cost` (правка справочника закрытые строки
+не меняет); `qty_used` (кг) остался для прежнего пути (`qty_source =
+entered`). `erp_stage_submit_report(…, p_client_key)` — ключ попытки
+(`erp_stage_reports.client_key`, уникальный частичный индекс): повтор
+не списывает дважды; отказы «Не заполнены данные для учёта в метрах…»,
+«доступно N м, а списывается M м…», «остался N м — выберите …» — тексты
+общие с формой закроя. Экономика и аналитика: `erp_fabric_usage`
+(метры, `calc_metres` — кг-строки, пересчитанные по коэффициенту рулона,
+`incomplete_kg` — непересчитанные), `erp_analytics_overview`/`_series`
+в метрах (`fabric_per_item` по отчётам закроя, `fabric_incomplete`),
+`erp_analytics_fabric_by_sku` (модель × материал × ширина),
+`erp_item_economics` → `fabric{…}`, `losses{leftovers_usable, leftovers_scrap,
+adjustments, extras, defects, wip}` («в работе» — только начатые этапы),
+`production_done`, `preliminary`, `costs{fabric, scrap, assembly, total,
+missing}`, `unit_cost_good` (затраты / годные + годные плюсы),
+`unit_cost_plan` (затраты / клиентский тираж). Пригодный остаток в затраты
+не входит. Проба на бою и четыре правки по её итогам (grant `erp_roll_recalc`,
+INSERT-политика журнала, `array_append`, WIP) — `SESSION-STATE.md`.
+
 Правки 27.09 (сессия 72, PR 1) добавили **серверные гейты закрытия**:
 `erp_supply_autoclose` (триггер на `erp_materials`: закупка закрывается САМА,
 когда все материалы заказа `erp_material_fully_received` — `accepted_full`
@@ -577,7 +614,7 @@ NULL читается как `purchased`) — у давальческого из
 | Файл | Назначение |
 |------|-----------|
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
-| `docs/rules/INDEX.md` | **Указатель правил по темам** (66 файлов, перенос 15.09) |
+| `docs/rules/INDEX.md` | **Указатель правил по темам** (67 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, статистика, roadmap |

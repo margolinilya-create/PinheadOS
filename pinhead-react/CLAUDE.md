@@ -17,7 +17,9 @@ URL: https://pinhead-os.vercel.app
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
   MoveStageSelect (перенос в цех из панели)/CutRollsSection (закрой по рулонам;
-  кнопки судьбы остатка у рулонов «в работе» — 27.09 п. 2)/
+  кнопки судьбы остатка у рулонов «в работе» — 27.09 п. 2; «Фактический
+  расход, м», доступно/источник/≈кг, замер остатка и форма параметров
+  рулона при их отсутствии — 27.09 п. 4) + CutSizeRows (размерные строки рулона)/
   DefectWizard (мастер брака: 2 шага в Drawer);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
   screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
@@ -30,7 +32,11 @@ URL: https://pinhead-os.vercel.app
   useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
   TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии)/
   EconomicsSection (вкладка «Экономика позиции», правка 20.09 п. 9: расход и стоимость
-  полотна, средняя сборка, прямая себестоимость — считает сервер, право `economics.view`);
+  полотна, средняя сборка, прямая себестоимость — считает сервер, право `economics.view`;
+  с 27.09 п. 8 расход в метрах, «Себестоимость годной единицы» и «Затраты
+  на единицу клиентского тиража») + LossesSection («Остатки и потери
+  по заказу»: пригодные и списанные остатки, корректировки, плюсы, брак,
+  в работе — раскрываются до рулона и этапа);
   components/chat/ — ChatWindow (окно поверх ERP, смонтировано в ОБОЛОЧКЕ: переживает
   переход между разделами)/ChatPanel (лента: дни, группы по 5 минут, граница
   непрочитанного, «Новые сообщения, N»)/ChatMessage/ChatComposer/ChatSection (вход
@@ -43,17 +49,24 @@ URL: https://pinhead-os.vercel.app
   screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
   История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
   screens/warehouse/ — MaterialReceiptCard (план/факт, правка 4.1.3; веса рулонов
-  и дозаполнение веса у принятых до правки — 21.09 п. 2)/MarkingCard/PackShipCard/
+  и дозаполнение веса у принятых до правки — 21.09 п. 2; ширина/плотность/метраж
+  поставщика на рулон — 27.09 п. 4) + RollParamsFields (поля рулонов при приёмке
+  и дозаполнение параметров у принятых до правки)/MarkingCard/PackShipCard/
   SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
   screens/FabricLeftovers.jsx — «Остатки ткани» (/leftovers, правка 21.09 п. 5):
   рулоны с ненулевым остатком, вес, цена и заказ-источник; остаток это САМ рулон,
-  отдельной сущности нет;
+  отдельной сущности нет; с 27.09 п. 4 — в метрах с источником, ширина,
+  плотность, цена за метр, кг «расчёт» рядом;
   screens/purchasing/ — AddPurchaseModal (модалка «Новая закупка», подсветка
-  обязательных полей — 27.09 п. 1), SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
+  обязательных полей — 27.09 п. 1; ширина и плотность у ткани — п. 4),
+  PurchaseFields (+ FabricParamsFields: ширина/плотность в таблице закупки),
+  SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
   purchaseLabels.js (подписи; `pricePerUnitLabel` — цена по ЕДИНИЦЕ материала,
   одна функция на таблицу, карточку планшета, инлайн-правку и модалку),
   components (StageReportForm + SizeReportSection (размерная таблица сдачи, остаток
-  по размерам) + useStageReports (отчёты предков и свои — 27.09 пп. 6, 7),
+  по размерам) + useStageReports (отчёты предков и свои — 27.09 пп. 6, 7) +
+  RollParamsForm (параметры рулона для учёта в метрах: общая для закроя
+  и склада, расчёт виден до нажатия — 27.09 п. 4),
   ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
   Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
@@ -64,7 +77,9 @@ URL: https://pinhead-os.vercel.app
   orders/stages (+ stageGates.ts — гейты закрытия у писателя: файл → программа
   вышивки → тираж → закупка/рулоны, не учтённые изделия)/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
   realtimeCoalesce.ts (серия событий → одно перечитывание), realtimeHelpers.ts, reworkEvents.ts (журнал
-  переделок с кэшем по `id:qty`), authHelpers.ts у useAuthStore;
+  переделок с кэшем по `id:qty`), attempts.ts (ключи попыток сдачи по этапу —
+  в модуле, не в состоянии: повтор не спишет метры дважды, 27.09 п. 4),
+  authHelpers.ts у useAuthStore;
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm (+ orderDraftEnvelope — снимок черновика,
@@ -72,7 +87,12 @@ URL: https://pinhead-os.vercel.app
   − сдано − брак; stageDonePatch)/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
-  читателей)/cutRolls/cutExtras (производственный «плюс», накопительно)/
+  читателей)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
+  общие с RPC)/cutExtras (производственный «плюс», накопительно)/
+  fabricMetres (формулы кг ↔ м и ₽/м, `fmtM`/`fmtKg`, рабочий метраж рулона
+  с источником — 27.09 п. 4)/rollParams (параметры рулонов приёмки → payload
+  `p_roll_params`)/reportTotals (числа отчёта из разбивки — правило одно
+  с сервером)/itemEconomics (подписи экономики: пробелы, покрытие, пересчёт)/
   fabricLeftovers/attachmentView/deptMap (карты участков, WeakMap по массиву)/cellKey (`CELL_SEP`)),
   orderFormGrid.ts (размерная сетка формы, реэкспорт из orderForm),
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
