@@ -165,7 +165,9 @@ URL: https://pinhead-os.vercel.app
 тестов, команды и дизайн-система.
 
 ## Не трогать без тестов
-- utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
+- utils/pricing.ts + pricingCore.ts — 88 тестов (pricing.test.js + pricing-extended.test.js)
+  и pricingCore.test.ts; формула — в ядре, pricing.ts — обёртки с getPrices()
+- orderstudio/ — priceOrder (16), tzToErpDraft (21, сторож контракта с формой ERP)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

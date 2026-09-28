@@ -82,13 +82,16 @@ pinhead-react/src/
 ├── data/                    # Статические данные: цвета, ткани, цены, SKU, extras
 ├── types/                   # TypeScript типы: order, catalog, auth, pricing
 ├── utils/
-│   ├── pricing.ts           # Расчёт цен (покрыт 88 тестами), TECH_TABS, priceMultiplier
+│   ├── pricing.ts           # Расчёт цен — API визарда (88 тестов), обёртки над pricingCore
+│   ├── pricingCore.ts       # Формула цены без стора: цены аргументом (Order v4, срез 0)
 │   ├── skuRules.ts          # CategoryRules резолюция, getEffectiveRules, динамические зоны (29 тестов)
 │   ├── validate.ts          # Валидация заказа
 │   ├── mockup.ts            # SVG-мокап генерация
 │   ├── deadline.ts          # Расчёт дедлайнов
 │   └── i18n.ts              # Pluralize, translateSupabaseError
-└── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
+├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
+└── orderstudio/             # Order v4 (срез 0): model/ (заказ, имена полей как DraftItem),
+                             # pricing/priceOrder, bridge/tzToErpDraft (контракт с формой ERP)
 ```
 
 ```
@@ -474,6 +477,10 @@ NULL читается как `purchased`) — у давальческого из
 - Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
 - Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
 - deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
+- **Order v4 пишется, ERP не трогается** (решение владельца 28.09): код Order
+  только ЧИТАЕТ типы и чистые хелперы ERP; правка `erp/` и `erp_*` — отдельным
+  решением. Поле формы ERP без записи в `ITEM_FIELD_SOURCES`/`FORM_FIELD_SOURCES`
+  моста роняет typecheck и сторож `orderstudio/bridge/tzToErpDraft.test.ts`
 - ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
   кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
   приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
