@@ -21,6 +21,9 @@ import type { DraftForm, DraftItem, DraftLabel, DraftPrint } from '../../erp/uti
 import { itemNeedsPurchase } from '../../erp/utils/garmentSource';
 import type { BrandingMethod, GarmentSource, ProductionType } from '../../erp/types';
 import { gridQty } from '../model/factory';
+import { EFFECT_TO_ERP, EMBROIDERY_EFFECT_NOTE, LABEL_TYPE_TO_ERP } from './erpNames';
+
+export { EFFECT_TO_ERP, LABEL_TYPE_TO_ERP };
 import type {
   SalesItem, SalesItemKind, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod,
 } from '../model/types';
@@ -142,37 +145,6 @@ export const METHOD_TO_ERP: Record<SalesPrintMethod, BrandingMethod> = {
   dtg: 'dtg',
   sublimation: 'other',
   patch: 'other',
-};
-
-/**
- * ERP хранит в `erp_item_prints.special` и `erp_item_labels.label_type`
- * НАЗВАНИЯ, а не коды справочника (на бою 28.09: «Составник», «Puff-эффект»,
- * «Каменная база»). Order держит коды — ими считается цена, — и мост
- * переводит их в названия справочников ERP `print_effect` и `label_type`.
- * Неизвестный код уходит как есть: справочник ERP — подсказка, не ограничение.
- */
-export const EFFECT_TO_ERP: Record<string, string> = {
-  stone: 'Каменная база',
-  puff: 'Puff-эффект',
-  metallic: 'Металлик',
-  fluor: 'Флюор',
-};
-
-/** Нить вышивки у ERP отдельного поля не имеет — едет в комментарий */
-const EMBROIDERY_EFFECT_NOTE: Record<string, string> = {
-  metallic: 'Нить металлизированная',
-  puff: 'Объёмная вышивка (3D)',
-};
-
-export const LABEL_TYPE_TO_ERP: Record<string, string> = {
-  size: 'Размерник',
-  composition: 'Составник',
-  brand: 'Брендовая бирка',
-  care: 'Бирка по уходу',
-  extra: 'Дополнительная бирка',
-  hangtag: 'Хэнгтег',
-  sticker: 'Стикер на упаковку',
-  patch: 'Флажок / патч',
 };
 
 const METHOD_LABEL: Record<SalesPrintMethod, string> = {

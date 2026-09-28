@@ -117,8 +117,11 @@ export const useSalesStore = create<SalesState>((set, get) => {
       if (get().current?.id === id) return get().current;
       await get().close();
       session += 1;
+      const mySession = session;
       set({ currentLoading: true, current: null, saveState: 'idle' });
       const order = await fetchSalesOrder(id);
+      // Пока шёл запрос, карточку закрыли или открыли другую — ответ устарел
+      if (mySession !== session) return null;
       set({ currentLoading: false, current: order });
       return order;
     },
@@ -127,7 +130,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
       if (timer || get().saveState === 'dirty' || get().saveState === 'error') await runSave();
       else if (inFlight) await inFlight;
       session += 1;
-      set({ current: null, saveState: 'idle' });
+      set({ current: null, currentLoading: false, saveState: 'idle' });
     },
 
     createNew: async () => {

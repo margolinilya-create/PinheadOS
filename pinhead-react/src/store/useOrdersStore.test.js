@@ -249,3 +249,19 @@ describe('useOrdersStore — duplicateOrder dev-mode', () => {
     expect(capturedRow.created_by).toBeNull();
   });
 });
+
+describe('useOrdersStore — строки Order v4 не попадают в старый список', () => {
+  it('fetchOrders запрашивает только schema_version = 3', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const chain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    supabase.from.mockReturnValue(chain);
+    await useOrdersStore.getState().fetchOrders();
+    expect(chain.eq).toHaveBeenCalledWith('schema_version', 3);
+  });
+});
