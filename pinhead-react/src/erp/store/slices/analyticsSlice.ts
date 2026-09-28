@@ -87,7 +87,7 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       p_dept: filter.dept || null,
     };
 
-    const [overview, series, bySku, byDept] = await Promise.all([
+    const [overview, series, bySku, byDept, fabricBySku] = await Promise.all([
       erpQuery(() => supabase.rpc('erp_analytics_overview', args)),
       erpQuery(() => supabase.rpc('erp_analytics_series', {
         p_from: filter.from,
@@ -102,9 +102,13 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       erpQuery(() => supabase.rpc('erp_analytics_by_dept', {
         p_from: filter.from, p_to: filter.to, p_product: filter.product || null,
       })),
+      // Расход полотна по моделям × материалу × ширине (правка 27.09, п. 5)
+      erpQuery(() => supabase.rpc('erp_analytics_fabric_by_sku', {
+        p_from: filter.from, p_to: filter.to, p_dept: filter.dept || null,
+      })),
     ]);
 
-    const failed = [overview, series, bySku, byDept].find((r) => r.error);
+    const failed = [overview, series, bySku, byDept, fabricBySku].find((r) => r.error);
     if (failed?.error) {
       erpError('Аналитика не загрузилась', failed.error);
       set({ analyticsLoading: false });
@@ -118,6 +122,7 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       series: (series.data ?? []) as AnalyticsSnapshot['series'],
       bySku: (bySku.data ?? []) as AnalyticsSnapshot['bySku'],
       byDept: (byDept.data ?? []) as AnalyticsSnapshot['byDept'],
+      fabricBySku: (fabricBySku.data ?? []) as AnalyticsSnapshot['fabricBySku'],
     };
     set({ analytics: snapshot, analyticsKey: key, analyticsLoading: false });
     return snapshot;
