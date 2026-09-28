@@ -23,8 +23,10 @@ import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
 import { flushQueue } from '../offlineQueue';
 import type { ErpStore, RealtimeSlice } from '../types';
 import { dropChannel, upsertChildRow } from '../realtimeHelpers';
+import {
+  clearReconnect, isLive, markLive, scheduleReconnect,
+} from '../realtimeReconnect';
 
-/** Таймер debounce полной перезагрузки (реассайнится здесь — держим локально) */
 /**
  * Переподключение канала.
  *
@@ -35,20 +37,55 @@ import { dropChannel, upsertChildRow } from '../realtimeHelpers';
  * это человек не мог в принципе: экран выглядит рабочим, просто показывает
  * позавчерашнюю работу.
  *
- * Шаги растут до минуты и не дольше: цех смотрит в очередь постоянно, и
- * получасовое ожидание переподключения для него то же самое, что его отсутствие.
+ * Шаги, таймер и метка живого канала — в `realtimeReconnect` (там же
+ * разбор зацикливания 28.09). Шаги реэкспортируются для тестов.
  */
-export const RECONNECT_STEPS_MS = [1000, 2000, 5000, 10000, 30000, 60000];
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectAttempt = 0;
+export { RECONNECT_STEPS_MS } from '../realtimeReconnect';
 
-function clearReconnect() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  reconnectAttempt = 0;
-}
+/**
+ * Таблицы, на которые подписан канал. Подписка и обработчик в
+ * `applyRealtimeEvent` заводятся ВМЕСТЕ — расхождение сторожит
+ * `realtimeCoverage.test.ts`. Форма `{ table: '…' }` — та, которую он читает.
+ */
+const REALTIME_TABLES = [
+  { table: 'erp_item_stages' },
+  { table: 'erp_orders' },
+  { table: 'erp_materials' },
+  { table: 'erp_procurement_tasks' },
+  { table: 'erp_subcontracting' },
+  { table: 'erp_warehouse_ops' },
+  { table: 'erp_warehouse_tasks' },
+  { table: 'erp_experimental' },
+  // Задачи разработки: их статус пишет триггер при закрытии этапа цехом
+  { table: 'erp_experimental_tasks' },
+  { table: 'erp_tz_documents' },
+  { table: 'erp_bypasses' },
+  /**
+   * Персональные уведомления: человека зовут СЕЙЧАС, и «увидит при
+   * следующей загрузке» здесь означает «не увидит вовсе» — вкладку
+   * в цеху держат открытой сменами. Фильтра по адресату в подписке нет:
+   * его ставит RLS (`user_id = auth.uid()`), и дублировать это условие
+   * в клиенте значило бы завести вторую формулу видимости.
+   */
+  { table: 'erp_notifications' },
+  /**
+   * Чат: «новые сообщения должны появляться без перезагрузки страницы
+   * не позднее чем через 10 секунд» (требование документа). Подписка
+   * одна — на сообщения: упоминания и вложения приезжают вместе с ними
+   * через `erp_chat_page`, а отметка прочтения личная и чужих вкладок
+   * не касается. Реакции — единственное в переписке, что меняется ЧУЖИМИ
+   * РУКАМИ без нового сообщения; строк мало, событий — по одному на нажатие.
+   */
+  { table: 'erp_chat_messages' },
+  { table: 'erp_chat_reactions' },
+  { table: 'erp_order_items' },
+  /**
+   * Производственный план: план ставит руководитель, факт вносит цех —
+   * двое разных людей на одной доске. Без подписки каждый видел только
+   * свои записи до перезагрузки страницы.
+   */
+  { table: 'erp_calendar_slots' },
+];
 
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
 export type ChildKey =
@@ -395,12 +432,6 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
   },
 
   subscribeRealtime: () => {
-    /**
-     * Отписка канала, ЗАМЕНИВШЕГО этот при переподключении. Объявлена до самого
-     * канала намеренно: обработчик статуса ссылается на неё, а выполняется он
-     * позже конструирования.
-     */
-    let cleanupNext: (() => void) | null = null;
     // Уникальное имя канала (паттерн kontora24); события применяются точечно (п.27)
     const forward = (table: string) => (payload: {
       eventType: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -414,124 +445,31 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         old: payload.old ?? null,
       });
     };
-    const channel = supabase
-      .channel(`erp-live-${crypto.randomUUID()}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_item_stages' },
-        forward('erp_item_stages'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_orders' },
-        forward('erp_orders'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_materials' },
-        forward('erp_materials'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_procurement_tasks' },
-        forward('erp_procurement_tasks'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_subcontracting' },
-        forward('erp_subcontracting'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_warehouse_ops' },
-        forward('erp_warehouse_ops'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_warehouse_tasks' },
-        forward('erp_warehouse_tasks'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_experimental' },
-        forward('erp_experimental'),
-      )
-      /**
-       * Задачи разработки: их статус пишет триггер при закрытии этапа цехом.
-       * Подписка и обработчик заводятся ВМЕСТЕ — расхождение сторожит
-       * `realtimeCoverage.test.ts`.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_experimental_tasks' },
-        forward('erp_experimental_tasks'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_tz_documents' },
-        forward('erp_tz_documents'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_bypasses' },
-        forward('erp_bypasses'),
-      )
-      /**
-       * Персональные уведомления: человека зовут СЕЙЧАС, и «увидит при
-       * следующей загрузке» здесь означает «не увидит вовсе» — вкладку
-       * в цеху держат открытой сменами. Фильтра по адресату в подписке нет:
-       * его ставит RLS (`user_id = auth.uid()`), и дублировать это условие
-       * в клиенте значило бы завести вторую формулу видимости.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_notifications' },
-        forward('erp_notifications'),
-      )
-      /**
-       * Чат: «новые сообщения должны появляться без перезагрузки страницы
-       * не позднее чем через 10 секунд» (требование документа). Подписка
-       * одна — на сообщения: упоминания и вложения приезжают вместе с ними
-       * через `erp_chat_page`, а отметка прочтения личная и чужих вкладок
-       * не касается.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_chat_messages' },
-        forward('erp_chat_messages'),
-      )
-      /**
-       * РЕАКЦИИ (вторая очередь чата) — единственное в переписке, что видно
-       * сразу и меняется ЧУЖИМИ РУКАМИ без нового сообщения. Без подписки
-       * палец, поставленный коллегой, доезжал бы только со следующей
-       * репликой; строк мало, событий — по одному на нажатие.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_chat_reactions' },
-        forward('erp_chat_reactions'),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_order_items' },
-        forward('erp_order_items'),
-      )
-      /**
-       * Производственный план: план ставит руководитель, факт вносит цех —
-       * двое разных людей на одной доске. Без подписки каждый видел только
-       * свои записи до перезагрузки страницы.
-       */
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'erp_calendar_slots' },
-        forward('erp_calendar_slots'),
-      )
+
+    /**
+     * Живой канал — ровно один. Пересоздание при разрыве открывает новый
+     * и лишь потом закрывает прежний, а обработчик статуса сверяет свою
+     * метку с живой: статусы закрытого нами канала (`CLOSED` от собственной
+     * отписки, запоздалая ошибка, эхо `SUBSCRIBED`) — не наша связь.
+     * Без этой сверки собственная отписка запускала следующее переподключение,
+     * и каналы плодились по одному на круг (разбор — `realtimeReconnect`).
+     */
+    let current: ReturnType<typeof supabase.channel> | null = null;
+    const open = () => {
+      const token = Symbol('erp-live');
+      const channel = supabase.channel(`erp-live-${crypto.randomUUID()}`);
+      for (const { table } of REALTIME_TABLES) {
+        channel.on('postgres_changes', { event: '*', schema: 'public', table }, forward(table));
+      }
+      current = channel;
+      markLive(token);
       /**
        * Обработчик статуса. Его здесь не было вовсе, и это главный пробел
        * реалтайма: разрыв канала не давал ни события, ни признака — экран
        * просто переставал обновляться.
        */
-      .subscribe((status: string) => {
+      channel.subscribe((status: string) => {
+        if (!isLive(token)) return;
         if (status === 'SUBSCRIBED') {
           const wasDown = !get().realtimeLive;
           clearReconnect();
@@ -543,26 +481,26 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           set({ realtimeLive: false });
-          if (reconnectTimer) return;
-          const delay = RECONNECT_STEPS_MS[
-            Math.min(reconnectAttempt, RECONNECT_STEPS_MS.length - 1)];
-          reconnectAttempt += 1;
-          reconnectTimer = setTimeout(() => {
-            reconnectTimer = null;
+          scheduleReconnect(() => {
             // Канал пересоздаётся целиком: у оборванного `subscribe()` повторно
-            // не вызывают — supabase-js держит его в терминальном состоянии
+            // не вызывают — supabase-js держит его в терминальном состоянии.
+            // Сначала новый, потом отписка старого: его CLOSED уже не наш
+            open();
             dropChannel(channel);
-            const next = get().subscribeRealtime();
-            cleanupNext = next;
-          }, delay);
+          });
         }
       });
+    };
+    open();
 
     /**
      * Возврат к экрану и появление сети — те же «нас не было»: канал мог
      * пережить сон вкладки, а мог и нет, и полагаться на его статус нельзя.
      * Слушателей `visibilitychange`/`online`/`focus` в проекте не было ни
      * одного, поэтому планшет после сна показывал устаревшую очередь молча.
+     *
+     * Ставятся ОДИН РАЗ на подписку, а не на каждое пересоздание канала:
+     * иначе они копились с каждым переподключением.
      */
     // `focus` не слушается: у возврата вкладки он приходит ВМЕСТЕ
     // с `visibilitychange`, и два слушателя давали два полных loadAll
@@ -575,13 +513,13 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
     return () => {
       clearRealtimeTimers();
       clearReconnect();
+      markLive(null);
       if (typeof window !== 'undefined') {
         window.removeEventListener('online', onWake);
         document.removeEventListener('visibilitychange', onWake);
       }
       // Канал мог быть пересоздан переподключением — отписываем ТОТ, что живёт
-      if (cleanupNext) cleanupNext();
-      else dropChannel(channel);
+      if (current) dropChannel(current);
     };
   },
 });
