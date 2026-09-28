@@ -39,17 +39,17 @@ const EXEMPT: Record<string, string> = {
 
 /** Размеры на 24.09 — только вниз */
 const CEILINGS: Record<string, number> = {
-  'erp/screens/orders/CreateOrderModal.jsx': 1643,
-  'erp/store/slices/stagesSlice.ts': 975,
-  'erp/screens/FabricPurchasing.jsx': 982,
+  'erp/screens/orders/CreateOrderModal.jsx': 1566,
+  'erp/store/slices/stagesSlice.ts': 890,
+  'erp/screens/FabricPurchasing.jsx': 646,
   'erp/screens/orders/create/ItemBlock.jsx': 941,
-  'erp/utils/orderForm.ts': 855,
+  'erp/utils/orderForm.ts': 782,
   'erp/utils/experimentalBoard.ts': 821,
   'erp/screens/OrdersScreen.jsx': 793,
   'erp/screens/experimental/DevCard.jsx': 790,
   'erp/screens/Experimental.jsx': 734,
   'erp/screens/PlanScreen.jsx': 722,
-  'erp/screens/warehouse/MaterialReceiptCard.jsx': 683,
+  'erp/screens/warehouse/MaterialReceiptCard.jsx': 661,
   'erp/store/slices/orderWriteSlice.ts': 681,
   'erp/screens/DepartmentQueue.jsx': 653,
   'components/editors/sku/SkuDetailModal.jsx': 631,
@@ -59,9 +59,8 @@ const CEILINGS: Record<string, number> = {
   'store/useAuthStore.ts': 575,
   'components/editors/sku/PricingTabContent.jsx': 576,
   'erp/screens/ErpDashboard.jsx': 560,
-  'erp/screens/queue/StageActionsPanel.jsx': 558,
+  'erp/screens/queue/StageActionsPanel.jsx': 532,
   'erp/store/slices/chatSlice.ts': 529,
-  'erp/components/StageReportForm.jsx': 525,
   'components/analytics/Dashboard.jsx': 521,
   'erp/screens/Warehouse.jsx': 510,
 };

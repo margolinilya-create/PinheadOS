@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  FILE_RESULT_KINDS, isFileResultStage, stageResultFileBlock, stageResultFiles,
+  FILE_RESULT_KINDS, embroideryProgramBlock, isFileResultStage, stageResultFileBlock, stageResultFiles,
 } from './stageResult';
 import { stageDoneWarning } from './stageDone';
 
@@ -92,8 +92,9 @@ describe('Этап с файловым результатом', () => {
  */
 describe('Гейт файла стоит у писателя статуса', () => {
   it('`completionBlockFor` спрашивает `stageResultFileBlock`', () => {
+    // Гейты писателя живут в `stageGates.ts` с 27.09 (вынос из слайса)
     const src = readFileSync(
-      join(process.cwd(), 'src/erp/store/slices/stagesSlice.ts'), 'utf8',
+      join(process.cwd(), 'src/erp/store/slices/stageGates.ts'), 'utf8',
     );
     const fn = src.slice(src.indexOf('function completionBlockFor'));
     const body = fn.slice(0, fn.indexOf('\n}\n'));
@@ -122,7 +123,45 @@ describe('Завершение файлового этапа не пишет к�
     const fn = src.slice(src.indexOf('const onDone ='));
     const body = fn.slice(0, fn.indexOf('}, [setStageStatus'));
     expect(body).toContain('isFileResultStage(');
-    // Пустой патч у файлового этапа, `qty_done` — только у обычного
-    expect(body).toMatch(/fileResult \? \{\} : \{ qty_done/);
+    /**
+     * Что писать, решает `stageDonePatch` (правка 27.09, п. 7): пустой патч
+     * у файлового этапа и у участка с формой результата, `qty_done` — только
+     * у обычного. Поведение самой функции — в `stageRemaining.test.ts`;
+     * здесь сторожится, что кнопка не завела свою ветку рядом.
+     */
+    expect(body).toContain('stageDonePatch(');
+    expect(body).not.toMatch(/\{ qty_done: entry\.item\.qty \}/);
+  });
+});
+
+/**
+ * ВЫШИВКА ЖДЁТ «РАЗРАБОТКУ ПРОГРАММЫ ВЫШИВКИ» (правка заказчика 27.09, п. 3).
+ *
+ * «Этап „Вышивка" можно завершить, даже если разработка программы ещё
+ * не завершена… Проверять именно связанную задачу, чтобы готовая программа
+ * другой позиции не снимала ограничение».
+ */
+describe('embroideryProgramBlock', () => {
+  const emb = { id: 'emb', department_id: 'd-emb', status: 'in_progress' as const, result_kind: null };
+  const program = (status: 'waiting' | 'in_progress' | 'done' | 'skipped') => ({
+    id: 'prog', department_id: 'd-emb', status, result_kind: 'embroidery_program',
+  });
+  const TEXT = 'Сначала завершите задачу “Разработка программы вышивки”';
+
+  it('программа не завершена — вышивку закрывать нельзя, текст документа', () => {
+    expect(embroideryProgramBlock(emb, [emb, program('in_progress')])).toBe(TEXT);
+    expect(embroideryProgramBlock(emb, [emb, program('waiting')])).toBe(TEXT);
+  });
+
+  it('программа завершена или пропущена — можно', () => {
+    expect(embroideryProgramBlock(emb, [emb, program('done')])).toBeNull();
+    expect(embroideryProgramBlock(emb, [emb, program('skipped')])).toBeNull();
+  });
+
+  it('программа ДРУГОГО участка или без программы вовсе — не держит', () => {
+    expect(embroideryProgramBlock(emb, [emb, { ...program('waiting'), department_id: 'd-other' }])).toBeNull();
+    expect(embroideryProgramBlock(emb, [emb])).toBeNull();
+    // Сам этап программы своим правилом не гейтится
+    expect(embroideryProgramBlock(program('in_progress'), [emb, program('in_progress')])).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { erpError, erpQuery, erpWrite } from '../shared';
 import { toast } from '../../../store/useToastStore';
 import type { ErpMaterial, ErpMaterialSupplier } from '../../types';
 import type { ErpStore, MaterialsSlice } from '../types';
+import { rollActions } from './rollActions';
 import { factoryToday } from '../../../utils/date';
 import { findSupplyDept, openSupplyStages, supplyMaterialSummary } from '../../utils/supply';
 import { autoOrderedStatus } from '../../utils/materialStatus';
@@ -169,6 +170,9 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
+  // Действия с рулонами — отдельный модуль (ратчет размера, правка 28.09)
+  ...rollActions(set, get),
+
   confirmStockMaterial: async (id) => {
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
     const ok = await get().updateMaterial(id, {
@@ -316,27 +320,46 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
    * Второй писатель здесь снова завёл бы ту же развилку.
    */
 
+  /**
+   * АВТОЗАКРЫТИЕ ЗАКУПКИ ДЕЛАЕТ СЕРВЕР (правка заказчика 27.09, п. 9).
+   *
+   * До правки этап закупки закрывал КЛИЕНТ — `setStageStatus(…, 'done')`
+   * из этого же действия. При приёмке оно шло от лица кладовщика, а страж
+   * не пускает его в чужой цех: 42501, тост «Этап не обновлён», и закупка
+   * закрывалась, когда закупщик в следующий раз что-нибудь правил. Заказ
+   * 65004 из документа стоял «В работе» при всех принятых материалах ровно
+   * поэтому.
+   *
+   * Теперь этап закрывает триггер `erp_supply_autoclose` в транзакции,
+   * которая меняет материал. Здесь остаётся ЧЕЛОВЕЧЕСКАЯ часть: сказать,
+   * чего ещё ждут (плановое количество), и перечитать заказ, чтобы закрытие
+   * увидели экран и гейты. Второго писателя статуса нет — иначе два
+   * закрытия одного этапа наперегонки и двойное событие в истории.
+   *
+   * Правило «полностью поступил» — `isMaterialFullyReceived`, зеркало
+   * серверного `erp_material_fully_received`. Пустой список готовым
+   * НЕ считается: заказ без заведённых материалов не должен закрывать
+   * закупку сам собой — для него есть явное `closeSupply` с комментарием.
+   */
   maybeCloseSupply: async (orderId) => {
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = findSupplyDept(get().departments);
     if (!order || !supplyDept) return;
-    // «Готов» = пришло / зарезервировано со склада / не требуется.
-    // Пустой список готовым НЕ считается: заказ без заведённых материалов
-    // не должен закрывать закупку сам собой (аудит, LOW). Для него есть
-    // явное действие `closeSupply` — с комментарием, от человека.
+    const openBefore = openSupplyStages(order, supplyDept.id).length;
+    if (openBefore === 0) return;
     const summary = supplyMaterialSummary(order.materials);
-    if (!summary.allSettled) return;
     // Правка 4.1.3: плановое кол-во (qty_expected) — обязательная графа закупки. Без него
     // сделка не идёт дальше (иначе на приёмке склад не увидит план). Гейтим только закупаемые.
     if (summary.missingPlan.length > 0) {
       toast.warning(`Укажите плановое кол-во в закупке: ${summary.missingPlan.map((m) => m.name).join(', ')}`);
       return;
     }
-    const openSupply = openSupplyStages(order, supplyDept.id);
-    for (const st of openSupply) {
-      await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
+    if (!summary.allFullyReceived) return;
+    await get().loadOne(orderId);
+    const fresh = get().orders.find((o) => o.id === orderId);
+    if (fresh && openSupplyStages(fresh, supplyDept.id).length === 0) {
+      toast.success('Материалы приняты полностью — закупка по заказу закрыта');
     }
-    if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 
   takeSupply: async (orderId, plannedEnd = null) => {

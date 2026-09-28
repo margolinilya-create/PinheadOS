@@ -37,6 +37,18 @@ function droppedObjects(files: string[]): Map<string, string> {
     for (const m of sql.matchAll(/drop function (?:if exists )?public\.(\w+)\s*\(/gi)) {
       dropped.set(m[1], name);
     }
+    /**
+     * ПЕРЕСОЗДАНИЕ — НЕ УДАЛЕНИЕ (правка 28.09). Смена возвращаемого типа
+     * или сигнатуры требует `drop function` и следом `create` того же имени;
+     * функция при этом жива. Прежде сторож считал её удалённой навсегда
+     * и ругался на каждого, кто её зовёт. Создание ПОСЛЕ удаления (в этом же
+     * файле или позже) возвращает объект в строй.
+     */
+    for (const m of sql.matchAll(/create or replace function public\.(\w+)\s*\(/gi)) {
+      const dropAt = sql.search(new RegExp(`drop function (?:if exists )?public\\.${m[1]}\\s*\\(`, 'i'));
+      if (dropped.get(m[1]) === name && dropAt >= 0 && dropAt < (m.index ?? 0)) dropped.delete(m[1]);
+      else if (dropped.has(m[1]) && dropped.get(m[1])! < name) dropped.delete(m[1]);
+    }
   }
   return dropped;
 }

@@ -13,6 +13,7 @@ import {
   gridTotal,
   rowTotal,
   isFormEmpty,
+  isDraftEmpty,
   isItemEmpty,
   loadOrderDraft,
   SIZE_PRESETS,
@@ -529,6 +530,12 @@ describe('isFormEmpty / isItemEmpty', () => {
     expect(isFormEmpty(emptyOrderForm(launch), [item()], launch)).toBe(true);
   });
 
+  /** Правка 28.09: иначе автосохранение удаляло черновик вместе с файлами */
+  it('черновик, где приложен только файл или ТЗ, — не пустой', () => {
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 1)).toBe(false);
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 0)).toBe(true);
+  });
+
   it('любое заполненное поле — форма не пустая', () => {
     expect(isFormEmpty({ ...emptyOrderForm(launch), title: 'X' }, [item()], launch)).toBe(false);
     expect(isFormEmpty(emptyOrderForm(launch), [item({ variant: 'син' })], launch)).toBe(false);
@@ -642,6 +649,67 @@ describe('бирки и основная ткань (правка 22.08)', () =>
     expect(fromDb?.items[0].prints[0].key).toBeTruthy();
     expect(normalizeDraft(null)).toBeNull();
     expect(normalizeDraft({ items: [] })).toBeNull();
+  });
+});
+
+/**
+ * ФАЙЛЫ ЧЕРНОВИКА (правка заказчика 27.09, п. 12).
+ *
+ * «После сохранения и повторного открытия черновика пропадают загруженные
+ * файлы». Снимок писал `attachments` и `tzDocs` с 20.09, а нормализатор
+ * возвращал только `{form, items, purchase, notes}`: в базе файлы лежали,
+ * форма открывалась без них. Мутация: убрать два поля из `normalizeEnvelope`
+ * — оба теста ниже красные.
+ */
+describe('файлы в черновике (правка 27.09, п. 12)', () => {
+  const base = { form: emptyOrderForm(), items: [item({ product_type: 'Худи', qty: 10 })] };
+
+  it('вложения блоков и ТЗ проходят через нормализацию', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{
+        uid: 'u1', kind: 'packaging', itemIndex: 0, ownerKey: null,
+        name: 'упаковка.jpg', state: 'uploaded', path: 'att/new/packaging/u1-upakovka.jpg',
+      }],
+      tzDocs: [{
+        groupId: 'g1', itemIndex: 0, state: 'uploaded', path: 'tz/new/g1/v1-TZ.pdf',
+        name: 'ТЗ.pdf', type: 'application/pdf', size: 1234,
+      }],
+    });
+    expect(d?.attachments).toHaveLength(1);
+    expect(d?.attachments[0].path).toBe('att/new/packaging/u1-upakovka.jpg');
+    expect(d?.tzDocs).toHaveLength(1);
+    expect(d?.tzDocs[0]).toMatchObject({ name: 'ТЗ.pdf', type: 'application/pdf', size: 1234 });
+  });
+
+  it('черновик без файлов (до 20.09) отдаёт пустые списки, а не падает', () => {
+    const d = normalizeDraft(base);
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /** Снимок с незавершённой загрузкой мог остаться от прежней формы: путь у него пустой */
+  it('незагруженное и без пути отбрасывается', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{ uid: 'u1', kind: 'tech', state: 'uploading', path: null }, 'мусор'],
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'error', path: 'tz/new/g1/v1-x.pdf' }],
+    });
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /**
+   * ТЗ, сохранённое до 27.09, имени не несёт — а показ и сабмит читали
+   * `doc.file.name` и падали бы на восстановленном документе. Имя берётся
+   * из ключа Storage: латиницей (транслит `tzFilePath`), но не пусто.
+   */
+  it('у ТЗ старого черновика имя выводится из пути', () => {
+    const d = normalizeDraft({
+      ...base,
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'uploaded', path: 'tz/new/g1/v1-TZ_59746.pdf' }],
+    });
+    expect(d?.tzDocs[0].name).toBe('TZ_59746.pdf');
   });
 });
 

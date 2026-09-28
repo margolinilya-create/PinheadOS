@@ -9,6 +9,8 @@ import { EmptyState } from '../../components/ErpStates';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { TableSkeleton } from '../../components/ErpSkeletons';
 import { addDays, factoryToday } from '../../../utils/date';
+import { fmtM } from '../../utils/fabricMetres';
+import { analyticsCsv, analyticsCsvFileName } from '../../utils/analyticsCsv';
 import styles from '../../styles';
 
 /**
@@ -58,6 +60,59 @@ function Kpi({ label, value, hint, tone }) {
 
 /** «—» вместо нуля там, где ноль означает «нет данных», а не «ноль штук» */
 const num = (v, suffix = '') => (v === null || v === undefined ? '—' : `${v}${suffix}`);
+
+/** «Нет данных» для отсутствующих метров; ноль остаётся нулём */
+const metres = (v) => (v === null || v === undefined ? 'Нет данных' : fmtM(v));
+
+const CALC_HINT = 'Часть метров пересчитана из кг по коэффициенту рулона';
+const INCOMPLETE_HINT = 'Часть записей не пересчитана: у рулонов нет коэффициента, они исключены';
+
+/**
+ * Отметки ячейки «Ткань, м» в динамике (правка 28.09): сервер отдаёт
+ * `fabric_calc`/`fabric_incomplete` по каждой строке. Видно короткое слово,
+ * пояснение — в подсказке и для скринридера (скрытым текстом).
+ */
+function FabricMarks({ calc, incomplete }) {
+  return (
+    <>
+      {calc ? (
+        <span className={styles.subText} title={CALC_HINT}>
+          {' · расчёт'}<span className={styles.visuallyHidden}>: {CALC_HINT}</span>
+        </span>
+      ) : null}
+      {incomplete ? (
+        <span className={styles.subText} title={INCOMPLETE_HINT}>
+          {' · неполно'}<span className={styles.visuallyHidden}>: {INCOMPLETE_HINT}</span>
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Выгрузка CSV: формат целиком в `utils/analyticsCsv`, здесь только файл.
+ * Ссылка на Blob освобождается после клика — иначе память держится
+ * до закрытия вкладки.
+ */
+function downloadCsv(analytics, bucket, deptName) {
+  const text = analyticsCsv(analytics, { bucket, deptNames: deptName });
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = analyticsCsvFileName(analytics.overview);
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Подпись плитки ткани: рулоны, отметка «расчёт», отметка о неполноте данных */
+function fabricHint(overview) {
+  const parts = [];
+  if (overview.fabric_rolls > 0) parts.push(`рулонов в работе: ${overview.fabric_rolls}`);
+  else parts.push('расход считается по рулонам закроя');
+  if (overview.fabric_calc) parts.push('часть строк пересчитана из кг по коэффициенту рулона (расчёт)');
+  if (overview.fabric_incomplete) parts.push('часть записей не пересчитана: у рулонов нет коэффициента, они исключены');
+  return parts.join(' · ');
+}
 
 export function AnalyticsTab() {
   const [range, setRange] = useState(defaultRange);
@@ -152,6 +207,14 @@ export function AnalyticsTab() {
             <option value="week">По неделям</option>
           </select>
         </label>
+        <Button
+          variant="secondary"
+          icon="download"
+          disabled={!overview}
+          onClick={() => downloadCsv(analytics, bucket, deptName)}
+        >
+          Выгрузить CSV
+        </Button>
       </div>
 
       {analyticsLoading && !analytics && <TableSkeleton rows={4} />}
@@ -183,17 +246,26 @@ export function AnalyticsTab() {
                 ? 'стоимость сборки ещё не вносили'
                 : `покрыто ${overview.assembly_covered_qty} шт из ${released}`}
             />
+            {/*
+              ТКАНЬ — В МЕТРАХ (правка 27.09, п. 5). Средний расход считается
+              по отчётам ЗАКРОЯ: метры / годные скроенные ТЕХ ЖЕ отчётов,
+              включая плюсы, — а не по выпуску другого цеха. Часть строк
+              пересчитана из кг по коэффициенту рулона — «расчёт»; часть
+              пересчитать не из чего — она исключена вместе со своим
+              количеством, и об этом сказано словами.
+            */}
             <Kpi
-              label="Использовано ткани, кг"
-              value={overview.fabric_kg || '—'}
-              hint={overview.fabric_rolls > 0
-                ? `рулонов в работе: ${overview.fabric_rolls}`
-                : 'расход считается по рулонам закроя'}
+              label="Использовано ткани, м"
+              value={overview.fabric_m > 0 ? fmtM(overview.fabric_m) : 'Нет данных'}
+              hint={fabricHint(overview)}
             />
             <Kpi
-              label="Средний расход ткани, кг/изделие"
-              value={num(overview.fabric_per_item)}
-              hint="норматив будет добавлен позже"
+              label="Средний расход ткани, м/изделие"
+              value={overview.fabric_per_item === null || overview.fabric_per_item === undefined
+                ? 'Нет данных' : fmtM(overview.fabric_per_item)}
+              hint={overview.fabric_per_item === null || overview.fabric_per_item === undefined
+                ? 'нужны расход в метрах и годный крой по тем же сдачам'
+                : `на ${overview.fabric_cut_good} годных скроенных, включая плюсы · норматив будет добавлен позже`}
             />
           </div>
 
@@ -258,6 +330,47 @@ export function AnalyticsTab() {
             </ScrollHintBox>
           )}
 
+          {/*
+            РАСХОД ПОЛОТНА ПО МОДЕЛЯМ, МАТЕРИАЛУ И ШИРИНЕ (правка 27.09, п. 5):
+            «сравнение по моделям учитывать вместе с материалом и шириной
+            полотна» — расход при разной ширине напрямую несопоставим,
+            поэтому это отдельная таблица со своим зерном.
+          */}
+          {(analytics.fabricBySku ?? []).length > 0 && (
+            <ScrollHintBox className={styles.tableWrap} label="Расход полотна по моделям">
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">Изделие</th>
+                    <th scope="col">Материал</th>
+                    <th scope="col">Ширина, см</th>
+                    <th scope="col">Расход, м</th>
+                    <th scope="col">Годных скроено</th>
+                    <th scope="col">м/изделие</th>
+                    <th scope="col">Заказов</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.fabricBySku.map((row) => (
+                    <tr key={`${row.product_type}-${row.material}-${row.width_cm ?? 'none'}`}>
+                      <th scope="row">{row.product_type}</th>
+                      <td>{row.material}</td>
+                      <td>{row.width_cm ?? '—'}</td>
+                      <td>
+                        {fmtM(row.fabric_m)}
+                        {row.calc ? <span className={styles.subText}> (расчёт)</span> : null}
+                        {row.incomplete ? <span className={styles.subText}> · часть не пересчитана</span> : null}
+                      </td>
+                      <td>{row.cut_good}</td>
+                      <td>{metres(row.per_item)}</td>
+                      <td>{row.orders}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollHintBox>
+          )}
+
           {(analytics.series ?? []).length > 0 && (
             <ScrollHintBox className={styles.tableWrap} label="Динамика выпуска">
               <table className={styles.table}>
@@ -268,7 +381,7 @@ export function AnalyticsTab() {
                     <th scope="col">Брак</th>
                     <th scope="col">Переделка</th>
                     <th scope="col">Плюсы</th>
-                    <th scope="col">Ткань, кг</th>
+                    <th scope="col">Ткань, м</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -279,7 +392,10 @@ export function AnalyticsTab() {
                       <td>{row.defect}</td>
                       <td>{row.rework}</td>
                       <td>{row.extra}</td>
-                      <td>{row.fabric || '—'}</td>
+                      <td>
+                        {metres(row.fabric)}
+                        <FabricMarks calc={row.fabric_calc} incomplete={row.fabric_incomplete} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

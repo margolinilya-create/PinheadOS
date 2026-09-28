@@ -3,6 +3,7 @@ import { Button } from '../../components/Button';
 import { DateField } from '../../components/DateField';
 import { Icon } from '../../components/Icon';
 import { OrderLink } from '../../components/OrderLink';
+import { kgPerMFromParams, pricePerM } from '../../utils/fabricMetres';
 import { pluralize } from '../../../utils/i18n';
 import { formatDateShort, procurementSla } from '../../utils/time';
 import { MATERIAL_STATUS_LABELS } from '../../types';
@@ -62,6 +63,7 @@ export function MaterialCell({ m, onUpdate }) {
         {m.color ? ` · ${m.color}` : ''}
         {m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}
       </div>
+      {m.kind === 'fabric' && <FabricParamsFields m={m} onUpdate={onUpdate} />}
       {cells.length > 0 && (
         /*
           ФАКТ ПО РАЗМЕРАМ ПРАВИТСЯ ЗДЕСЬ ЖЕ (правка 20.09, п. 2). Сводка
@@ -88,6 +90,61 @@ export function MaterialCell({ m, onUpdate }) {
         </details>
       )}
     </>
+  );
+}
+
+/**
+ * ШИРИНА И ПЛОТНОСТЬ ПОЛОТНА (правка 27.09, п. 4): «в карточку материала
+ * добавить ширину полотна в сантиметрах и плотность в г/м². Подставлять их
+ * в рулоны при приёмке». По ним склад и закрой считают метраж рулона —
+ * без них расход в метрах не записать, поэтому пустые подсвечены как
+ * недостающие (не блок: черновик закупки заводится и без них).
+ *
+ * Внутри `MaterialCell`, а не отдельной колонкой: в таблице закупки их
+ * четырнадцать, и пятнадцатая с двумя числами сделала бы ряд нечитаемым.
+ * Без `onUpdate` (печатный лист) показываются подписью.
+ */
+export function FabricParamsFields({ m, onUpdate }) {
+  const width = m.width_cm ?? null;
+  const density = m.density_gsm ?? null;
+  if (!onUpdate) {
+    return (
+      <div className={styles.subText}>
+        {width !== null ? `${width} см` : 'ширина —'} · {density !== null ? `${density} г/м²` : 'плотность —'}
+      </div>
+    );
+  }
+  const field = (key, label, value, unit, step) => (
+    <input
+      type="number" min="0" step={step}
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`
+        + `${value === null ? ` ${styles.inputError}` : ''}`}
+      defaultValue={value ?? ''} placeholder={unit}
+      aria-invalid={value === null || undefined}
+      title={`${label}: нужна для расчёта метража рулонов`}
+      onBlur={(e) => {
+        const v = e.target.value === '' ? null : Number(e.target.value);
+        if (v !== (m[key] ?? null)) onUpdate(m.id, { [key]: v });
+      }}
+      aria-label={`${label}: ${m.name}`}
+    />
+  );
+  /**
+   * ЦЕНА ЗА МЕТР — ТОЛЬКО ПРОСМОТР (правка 28.09): «закупка вводит только
+   * цену за кг… Поле цены за метр доступно только для просмотра». Считается
+   * по ширине и плотности; у рулона уточняется его собственным коэффициентом.
+   */
+  const perM = pricePerM(m.price_per_unit, kgPerMFromParams(width, density));
+  return (
+    <div className={styles.cellWithIcon}>
+      {field('width_cm', 'Ширина полотна, см', width, 'см', '1')}
+      {field('density_gsm', 'Плотность, г/м²', density, 'г/м²', '1')}
+      {perM !== null && (
+        <span className={styles.subText} title="Цена за метр считается системой: цена за кг × кг/м (расчёт)">
+          ≈ {perM.toFixed(2).replace('.', ',')} ₽/м (расчёт)
+        </span>
+      )}
+    </div>
   );
 }
 

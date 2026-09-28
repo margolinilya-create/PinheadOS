@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SizeGridRow } from '../types';
 import {
   sizeKey, stageSizeOutput, sizeInputFor, sizeInputRows, sizeReportBlock,
-  sizeTotals, sizeReportPayload, rowEntered, sizeInputCells,
+  sizeTotals, sizeReportPayload, rowEntered, sizeInputCells, stageAncestors,
 } from './stageSizes';
 
 const GRID: SizeGridRow[] = [{ color: '—', sizes: { XS: 10, S: 20, M: 15 } }];
@@ -71,7 +71,11 @@ describe('sizeInputFor', () => {
     expect(sizeInputFor({ depends_on: [] }, stages, [])).toBeNull();
   });
 
-  it('предшественник без размерных данных не создаёт потолка', () => {
+  /**
+   * Потолка нет, только когда разбивки нет ВО ВСЕЙ цепочке (правка 27.09,
+   * п. 6): первый этап маршрута без размерного отчёта — судить не по чему.
+   */
+  it('предшественник без размерных данных и без своих предков не создаёт потолка', () => {
     expect(sizeInputFor({ depends_on: ['cut'] }, stages, [report('cut', null)])).toBeNull();
   });
 
@@ -102,6 +106,22 @@ describe('sizeReportBlock — проверка превышения', () => {
     expect(block).toContain('10');
   });
 
+  /**
+   * ПОТОЛОК — ОСТАТОК ИЗ ПРИНЯТЫХ (правка 27.09, п. 7): прежние сдачи этого
+   * этапа уже забрали своё. Принято 10, сдано 7 и списано 1 → сдать можно 2.
+   */
+  it('после прежних сдач потолок строки — остаток, а не «принято»', () => {
+    const later = sizeInputRows(GRID, { [k('XS')]: 10 }, [], { [k('XS')]: 8 });
+    expect(later[0].expected).toBe(10);
+    expect(later[0].remaining).toBe(2);
+    expect(sizeReportBlock(later, { [k('XS')]: { good: 2 } })).toBeNull();
+    const block = sizeReportBlock(later, { [k('XS')]: { good: 3 } });
+    expect(block).toContain('больше 2 шт сдать нельзя');
+    expect(block).toContain('введено 3');
+    // Итоги несут и остаток
+    expect(sizeTotals(later, {}).remaining).toBe(2);
+  });
+
   it('ровно столько, сколько принято, — не превышение', () => {
     expect(sizeReportBlock(rows, { [k('XS')]: { good: 7, defect: 2, rework: 1 } })).toBeNull();
   });
@@ -125,7 +145,7 @@ describe('итоги и полезная нагрузка', () => {
   };
 
   it('итоги считаются по колонкам, а не вводятся', () => {
-    expect(sizeTotals(rows, values)).toEqual({ good: 27, defect: 1, rework: 2, expected: 45 });
+    expect(sizeTotals(rows, values)).toEqual({ good: 27, defect: 1, rework: 2, expected: 45, remaining: 45 });
   });
 
   it('в отчёт уезжают только заполненные строки', () => {
@@ -180,5 +200,61 @@ describe('размеры подтягиваются из закроя, когд�
   it('закрой ничего не сдавал — строк из факта нет, потолка тоже (fail-open)', () => {
     expect(sizeInputCells(STAGE, ALL, [])).toEqual([]);
     expect(sizeInputRows(null, null, [])).toEqual([]);
+  });
+});
+
+/**
+ * СВЯЗЬ С ЗАКРОЕМ ЧЕРЕЗ ПРОМЕЖУТОЧНЫЙ ЭТАП (правка заказчика 27.09, п. 6).
+ *
+ * «Задача появилась в швейном цехе, но столбец „Покроено, шт" пустой:
+ * по размерам стоят прочерки, в строке „Итого" стоит 0. При этом сверху
+ * отображается „Принято в работу: 472 шт"». Маршрут закрой → вышивка →
+ * пошив: швейка зависит от вышивки, у той размерного отчёта нет, и прямые
+ * предшественники давали `null`. Документ: «сохранять связь с результатом
+ * закройки, даже если между закройкой и пошивом есть нанесение».
+ *
+ * Мутация: вернуть в `sizeInputFor` обход только по `depends_on` — красный.
+ */
+describe('«Покроено» через промежуточный этап без размеров (27.09, п. 6)', () => {
+  const chain = [
+    { id: 'cut', depends_on: [] },
+    { id: 'emb', depends_on: ['cut'] },
+    { id: 'sew', depends_on: ['emb'] },
+  ];
+  const cutOnly = [report('cut', { XS: 200, S: 272 })];
+
+  it('вышивка без разбивки прозрачна — швейка видит размеры закроя', () => {
+    expect(sizeInputFor({ depends_on: ['emb'] }, chain, cutOnly))
+      .toEqual({ [k('XS')]: 200, [k('S')]: 272 });
+  });
+
+  it('вышивка со своим размерным отчётом — берётся он, а не закрой', () => {
+    const both = [...cutOnly, report('emb', { XS: 150, S: 272 })];
+    expect(sizeInputFor({ depends_on: ['emb'] }, chain, both)?.[k('XS')]).toBe(150);
+  });
+
+  it('две ветки нанесения без разбивки — обе ведут к закрою, минимум не занижает', () => {
+    const fork = [
+      { id: 'cut', depends_on: [] },
+      { id: 'emb', depends_on: ['cut'] },
+      { id: 'dtf', depends_on: ['cut'] },
+      { id: 'sew', depends_on: ['emb', 'dtf'] },
+    ];
+    expect(sizeInputFor({ depends_on: ['emb', 'dtf'] }, fork, cutOnly))
+      .toEqual({ [k('XS')]: 200, [k('S')]: 272 });
+  });
+
+  it('цвет и размер строк берутся у предка, а не только у прямого предшественника', () => {
+    expect(sizeInputCells({ depends_on: ['emb'] }, chain, cutOnly)).toEqual(
+      expect.arrayContaining([{ color: '—', size: 'XS', qty: 200 }, { color: '—', size: 'S', qty: 272 }]),
+    );
+  });
+
+  it('stageAncestors обходит граф вверх без повторов и не падает на цикле', () => {
+    expect(stageAncestors({ depends_on: ['emb'] }, chain).sort()).toEqual(['cut', 'emb']);
+    const loop = [{ id: 'a', depends_on: ['b'] }, { id: 'b', depends_on: ['a'] }];
+    expect(stageAncestors({ depends_on: ['a'] }, loop).sort()).toEqual(['a', 'b']);
+    // Этап вне набора пропускается
+    expect(stageAncestors({ depends_on: ['ghost'] }, chain)).toEqual([]);
   });
 });

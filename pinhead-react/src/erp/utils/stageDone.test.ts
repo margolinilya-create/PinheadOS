@@ -38,6 +38,23 @@ describe('stageDoneWarning', () => {
     expect(msg).toContain('100 шт');
   });
 
+  /**
+   * УЧАСТОК С ФОРМОЙ РЕЗУЛЬТАТА НИЧЕГО НЕ ДОПИСЫВАЕТ (правка 27.09, п. 7):
+   * его остаток — изделия на участке, и вопрос «записать оставшиеся
+   * выполненными?» ему задать нельзя. Отказ при остатке даёт писатель.
+   */
+  it('у участка с формой результата диалога о недосдаче нет', () => {
+    expect(stageDoneWarning({
+      stage: { id: 's-sew', qty_done: 40 }, qty: 100, allStages: stages, deptNameById: deptNames,
+      dept: { is_production: true, result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }] },
+    })).toBeNull();
+    // Без формы — как прежде
+    expect(stageDoneWarning({
+      stage: { id: 's-vto', qty_done: 40 }, qty: 100, allStages: stages, deptNameById: deptNames,
+      dept: { result_fields: [] },
+    })).toContain('40 из 100');
+  });
+
   it('qty_done не проставлен — считается за ноль', () => {
     const msg = stageDoneWarning({
       stage: { id: 's-cut', qty_done: null }, qty: 50, allStages: stages, deptNameById: deptNames,
@@ -142,6 +159,31 @@ describe('stageCompletionBlock — закупка держит завершен�
     }
   });
 
+  /**
+   * СУДЬБА ОСТАТКОВ РУЛОНОВ (правка 27.09, п. 2) — у участка с разбором
+   * по рулонам, когда закупка не держит. Рулон «в работе» с остатком
+   * и без вида после закрытия повисает мимо «Остатков ткани».
+   */
+  it('закрой с рулоном без судьбы остатка не закрывается и называет рулон', () => {
+    const msg = stageCompletionBlock({
+      stage: { id: 's-cut', qty_done: 100, department_id: 'd-cut' }, qty: 100, allStages: stages,
+      materials: [mat({
+        status: 'received', accept_status: 'accepted_full',
+        rolls: [{ id: 'r1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5, leftover_kind: null, unit: 'кг' }],
+      } as never)],
+      dept: { ...cut, result_detail: 'rolls' },
+      orderItems: [{ stages: [] }],
+    });
+    expect(msg).toContain('Не решена судьба остатка: Рулон №1 (5 кг)');
+    // Участок без разбора по рулонам об этом не спрашивает
+    expect(stageCompletionBlock({
+      stage: { id: 's-cut', qty_done: 100, department_id: 'd-cut' }, qty: 100, allStages: stages,
+      materials: [mat({ status: 'received', accept_status: 'accepted_full',
+        rolls: [{ id: 'r1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5, leftover_kind: null }] } as never)],
+      dept: cut, orderItems: [{ stages: [] }],
+    })).toBeNull();
+  });
+
   it('цех без материального гейта не гейтится вовсе (fail-open)', () => {
     // Правило проекта: участок не должен вставать из-за незаполненной настройки
     expect(stageCompletionBlock({
@@ -222,6 +264,9 @@ describe('confirmStageDone — гейт подключён во всех точ�
        * отказ там, где система уже разрешила. Половина выхода — не выход.
        */
       expect(body, `${rel}: не учитывает аварийное снятие`).toContain('materialsAfterBypass(');
+      // Судьба остатков рулонов (27.09, п. 2): нужны этапы всего заказа
+      expect(body, `${rel}: не передаёт orderItems`).toContain('orderItems:');
+      expect(body, `${rel}: не передаёт itemId`).toContain('itemId:');
     }
   });
 });

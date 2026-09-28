@@ -28,7 +28,8 @@ function TzDocRow({ doc, onRemove, onRetry }) {
   return (
     <li>
       <span className={styles.cellWithIcon}>
-        <Icon name="orders" size={14} /> {doc.file.name}
+        {/* Имя — из снимка: у восстановленного из черновика `File` нет (27.09, п. 12) */}
+        <Icon name="orders" size={14} /> {doc.name || doc.file?.name}
       </span>
       {' '}
       {doc.state === 'uploading' && (

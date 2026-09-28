@@ -1,22 +1,23 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
-  rollsForItem, cutTotals, rollTotal, cellKey, rollLeft,
+  rollsForItem, cutTotals, rollTotal, cellKey, rollLeft, rollAvailable, rollHasMetres,
+  rollsAwaitingFate, rollLeftText, metresText,
 } from '../../utils/cutRolls';
 import {
-  sizeChoicesFor, choiceKey, isSizeTaken, freeChoices, normalizeSize, hasPlannedSizes,
-} from '../../utils/sizeChoices';
+  fmtKg, kgFromLength, rollKgPerM, rollPricePerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
+} from '../../utils/fabricMetres';
+import { sizeChoicesFor, freeChoices, hasPlannedSizes } from '../../utils/sizeChoices';
 import { cutExtras, cutExtrasText } from '../../utils/cutExtras';
 import { NO_COLOR } from '../../utils/sizeGrid';
+import { CutSizeRows } from './CutSizeRows';
+import { RollParamsForm } from '../../components/RollParamsForm';
 import styles from '../../styles';
 
-/** Значение селекта, включающее ручной ввод размера */
-const OTHER = '__other__';
-
 /**
- * РАСКРОЙ ПО РУЛОНАМ ВНУТРИ ФОРМЫ СДАЧИ (правка 16.09, п. 4;
- * размерные строки переработаны правкой 20.09, п. 7).
+ * РАСКРОЙ ПО РУЛОНАМ ВНУТРИ ФОРМЫ СДАЧИ (правка 16.09, п. 4; размерные
+ * строки — 20.09, п. 7; расход В МЕТРАХ — 27.09, п. 4).
  *
  * «Не создавать отдельный экран аналитики на этапе ввода. Детализацию
  * встроить непосредственно в существующий блок сдачи результата закроя».
@@ -26,25 +27,49 @@ const OTHER = '__other__';
  * материалам этой позиции (`utils/cutRolls.rollsForItem`). Закройщик выбирает
  * рулон и заполняет только расход и раскрой — ровно как просит документ.
  *
- * РАЗМЕРЫ — СТРОКИ, А НЕ КОЛОНКИ ТАБЛИЦЫ (правка 20.09, п. 7). Раньше здесь
- * рисовалась таблица по ВСЕМ ячейкам размерной сетки позиции, и у позиции
- * без сетки не оставалось ничего, кроме одного поля «Скроено, шт» — именно
- * это заказчик и описал как «не фиксируется, какие размеры выкроены».
- * Теперь строку добавляют и удаляют, две появляются сразу («с одного рулона
- * обычно кроят сразу два размера»), а список размеров берётся из сетки,
- * когда она есть, и из стандартной шкалы, когда её нет.
+ * РАСХОД — В ПОГОННЫХ МЕТРАХ ПОЛНОЙ ШИРИНЫ (правка 27.09, п. 4): «в блоке
+ * каждого рулона заменить поле „Фактический расход, кг" на „Фактический
+ * расход, м". Рядом показывать доступный метраж и его источник, а также
+ * расчётный эквивалент расхода в кг. Второй раз вводить расход
+ * в килограммах не нужно». У рулона без метража — предупреждение
+ * «Не заполнены данные для учёта в метрах» и форма параметров прямо здесь.
  *
  * ИТОГИ СЧИТАЮТСЯ, А НЕ ВВОДЯТСЯ: итог с рулона, общий выход, общий расход
  * и итог по каждому размеру — всё из `cutTotals`. Поле «итого», которое
  * человек заполняет сам, разошлось бы со строками на первой же правке.
  */
 export function CutRollsSection({
-  order, item, entries, onChange, unit = 'кг', disabled = false, reported = {},
+  order, item, stage = null, entries, onChange, onRollFate = null, onRollParams = null,
+  disabled = false, reported = {}, extraRolls = [],
 }) {
+  /**
+   * Рулоны позиции и ОСТАТКИ ДРУГИХ ЗАКАЗОВ (правка 28.09): «каждый следующий
+   * заказ получает только доступный остаток рулона». Чужие — в конце списка
+   * и подписаны заказом-источником.
+   */
   const options = useMemo(
-    () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId)),
-    [order, item, entries],
+    () => rollsForItem(order?.materials, item?.id, entries.map((e) => e.rollId), extraRolls),
+    [order, item, entries, extraRolls],
   );
+  /** Рулоны, у которых закройщик открыл уточнение метража (правка 28.09) */
+  const [refining, setRefining] = useState(() => new Set());
+  const toggleRefine = (rollId) => setRefining((cur) => {
+    const next = new Set(cur);
+    if (next.has(rollId)) next.delete(rollId); else next.add(rollId);
+    return next;
+  });
+  /**
+   * РУЛОНЫ БЕЗ СУДЬБЫ ОСТАТКА (правка 27.09, п. 2): оставлены «в работе»
+   * прежней сдачей, остаток есть, вид не выбран. Пока они не закрыты,
+   * последний этап участка в заказе не закроется — и решить это можно
+   * прямо здесь, без новой строки расхода. Рулон, уже добавленный
+   * в форму, решается его же галочкой ниже.
+   */
+  const inEntries = new Set(entries.map((e) => e.rollId).filter(Boolean));
+  const awaitingFate = useMemo(
+    () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items, extraRolls) : []),
+    [order, item, stage, extraRolls],
+  ).filter((o) => !inEntries.has(o.roll.id));
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
   const totals = useMemo(() => cutTotals(entries), [entries]);
@@ -84,7 +109,6 @@ export function CutRollsSection({
   const patch = (index, next) => onChange(
     entries.map((entry, i) => (i === index ? { ...entry, ...next } : entry)),
   );
-  const patchRows = (index, rows) => patch(index, { sizes: rows });
 
   /**
    * Новый рулон приходит С ДВУМЯ СТРОКАМИ (прямое требование документа:
@@ -96,7 +120,7 @@ export function CutRollsSection({
     ...entries,
     {
       rollId: free[0]?.roll.id ?? '',
-      qtyUsed: '',
+      lengthUsedM: '',
       sizes: freeChoices(choices, [], 2).map((c) => ({ size: c.size, color: c.color, qty: '' })),
       finished: false,
     },
@@ -131,6 +155,25 @@ export function CutRollsSection({
       )}
       {entries.map((entry, index) => {
         const rows = entry.sizes ?? [];
+        const option = options.find((o) => o.roll.id === entry.rollId) ?? null;
+        const hasMetres = rollHasMetres(option);
+        const available = rollAvailable(option);
+        const working = option ? rollWorkingLength(option.roll, option.material) : null;
+        const kgPerM = option ? rollKgPerM(option.roll, option.material) : null;
+        const left = rollLeft(option, entry.lengthUsedM);
+        const measured = entry.leftoverMeasuredM;
+        const leftShown = measured !== null && measured !== undefined && measured !== ''
+          ? Number(measured) : left;
+        const pricePerM = option ? rollPricePerM(option.roll, option.material) : null;
+        /**
+         * ПЕРЕРАСХОД (правка 28.09): «если измеренный расход превышает
+         * расчётный запас, предложить уточнить метраж рулона и подтвердить
+         * корректировку, затем сохранить расход». Прежде был только отказ.
+         */
+        const overdraw = hasMetres && available !== null
+          && Number(entry.lengthUsedM) > available + 0.005;
+        const showRefine = option && hasMetres && onRollParams
+          && (overdraw || refining.has(option.roll.id));
         return (
           <div key={`${entry.rollId || 'new'}-${index}`} className={styles.dataCard}>
             <div className={styles.planFormRow}>
@@ -154,165 +197,105 @@ export function CutRollsSection({
                   а размеров с него несколько. Повтори мы его в каждой
                   размерной строке — первый же `sum()` увеличил бы его втрое */}
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>Фактический расход, {unit} *</span>
+                <span className={styles.fieldLabel}>Фактический расход, м *</span>
                 <input
-                  type="number" min="0" step="0.01"
+                  type="number" min="0" step="0.01" inputMode="decimal"
                   className={`${styles.input} ${styles.qtySmallInput}`}
-                  value={entry.qtyUsed}
-                  disabled={disabled}
-                  onChange={(e) => patch(index, { qtyUsed: e.target.value })}
-                  aria-label={`Фактический расход материала, строка ${index + 1}`}
+                  value={entry.lengthUsedM ?? ''}
+                  disabled={disabled || (option !== null && !hasMetres)}
+                  onChange={(e) => patch(index, { lengthUsedM: e.target.value })}
+                  aria-label={`Фактический расход, м, строка ${index + 1}`}
                 />
               </label>
 
-              {/* Сколько ткани склад передал — справочно: это знаменатель,
-                  по которому потом считают выход изделий с рулона */}
-              {options.find((o) => o.roll.id === entry.rollId)?.material && (
+              {/*
+                ДОСТУПНЫЙ МЕТРАЖ И ЕГО ИСТОЧНИК — рядом с полем (документ:
+                «рядом показывать доступный метраж и его источник, а также
+                расчётный эквивалент расхода в кг»). Расчётный вес подписан
+                «расчёт»: это не результат взвешивания.
+              */}
+              {option && hasMetres && (
                 <span className={styles.subText}>
-                  передано в закрой:
-                  {' '}
-                  {options.find((o) => o.roll.id === entry.rollId).material.qty_received ?? '—'}
-                  {' '}
-                  {options.find((o) => o.roll.id === entry.rollId).material.unit || unit}
+                  доступно: {metresText(available ?? 0)}
+                  {working ? ` (${sourceLabel(working.source)})` : ''}
+                  {pricePerM !== null ? ` · ${pricePerM.toFixed(2).replace('.', ',')} ₽/м` : ''}
+                  {Number(entry.lengthUsedM) > 0 && kgPerM !== null
+                    ? ` · ≈ ${fmtKg(kgFromLength(entry.lengthUsedM, kgPerM))} (расчёт)` : ''}
                 </span>
               )}
             </div>
 
-            <div className={styles.cutSizes}>
-              <span className={styles.fieldLabel}>Размеры с этого рулона</span>
-              {rows.map((row, ri) => {
-                const isOther = Boolean(row.size)
-                  && !choices.some((c) => c.size === row.size && c.color === row.color);
-                const current = choices.find(
-                  (c) => c.size === row.size && c.color === row.color,
-                );
-                return (
-                  <div key={ri} className={styles.cutSizeRow}>
-                    <label className={styles.field}>
-                      <span className={styles.visuallyHidden}>Размер, строка {ri + 1}</span>
-                      <select
-                        className={styles.select}
-                        value={isOther ? OTHER : (current ? choiceKey(current) : '')}
-                        disabled={disabled}
-                        aria-label={`Размер, строка ${ri + 1}`}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === OTHER) {
-                            patchRows(index, rows.map((r, i) => (
-                              i === ri ? { ...r, size: '', color: NO_COLOR } : r)));
-                            return;
-                          }
-                          const pick = choices.find((c) => choiceKey(c) === v);
-                          patchRows(index, rows.map((r, i) => (i === ri
-                            ? { ...r, size: pick?.size ?? '', color: pick?.color ?? NO_COLOR }
-                            : r)));
-                        }}
-                      >
-                        <option value="">Выберите размер…</option>
-                        {choices.map((c) => (
-                          <option
-                            key={choiceKey(c)}
-                            value={choiceKey(c)}
-                            /* Занятый в ЭТОМ рулоне размер не выбирается повторно:
-                               документ просит менять количество в существующей
-                               строке, а не заводить вторую */
-                            disabled={isSizeTaken(rows, c, ri)}
-                          >
-                            {c.label}
-                            {c.planned !== null ? ` (в заказе ${c.planned})` : ''}
-                            {isSizeTaken(rows, c, ri) ? ' — уже в этом рулоне' : ''}
-                          </option>
-                        ))}
-                        <option value={OTHER}>Другой размер…</option>
-                      </select>
-                    </label>
+            {/*
+              РУЛОН БЕЗ РАБОЧЕГО МЕТРАЖА: расход не записать, пока параметры
+              не заполнены. Форма прямо здесь — «недостающие параметры
+              разрешить заполнить в закройке до записи расхода».
+            */}
+            {option && !hasMetres && (
+              <>
+                <p className={styles.queueReason} role="status">
+                  <Icon name="alert" size={13} />
+                  {' '}
+                  {METRES_MISSING_TEXT}: у рулона нет ширины, плотности или метража.
+                </p>
+                {onRollParams && (
+                  <RollParamsForm
+                    roll={option.roll}
+                    material={option.material}
+                    onSave={onRollParams}
+                    disabled={disabled}
+                  />
+                )}
+              </>
+            )}
 
-                    {/* Ручной ввод — для позиций, заведённых без размерной сетки,
-                        и для нестандартных обозначений старых заказов */}
-                    {isOther || (!row.size && !current) ? (
-                      <label className={styles.field}>
-                        <span className={styles.visuallyHidden}>Свой размер, строка {ri + 1}</span>
-                        <input
-                          type="text"
-                          className={`${styles.input} ${styles.qtySmallInput}`}
-                          value={row.size}
-                          disabled={disabled}
-                          placeholder="свой"
-                          aria-label={`Свой размер, строка ${ri + 1}`}
-                          onChange={(e) => patchRows(index, rows.map((r, i) => (i === ri
-                            ? { ...r, size: normalizeSize(e.target.value) } : r)))}
-                        />
-                      </label>
-                    ) : null}
-
-                    <label className={styles.field}>
-                      <span className={styles.visuallyHidden}>Скроено, строка {ri + 1}</span>
-                      <input
-                        type="number" min="0" step="1" inputMode="numeric"
-                        className={`${styles.input} ${styles.qtySmallInput}`}
-                        value={row.qty}
-                        disabled={disabled}
-                        placeholder="шт"
-                        aria-label={`Скроено, шт${row.size ? `, размер ${row.size}` : ''}, строка ${ri + 1}`}
-                        onChange={(e) => patchRows(index, rows.map((r, i) => (i === ri
-                          ? { ...r, qty: e.target.value } : r)))}
-                      />
-                    </label>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      aria-label={`Убрать строку размера ${ri + 1}`}
-                      onClick={() => patchRows(index, rows.filter((_, i) => i !== ri))}
-                    >
-                      ✕
-                    </Button>
-                  </div>
-                );
-              })}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={() => patchRows(index, [
-                  ...rows,
-                  ...freeChoices(choices, rows, 1).map(
-                    (c) => ({ size: c.size, color: c.color, qty: '' }),
-                  ),
-                  // Свободных вариантов не осталось — строка заводится пустой:
-                  // размер в ней человек напишет руками
-                  ...(freeChoices(choices, rows, 1).length === 0
-                    ? [{ size: '', color: NO_COLOR, qty: '' }] : []),
-                ])}
-              >
-                <Icon name="plus" size={14} /> Добавить размер
+            {option && hasMetres && onRollParams && !overdraw && (
+              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => toggleRefine(option.roll.id)}>
+                {refining.has(option.roll.id) ? 'Скрыть уточнение метража' : 'Уточнить метраж рулона'}
               </Button>
-            </div>
+            )}
+            {showRefine && (
+              <RollParamsForm
+                roll={option.roll}
+                material={option.material}
+                onSave={onRollParams}
+                disabled={disabled}
+                note={overdraw
+                  ? `Расход больше доступного (${metresText(available ?? 0)}). Уточните метраж рулона — `
+                    + 'расхождение запишется корректировкой с причиной, затем сохраните расход.'
+                  : null}
+              />
+            )}
+
+            <CutSizeRows
+              rows={rows}
+              choices={choices}
+              disabled={disabled}
+              onRows={(next) => patch(index, { sizes: next })}
+            />
 
             {/*
-              ОСТАТОК И ЕГО СУДЬБА (правка 21.09, п. 5). Остаток СЧИТАЕТСЯ
-              из веса рулона и расхода — вводить его руками значило бы завести
-              второго писателя той же величины. У рулона, принятого до правки,
-              веса нет, и остаток честно показывается прочерком.
-
-              Выбор появляется только когда работа по рулону закончена И остаток
-              есть: при нулевом остатке решать нечего, а до конца работы остаток
-              промежуточный. Автоматического порога в килограммах НЕТ —
-              «автоматический порог в килограммах пока не задавать».
+              ОСТАТОК И ЕГО СУДЬБА (правка 21.09, п. 5; в метрах — 27.09, п. 4).
+              Остаток СЧИТАЕТСЯ из доступного метража и расхода — вводить его
+              руками значило бы завести второго писателя той же величины;
+              измеренный остаток при завершении — отдельное поле, и расхождение
+              уезжает корректировкой. «Пока исходный метраж расчётный, остаток
+              тоже обозначать как расчётный».
             */}
             <div className={styles.queueActions}>
               <span className={styles.queueReason}>
                 Итого с рулона: <b>{rollTotal(entry)}</b> шт
-                {(() => {
-                  const roll = options.find((o) => o.roll.id === entry.rollId)?.roll;
-                  const left = rollLeft(roll, entry.qtyUsed);
-                  if (!entry.rollId) return null;
-                  return left === null
-                    ? <span className={styles.subText}> · остаток: — (вес рулона не указан)</span>
-                    : <span className={styles.subText}> · остаток: {left} {unit}</span>;
-                })()}
+                {entry.rollId && (left === null
+                  ? <span className={styles.subText}> · остаток: — (метраж рулона не указан)</span>
+                  : (
+                    <span className={styles.subText}>
+                      {' '}· остаток: {metresText(leftShown ?? 0)}
+                      {measured !== null && measured !== undefined && measured !== ''
+                        ? ' (замер)'
+                        : working?.source === 'calc' ? ' (расчёт)' : ''}
+                      {kgPerM !== null && leftShown !== null
+                        ? ` · ≈ ${fmtKg(kgFromLength(leftShown, kgPerM))} (расчёт)` : ''}
+                    </span>
+                  ))}
               </span>
               <label className={styles.checkLabel}>
                 <input
@@ -321,8 +304,8 @@ export function CutRollsSection({
                   disabled={disabled}
                   onChange={(e) => patch(index, {
                     finished: e.target.checked,
-                    // Сняли отметку — вид остатка теряет смысл вместе с ней
-                    ...(e.target.checked ? {} : { leftover: null }),
+                    // Сняли отметку — вид остатка и замер теряют смысл вместе с ней
+                    ...(e.target.checked ? {} : { leftover: null, leftoverMeasuredM: null, leftoverReason: null }),
                   })}
                 />
                 {' '}
@@ -333,38 +316,91 @@ export function CutRollsSection({
               </Button>
             </div>
 
-            {entry.finished && (() => {
-              const roll = options.find((o) => o.roll.id === entry.rollId)?.roll;
-              const left = rollLeft(roll, entry.qtyUsed);
-              if (left === null || left <= 0) return null;
-              return (
-                <div className={styles.queueActions} role="group" aria-label="Что с остатком рулона">
-                  <span className={styles.fieldLabel}>
-                    Остаток {left} {unit}:
-                  </span>
-                  {[
-                    ['usable', 'Остаток пригоден'],
-                    ['scrap', 'Малый остаток, не учитывать'],
-                  ].map(([value, label]) => (
-                    <label key={value} className={styles.checkLabel}>
-                      <input
-                        type="radio"
-                        name={`leftover-${index}`}
-                        value={value}
-                        checked={entry.leftover === value}
-                        disabled={disabled}
-                        onChange={() => patch(index, { leftover: value })}
-                      />
-                      {' '}
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              );
-            })()}
+            {entry.finished && left !== null && (
+              <div className={styles.queueActions} role="group" aria-label="Что с остатком рулона">
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Измеренный остаток, м</span>
+                  <input
+                    type="number" min="0" step="0.01" inputMode="decimal"
+                    className={`${styles.input} ${styles.qtySmallInput}`}
+                    value={entry.leftoverMeasuredM ?? ''}
+                    disabled={disabled}
+                    placeholder="если мерили"
+                    aria-label={`Измеренный остаток, м, строка ${index + 1}`}
+                    onChange={(e) => patch(index, { leftoverMeasuredM: e.target.value })}
+                  />
+                </label>
+                {measured !== null && measured !== undefined && measured !== '' && (
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Причина расхождения</span>
+                    <input
+                      className={styles.input}
+                      value={entry.leftoverReason ?? ''}
+                      disabled={disabled}
+                      placeholder="например, перемерили после раскладки"
+                      aria-label={`Причина расхождения замера, строка ${index + 1}`}
+                      onChange={(e) => patch(index, { leftoverReason: e.target.value })}
+                    />
+                  </label>
+                )}
+                {leftShown !== null && leftShown > 0.0005 && (
+                  <>
+                    <span className={styles.fieldLabel}>
+                      Остаток {metresText(leftShown)}:
+                    </span>
+                    {[
+                      ['usable', 'Остаток пригоден'],
+                      ['scrap', 'Малый остаток, не учитывать'],
+                    ].map(([value, label]) => (
+                      <label key={value} className={styles.checkLabel}>
+                        <input
+                          type="radio"
+                          name={`leftover-${index}`}
+                          value={value}
+                          checked={entry.leftover === value}
+                          disabled={disabled}
+                          onChange={() => patch(index, { leftover: value })}
+                        />
+                        {' '}
+                        {label}
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
+
+      {awaitingFate.length > 0 && onRollFate && (
+        <div className={styles.queueBlockForm} role="group" aria-label="Рулоны без судьбы остатка">
+          <span className={styles.queueReason}>
+            <Icon name="alert" size={13} />
+            {' '}
+            Работа по этим рулонам не закончена, а остаток есть — без решения этап не закроется:
+          </span>
+          {awaitingFate.map(({ roll, material, label }) => (
+            <div key={roll.id} className={styles.queueActions}>
+              <span className={styles.subText}>
+                {label} · остаток {rollLeftText(roll, material)}
+              </span>
+              <Button
+                variant="secondary" size="sm" disabled={disabled}
+                onClick={() => onRollFate(roll.id, 'usable', item?.id ?? null)}
+              >
+                Остаток пригоден
+              </Button>
+              <Button
+                variant="ghost" size="sm" disabled={disabled}
+                onClick={() => onRollFate(roll.id, 'scrap', item?.id ?? null)}
+              >
+                Малый остаток, не учитывать
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className={styles.queueActions}>
         <Button variant="secondary" size="sm" disabled={disabled || free.length === 0} onClick={addRoll}>
@@ -376,20 +412,14 @@ export function CutRollsSection({
       </div>
 
       {/*
-        ИТОГ КОРОТКИЙ, РАЗБИВКА ОТДЕЛЬНО (правка 21.09, п. 4).
-
-        Было одной строкой: «Всего скроено: 50 шт · расход: 20 кг · XS 50 ·
-        размеры выбраны из стандартной шкалы: у позиции нет размерной сетки».
-        Заказчик: «перегружена и непонятна. Техническое сообщение смешано
-        с производственным итогом». Поэтому итог — два числа, размеры —
-        своей строкой, плюсы — своей, а техническая фраза ушла в отдельное
-        предупреждение НАД таблицей (см. выше): это не итог работы, а сообщение
-        о недостающих данных заказа.
+        ИТОГ КОРОТКИЙ, РАЗБИВКА ОТДЕЛЬНО (правка 21.09, п. 4): итог — два числа,
+        размеры — своей строкой, плюсы — своей, а техническая фраза ушла
+        в отдельное предупреждение НАД таблицей.
       */}
       {entries.length > 0 && (
         <div className={styles.queueActions} role="status">
           <p className={styles.queueReason}>
-            Скроено: <b>{totals.qty}</b> шт · Расход: <b>{totals.used}</b> {unit}
+            Скроено: <b>{totals.qty}</b> шт · Расход: <b>{metresText(totals.used)}</b>
           </p>
           {sizeSummary.length > 0 && (
             <p className={styles.queueReason}>

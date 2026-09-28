@@ -13,6 +13,8 @@ import { cellsToGrid, gridCells, gridRowsTotal } from '../../utils/sizeGrid';
 import { unitShortLabel, unitTracksRolls } from '../../utils/materialUnit';
 import { useDictionary } from '../../store/useDictionary';
 import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
+import { RollParamsFields, LegacyRollParams } from './RollParamsFields';
+import { rollParamsPayload, rollParamsSignature, weightsFilled, weightsSum } from '../../utils/rollParams';
 
 /**
  * Задача склада «Приёмка материалов» (правка 4.1.3): сравнение План↔Факт по каждому материалу.
@@ -117,7 +119,7 @@ function LegacyRollWeights({ material: m, unitLabel, onSave }) {
   );
 }
 
-function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
+function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams }) {
   // Приёмка — цеховой экран, и открывают её со склада, то есть с планшета
   const compact = useCompactLayout();
   const done = !awaitsAcceptance(m) && m.accept_status;
@@ -130,15 +132,16 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
   const [qty, setQty] = useState('');
   const [rolls, setRolls] = useState('');
   /**
-   * ВЕС КАЖДОГО РУЛОНА (правка 21.09, п. 2): «при приёмке после указания
-   * количества рулонов раскрывать строки для ввода фактического веса каждого
-   * рулона. Сумма веса всех рулонов должна совпадать с общим фактически
-   * принятым количеством ткани».
+   * ПАРАМЕТРЫ КАЖДОГО РУЛОНА (правка 21.09, п. 2 — вес; 27.09, п. 4 — ширина,
+   * плотность, метраж): «при приёмке после указания количества рулонов
+   * раскрывать строки для ввода фактического веса каждого рулона. Сумма
+   * веса всех рулонов должна совпадать с общим фактически принятым
+   * количеством ткани». По ширине и плотности сервер считает метраж.
    *
-   * Массив строк, а не чисел: поле ввода отдаёт строку, и приведение
-   * на каждое нажатие не даёт набрать «19.» перед «19.4».
+   * Строки как ввод (строками, не числами): поле отдаёт строку, и приведение
+   * на каждое нажатие не даёт набрать «19.» перед «19.4» (`utils/rollParams`).
    */
-  const [rollWeights, setRollWeights] = useState([]);
+  const [rollParams, setRollParams] = useState([]);
   const [invoice, setInvoice] = useState('');
   /**
    * УЧИТЫВАЕТСЯ ЛИ МАТЕРИАЛ РУЛОНАМИ (правка 16.09, п. 5) — решает справочник
@@ -262,16 +265,11 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
    * и «99.99 против 100» это округление, а не ошибка склада.
    */
   const rollCount = byRolls && Number(rolls) > 0 ? Math.min(Math.round(Number(rolls)), 500) : 0;
-  const weightsFilled = rollCount > 0
-    && Array.from({ length: rollCount }, (_, i) => Number(rollWeights[i]))
-      .every((w) => Number.isFinite(w) && w > 0);
-  const weightsSum = Math.round(
-    Array.from({ length: rollCount }, (_, i) => Math.max(Number(rollWeights[i]) || 0, 0))
-      .reduce((a, b) => a + b, 0) * 100,
-  ) / 100;
-  const weightsMismatch = rollCount > 0 && weightsFilled && arriving > 0
-    && Math.abs(weightsSum - arriving) > 0.01;
-  const needsWeights = rollCount > 0 && arriving > 0 && (!weightsFilled || weightsMismatch);
+  const filled = weightsFilled(rollParams, rollCount);
+  const sum = weightsSum(rollParams, rollCount);
+  const weightsMismatch = rollCount > 0 && filled && arriving > 0
+    && Math.abs(sum - arriving) > 0.01;
+  const needsWeights = rollCount > 0 && arriving > 0 && (!filled || weightsMismatch);
 
   const accept = async () => {
     if (shortfall > 0 && claimsFull) {
@@ -296,9 +294,9 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
       // Число рулонов — часть ввода: иначе «40 кг / 2 рулона» и «40 кг /
       // 3 рулона» имели бы один ключ, и вторая попытка отбросилась бы дублем
       byRolls ? rolls : null,
-      // Веса — часть ввода: «100 кг / 4 рулона по 25» и «100 кг / 4 рулона
-      // 40+20+20+20» это разные приёмки, и одним ключом их считать нельзя
-      rollCount > 0 ? rollWeights.slice(0, rollCount).join(',') : null,
+      // Веса и параметры — часть ввода: «100 кг / 4 рулона по 25» и «100 кг /
+      // 4 рулона 40+20+20+20» это разные приёмки, и одним ключом их считать нельзя
+      rollCount > 0 ? rollParamsSignature(rollParams, rollCount) : null,
     ]);
     const ok = await onAccept(m.id, {
       clientKey: attempt.current.keyFor(signature),
@@ -313,16 +311,17 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
       // При разбивке количество считает сервер по ней же
       sizeGrid: bySize && arriving > 0 ? arrivedGrid : null,
       rolls: byRolls && arriving > 0 ? Number(rolls) : null,
-      // Вес каждого рулона — в порядке строк формы: рулоны заводит сервер,
-      // и он же раскладывает веса по создаваемым номерам
-      rollWeights: rollCount > 0 && arriving > 0
-        ? rollWeights.slice(0, rollCount).map((w) => Number(w))
+      // Параметры каждого рулона — в порядке строк формы: рулоны заводит
+      // сервер, и он же раскладывает вес, ширину, плотность и метраж
+      // по создаваемым номерам (правка 27.09, п. 4)
+      rollParams: rollCount > 0 && arriving > 0
+        ? rollParamsPayload(rollParams, rollCount)
         : null,
     });
     setSaving(false);
     if (ok) {
       attempt.current.reset(); setQty(''); setInvoice(''); setSizeEdits({});
-      setRolls(''); setRollWeights([]);
+      setRolls(''); setRollParams([]);
       // Следующий приход — новые числа: предложение считается заново
       setStatusTouched(false);
     }
@@ -532,46 +531,21 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
             </label>
           )}
           {/*
-            ВЕС КАЖДОГО РУЛОНА (правка 21.09, п. 2). Строки раскрываются
-            от введённого количества: «после ввода количества рулонов создавать
-            отдельные сущности „Рулон 1", „Рулон 2"… каждый рулон хранит свой
-            первоначальный вес».
-
-            Номера здесь ПРЕДВАРИТЕЛЬНЫЕ: настоящие даёт сервер сквозной
-            нумерацией внутри материала (вторая поставка продолжает первую,
-            а не начинает заново). Поэтому подпись говорит «Рулон 1 из этой
-            поставки», а не обещает номер, которого может не оказаться.
+            ПАРАМЕТРЫ КАЖДОГО РУЛОНА (правка 21.09, п. 2; 27.09, п. 4) —
+            вес, ширина, плотность и метраж по бирке. Строки раскрываются
+            от введённого количества; поля и расчёт метража — в `RollParamsFields`.
           */}
           {rollCount > 0 && (
-            <div className={`${styles.field} ${styles.fieldWide}`}>
-              <span className={styles.fieldLabel}>
-                Вес рулонов{unitLabel ? `, ${unitLabel}` : ''}{needsWeights ? ' *' : ''}
-              </span>
-              <div className={styles.cutSizes}>
-                {Array.from({ length: rollCount }, (_, i) => (
-                  <label key={i} className={styles.cutSizeRow}>
-                    <span className={styles.dataCardFieldLabel}>Рулон {i + 1}</span>
-                    <input
-                      type="number" min="0" step="0.01" inputMode="decimal"
-                      className={`${styles.input} ${styles.qtySmallInput}`}
-                      value={rollWeights[i] ?? ''}
-                      disabled={saving}
-                      aria-label={`Вес рулона ${i + 1}, ${m.name}`}
-                      onChange={(e) => setRollWeights((prev) => {
-                        const next = [...prev];
-                        next[i] = e.target.value;
-                        return next;
-                      })}
-                    />
-                  </label>
-                ))}
-              </div>
-              <span className={styles.subText} role="status">
-                Сумма весов: <b>{weightsSum}</b>
-                {unitLabel ? ` ${unitLabel}` : ''}
-                {arriving > 0 && ` из ${arriving}`}
-              </span>
-            </div>
+            <RollParamsFields
+              count={rollCount}
+              params={rollParams}
+              onChange={setRollParams}
+              material={m}
+              unitLabel={unitLabel}
+              arriving={arriving}
+              disabled={saving}
+              required={needsWeights}
+            />
           )}
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Что приехало</span>
@@ -601,6 +575,9 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
         {byRolls && onSetRollWeights && (
           <LegacyRollWeights material={m} unitLabel={unitLabel} onSave={onSetRollWeights} />
         )}
+        {byRolls && onSetRollParams && (
+          <LegacyRollParams material={m} onSave={onSetRollParams} />
+        )}
         {/* Причина, по которой кнопка погашена, называется рядом с кнопкой */}
         {needsQty && (
           <span className={styles.subText}>
@@ -620,10 +597,10 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
         {needsWeights && (
           <span className={styles.subText}>
             {weightsMismatch
-              ? `Сумма весов ${weightsSum} ${unitLabel || ''} против принятых ${arriving} — `
-                + `${weightsSum > arriving ? 'лишние' : 'не хватает'} `
-                + `${Math.round(Math.abs(weightsSum - arriving) * 100) / 100} ${unitLabel || ''}`
-              : 'Укажите вес каждого рулона: по нему закрой считает расход и остаток ткани.'}
+              ? `Сумма весов ${sum} ${unitLabel || ''} против принятых ${arriving} — `
+                + `${sum > arriving ? 'лишние' : 'не хватает'} `
+                + `${Math.round(Math.abs(sum - arriving) * 100) / 100} ${unitLabel || ''}`
+              : 'Укажите вес каждого рулона: по нему считаются метраж, расход и остаток ткани.'}
           </span>
         )}
         <Button
@@ -639,7 +616,7 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights }) {
   );
 }
 
-export function MaterialReceiptCard({ order, task, onAccept, onSetRollWeights }) {
+export function MaterialReceiptCard({ order, task, onAccept, onSetRollWeights, onSetRollParams = null }) {
   const accepted = task.status === 'accepted';
   /**
    * ЗАДАЧА ПРИНАДЛЕЖИТ ПОЗИЦИИ ЗАКУПКИ (правка 12.09, баг 01): её заводит
@@ -676,6 +653,7 @@ export function MaterialReceiptCard({ order, task, onAccept, onSetRollWeights })
           material={m}
           onAccept={onAccept}
           onSetRollWeights={onSetRollWeights}
+          onSetRollParams={onSetRollParams}
         />
       ))}
     </section>

@@ -218,6 +218,74 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
 
+Правки 27.09 (сессия 72, PR 2) перевели **учёт полотна на погонные метры**
+(отменяет правило 20.09 «пересчёта единиц система не делает»): закупка
+по-прежнему вводит кг и цену за кг (`erp_materials.price_per_unit` — цена
+по единице материала, плюс `width_cm`/`density_gsm` как умолчания для
+рулонов), метры — свойство РУЛОНА: `erp_material_rolls.length_m` +
+`length_source` (`calc`/`supplier`/`measured`), `length_calc_m`, `kg_per_m`
+(+`_source`), `length_left_m` (+`_source`), `price_per_m` — считает
+`erp_roll_recalc` по `erp_fabric_kg_per_m` (кг × 1000 / (ширина_м ×
+плотность); зеркало — `utils/fabricMetres.ts`), пересчёт полной точности,
+округление только в показе. `erp_material_accept(…, p_roll_weights,
+p_roll_params jsonb)` принимает на рулон вес + ширину/плотность/метраж
+поставщика; `erp_material_roll_set_params` (`security definer`,
+`material.receive` ЛИБО `stage.progress`) дозаполняет и уточняет: до
+первого расхода — пересчёт, после — корректировка `length_refine` и новые
+коэффициенты для остатка (списанное не трогается). Журнал
+`erp_material_roll_adjustments` (`length_refine`/`leftover_measure`/
+`scrap_writeoff`, причина, автор, `item_id` у списания) — корректировки
+К РАСХОДУ НЕ ПРИБАВЛЯЮТСЯ. `erp_stage_report_rolls.length_used_m` +
+снимки `kg_per_m`/`price_per_m`/`cost` (правка справочника закрытые строки
+не меняет); `qty_used` (кг) остался для прежнего пути (`qty_source =
+entered`). `erp_stage_submit_report(…, p_client_key)` — ключ попытки
+(`erp_stage_reports.client_key`, уникальный частичный индекс): повтор
+не списывает дважды; отказы «Не заполнены данные для учёта в метрах…»,
+«доступно N м, а списывается M м…», «остался N м — выберите …» — тексты
+общие с формой закроя. Экономика и аналитика: `erp_fabric_usage`
+(метры, `calc_metres` — кг-строки, пересчитанные по коэффициенту рулона,
+`incomplete_kg` — непересчитанные), `erp_analytics_overview`/`_series`
+в метрах (`fabric_per_item` по отчётам закроя, `fabric_incomplete`),
+`erp_analytics_fabric_by_sku` (модель × материал × ширина),
+`erp_item_economics` → `fabric{…}`, `losses{leftovers_usable, leftovers_scrap,
+adjustments, extras, defects, wip}` («в работе» — только начатые этапы),
+`production_done`, `preliminary`, `costs{fabric, scrap, assembly, total,
+missing}`, `unit_cost_good` (затраты / годные + годные плюсы),
+`unit_cost_plan` (затраты / клиентский тираж). Пригодный остаток в затраты
+не входит. Проба на бою и четыре правки по её итогам (grant `erp_roll_recalc`,
+INSERT-политика журнала, `array_append`, WIP) — `SESSION-STATE.md`.
+
+Сверка документа 27.09 по подпунктам (28.09) добавила: `erp_material_rolls.location`
+(место хранения, пишет `erp_material_roll_set_location`), `erp_material_roll_adjustments.qty_kg/
+confirmed_at/confirmed_by`; у журнала корректировок **один писатель** — `erp_roll_adjustment_add`
+под меткой транзакции `erp.roll_adjust` (INSERT-политика снята); `erp_roll_set_leftover`
+(судьба остатка рулона «в работе» — малый остаток списанием на позицию),
+`erp_roll_adjustment_confirm` (остаточная стоимость → затраты позиции, `economics.view`),
+`erp_material_roll_set_params(…, p_weight_kg)` (чистый вес обязателен при метраже; расход в кг
+учитывается при уточнении), `erp_stage_submit_report` проверяет, ЧЕЙ рулон (свой, пригодный
+остаток или уже взятый) и снова открывает взятый остаток; `erp_fabric_leftovers()` (остатки
+по всем заказам), `erp_order_foreign_rolls(order)` (чужие рулоны, взятые заказом),
+`erp_stage_unaccounted_by_size` (разбивка — только если сходится с итогом),
+`erp_stage_after_role` (этап после сборки — для брака и незавершёнки). Программа вышивки
+держит только `p_final` (закрытие), не сдачу части.
+
+Правки 27.09 (сессия 72, PR 1) добавили **серверные гейты закрытия**:
+`erp_supply_autoclose` (триггер на `erp_materials`: закупка закрывается САМА,
+когда все материалы заказа `erp_material_fully_received` — `accepted_full`
+и `qty_received ≥ qty_expected`; идёт под меткой `erp.supply_autoclose`,
+которую `erp_stage_guard` пропускает только для перехода этапа `supply`
+в `done`), `erp_stage_unaccounted` (не учтено = greatest(тираж, принято) −
+сдано − брак; обе RPC сдачи закрывают этап по нему, а не по тиражу),
+`erp_stage_size_output`/`erp_stage_size_input` (размеры сквозь нанесение —
+зеркало `sizeInputFor`), `erp_stage_rolls_fate_block` (судьба остатков
+рулонов при закрытии последнего этапа участка), `erp_stage_program_block`
+(вышивка ждёт «Разработку программы» той же позиции),
+`erp_stage_completion_block(uuid, int, p_final)` с четырьмя ветками
+и триггер `erp_stage_done_gate` на прямом переходе в `done` (пропуск
+service role и меток `erp.force_complete`/`erp.moving`/
+`erp.subcontract_rollup`/`erp.supply_autoclose`). Это ГЕЙТЫ «можно ли
+закрыть», а не стражи колонок — стражей по-прежнему девять.
+
 Правки 21.09 (сессия 65) добавили **вес рулона, остаток полотна и плюс
 закроя**: `erp_material_rolls.qty` теперь заполняется приёмкой (`erp_material_accept`
 принимает `p_roll_weights` — пары «рулон → вес», сумма сверяется с приходом),
@@ -306,7 +374,8 @@ watermark `erp_chat_reads` остаётся — по ней считаются �
 этапа файл, а не штуки), `erp_departments.allows_over_plan` (участок может сдать
 больше тиража — включён у закроя), вид вложения `stage_result` (файл, который цех
 СДАЁТ, в отличие от `subcontract` — тех, что подрядчику отдают) и функцию
-`erp_stage_input_qty` (серверное зеркало клиентского `stageInputQty`).
+`erp_stage_input_qty` (серверное зеркало клиентского `stageInputQty`; с 27.09 рядом
+`erp_stage_size_input` — по размерам, и `erp_stage_unaccounted` — «не учтено»).
 
 Правки 07.09 (сессия 52) добавили: размер упаковки в мм у заказа и позиции
 (`packaging_width_mm`/`packaging_height_mm`), `erp_item_prints.garment_kind`
@@ -339,11 +408,13 @@ NULL читается как `purchased`) — у давальческого из
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc`
 (гейт `is_admin()`, сухой прогон по умолчанию, возрастной гейт сутки) либо
 `npm run storage:gc` с ключом `service_role` из окружения. Правила — раздел
-«Правила уборки данных и файлов». Носителей ключа ТРИ (`erp_order_attachments`,
+«Правила уборки данных и файлов». Носителей ключа ЧЕТЫРЕ (`erp_order_attachments`,
 `erp_tz_documents`, `erp_sku_card_files` — карточка модели ссылается на файл
-разработки снимком пути, без копии), и список сторожится тестом
-`erp/utils/storageGc.test.ts`, который выводит его из миграций (правка 24.09,
-сессия 67). Уборщиков ДВА — edge-функция и `scripts/storage-gc.mjs`, — и
+разработки снимком пути, без копии, — и `erp_order_drafts.payload`:
+`attachments[].path`/`tzDocs[].path` черновика, `JSON_REFERENCES`, правка 28.09),
+и список сторожится тестом `erp/utils/storageGc.test.ts`: колонки `file_path`
+он выводит из миграций (правка 24.09, сессия 67), массивы черновика — из формы
+`OrderDraftEnvelope`. Уборщиков ДВА — edge-функция и `scripts/storage-gc.mjs`, — и
 сторож читает ОБА: до сессии 68 он видел только функцию, и скрипт остался
 с двумя носителями. Клиентские удаления объекта идут через `freeOfSkuCards`;
 ошибка проверки = ничего не удалять.
@@ -418,7 +489,7 @@ NULL читается как `purchased`) — у давальческого из
   (`focus` не слушается). `useErpStore()` без селектора запрещён
   (сторож `selectorRequired.test.ts`). Правила сессии 69 —
   `docs/rules/pravila-obzora-26-09-sessiya-69.md`
-- ERP, realtime, переподключение (сессия 72): **живой канал ровно один**,
+- ERP, realtime, переподключение (сессия 73): **живой канал ровно один**,
   его метка — в `store/realtimeReconnect.ts`; статусы канала, закрытого
   нашей же отпиской (`CLOSED`, запоздалый `CHANNEL_ERROR`, эхо `SUBSCRIBED`),
   игнорируются, слушатели `online`/`visibilitychange` ставятся один раз
@@ -569,7 +640,7 @@ NULL читается как `purchased`) — у давальческого из
 | Файл | Назначение |
 |------|-----------|
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
-| `docs/rules/INDEX.md` | **Указатель правил по темам** (66 файлов, перенос 15.09) |
+| `docs/rules/INDEX.md` | **Указатель правил по темам** (67 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, статистика, roadmap |

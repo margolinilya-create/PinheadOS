@@ -71,3 +71,36 @@ export function stageResultFileBlock(
   if (stageResultFiles(order, stage.id).length > 0) return null;
   return 'Не приложен файл программы вышивки — без него этап не закрыть.';
 }
+
+/** Минимум этапа позиции для вопроса «готова ли программа вышивки» */
+type ProgramSibling = Pick<ErpItemStage, 'id' | 'department_id' | 'status'> & {
+  result_kind?: string | null;
+};
+
+/**
+ * ВЫШИВКУ НЕЛЬЗЯ ЗАВЕРШИТЬ ДО «РАЗРАБОТКИ ПРОГРАММЫ ВЫШИВКИ»
+ * (правка заказчика 27.09, п. 3).
+ *
+ * По вышивке заводятся два этапа одного участка: разработка программы
+ * (`result_kind = 'embroidery_program'`, `standalone` — крой она не держит)
+ * и сама вышивка. Зависимости между ними в графе нет намеренно, а завершение
+ * граф и так не проверял: «Вышивку» можно было закрыть при незавершённой
+ * программе. Документ: «проверять именно связанную задачу, чтобы готовая
+ * программа другой позиции не снимала ограничение» — сравниваем этапы
+ * ТОЙ ЖЕ позиции (`allStages` — этапы позиции) и того же участка.
+ *
+ * `skipped` считается завершением: пропущенная программа не держит вышивку,
+ * иначе этап, пропущенный менеджером, запирал бы цех навсегда.
+ * Запуск вышивки не гейтится — программу пишут параллельно.
+ */
+export function embroideryProgramBlock(
+  stage: ProgramSibling,
+  allStages: readonly ProgramSibling[] | null | undefined,
+): string | null {
+  if (isFileResultStage(stage)) return null;
+  const pending = (allStages ?? []).some((s) => s.id !== stage.id
+    && s.department_id === stage.department_id
+    && isFileResultStage(s)
+    && s.status !== 'done' && s.status !== 'skipped');
+  return pending ? 'Сначала завершите задачу “Разработка программы вышивки”' : null;
+}

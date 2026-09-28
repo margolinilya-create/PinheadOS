@@ -68,7 +68,13 @@ test.beforeEach(async ({ page }) => {
  */
 async function gotoScreen(page: Page, url: string, ready?: string) {
   await page.goto(url);
-  await expect(page.locator('h1')).toBeVisible();
+  /**
+   * Первый заход прогона бьёт в ХОЛОДНЫЙ dev-сервер: Vite компилирует
+   * ленивый экран по запросу, и в CI это дольше умолчания в 5 с (28.09:
+   * «Обзор» упал вторым тестом прогона из 389, локально 3 из 3 зелёные).
+   * Заголовок ждём дольше — проверка «один h1» от этого не мягче.
+   */
+  await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
   if (ready) await expect(page.locator(ready).first()).toBeVisible();
 }
 

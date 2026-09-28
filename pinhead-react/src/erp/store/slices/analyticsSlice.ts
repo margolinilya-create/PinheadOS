@@ -16,6 +16,7 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { erpQuery, erpError } from '../shared';
+import { toast } from '../../../store/useToastStore';
 import type {
   AnalyticsFilter, AnalyticsSnapshot, ErpStore, AnalyticsSlice, OrderEconomicsRow,
 } from '../types';
@@ -72,6 +73,26 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
     return rows;
   },
 
+  confirmRollAdjustment: async (adjustmentId, orderId, itemId) => {
+    const { error } = await erpQuery(() => supabase.rpc('erp_roll_adjustment_confirm', {
+      p_adjustment_id: adjustmentId, p_item_id: itemId ?? null,
+    }));
+    if (error) {
+      erpError('Остаточная стоимость не подтверждена', error);
+      return false;
+    }
+    // Кэш экономики заказа сбрасывается и читается заново: затраты и признак
+    // «предварительный» считает сервер
+    set((st) => {
+      const next = { ...(st.orderEconomics ?? {}) };
+      delete next[orderId];
+      return { orderEconomics: next };
+    });
+    await get().loadOrderEconomics(orderId);
+    toast.success('Остаточная стоимость подтверждена и отнесена на позицию');
+    return true;
+  },
+
   loadAnalytics: async (filter) => {
     const key = filterKey(filter);
     // Тот же фильтр — тот же ответ: переключение вкладок внутри раздела
@@ -87,7 +108,7 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       p_dept: filter.dept || null,
     };
 
-    const [overview, series, bySku, byDept] = await Promise.all([
+    const [overview, series, bySku, byDept, fabricBySku] = await Promise.all([
       erpQuery(() => supabase.rpc('erp_analytics_overview', args)),
       erpQuery(() => supabase.rpc('erp_analytics_series', {
         p_from: filter.from,
@@ -102,9 +123,15 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       erpQuery(() => supabase.rpc('erp_analytics_by_dept', {
         p_from: filter.from, p_to: filter.to, p_product: filter.product || null,
       })),
+      // Расход полотна по моделям × материалу × ширине (правка 27.09, п. 5)
+      erpQuery(() => supabase.rpc('erp_analytics_fabric_by_sku', {
+        p_from: filter.from, p_to: filter.to, p_dept: filter.dept || null,
+        // Фильтр «Изделие» — тот же, что у сводки (правка 28.09)
+        p_product: filter.product || null,
+      })),
     ]);
 
-    const failed = [overview, series, bySku, byDept].find((r) => r.error);
+    const failed = [overview, series, bySku, byDept, fabricBySku].find((r) => r.error);
     if (failed?.error) {
       erpError('Аналитика не загрузилась', failed.error);
       set({ analyticsLoading: false });
@@ -118,6 +145,7 @@ export const analyticsSlice: StateCreator<ErpStore, [], [], AnalyticsSlice> = (s
       series: (series.data ?? []) as AnalyticsSnapshot['series'],
       bySku: (bySku.data ?? []) as AnalyticsSnapshot['bySku'],
       byDept: (byDept.data ?? []) as AnalyticsSnapshot['byDept'],
+      fabricBySku: (fabricBySku.data ?? []) as AnalyticsSnapshot['fabricBySku'],
     };
     set({ analytics: snapshot, analyticsKey: key, analyticsLoading: false });
     return snapshot;

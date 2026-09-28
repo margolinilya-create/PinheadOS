@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { AnalyticsTab } from './AnalyticsTab';
 import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
@@ -30,8 +30,9 @@ const EMPTY = {
     released: 0, released_prev: 0, defect: 0, rework: 0, extra: 0,
     assembly_avg: null, assembly_covered_qty: 0,
     fabric_kg: 0, fabric_rolls: 0, fabric_per_item: null,
+    fabric_m: 0, fabric_cut_good: 0, fabric_calc: false, fabric_incomplete: false,
   },
-  series: [], bySku: [], byDept: [],
+  series: [], bySku: [], byDept: [], fabricBySku: [],
 };
 
 const FILLED = {
@@ -39,7 +40,8 @@ const FILLED = {
     ...EMPTY.overview,
     released: 120, released_prev: 100, defect: 4, rework: 2, extra: 5,
     assembly_avg: 415.5, assembly_covered_qty: 120,
-    fabric_kg: 48.6, fabric_rolls: 3, fabric_per_item: 0.405,
+    fabric_kg: 48.6, fabric_rolls: 3, fabric_per_item: 0.9375,
+    fabric_m: 112.5, fabric_cut_good: 120, fabric_calc: false, fabric_incomplete: false,
   },
   series: [{ bucket: '2026-09-15', released: 120, defect: 4, rework: 2, extra: 5, fabric: 48.6 }],
   bySku: [{
@@ -47,6 +49,10 @@ const FILLED = {
     extra: 5, defect_pct: 3.2, assembly_avg: 415.5, orders: 2,
   }],
   byDept: [{ department_id: 'd-sew', released: 120, defect: 4, rework: 2, defect_pct: 3.2 }],
+  fabricBySku: [{
+    product_type: 'Футболка', material: 'Кулирка', width_cm: 180, fabric_m: 112.5,
+    cut_good: 120, per_item: 0.9375, calc: false, incomplete: false, orders: 2,
+  }],
 };
 
 let loadAnalytics;
@@ -68,8 +74,10 @@ describe('раздел «Аналитика» — показатели', () => {
     expect(screen.getByText('Выпущено изделий, шт')).toBeInTheDocument();
     expect(screen.getByText('Количество плюсов, шт')).toBeInTheDocument();
     expect(screen.getByText('Средняя себестоимость сборки, ₽/шт')).toBeInTheDocument();
-    expect(screen.getByText('Использовано ткани, кг')).toBeInTheDocument();
-    expect(screen.getByText('Средний расход ткани, кг/изделие')).toBeInTheDocument();
+    // В МЕТРАХ (правка 27.09, п. 5): «кг/изделие» → «м/изделие»
+    expect(screen.getByText('Использовано ткани, м')).toBeInTheDocument();
+    expect(screen.getByText('Средний расход ткани, м/изделие')).toBeInTheDocument();
+    expect(screen.queryByText(/ткани, кг/)).not.toBeInTheDocument();
   });
 
   it('сравнивает с предыдущим сопоставимым периодом', () => {
@@ -134,5 +142,99 @@ describe('раздел «Аналитика» — фильтры', () => {
     expect(screen.getByLabelText('Изделие')).toBeInTheDocument();
     expect(screen.getByLabelText('Цех')).toBeInTheDocument();
     expect(screen.getByLabelText('Детализация')).toBeInTheDocument();
+  });
+});
+
+/**
+ * ТКАНЬ В МЕТРАХ И ВЫГРУЗКА (правка 27.09, п. 5).
+ * Отсутствие метров — словами «Нет данных», а не прочерком; выгрузка
+ * отдаёт тот же снимок файлом CSV (формат сторожит `analyticsCsv.test.ts`).
+ */
+describe('раздел «Аналитика» — метры и выгрузка CSV', () => {
+  it('нет метров — плитка ткани говорит «Нет данных»', () => {
+    useErpStore.setState({ analytics: EMPTY });
+    render(<AnalyticsTab />);
+    const card = screen.getByText('Использовано ткани, м').parentElement;
+    expect(within(card).getByText('Нет данных')).toBeInTheDocument();
+  });
+
+  it('ячейка «Ткань, м» без данных — «Нет данных», ноль остаётся нулём', () => {
+    useErpStore.setState({
+      analytics: {
+        ...FILLED,
+        series: [
+          { bucket: '2026-09-14', released: 1, defect: 0, rework: 0, extra: 0, fabric: null },
+          { bucket: '2026-09-15', released: 1, defect: 0, rework: 0, extra: 0, fabric: 0 },
+        ],
+      },
+    });
+    render(<AnalyticsTab />);
+    expect(screen.getByRole('row', { name: /2026-09-14/ })).toHaveTextContent('Нет данных');
+    expect(screen.getByRole('row', { name: /2026-09-15/ })).toHaveTextContent('0,00 м');
+  });
+
+  it('ячейка «Ткань, м» в динамике помечает расчёт и неполные данные', () => {
+    useErpStore.setState({
+      analytics: {
+        ...FILLED,
+        series: [
+          { bucket: '2026-09-13', released: 1, defect: 0, rework: 0, extra: 0, fabric: 2,
+            fabric_calc: true, fabric_incomplete: true },
+          { bucket: '2026-09-14', released: 1, defect: 0, rework: 0, extra: 0, fabric: 3,
+            fabric_calc: false, fabric_incomplete: false },
+          { bucket: '2026-09-15', released: 1, defect: 0, rework: 0, extra: 0, fabric: 4 },
+        ],
+      },
+    });
+    render(<AnalyticsTab />);
+    const both = screen.getByRole('row', { name: /2026-09-13/ });
+    const calc = within(both).getByTitle(/пересчитана из кг по коэффициенту рулона/);
+    expect(calc).toHaveTextContent('расчёт');
+    const partial = within(both).getByTitle(/не пересчитана/);
+    expect(partial).toHaveTextContent('неполно');
+    // Пояснение доступно и без наведения — скрытым текстом внутри отметки
+    expect(calc.textContent).toContain('коэффициенту рулона');
+    for (const b of ['2026-09-14', '2026-09-15']) {
+      const row = screen.getByRole('row', { name: new RegExp(b) });
+      expect(row).not.toHaveTextContent('расчёт');
+      expect(row).not.toHaveTextContent('неполно');
+    }
+  });
+
+  it('кнопка «Выгрузить CSV» отдаёт файл с BOM и метрами', async () => {
+    const blobs = [];
+    const create = vi.fn((b) => { blobs.push(b); return 'blob:x'; });
+    const revoke = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const orig = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    try {
+      render(<AnalyticsTab />);
+      fireEvent.click(screen.getByRole('button', { name: 'Выгрузить CSV' }));
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(revoke).toHaveBeenCalledWith('blob:x');
+      // jsdom-овский Blob без `text()`: читаем байты — BOM виден как EF BB BF
+      const buf = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(new Uint8Array(r.result));
+        r.readAsArrayBuffer(blobs[0]);
+      });
+      expect([...buf.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+      const text = new TextDecoder('utf-8').decode(buf);
+      expect(text).toContain('Использовано ткани, м;112,5');
+      expect(text).toContain('Расход полотна по моделям');
+    } finally {
+      URL.createObjectURL = orig.create;
+      URL.revokeObjectURL = orig.revoke;
+      click.mockRestore();
+    }
+  });
+
+  it('без сводки выгружать нечего — кнопка недоступна', () => {
+    useErpStore.setState({ analytics: null });
+    render(<AnalyticsTab />);
+    expect(screen.getByRole('button', { name: 'Выгрузить CSV' })).toBeDisabled();
   });
 });

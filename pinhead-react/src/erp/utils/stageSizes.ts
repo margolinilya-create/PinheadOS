@@ -56,29 +56,66 @@ export function stageSizeOutput(
   return seen ? out : null;
 }
 
+/** Минимум этапа для обхода графа вверх */
+type GraphStage = Pick<ErpItemStage, 'id'> & { depends_on?: readonly string[] | null };
+
 /**
- * Принято на этап по каждому размеру. `null` — размерных данных нет
- * (fail-open: судить не по чему).
+ * ВСЕ ПРЕДКИ ЭТАПА по графу `depends_on` — не только прямые (правка 27.09, п. 6).
+ *
+ * Документ: «сохранять связь с результатом закройки, даже если между
+ * закройкой и пошивом есть нанесение». Размерный результат сдаёт закрой,
+ * а между ним и швейкой при нанесении на крое стоят вышивка/ДТФ, у которых
+ * размерного отчёта нет. Прямые предшественники давали `null`, и столбец
+ * «Покроено» показывал прочерки с итогом 0 при «Принято в работу: 472».
+ *
+ * Обход в ширину с защитой от цикла; этапы вне набора (урезанная выборка)
+ * пропускаются — выдумывать по ним нечего.
  */
-export function sizeInputFor(
+export function stageAncestors(
   stage: Pick<ErpItemStage, 'depends_on'>,
-  allStages: readonly Pick<ErpItemStage, 'id'>[],
+  allStages: readonly GraphStage[],
+): string[] {
+  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const seen = new Set<string>();
+  const queue = [...(stage?.depends_on ?? [])];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (seen.has(id) || !byId.has(id)) continue;
+    seen.add(id);
+    queue.push(...(byId.get(id)?.depends_on ?? []));
+  }
+  return [...seen];
+}
+
+/**
+ * Размерный выход этапа, а если у него размерных данных нет — выход ЕГО
+ * предшественников (минимум по веткам), и так вверх до первого этапа
+ * с разбивкой. `null` — разбивки нет во всей цепочке.
+ */
+function sizeOutputThrough(
+  stageId: string,
+  byId: ReadonlyMap<string, GraphStage>,
   reports: readonly ReportWithSizes[] | null | undefined,
+  visiting: Set<string>,
 ): Record<string, number> | null {
-  const deps = stage?.depends_on ?? [];
-  if (deps.length === 0) return null;
-
-  const known = new Set(allStages.map((s) => s.id));
-  const outputs = deps
-    .filter((id) => known.has(id))
-    .map((id) => stageSizeOutput(id, reports))
+  const own = stageSizeOutput(stageId, reports);
+  if (own) return own;
+  if (visiting.has(stageId)) return null;
+  visiting.add(stageId);
+  const outputs = (byId.get(stageId)?.depends_on ?? [])
+    .filter((id) => byId.has(id))
+    .map((id) => sizeOutputThrough(id, byId, reports, visiting))
     .filter((o): o is Record<string, number> => o !== null);
+  visiting.delete(stageId);
+  return outputs.length > 0 ? minBySize(outputs) : null;
+}
 
-  if (outputs.length === 0) return null;
-
-  // МИНИМУМ по веткам, размер за размером: параллельные нанесения проходят
-  // одни и те же изделия. Размер, которого нет в какой-то ветке, — это ноль
-  // в ней, и минимум по нему тоже ноль
+/**
+ * МИНИМУМ по веткам, размер за размером: параллельные нанесения проходят
+ * одни и те же изделия. Размер, которого нет в какой-то ветке, — это ноль
+ * в ней, и минимум по нему тоже ноль.
+ */
+function minBySize(outputs: readonly Record<string, number>[]): Record<string, number> {
   const keys = new Set(outputs.flatMap((o) => Object.keys(o)));
   const out: Record<string, number> = {};
   for (const key of keys) {
@@ -88,7 +125,33 @@ export function sizeInputFor(
 }
 
 /**
- * Размеры, пришедшие С ПРЕДЫДУЩЕГО ЭТАПА, вместе с цветом (правка 20.09, п. 8).
+ * Принято на этап по каждому размеру. `null` — размерных данных нет
+ * (fail-open: судить не по чему).
+ *
+ * Предшественник без своей разбивки (нанесение, этап, закрытый кнопкой)
+ * ПРОЗРАЧЕН: за него отвечает выход его предшественников (правка 27.09, п. 6).
+ * Потолка нет только когда разбивки нет во всей цепочке до начала маршрута.
+ */
+export function sizeInputFor(
+  stage: Pick<ErpItemStage, 'depends_on'>,
+  allStages: readonly GraphStage[],
+  reports: readonly ReportWithSizes[] | null | undefined,
+): Record<string, number> | null {
+  const deps = stage?.depends_on ?? [];
+  if (deps.length === 0) return null;
+
+  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const outputs = deps
+    .filter((id) => byId.has(id))
+    .map((id) => sizeOutputThrough(id, byId, reports, new Set()))
+    .filter((o): o is Record<string, number> => o !== null);
+
+  if (outputs.length === 0) return null;
+  return minBySize(outputs);
+}
+
+/**
+ * Размеры, пришедшие С ПРЕДЫДУЩИХ ЭТАПОВ, вместе с цветом (правка 20.09, п. 8).
  *
  * Зачем отдельно от `sizeInputFor`, который отдаёт `Record<ключ, число>`:
  * из ключа обратно ни цвет, ни размер не достать (цвет бывает из двух слов),
@@ -98,17 +161,18 @@ export function sizeInputFor(
  */
 export function sizeInputCells(
   stage: Pick<ErpItemStage, 'depends_on'>,
-  allStages: readonly Pick<ErpItemStage, 'id'>[],
+  allStages: readonly GraphStage[],
   reports: readonly ReportWithSizes[] | null | undefined,
 ): SizeCell[] {
   const input = sizeInputFor(stage, allStages, reports);
   if (!input) return [];
 
-  // Цвет и размер берутся из самих строк отчётов: ключ для этого непригоден
+  // Цвет и размер берутся из самих строк отчётов: ключ для этого непригоден.
+  // Смотрим по всем предкам — разбивка могла прийти через нанесение
   const byKey = new Map<string, { color: string; size: string }>();
-  const deps = new Set(stage?.depends_on ?? []);
+  const ancestors = new Set(stageAncestors(stage, allStages));
   for (const report of reports ?? []) {
-    if (!report.stage_id || !deps.has(report.stage_id)) continue;
+    if (!report.stage_id || !ancestors.has(report.stage_id)) continue;
     for (const row of report.sizes ?? []) {
       const color = (row.color ?? '').trim() || '—';
       byKey.set(sizeKey(color, row.size), { color, size: row.size });
@@ -131,6 +195,12 @@ export interface SizeInputRow {
   label: string;
   /** Принято на этап; `null` — размерных данных нет */
   expected: number | null;
+  /**
+   * Осталось из принятых: принято − уже сдано годных − уже списано в брак
+   * своими отчётами (правка 27.09, п. 7). `null` — размерных данных нет.
+   * Именно остаток, а не «принято», — потолок каждой следующей сдачи.
+   */
+  remaining: number | null;
 }
 
 /**
@@ -153,17 +223,21 @@ export function sizeInputRows(
    * то есть у половины швейка сдавала результат одним числом.
    */
   fromPrevious: readonly SizeCell[] = [],
+  /** Уже учтено своими отчётами по ключу ячейки (`reportedAccountedBySize`) */
+  accounted: Record<string, number> = {},
 ): SizeInputRow[] {
   const cells = gridCells(grid);
   const source = cells.length > 0 ? cells : fromPrevious;
   return source.map((cell: SizeCell) => {
     const key = sizeKey(cell.color, cell.size);
+    const expected = input ? (input[key] ?? 0) : null;
     return {
       key,
       color: cell.color,
       size: cell.size,
       label: cell.color === '—' ? cell.size : `${cell.size} · ${cell.color}`,
-      expected: input ? (input[key] ?? 0) : null,
+      expected,
+      remaining: expected === null ? null : Math.max(expected - (accounted[key] ?? 0), 0),
     };
   });
 }
@@ -186,11 +260,16 @@ export function sizeReportBlock(
 ): string | null {
   for (const row of rows ?? []) {
     // Размерных данных нет — потолка по размеру не существует (fail-open)
-    if (row.expected === null) continue;
+    if (row.remaining === null) continue;
     const entered = rowEntered(values?.[row.key]);
-    if (entered > row.expected) {
-      return `${row.label}: введено ${entered} шт при принятых из закроя ${row.expected}`
-        + ` — на ${entered - row.expected} больше`;
+    /**
+     * Потолок — ОСТАТОК из принятых, а не «принято» (правка 27.09, п. 7):
+     * прежние сдачи этого же этапа уже забрали своё. Слова совпадают
+     * с отказом `erp_stage_submit_report` — один текст в форме и в ответе.
+     */
+    if (entered > row.remaining) {
+      return `${row.label}: больше ${row.remaining} шт сдать нельзя — столько осталось`
+        + ` из принятых (введено ${entered})`;
     }
   }
   return null;
@@ -200,10 +279,11 @@ export function sizeReportBlock(
 export function sizeTotals(
   rows: readonly SizeInputRow[] | null | undefined,
   values: Record<string, Record<string, unknown>> | null | undefined,
-): { good: number; defect: number; rework: number; expected: number } {
-  const acc = { good: 0, defect: 0, rework: 0, expected: 0 };
+): { good: number; defect: number; rework: number; expected: number; remaining: number } {
+  const acc = { good: 0, defect: 0, rework: 0, expected: 0, remaining: 0 };
   for (const row of rows ?? []) {
     acc.expected += Math.max(row.expected ?? 0, 0);
+    acc.remaining += Math.max(row.remaining ?? 0, 0);
     for (const code of ['good', 'defect', 'rework'] as const) {
       acc[code] += Math.max(Number(values?.[row.key]?.[code]) || 0, 0);
     }

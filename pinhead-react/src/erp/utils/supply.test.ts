@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   findSupplyDept,
+  isMaterialFullyReceived,
   isMaterialSettled,
   materialAcceptanceIssue,
   openSupplyStages,
@@ -272,5 +273,79 @@ describe('заказы, ждущие закупки', () => {
       ],
     };
     expect(ordersAwaitingSupply([three], DEPTS)).toHaveLength(1);
+  });
+});
+
+/**
+ * «ПОЛНОСТЬЮ ПОСТУПИЛ» — условие автозакрытия закупки (правка заказчика
+ * 27.09, п. 9), и оно СТРОЖЕ «на месте»: документ просит «проверять
+ * фактически принятое количество, а не только статус „Пришло"; при
+ * частичном поступлении… оставлять закупку открытой».
+ *
+ * Гейты цеха при этом остаются на `isMaterialSettled`: частично принятая
+ * ткань по-прежнему пускает закрой (решение 22.07), но закупку не закрывает.
+ * Обе функции проверяются на ОДНИХ материалах — чтобы расхождение было видно.
+ */
+describe('материал поступил полностью (автозакрытие закупки, 27.09)', () => {
+  const m = (patch: Partial<ErpMaterial>): ErpMaterial => ({
+    id: 'm', order_id: 'o', kind: 'fabric', name: 'Кулирка', source: 'purchase',
+    status: 'pending', ...patch,
+  } as ErpMaterial);
+
+  it('со склада и «не требуется» — полностью, без приёмки', () => {
+    expect(isMaterialFullyReceived(m({ status: 'reserved' }))).toBe(true);
+    expect(isMaterialFullyReceived(m({ status: 'not_needed' }))).toBe(true);
+  });
+
+  it('принято без расхождений и количество покрывает план — полностью', () => {
+    const full = m({ status: 'received', accept_status: 'accepted_full', qty_expected: 100, qty_received: 100 });
+    expect(isMaterialFullyReceived(full)).toBe(true);
+    // Довезли больше — тоже полностью
+    expect(isMaterialFullyReceived({ ...full, qty_received: 110 })).toBe(true);
+  });
+
+  it('принято частично — «на месте» для цеха, но НЕ полностью для закупки', () => {
+    const partial = m({ status: 'received', accept_status: 'accepted_partial', qty_expected: 100, qty_received: 60 });
+    expect(isMaterialSettled(partial)).toBe(true);
+    expect(isMaterialFullyReceived(partial)).toBe(false);
+  });
+
+  it('accepted_full с количеством меньше плана — не полностью', () => {
+    expect(isMaterialFullyReceived(
+      m({ status: 'received', accept_status: 'accepted_full', qty_expected: 100, qty_received: 90 }),
+    )).toBe(false);
+  });
+
+  it('без планового количества сверять не с чем — не полностью', () => {
+    expect(isMaterialFullyReceived(
+      m({ status: 'received', accept_status: 'accepted_full', qty_expected: null, qty_received: 90 }),
+    )).toBe(false);
+  });
+
+  it('недостача, пересорт, отказ и «пришло без приёмки» — не полностью', () => {
+    for (const accept_status of ['shortage', 'mismatch', 'rejected', null] as const) {
+      expect(isMaterialFullyReceived(
+        m({ status: 'received', accept_status, qty_expected: 100, qty_received: 100 }),
+      )).toBe(false);
+    }
+  });
+
+  /** Числа из PostgREST приходят строками: `"90" >= "100"` в JS истинно */
+  it('количества сравниваются как числа, а не как строки', () => {
+    expect(isMaterialFullyReceived(m({
+      status: 'received', accept_status: 'accepted_full',
+      qty_expected: '100' as unknown as number, qty_received: '90' as unknown as number,
+    }))).toBe(false);
+  });
+
+  it('сводка отдаёт отдельный счётчик и признак «все полностью»', () => {
+    const summary = supplyMaterialSummary([
+      m({ status: 'reserved' }),
+      m({ id: 'm2', status: 'received', accept_status: 'accepted_partial', qty_expected: 10, qty_received: 5 }),
+    ]);
+    expect(summary.settled).toBe(2);
+    expect(summary.fullyReceived).toBe(1);
+    expect(summary.allFullyReceived).toBe(false);
+    expect(supplyMaterialSummary([]).allFullyReceived).toBe(false);
   });
 });
