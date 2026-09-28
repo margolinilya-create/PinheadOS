@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { Button } from '../components/Button';
+import { OrderLink } from '../components/OrderLink';
+import { groupNotices } from '../utils/notifications';
 import {
   askPermission, desktopEnabled, notifyPermission, setDesktopEnabled,
   setSoundEnabled, soundEnabled,
@@ -40,7 +42,20 @@ function matches(tab, n) {
   return true;
 }
 
-export function NotificationCenter({ onClose }) {
+/** Сколько производственных поводов показывать в центре; остальное — на обзоре */
+const ALERTS_SHOWN = 8;
+
+/**
+ * `alerts` — производственные поводы (`orderNotices`: просрочка, остановленный
+ * этап, дозакупка), те же, что колокол считает в бейдже.
+ *
+ * КОЛОКОЛ СЧИТАЕТ ТО, К ЧЕМУ ВЕДЁТ (обход 04.09) — а с 20.09 он ведёт сюда.
+ * Центр показывал одни `erp_notifications`, и при просроченном заказе на
+ * бейдже горело «1», а внутри стояло «Непрочитанных нет». Прочитанности
+ * у этих поводов нет по построению: они уходят вместе с состоянием заказа,
+ * поэтому живут отдельным блоком, а не строками вкладок.
+ */
+export function NotificationCenter({ alerts = [], onClose }) {
   const navigate = useNavigate();
   const { rows, markRead } = useErpStore(useShallow((s) => ({
     rows: s.notifications,
@@ -66,6 +81,13 @@ export function NotificationCenter({ onClose }) {
     () => (rows ?? []).filter((n) => !n.read_at).map((n) => n.id),
     [rows],
   );
+
+  // Порядок срочности — тот же, что у виджета обзора (`groupNotices`)
+  const alertRows = useMemo(
+    () => groupNotices(alerts).flatMap((g) => g.items),
+    [alerts],
+  );
+  const showAlerts = alertRows.length > 0 && (tab === 'all' || tab === 'unread');
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -96,9 +118,36 @@ export function NotificationCenter({ onClose }) {
         ))}
       </div>
 
+      {showAlerts && (
+        <section className={styles.noticeSection} aria-label="Требуют внимания">
+          <h3 className={styles.noticeSectionTitle}>Требуют внимания · {alertRows.length}</h3>
+          <ul className={styles.noticeList}>
+            {alertRows.slice(0, ALERTS_SHOWN).map((n) => (
+              <li key={n.id}>
+                <OrderLink orderId={n.orderId} className={styles.noticeRow} onClick={onClose}>
+                  <span className={styles.noticeTitle}>
+                    {n.text}
+                    {n.overdueDays > 0 && ` · ${n.overdueDays} дн.`}
+                  </span>
+                  {n.sub && <span className={styles.subText}>{n.sub}</span>}
+                </OrderLink>
+              </li>
+            ))}
+          </ul>
+          {alertRows.length > ALERTS_SHOWN && (
+            // Никаких тихих лимитов: сколько показано и где остальные
+            <Link to="/#notifications" className={styles.noticeMore} onClick={onClose}>
+              Показаны {ALERTS_SHOWN} из {alertRows.length} → все на обзоре
+            </Link>
+          )}
+        </section>
+      )}
+
       {list.length === 0 ? (
         <p className={styles.subText}>
-          {tab === 'unread' ? 'Непрочитанных нет' : 'Пусто'}
+          {tab === 'unread'
+            ? (showAlerts ? 'Личных непрочитанных нет' : 'Непрочитанных нет')
+            : 'Пусто'}
         </p>
       ) : (
         <ul className={styles.noticeList}>

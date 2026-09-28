@@ -177,12 +177,15 @@ export default function ErpLayout({ user, children }) {
    * дефект, ради которого счётчик и переписывали: индикатор ведёт туда,
    * где сверху лежит непосчитанное им.
    */
-  const overdueCount = useMemo(
+  const orderAlerts = useMemo(
     () => orders
       .filter((o) => o.status === 'active')
-      .reduce((sum, o) => sum + orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date))).length, 0)
-      + personalNotices(notifications).length,
-    [orders, notifications],
+      .flatMap((o) => orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date)))),
+    [orders],
+  );
+  const overdueCount = useMemo(
+    () => orderAlerts.length + personalNotices(notifications).length,
+    [orderAlerts, notifications],
   );
 
   // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
@@ -308,7 +311,13 @@ export default function ErpLayout({ user, children }) {
           </button>
           {noticesOpen && (
             <Suspense fallback={null}>
-              <NotificationCenter onClose={() => setNoticesOpen(false)} />
+              {/*
+                Центр получает те же поводы, что посчитаны в бейдже: с 20.09
+                колокол ведёт сюда, а не на обзор, и центр показывал одни
+                `erp_notifications` — на бейдже «1», внутри «Непрочитанных
+                нет» (просроченный заказ считался, но не показывался)
+              */}
+              <NotificationCenter alerts={orderAlerts} onClose={() => setNoticesOpen(false)} />
             </Suspense>
           )}
           {/*

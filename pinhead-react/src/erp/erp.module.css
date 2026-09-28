@@ -1166,6 +1166,23 @@
 /* Непрочитанное выделяется фоном и точкой — как просит референс документа */
 .noticeUnread > .noticeRow { background: var(--accent-light); }
 .noticeTitle { font-weight: 600; }
+/* Ссылкой строка бывает у производственных поводов (`OrderLink`) */
+a.noticeRow { text-decoration: none; }
+/* Производственные поводы колокола — отдельным блоком над личными */
+.noticeSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+.noticeMore { font-size: var(--type-label); color: var(--accent); padding: 0 var(--space-sm); }
+.noticeSectionTitle {
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
 
 /*
   ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (правка 20.09, п. 4).
