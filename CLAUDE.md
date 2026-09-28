@@ -255,6 +255,20 @@ missing}`, `unit_cost_good` (затраты / годные + годные плю
 не входит. Проба на бою и четыре правки по её итогам (grant `erp_roll_recalc`,
 INSERT-политика журнала, `array_append`, WIP) — `SESSION-STATE.md`.
 
+Сверка документа 27.09 по подпунктам (28.09) добавила: `erp_material_rolls.location`
+(место хранения, пишет `erp_material_roll_set_location`), `erp_material_roll_adjustments.qty_kg/
+confirmed_at/confirmed_by`; у журнала корректировок **один писатель** — `erp_roll_adjustment_add`
+под меткой транзакции `erp.roll_adjust` (INSERT-политика снята); `erp_roll_set_leftover`
+(судьба остатка рулона «в работе» — малый остаток списанием на позицию),
+`erp_roll_adjustment_confirm` (остаточная стоимость → затраты позиции, `economics.view`),
+`erp_material_roll_set_params(…, p_weight_kg)` (чистый вес обязателен при метраже; расход в кг
+учитывается при уточнении), `erp_stage_submit_report` проверяет, ЧЕЙ рулон (свой, пригодный
+остаток или уже взятый) и снова открывает взятый остаток; `erp_fabric_leftovers()` (остатки
+по всем заказам), `erp_order_foreign_rolls(order)` (чужие рулоны, взятые заказом),
+`erp_stage_unaccounted_by_size` (разбивка — только если сходится с итогом),
+`erp_stage_after_role` (этап после сборки — для брака и незавершёнки). Программа вышивки
+держит только `p_final` (закрытие), не сдачу части.
+
 Правки 27.09 (сессия 72, PR 1) добавили **серверные гейты закрытия**:
 `erp_supply_autoclose` (триггер на `erp_materials`: закупка закрывается САМА,
 когда все материалы заказа `erp_material_fully_received` — `accepted_full`
@@ -394,11 +408,13 @@ NULL читается как `purchased`) — у давальческого из
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc`
 (гейт `is_admin()`, сухой прогон по умолчанию, возрастной гейт сутки) либо
 `npm run storage:gc` с ключом `service_role` из окружения. Правила — раздел
-«Правила уборки данных и файлов». Носителей ключа ТРИ (`erp_order_attachments`,
+«Правила уборки данных и файлов». Носителей ключа ЧЕТЫРЕ (`erp_order_attachments`,
 `erp_tz_documents`, `erp_sku_card_files` — карточка модели ссылается на файл
-разработки снимком пути, без копии), и список сторожится тестом
-`erp/utils/storageGc.test.ts`, который выводит его из миграций (правка 24.09,
-сессия 67). Уборщиков ДВА — edge-функция и `scripts/storage-gc.mjs`, — и
+разработки снимком пути, без копии, — и `erp_order_drafts.payload`:
+`attachments[].path`/`tzDocs[].path` черновика, `JSON_REFERENCES`, правка 28.09),
+и список сторожится тестом `erp/utils/storageGc.test.ts`: колонки `file_path`
+он выводит из миграций (правка 24.09, сессия 67), массивы черновика — из формы
+`OrderDraftEnvelope`. Уборщиков ДВА — edge-функция и `scripts/storage-gc.mjs`, — и
 сторож читает ОБА: до сессии 68 он видел только функцию, и скрипт остался
 с двумя носителями. Клиентские удаления объекта идут через `freeOfSkuCards`;
 ошибка проверки = ничего не удалять.
