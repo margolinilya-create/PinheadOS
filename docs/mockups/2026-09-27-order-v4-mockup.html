@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PinheadOS · Order v4 — макет</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAFAFA;--card:#fff;--surface:#F5F5F5;--ink:#0A0A0A;--accent:#2B2BF0;--signal:#FF3B30;
+  --line:#E6E6E6;--muted:#6B6B6B;
+  --ok-bg:#E8F7EE;--ok:#1C7C3F;--warn-bg:#FFF4DB;--warn:#8A5A00;--err-bg:#FFE9E7;--err:#B3261E;--info-bg:#EAEAFE;
+  --type-label:12px;--type-body-sm:13px;--type-body:14px;--type-body-lg:15px;--type-title:17px;--type-h4:20px;--type-h3:26px;--type-h1:40px;--type-metric:34px;
+  --r:6px;--shadow-card:0 1px 2px rgba(0,0,0,.06);--shadow-raise:0 6px 18px rgba(10,10,10,.10);
+  --dur:160ms;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:400 var(--type-body)/1.45 Inter,system-ui,sans-serif}
+h1,h2,h3,.disp{font-family:Oswald,Inter,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.02em;margin:0}
+.num{font-family:"Roboto Mono",monospace;font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
+button{font:inherit;cursor:pointer}
+
+/* shell */
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 20px;height:52px}
+.logo{font-family:Oswald;font-weight:600;font-size:var(--type-h4);text-transform:uppercase;letter-spacing:.06em}
+.logo b{color:var(--accent)}
+.seg{display:flex;border:1px solid var(--ink);border-radius:999px;overflow:hidden}
+.seg span{padding:4px 12px;font-size:var(--type-label);font-weight:600}
+.seg span.on{background:var(--ink);color:#fff}
+.nav{display:flex;gap:4px;margin-left:8px}
+.nav button{border:0;background:none;padding:8px 10px;border-radius:var(--r);color:var(--muted);font-weight:500}
+.nav button.on{color:var(--ink);background:var(--surface)}
+.nav button .b{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.top .me{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:var(--type-body-sm)}
+.bell{position:relative;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;background:#fff}
+.bell i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--signal)}
+.note{background:var(--ink);color:#fff;padding:8px 20px;font-size:var(--type-body-sm)}
+.note b{color:#9E9EFF}
+.screen{display:none;padding:20px;max-width:1360px;margin:0 auto}
+.screen.on{display:block}
+.pagehead{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.pagehead h1{font-size:clamp(26px,3vw,var(--type-h1));line-height:1}
+.pagehead .sub{color:var(--muted)}
+.spacer{flex:1}
+
+/* primitives */
+.btn{height:40px;padding:0 16px;border-radius:var(--r);border:1px solid var(--ink);background:#fff;font-weight:500;display:inline-flex;align-items:center;gap:8px}
+.btn.p{background:var(--ink);color:#fff}
+.btn.a{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{height:32px;padding:0 12px;font-size:var(--type-body-sm)}
+.btn.ghost{border-color:var(--line)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--type-label);font-weight:600;border:1px solid var(--line);background:#fff}
+.chip.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.chip.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.chip.err{background:var(--err-bg);color:var(--err);border-color:transparent}
+.chip.info{background:var(--info-bg);color:var(--accent);border-color:transparent}
+.chip.ink{background:var(--ink);color:#fff;border-color:transparent}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-card)}
+.card>.h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.card>.h h3{font-size:var(--type-title)}
+.card>.b{padding:16px}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;font-size:var(--type-body-sm)}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:var(--type-label);color:var(--muted);font-weight:500}
+.input{height:40px;border:1px solid var(--line);border-radius:var(--r);padding:0 12px;background:#fff;display:flex;align-items:center;justify-content:space-between}
+.input.sm{height:32px;font-size:var(--type-body-sm)}
+table{border-collapse:collapse;width:100%;font-size:var(--type-body-sm)}
+th{text-align:left;color:var(--muted);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.tog{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tog button{border:0;background:#fff;padding:6px 12px;font-size:var(--type-body-sm);color:var(--muted)}
+.tog button.on{background:var(--ink);color:#fff}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.filters .chip{height:28px;padding:0 12px;cursor:pointer}
+.filters .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* kanban */
+.kanban{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:12px;overflow-x:auto}
+.col h3{font-size:var(--type-label);letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;padding:0 4px 8px}
+.col h3 .num{color:var(--ink)}
+.kcard{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:8px;cursor:pointer;transition:box-shadow var(--dur)}
+.kcard:hover{box-shadow:var(--shadow-raise)}
+.kcard .t{font-weight:600;display:flex;justify-content:space-between;gap:8px}
+.kcard .t .num{color:var(--muted);font-weight:400;font-size:var(--type-label)}
+.kcard .m{color:var(--muted);font-size:var(--type-label);margin-top:4px}
+.kcard .f{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.kcard .sum{font-family:"Roboto Mono";font-weight:500}
+.kcard.due{border-left:3px solid var(--signal)}
+
+/* order card */
+.ocard{display:grid;grid-template-columns:1fr 340px;gap:16px}
+.ohead{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;display:grid;grid-template-columns:1fr auto;gap:8px 24px;align-items:start;margin-bottom:16px}
+.ohead h1{font-size:var(--type-h3);line-height:1.1}
+.ohead .meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:var(--type-body-sm);margin-top:6px;align-items:center}
+.ohead .price{text-align:right}
+.ohead .price .v{font-family:"Roboto Mono";font-size:var(--type-metric);font-weight:500;line-height:1}
+.ohead .price .l{font-size:var(--type-label);color:var(--muted);margin-top:4px}
+.flags{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--line);align-items:center}
+.pos{display:flex;gap:14px;padding:14px 16px;border-bottom:1px solid var(--line);align-items:flex-start}
+.pos:last-child{border-bottom:0}
+.thumb{width:64px;height:64px;border-radius:var(--r);background:var(--surface);display:grid;place-items:center;flex:none}
+.thumb svg{width:44px;height:44px}
+.pos .body{flex:1;min-width:0}
+.pos .n{font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pos .d{color:var(--muted);font-size:var(--type-body-sm);margin-top:2px}
+.pos .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pos .pr{text-align:right;flex:none}
+.pos .pr .u{font-family:"Roboto Mono";font-weight:500}
+.pos .pr .q{font-size:var(--type-label);color:var(--muted)}
+.check li{display:flex;gap:8px;align-items:center;padding:6px 0;font-size:var(--type-body-sm)}
+.check ul{list-style:none;margin:0;padding:0}
+.dot{width:16px;height:16px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;color:#fff}
+.dot.ok{background:var(--ok)}.dot.no{background:var(--signal)}.dot.wait{background:#C4C4C4}
+.chat .msg{padding:10px 0;border-bottom:1px solid var(--line);font-size:var(--type-body-sm)}
+.chat .msg .who{font-weight:600;display:flex;justify-content:space-between}
+.chat .msg .who span{color:var(--muted);font-weight:400;font-size:var(--type-label)}
+.chat .action{margin-top:8px;padding:10px;border:1px solid var(--accent);border-radius:var(--r);background:var(--info-bg)}
+.chat .action .row{display:flex;gap:8px;margin-top:8px}
+.pay td{padding:6px 10px}
+
+/* wizard */
+.wiz{display:grid;grid-template-columns:220px 1fr 380px;gap:16px}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:flex;gap:10px;align-items:center;padding:10px 8px;border-radius:var(--r);color:var(--muted)}
+.steps li .k{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-family:"Roboto Mono";font-size:12px}
+.steps li.done{color:var(--ink)}.steps li.done .k{background:var(--ink);color:#fff;border-color:var(--ink)}
+.steps li.cur{color:var(--ink);background:var(--surface);font-weight:600}.steps li.cur .k{border-color:var(--accent);color:var(--accent);border-width:2px}
+.canvas{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--r);height:520px;overflow:hidden}
+.canvas .grid{position:absolute;inset:0;background-image:linear-gradient(var(--surface) 1px,transparent 1px),linear-gradient(90deg,var(--surface) 1px,transparent 1px);background-size:50px 50px}
+.canvas svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:360px;height:440px}
+.canvas .ruler{position:absolute;bottom:12px;left:16px;font-family:"Roboto Mono";font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.canvas .ruler i{display:block;width:100px;height:2px;background:var(--ink)}
+.canvas .tools{position:absolute;top:12px;left:12px;display:flex;gap:6px}
+.canvas .tools button{height:32px;padding:0 10px;border:1px solid var(--line);background:#fff;border-radius:var(--r);font-size:var(--type-body-sm)}
+.canvas .tools button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.canvas .colors{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+.canvas .colors i{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
+.canvas .colors i.on{box-shadow:0 0 0 2px var(--accent)}
+.insp .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.insp .field{margin-bottom:10px}
+.zonebar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.zonebar .chip{height:28px;padding:0 10px;cursor:pointer}
+.zonebar .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.warnline{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;background:var(--warn-bg);color:var(--warn);border-radius:var(--r);font-size:var(--type-body-sm)}
+.apply{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--line);background:var(--surface);border-radius:0 0 var(--r) var(--r)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--line);vertical-align:-2px;margin-right:6px}
+
+/* tasks */
+.tasks{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.task{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);align-items:center}
+.task:last-child{border-bottom:0}
+.task .due{font-family:"Roboto Mono";font-size:var(--type-label);text-align:center;min-width:52px}
+.task .due b{display:block;font-size:var(--type-title);font-weight:500}
+.task .due.hot{color:var(--signal)}
+.task .t{font-weight:500}.task .s{color:var(--muted);font-size:var(--type-label)}
+
+/* kp preview */
+.kp{background:#fff;border:1px solid var(--line);padding:24px;max-width:640px;font-size:var(--type-body-sm)}
+.kp h2{font-size:var(--type-h4);margin-bottom:4px}
+.kp .brand{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:14px}
+.kp .items{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:12px 0}
+.kp .item{border:1px solid var(--line);padding:10px;border-radius:var(--r)}
+.kp .item .thumb{width:100%;height:110px;margin-bottom:8px}
+.kp .item .thumb svg{width:70px;height:70px}
+.kp .item.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.kp .tot{display:flex;justify-content:space-between;font-size:var(--type-body-lg);font-weight:600;border-top:1px solid var(--ink);padding-top:8px;margin-top:8px}
+.footer{color:var(--muted);font-size:var(--type-label);text-align:center;padding:24px}
+
+@media (max-width:1000px){
+  .ocard,.wiz,.tasks{grid-template-columns:1fr}
+  .kanban{grid-template-columns:repeat(5,260px)}
+  .nav{overflow-x:auto}
+  .ohead{grid-template-columns:1fr}
+  .ohead .price{text-align:left}
+  .canvas{height:420px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="logo">PIN<b>HEAD</b></div>
+  <div class="seg"><span class="on">Заказы</span><span>Производство</span></div>
+  <nav class="nav" id="nav">
+    <button class="on" data-s="list">Заказы<span class="b">3</span></button>
+    <button data-s="card">Карточка PH-0023</button>
+    <button data-s="wizard">Позиция · шаг 4</button>
+    <button data-s="tasks">Задачи<span class="b">2</span></button>
+    <button data-s="kp">КП</button>
+  </nav>
+  <div class="me"><span class="bell" aria-label="Уведомления"><i></i>🔔</span>Никита · менеджер</div>
+</header>
+<div class="note">Макет целевого состояния Order v4 · <b>переключай экраны в шапке</b> · данные — по реальному заказу «Дзен Арктика», цифры условные</div>
+
+<!-- ================= LIST ================= -->
+<section class="screen on" id="s-list">
+  <div class="pagehead">
+    <h1>Мои заказы</h1><div class="sub">сентябрь 2026 · 14 в работе</div>
+    <div class="spacer"></div>
+    <div class="tog"><button class="on">Канбан</button><button>Таблица</button></div>
+    <button class="btn p">+ Новый расчёт</button>
+  </div>
+  <div class="filters">
+    <span class="chip on">Все</span><span class="chip">Тираж</span><span class="chip">Образец</span><span class="chip">Ждут оплаты</span><span class="chip">Ждут ТЗ</span><span class="chip warn">На согласовании цены · 1</span><span class="chip ok">Готовы к запуску · 2</span>
+  </div>
+  <div class="kanban">
+    <div class="col"><h3>Расчёт <span class="num">4</span></h3>
+      <div class="kcard" onclick="go('card')"><div class="t">Сбер · худи для ИТ-команды <span class="num">PH-0027</span></div><div class="d m">2 позиции · 3 варианта тиража</div><div class="f"><span class="chip warn">цена ниже порога</span><span class="sum">от 412 500 ₽</span></div></div>
+      <div class="kcard"><div class="t">Яндекс Лавка · футболки курьеров <span class="num">PH-0026</span></div><div class="d m">1 позиция · бланк + DTF</div><div class="f"><span class="chip">черновик</span><span class="sum">96 000 ₽</span></div></div>
+      <div class="kcard"><div class="t">Образец · Дзен, олимпийка шерпа <span class="num">PH-0022</span></div><div class="d m">образец → в ЭКС</div><div class="f"><span class="chip info">образец</span><span class="sum">12 000 ₽</span></div></div>
+    </div>
+    <div class="col"><h3>КП отправлено <span class="num">5</span></h3>
+      <div class="kcard due"><div class="t">Т-Банк · свитшоты на мерч-стенд <span class="num">PH-0025</span></div><div class="d m">КП открыто вчера 14:12 · без ответа 6 дн.</div><div class="f"><span class="chip err">напомнить</span><span class="sum">318 000 ₽</span></div></div>
+      <div class="kcard"><div class="t">VK · шопперы + патчи <span class="num">PH-0024</span></div><div class="d m">КП открыто сегодня</div><div class="f"><span class="chip">ждём ответ</span><span class="sum">147 500 ₽</span></div></div>
+    </div>
+    <div class="col"><h3>Оплата и ТЗ <span class="num">3</span></h3>
+      <div class="kcard" onclick="go('card')"><div class="t">Дзен Арктика · олимпийки, партия <span class="num">PH-0023</span></div><div class="d m">оплачено 50 % · ТЗ 9 из 11</div><div class="f"><span class="chip warn">ТЗ не готово</span><span class="sum">704 000 ₽</span></div></div>
+      <div class="kcard"><div class="t">Ozon · поло с вышивкой <span class="num">PH-0021</span></div><div class="d m">ТЗ готово · ждём оплату</div><div class="f"><span class="chip">не оплачен</span><span class="sum">228 000 ₽</span></div></div>
+    </div>
+    <div class="col"><h3>Готов к запуску <span class="num">2</span></h3>
+      <div class="kcard"><div class="t">Авито · футболки для фестиваля <span class="num">PH-0020</span></div><div class="d m">оплачен · ТЗ проверил технолог</div><div class="f"><span class="chip ok">запускает Маша</span><span class="sum">186 000 ₽</span></div></div>
+    </div>
+    <div class="col"><h3>В производстве <span class="num">6</span></h3>
+      <div class="kcard"><div class="t">Wildberries · худи, 300 шт <span class="num">PH-0018</span></div><div class="d m">ERP: пошив · сдача 14.10</div><div class="f"><span class="chip info">на складе ГП через 12 дн.</span><span class="sum">540 000 ₽</span></div></div>
+      <div class="kcard"><div class="t">Лента · жилеты, DTF <span class="num">PH-0017</span></div><div class="d m">ERP: подряд DTG · сдача 03.10</div><div class="f"><span class="chip ok">готов · доплата</span><span class="sum">92 000 ₽</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ORDER CARD ================= -->
+<section class="screen" id="s-card">
+  <div class="ohead">
+    <div>
+      <h1>Дзен Арктика · олимпийки, партия</h1>
+      <div class="meta"><span class="num">PH-0023</span><span>сделка <b class="num">[53528]</b></span><span>Дзен · Анна Соколова</span><span>дедлайн <b class="num">24.10.2026</b> · 19 раб. дн.</span><span>доставка: ТК до склада клиента</span><span class="chip ink">тираж</span><a href="#">образец PH-0022</a></div>
+    </div>
+    <div class="price"><div class="v">704 000 ₽</div><div class="l">220 шт · 3 200 ₽/шт · срочность нет · скидка 0</div></div>
+    <div class="flags">
+      <span class="chip ok">✓ Оплачено 50 % — 352 000 ₽</span>
+      <span class="chip warn">ТЗ: 9 из 11</span>
+      <span class="chip">Технолог: не требуется — пошив есть → требуется</span>
+      <span class="chip err">Раскладка «спина» изменена, не применена</span>
+      <div class="spacer"></div>
+      <button class="btn sm ghost">Копия</button><button class="btn sm ghost">В шаблон</button><button class="btn sm ghost">КП</button><button class="btn sm ghost">ТЗ PDF</button><button class="btn sm p" disabled title="Ждёт ТЗ">Запустить в производство</button>
+    </div>
+  </div>
+
+  <div class="ocard">
+    <div>
+      <div class="card">
+        <div class="h"><h3>Позиции</h3><div class="spacer"></div><span class="tog"><button class="on">Вариант A</button><button>Вариант B · 320 шт</button></span><button class="btn sm p" onclick="go('wizard')">+ Позиция</button></div>
+        <div class="pos">
+          <div class="thumb"><svg viewBox="0 0 44 44"><path d="M12 6h20l6 6-4 4v22H10V16l-4-4z" fill="#F3EFE6" stroke="#0A0A0A" stroke-width="1.5"/><path d="M12 6c2 5 18 5 20 0" fill="none" stroke="#0A0A0A" stroke-width="1.5"/><line x1="22" y1="12" x2="22" y2="38" stroke="#0A0A0A" stroke-width="1"/></svg></div>
+          <div class="body">
+            <div class="n">Олимпийка Дзен_Olimp_20.05.2026 <span class="chip">пошив по SKU</span><span class="chip">FreeFit</span></div>
+            <div class="d">Шерпа 100 % пэ 240 г · Астра Текстиль · отделка: твилл плащевый 190 г + подклад</div>
+            <div class="tags"><span class="chip"><i class="swatch" style="background:#F3EFE6"></i>Сливочный · XS–S 65 · M–L 90 · XL–2XL 65</span><span class="chip">Вышивка · спина справа 34×50</span><span class="chip">Вышивка · карман слева</span><span class="chip">Бирки: составник бланк, размерник</span></div>
+          </div>
+          <div class="pr"><div class="u">3 200 ₽</div><div class="q">220 шт · 704 000 ₽</div><div class="q">наценка +38 % (ступень 200)</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="h"><h3>Упаковка и маркировка</h3></div>
+        <div class="b"><dl class="kv"><dt>Индивидуальная</dt><dd>БОПП пакет 300×400 мм · складывание «в конверт»</dd><dt>Вложения</dt><dd>открытка клиента (файл в сделке)</dd><dt>Стикеры</dt><dd>бланк с размером</dd><dt>Честный знак</dt><dd><span class="chip warn">без ЧЗ — маркирует клиент</span> · олимпийка подлежит маркировке</dd></dl></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="h"><h3>Платежи</h3><div class="spacer"></div><button class="btn sm ghost">+ Платёж</button></div>
+        <div class="b" style="padding:0"><table class="pay"><tr><td>Предоплата 50 %</td><td class="num">22.09.2026</td><td class="r num">352 000 ₽</td><td class="r"><span class="chip ok">получен</span></td></tr><tr><td>Доплата</td><td class="num">по готовности</td><td class="r num">352 000 ₽</td><td class="r"><span class="chip">остаток</span></td></tr></table></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="card check">
+        <div class="h"><h3>Готовность ТЗ</h3><div class="spacer"></div><span class="num">9 / 11</span></div>
+        <div class="b"><ul>
+          <li><span class="dot ok">✓</span>Ткань и поставщик</li>
+          <li><span class="dot ok">✓</span>Сетка цвет × размер — 220 шт</li>
+          <li><span class="dot ok">✓</span>Нанесение «спина»: мм, Pantone 1163, 1181</li>
+          <li><span class="dot no">!</span>Нанесение «спина»: <a href="#" onclick="go('wizard');return false">применить раскладку</a></li>
+          <li><span class="dot ok">✓</span>Нанесение «карман»</li>
+          <li><span class="dot no">!</span>Макет «карман»: файл не приложен</li>
+          <li><span class="dot ok">✓</span>Бирки и место притачивания</li>
+          <li><span class="dot ok">✓</span>Упаковка</li>
+          <li><span class="dot wait"></span>Проверка технолога — после ТЗ</li>
+        </ul>
+        <button class="btn sm" style="width:100%;justify-content:center;margin-top:8px" disabled>ТЗ готово</button></div>
+      </div>
+
+      <div class="card chat" style="margin-top:16px">
+        <div class="h"><h3>Чат сделки</h3><div class="spacer"></div><span class="chip">продажи + цех</span></div>
+        <div class="b">
+          <div class="msg"><div class="who">Никита <span>вчера 16:40</span></div>Клиент просит цену 3 050 вместо 3 200 — 220 шт постоянный.
+            <div class="action"><b>Цена ниже порога</b>: маржа 21 % при пороге 25 %<div class="row"><button class="btn sm a">Согласовать</button><button class="btn sm ghost">Отклонить</button></div><div class="s" style="font-size:12px;color:var(--muted);margin-top:6px">ждёт РОПа или директора</div></div>
+          </div>
+          <div class="msg"><div class="who">Дима · дизайнер <span>сегодня 10:05</span></div>Раскладку спины пересобрал под 34×50, вышивка влезает по зоне. @Никита примени к ТЗ.</div>
+          <div class="msg"><div class="who">Ольга · технолог <span>сегодня 11:20</span></div>Подклад — уточни плотность, в ТЗ пусто.</div>
+          <div class="input sm" style="margin-top:10px;color:var(--muted)">Написать… <span>↵</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= WIZARD ================= -->
+<section class="screen" id="s-wizard">
+  <div class="pagehead"><h1>Позиция 1 · олимпийка</h1><div class="sub">PH-0023 · Дзен Арктика</div><div class="spacer"></div><button class="btn ghost" onclick="go('card')">← К заказу</button></div>
+  <div class="wiz">
+    <ul class="steps">
+      <li class="done"><span class="k">1</span>Тип — пошив по SKU</li>
+      <li class="done"><span class="k">2</span>Изделие и ткань</li>
+      <li class="done"><span class="k">3</span>Сетка · 220 шт</li>
+      <li class="cur"><span class="k">4</span>Нанесения</li>
+      <li><span class="k">5</span>Бирки</li>
+      <li style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-direction:column;align-items:stretch;gap:4px">
+        <span style="font-size:var(--type-label);color:var(--muted)">Цена позиции</span>
+        <span class="num" style="font-size:var(--type-h4);font-weight:500">3 200 ₽/шт</span>
+        <span style="font-size:var(--type-label);color:var(--muted)">база 2 090 · нанесения 980 · бирки 45 · упаковка 85 · подготовка 3 500 на заказ</span>
+      </li>
+    </ul>
+
+    <div>
+      <div class="zonebar"><span class="chip">Грудь слева</span><span class="chip on">Спина</span><span class="chip">Карман слева · вышивка</span><span class="chip">Рукав</span><span class="chip ghost">+ зона</span></div>
+      <div class="canvas">
+        <div class="grid"></div>
+        <div class="tools"><button class="on">Раскладка</button><button>Мм руками</button><button>Превью</button></div>
+        <div class="colors" title="Раскладка на цвет"><i class="on" style="background:#F3EFE6"></i><i style="background:#F28C28"></i><i style="background:#fff"></i></div>
+        <svg viewBox="0 0 360 440" aria-label="Флэт олимпийки, спина">
+          <path d="M96 40 L150 22 L180 30 L210 22 L264 40 L330 90 L300 140 L268 122 L268 410 L92 410 L92 122 L60 140 L30 90 Z" fill="#F3EFE6" stroke="#0A0A0A" stroke-width="2"/>
+          <line x1="180" y1="30" x2="180" y2="410" stroke="#C4C4C4" stroke-dasharray="4 4"/>
+          <rect x="112" y="90" width="136" height="220" fill="none" stroke="#2B2BF0" stroke-dasharray="6 4"/>
+          <text x="118" y="106" font-family="Roboto Mono" font-size="11" fill="#2B2BF0">зона · спина верх</text>
+          <g>
+            <rect x="196" y="128" width="50" height="34" fill="rgba(43,43,240,.10)" stroke="#2B2BF0" stroke-width="1.5"/>
+            <text x="200" y="150" font-family="Oswald" font-size="14" fill="#0A0A0A">ДЗЕН</text>
+            <circle cx="196" cy="128" r="4" fill="#fff" stroke="#2B2BF0"/><circle cx="246" cy="162" r="4" fill="#fff" stroke="#2B2BF0"/>
+          </g>
+          <line x1="180" y1="62" x2="180" y2="128" stroke="#FF3B30" stroke-width="1"/>
+          <text x="184" y="98" font-family="Roboto Mono" font-size="11" fill="#FF3B30">100 мм от шва</text>
+          <line x1="196" y1="176" x2="246" y2="176" stroke="#0A0A0A"/><text x="206" y="190" font-family="Roboto Mono" font-size="11">50</text>
+          <line x1="256" y1="128" x2="256" y2="162" stroke="#0A0A0A"/><text x="260" y="149" font-family="Roboto Mono" font-size="11">34</text>
+        </svg>
+        <div class="ruler"><i></i>100 мм · группа M–L</div>
+      </div>
+      <div class="apply"><span><b>Раскладка изменена</b> — в ТЗ стоят прежние значения (30×44, отступ 90)</span><button class="btn sm a">Применить к ТЗ</button></div>
+    </div>
+
+    <aside class="card insp">
+      <div class="h"><h3>Спина · вышивка</h3><div class="spacer"></div><span class="chip info">от дизайнера</span></div>
+      <div class="b">
+        <div class="field"><label>Техника</label><div class="input sm">Вышивка <span>▾</span></div></div>
+        <div class="field"><label>Группа размеров</label><div class="tog"><button>XS–S</button><button class="on">M–L</button><button>XL–2XL</button></div></div>
+        <div class="row"><div class="field"><label>Ширина, мм</label><div class="input sm num">50</div></div><div class="field"><label>Высота, мм</label><div class="input sm num">34</div></div></div>
+        <div class="row"><div class="field"><label>Отступ от шва, мм</label><div class="input sm num">100</div></div><div class="field"><label>Где</label><div class="input sm">Спина справа по втачке</div></div></div>
+        <div class="field"><label>Pantone</label><div class="input sm"><span><i class="swatch" style="background:#E8A317"></i>1163 C · <i class="swatch" style="background:#F2B84B"></i>1181 C</span><span>+</span></div></div>
+        <div class="field"><label>На крое / на готовом</label><div class="tog"><button class="on">На крое</button><button>На готовом</button></div></div>
+        <div class="field"><label>Макет</label><div class="input sm">dzen_back.ai · ссылка на сервер <span class="chip ok">есть</span></div></div>
+        <div class="field"><label>Комментарий</label><div class="input sm" style="height:auto;padding:8px 12px;color:var(--muted)">Макет как в сделке [54002]</div></div>
+        <div class="warnline">⚠ Максимум техники для вышивки в зоне — 60 мм по ширине. Сейчас 50 — ок. Предупреждение, не блок.</div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn sm ghost">Отдать дизайнеру</button><button class="btn sm ghost">Копировать на все цвета</button></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= TASKS ================= -->
+<section class="screen" id="s-tasks">
+  <div class="pagehead"><h1>Задачи</h1><div class="sub">очередь по дедлайну заказа</div></div>
+  <div class="tasks">
+    <div class="card">
+      <div class="h"><h3>Дизайнер · Дима</h3><div class="spacer"></div><span class="num">4</span></div>
+      <div class="task"><div class="due hot"><b>03.10</b>через 6 дн.</div><div><div class="t">Раскладка + подготовка к печати · Лента, жилеты DTF</div><div class="s">PH-0017 · 2 зоны · от Никиты · подрядчик ждёт файлы</div></div><span class="chip warn">в работе</span></div>
+      <div class="task"><div class="due"><b>24.10</b>19 раб. дн.</div><div><div class="t">Финал раскладки «карман» · Дзен Арктика</div><div class="s">PH-0023 · вышивка · от Никиты</div></div><span class="chip">в очереди</span></div>
+      <div class="task"><div class="due"><b>—</b>КП</div><div><div class="t">Черновик для КП · Сбер, худи</div><div class="s">PH-0027 · 3 варианта · от Кати</div></div><span class="chip">в очереди</span></div>
+      <div class="task"><div class="due"><b>—</b>КП</div><div><div class="t">Вектор логотипа · VK шопперы</div><div class="s">PH-0024 · от Никиты</div></div><span class="chip">в очереди</span></div>
+    </div>
+    <div class="card">
+      <div class="h"><h3>Технолог · Ольга</h3><div class="spacer"></div><span class="num">2</span></div>
+      <div class="task"><div class="due"><b>24.10</b></div><div><div class="t">Проверить ТЗ · Дзен Арктика, олимпийки</div><div class="s">PH-0023 · пошив · ждёт «ТЗ готово» от менеджера</div></div><span class="chip wait">ждёт ТЗ</span></div>
+      <div class="task"><div class="due"><b>—</b></div><div><div class="t">Анкета разработки · Т-Банк, куртка-бомбер</div><div class="s">PH-0028 · разработка · оценить сложность</div></div><span class="chip">новая</span></div>
+      <div class="b" style="border-top:1px solid var(--line);color:var(--muted);font-size:var(--type-body-sm)">Флэты на размер: 6 из 35 моделей заведены · <a href="#">редактор лекал</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= KP ================= -->
+<section class="screen" id="s-kp">
+  <div class="pagehead"><h1>КП · Сбер, худи для ИТ-команды</h1><div class="sub">шаблон: подробное · 3 варианта тиража</div><div class="spacer"></div><span class="chip warn">выпуск заблокирован: цена на согласовании</span><button class="btn ghost" disabled>PDF</button><button class="btn ghost" disabled>Ссылка</button></div>
+  <div class="kp">
+    <div class="brand"><div class="logo">PIN<b>HEAD</b></div><div class="num">КП PH-0027 · 27.09.2026</div></div>
+    <h2>Худи для ИТ-команды</h2>
+    <div style="color:var(--muted)">Худи Free Fit · футер 3-нитка 350 г · тёмно-синий · шелкография грудь 1 цвет + спина 3 цвета</div>
+    <div class="items">
+      <div class="item"><div class="thumb"><svg viewBox="0 0 44 44"><path d="M12 8h20l6 6-4 4v20H10V18l-4-4z" fill="#1F2A5A" stroke="#0A0A0A" stroke-width="1.5"/><path d="M14 8c0 5 16 5 16 0" fill="none" stroke="#0A0A0A" stroke-width="1.5"/></svg></div><b>100 шт</b><div class="num">3 150 ₽/шт</div><div class="num" style="color:var(--muted)">315 000 ₽</div></div>
+      <div class="item on"><div class="thumb"><svg viewBox="0 0 44 44"><path d="M12 8h20l6 6-4 4v20H10V18l-4-4z" fill="#1F2A5A" stroke="#0A0A0A" stroke-width="1.5"/><path d="M14 8c0 5 16 5 16 0" fill="none" stroke="#0A0A0A" stroke-width="1.5"/></svg></div><b>150 шт</b><div class="num">2 750 ₽/шт</div><div class="num" style="color:var(--muted)">412 500 ₽</div></div>
+      <div class="item"><div class="thumb"><svg viewBox="0 0 44 44"><path d="M12 8h20l6 6-4 4v20H10V18l-4-4z" fill="#1F2A5A" stroke="#0A0A0A" stroke-width="1.5"/><path d="M14 8c0 5 16 5 16 0" fill="none" stroke="#0A0A0A" stroke-width="1.5"/></svg></div><b>300 шт</b><div class="num">2 450 ₽/шт</div><div class="num" style="color:var(--muted)">735 000 ₽</div></div>
+    </div>
+    <table><tr><td>Изделие и ткань</td><td class="r num">1 980 ₽</td></tr><tr><td>Шелкография, 2 зоны</td><td class="r num">640 ₽</td></tr><tr><td>Бирки: основная тканая, хэнгтег</td><td class="r num">75 ₽</td></tr><tr><td>Упаковка: ЗИП пакет</td><td class="r num">55 ₽</td></tr><tr><td>Подготовка форм, один раз</td><td class="r num">6 000 ₽</td></tr></table>
+    <div class="tot"><span>Вариант 150 шт</span><span class="num">412 500 ₽</span></div>
+    <div style="margin-top:12px;color:var(--muted)">Срок: <b class="num">21.10.2026</b> при оплате и утверждении макета до 30.09. Предоплата 50 %, доплата по готовности. Цена без НДС.</div>
+  </div>
+</section>
+
+<div class="footer">PinheadOS · Order v4 · макет 27.09.2026 · «Бумага и краска»</div>
+
+<script>
+function go(s){document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-'+s));document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));window.scrollTo({top:0});}
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.s)));
+</script>
+</body>
+</html>
