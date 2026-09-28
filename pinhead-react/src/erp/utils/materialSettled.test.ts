@@ -64,3 +64,74 @@ describe('«материал на месте» — одна формула', () 
     expect(latestDefining('erp_stage_completion_block')).toContain(tail);
   });
 });
+
+/**
+ * АВТОЗАКРЫТИЕ ЗАКУПКИ — НА СЕРВЕРЕ, ПОД МЕТКОЙ (правка заказчика 27.09, п. 9).
+ *
+ * Клиентское автозакрытие при приёмке шло от лица кладовщика, и страж
+ * отвечал 42501: заказ 65004 стоял «В работе» при всех принятых материалах.
+ * Теперь этап закрывает триггер в транзакции приёмки, а правило «полностью
+ * поступил» живёт в двух копиях — здесь сторожится, что они совпадают
+ * и что пропуск стража узкий.
+ */
+describe('автозакрытие закупки (27.09, п. 9)', () => {
+  const fully = withoutComments(
+    functionBody(latestDefining('erp_material_fully_received'), 'erp_material_fully_received'));
+
+  it('сервер требует accepted_full И количество не меньше плана', () => {
+    expect(fully).toMatch(/in \('reserved', 'not_needed'\)/);
+    expect(fully).toMatch(/accept_status, ''\) = 'accepted_full'/);
+    expect(fully).toMatch(/qty_received, 0\) >= m\.qty_expected/);
+    expect(fully).toMatch(/qty_expected, 0\) > 0/);
+    // Частичная приёмка закупку не закрывает — в отличие от гейтов цеха
+    expect(fully).not.toContain('accepted_partial');
+  });
+
+  it('клиентское зеркало спрашивает то же самое', () => {
+    const supply = withoutJsComments(SRC('utils/supply.ts'));
+    const body = /isMaterialFullyReceived\([\s\S]*?\n\}/.exec(supply)?.[0] ?? '';
+    expect(body).toContain("status === 'reserved' || status === 'not_needed'");
+    expect(body).toContain("m.accept_status !== 'accepted_full'");
+    expect(body).toMatch(/need > 0 && got >= need/);
+    expect(body).not.toContain('accepted_partial');
+  });
+
+  it('триггер стоит на материалах и ловит приход, вердикт и план', () => {
+    const sql = latestDefining('erp_supply_autoclose');
+    expect(sql).toMatch(
+      /create trigger erp_supply_autoclose\s+after insert or update of status, accept_status, qty_received, qty_expected\s+on public\.erp_materials/);
+    // Закрытие идёт под меткой транзакции и пишет событие только при переходе
+    expect(sql).toContain("set_config('erp.supply_autoclose', 'on', true)");
+    expect(sql).toContain("set_config('erp.supply_autoclose', 'off', true)");
+    expect(sql).toMatch(/if found then\s+insert into public\.erp_stage_events/);
+    // Пустой список готовым не считается — то же правило, что у клиента
+    expect(withoutComments(functionBody(sql, 'erp_supply_autoclose')))
+      .toMatch(/if not exists \(select 1 from public\.erp_materials m where m\.order_id = v_order\)/);
+  });
+
+  it('страж пропускает метку только у этапа закупки и только на статус', () => {
+    const guard = withoutComments(functionBody(latestDefining('erp_stage_guard'), 'erp_stage_guard'));
+    const at = guard.indexOf("current_setting('erp.supply_autoclose', true)");
+    expect(at).toBeGreaterThan(0);
+    const branch = guard.slice(at, guard.indexOf('return new;', at));
+    expect(branch).toContain("new.status = 'done' and old.status is distinct from 'done'");
+    expect(branch).toContain("d.code = 'supply'");
+    expect(branch).toMatch(/to_jsonb\(new\) - array\['updated_at', 'status', 'finished_at'\]/);
+    expect(branch).toMatch(/to_jsonb\(old\) - array\['updated_at', 'status', 'finished_at'\]/);
+  });
+
+  /**
+   * Клиент этап закупки больше не пишет: второй писатель дал бы два закрытия
+   * наперегонки и двойное событие в истории. Мутация — вернуть
+   * `setStageStatus(st.id, 'done'` в `maybeCloseSupply` — тест красный.
+   */
+  it('клиент только перечитывает заказ — этап закупки пишет сервер', () => {
+    const slice = withoutJsComments(SRC('store/slices/materialsSlice.ts'));
+    const body = /maybeCloseSupply: async[\s\S]*?\n {2}\},/.exec(slice)?.[0] ?? '';
+    expect(body).not.toContain("setStageStatus(");
+    expect(body).toContain('loadOne(orderId)');
+    expect(body).toContain('allFullyReceived');
+    const wh = withoutJsComments(SRC('store/slices/warehouseSlice.ts'));
+    expect(wh).not.toContain('maybeCloseSupply(');
+  });
+});

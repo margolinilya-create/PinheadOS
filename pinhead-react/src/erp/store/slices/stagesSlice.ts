@@ -10,7 +10,7 @@ import { supabase } from '../../../lib/supabase';
 import { toast } from '../../../store/useToastStore';
 import { loadReworkEvents } from '../reworkEvents';
 import { deptShortName } from '../../data/departments';
-import type { ErpItemStage, ErpStageEvent, StageReportSizeInput } from '../../types';
+import type { ErpItemStage, ErpStageEvent } from '../../types';
 import type { ReportWithSizes } from '../../utils/stageSizes';
 import {
   defaultQueuePosition,
@@ -20,84 +20,16 @@ import {
 } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
-import { stageCompletionBlock } from '../../utils/stageDone';
-import { stageResultFileBlock } from '../../utils/stageResult';
-import { materialsForItem } from '../../utils/routes';
-import { materialsAfterBypass } from '../../utils/bypass';
+import { stageCeiling } from '../../utils/stageRemaining';
+import { completionBlockFor, unaccountedBlockFor } from './stageGates';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
 import {
   erpError, erpQuery, erpWrite, logStageEvent, withPending,
 } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
-
-/**
- * ГЕЙТ ЗАВЕРШЕНИЯ ЭТАПА ЖИВЁТ У ПИСАТЕЛЯ, А НЕ У КНОПОК.
- *
- * До 03.09 проверка «закупка не завершена» (правка 30.08, п. 5) стояла в трёх
- * местах интерфейса — `confirmStageDone` у кнопки «Завершить этап» и копия
- * в `onProgress`, — и сторож перечислял вызывающих РУКАМИ. Четвёртый путь
- * в этот список не попал: «Записать результат» у участка с настроенной схемой
- * отчёта (`erp_departments.result_fields`) идёт мимо, прямо в
- * `erp_stage_submit_report`, а тот сам ставит `status='done'`, когда `qty_done`
- * добирает тираж.
- *
- * Цена была не теоретическая: схема отчёта засеяна миграцией
- * `20260810190000` в том числе `cutting` и `sewing` — РОВНО тем двум участкам,
- * у которых непустой `gate_material_kinds` (`20260803120000`). То есть гейт был
- * мёртв именно там, ради чего написан: закрой закрывал этап при неприехавшей
- * ткани и открывал швейке тираж, которого физически нет.
- *
- * Поэтому правило проверяется здесь — у каждой записи, которая может закрыть
- * этап. Пятый путь получит его сам, а не в тот день, когда кто-то вспомнит
- * дописать его в список. Диалог с последствиями (`confirmStageDone`) остаётся
- * в интерфейсе: он объясняет человеку, а не сторожит.
- */
-function completionBlockFor(
-  store: ErpStore,
-  found: NonNullable<ReturnType<typeof findStage>>,
-  addedGood: number,
-): string | null {
-  const { stage, item, order } = found;
-  /**
-   * ФАЙЛОВЫЙ РЕЗУЛЬТАТ ПРОВЕРЯЕТСЯ ПЕРВЫМ И БЕЗ ОГЛЯДКИ НА ТИРАЖ
-   * (правка 13.09, п. 9). У «Разработки программы вышивки» `qty_done`
-   * остаётся нулём по построению, то есть условие «запись добирает тираж»
-   * ниже её бы не пустило — а гейт нужен ровно здесь: закрытый без файла
-   * этап оставляет вышивальщицу без программы.
-   *
-   * Гейт стоит У ПИСАТЕЛЯ, а не только у кнопки: кнопка гасится и в очереди,
-   * и на странице задания, но закрыть этап можно ещё дорожкой «Завершено»
-   * на канбане и чипом производственного плана — там кнопки нет.
-   */
-  const fileBlock = stageResultFileBlock(stage, order ?? null);
-  if (fileBlock) return fileBlock;
-  // Проверяем ТОЛЬКО когда запись реально добирает тираж: частичная сдача при
-  // неприехавшем материале законна — цех отчитывается за то, что сделал.
-  if ((stage.qty_done ?? 0) + addedGood < item.qty) return null;
-  return stageCompletionBlock({
-    stage,
-    qty: item.qty,
-    allStages: item.stages,
-    /**
-     * АВАРИЙНОЕ СНЯТИЕ ДЕЙСТВУЕТ И НА ЗАКРЫТИЕ ЭТАПА (правка 03.09).
-     *
-     * Гейт завершения появился 30.08, аварийный режим — 10.08, и связать их
-     * забыли: `materialsAfterBypass` звали только сборщики гейта ВХОДА
-     * (`queueEntries`, `shipOrder`). Получалось, что директор снимает
-     * проверку, цех видит «Проверка снята вручную» и берёт задание в работу —
-     * а закрыть его всё равно не может. Аварийный режим существует ровно для
-     * того случая, когда проверка держит работу из-за ошибки в системе;
-     * половина выхода — это не выход.
-     */
-    materials: materialsAfterBypass(
-      materialsForItem(order.materials, item.id),
-      order.id,
-      store.bypasses,
-    ),
-    dept: store.departments.find((d) => d.id === stage.department_id),
-  });
-}
+import { attemptKeyFor, resetAttempt } from '../attempts';
+import { reportTotals } from '../../utils/reportTotals';
 
 /**
  * Патч этапа для `erp_stage_apply_defect`: счётчики ПРИРАЩЕНИЕМ, статус либо явный,
@@ -188,6 +120,12 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
       const blocked = completionBlockFor(get(), found, extra.qty_done ?? found.item.qty);
       if (blocked) {
         toast.error(blocked);
+        return false;
+      }
+      // Не учтённые изделия держат закрытие (правка 27.09, п. 7): читает журнал сам
+      const unaccounted = await unaccountedBlockFor(get(), found, extra.qty_done);
+      if (unaccounted) {
+        toast.error(unaccounted);
         return false;
       }
     }
@@ -294,7 +232,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      */
     const optimistic = before + qty;
     const patch: Partial<ErpItemStage> = { qty_done: optimistic };
-    if (optimistic >= total) {
+    /**
+     * Закрытие — по потолку учёта (большее из тиража и принятого), как
+     * на сервере (`erp_stage_unaccounted`, правка 27.09, п. 7). Брак
+     * по отчётам здесь не учтён — это картинка на секунду, истину отдаст
+     * ответ RPC.
+     */
+    if (optimistic >= stageCeiling(stage, item.stages ?? [], total)) {
       patch.status = 'done';
       patch.finished_at = new Date().toISOString();
     }
@@ -370,39 +314,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     if (!found) return false;
     const { stage, item, order } = found;
 
-    /**
-     * РАЗБИВКА ПО РАЗМЕРАМ ЗАДАЁТ ЧИСЛА, ЕСЛИ ОНА ЕСТЬ (правки 16.09).
-     *
-     * Ровно то же правило стоит внутри `erp_stage_submit_report`, и это
-     * не дублирование, а согласование: клиентские проверки ниже (гейт
-     * закупки, «внесите хотя бы одно число») обязаны судить по ТЕМ ЖЕ
-     * числам, которые запишет сервер. Иначе форма отказала бы там, где
-     * сервер записал, — или наоборот, а это и есть запрещённое «кнопка
-     * есть, действие падает».
-     */
-    const sizes = (input.sizes ?? []).filter((s) => s?.size);
-    const rolls = (input.rolls ?? []).filter((r) => r?.roll_id);
-    const sizeSum = (pick: (s: StageReportSizeInput) => number | undefined): number =>
-      sizes.reduce((acc, s) => acc + Math.max(pick(s) ?? 0, 0), 0);
-
-    /**
-     * Рулоны задают выход раскроя, размеры — результат по размерам,
-     * скаляры — всё остальное. Порядок тот же, что внутри RPC: клиентские
-     * проверки обязаны судить по ТЕМ ЖЕ числам, которые запишет сервер.
-     */
-    const rollSum = rolls.reduce(
-      (acc, r) => acc + (r.sizes ?? []).reduce((s, c) => s + Math.max(c.qty_good ?? 0, 0), 0),
-      0,
-    );
-    const good = rolls.length > 0
-      ? rollSum
-      : (sizes.length > 0 ? sizeSum((s) => s.qty_good) : Math.max(input.qtyGood ?? 0, 0));
-    const defect = sizes.length > 0
-      ? sizeSum((s) => s.qty_defect) : Math.max(input.qtyDefect ?? 0, 0);
-    const rework = sizes.length > 0
-      ? sizeSum((s) => s.qty_rework) : Math.max(input.qtyRework ?? 0, 0);
-    const extraQty = sizes.length > 0
-      ? sizeSum((s) => s.qty_extra) : Math.max(input.qtyExtra ?? 0, 0);
+    // Числа отчёта — из разбивки, если она есть; правило одно с сервером (`utils/reportTotals`)
+    const { sizes, rolls, good, defect, rework, extraQty } = reportTotals(input);
     if (good + defect + rework + extraQty <= 0) {
       toast.error('Внесите хотя бы одно число');
       return false;
@@ -443,11 +356,13 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
         p_sizes: sizes,
         p_rolls: rolls,
         p_assembly_cost: input.assemblyCost ?? null,
+        p_client_key: attemptKeyFor(stageId, input), // повтор не спишет метры дважды (`store/attempts`)
       })));
     if (error) {
       erpError('Результат не записан', error);
       return false;
     }
+    resetAttempt(stageId);
     const row = (data ?? null) as ErpItemStage | null;
     if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
 

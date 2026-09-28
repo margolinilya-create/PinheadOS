@@ -384,3 +384,31 @@ describe('иерархия действий этапа в работе', () => {
     expect(complete.className).toMatch(/secondary/);
   });
 });
+
+/**
+ * ВЫШИВКА ЖДЁТ ПРОГРАММУ (правка заказчика 27.09, п. 3): «при попытке
+ * завершения показывать сообщение „Сначала завершите задачу “Разработка
+ * программы вышивки”"». Кнопка гаснет с этой подписью рядом — у того же
+ * участка той же позиции; у другой позиции программа не считается.
+ */
+describe('StageActionsPanel — вышивка ждёт разработку программы', () => {
+  const PROGRAM = (status) => ({
+    id: 's-prog', department_id: 'd1', status, qty_done: 0, result_kind: 'embroidery_program',
+  });
+  const entryWith = (status) => {
+    const e = makeEntry('in_progress');
+    return { ...e, item: { ...e.item, stages: [...e.item.stages, PROGRAM(status)] } };
+  };
+
+  it('программа не завершена — «Завершить этап» выключена и причина названа', () => {
+    renderCard(entryWith('in_progress'));
+    expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeDisabled();
+    expect(screen.getByText('Сначала завершите задачу “Разработка программы вышивки”')).toBeInTheDocument();
+  });
+
+  it('программа завершена — кнопка работает', () => {
+    renderCard(entryWith('done'));
+    expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeEnabled();
+    expect(screen.queryByText(/Сначала завершите задачу/)).not.toBeInTheDocument();
+  });
+});

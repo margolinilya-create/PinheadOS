@@ -6,7 +6,6 @@
  * Чистые функции — покрыты тестами orderForm.test.ts.
  */
 
-import { storageGet, storageRemove } from '../../lib/storage';
 import { factoryToday } from '../../utils/date';
 import type { SizeGridRow } from '../types';
 import { itemNeedsPurchase } from './garmentSource';
@@ -612,97 +611,25 @@ export function validateOrderForm(
   return { errors, missing, invalid };
 }
 
-// --- Черновик в localStorage ------------------------------------------------------
-
-interface OrderDraftEnvelope {
-  form: DraftForm;
-  items: DraftItem[];
-  /** Лист закупки; в старых черновиках его нет вовсе */
-  purchase?: DraftPurchaseRow[];
-  /** Заметки к заказу; в черновиках до 22.08 их нет */
-  notes?: DraftNote[];
-  savedAt: string;
-}
-
-/** Заметка к заказу в черновике формы (правка 22.08, п. 5.8) */
-export interface DraftNote {
-  key: string;
-  text: string;
-}
-
-export interface OrderDraft {
-  form: DraftForm;
-  items: DraftItem[];
-  purchase: DraftPurchaseRow[];
-  notes: DraftNote[];
-}
-
-/**
- * Привести снимок формы к нынешней структуре.
- *
- * ОДНА функция и для локального черновика, и для строки из базы (правка 22.08,
- * п. 5.5): снимки, сделанные раньше, лежат и там, и там, а дописывание ключей
- * нанесениям и подстановка новых полей — правило одно. Вторая копия рядом
- * означала бы, что часть черновиков чинится, а часть нет.
- *
- * `null` — снимка нет или он битый: форма откроется чистой, а не упадёт.
- */
-export function normalizeDraft(raw: unknown): OrderDraft | null {
-  const env = raw as OrderDraftEnvelope | null;
-  if (!env || typeof env !== 'object') return null;
-  if (!env.form || typeof env.form !== 'object') return null;
-  if (!Array.isArray(env.items) || env.items.length === 0) return null;
-  return normalizeEnvelope(env);
-}
-
-/** Восстановить локальный черновик прежней версии; null — его нет или он битый */
-export function loadOrderDraft(): OrderDraft | null {
-  return normalizeDraft(storageGet<OrderDraftEnvelope>(ORDER_DRAFT_KEY));
-}
-
-function normalizeEnvelope(raw: OrderDraftEnvelope): OrderDraft {
-  return {
-    form: { ...emptyOrderForm(), ...raw.form },
-    items: raw.items.map((it) => ({
-      ...EMPTY_ITEM,
-      ...it,
-      /**
-       * Ключи дописываются восстановленному черновику: он мог быть сохранён
-       * до правки 22.08, а без ключа макет не к чему привязать. Ключ самой
-       * позиции — по той же причине (черновики до 26.09 его не несли).
-       */
-      key: it.key || crypto.randomUUID(),
-      prints: (Array.isArray(it.prints) ? it.prints : [])
-        .map((p) => ({ ...p, key: p.key || crypto.randomUUID() })),
-      labels: (Array.isArray(it.labels) ? it.labels : [])
-        .map((l) => ({ ...l, key: l.key || crypto.randomUUID() })),
-      // старые черновики без флага: брендирование — если есть нанесения
-      has_branding: it.has_branding ?? (Array.isArray(it.prints) && it.prints.length > 0),
-    })),
-    /**
-     * Черновик, сохранённый до появления листа закупки, отдаёт пустой лист,
-     * а не роняет восстановление: человек мог начать заказ вчера.
-     */
-    purchase: Array.isArray(raw.purchase)
-      ? raw.purchase.map((r, i) => ({ ...emptyPurchaseRow(r.key || `p${i}`), ...r }))
-      : [],
-    notes: Array.isArray(raw.notes)
-      ? raw.notes.map((n) => ({ ...n, text: n.text ?? '', key: n.key || crypto.randomUUID() }))
-      : [],
-  };
-}
+// --- Черновик ------------------------------------------------------------------
 
 /*
-  `saveOrderDraft` СНЯТ 07.09: писателя у localStorage-черновика больше нет.
-  Снимок формы уходит в `erp_order_drafts` (таблица заведена 22.08), а
-  localStorage остался ТОЛЬКО на чтение — разовый перенос того, что человек
-  начал до перехода на базу. Живы `loadOrderDraft` и `clearOrderDraft`:
-  первый этот перенос выполняет, второй убирает ключ после него.
+  Снимок черновика (типы, нормализация, локальный перенос прежней версии)
+  живёт в `orderDraftEnvelope.ts` (вынос 27.09, правка 12: файлы черновика).
+  Реэкспорт держит прежние импорты живыми.
 */
-
-export function clearOrderDraft(): void {
-  storageRemove(ORDER_DRAFT_KEY);
-}
+export {
+  normalizeDraft,
+  loadOrderDraft,
+  clearOrderDraft,
+  fileNameFromPath,
+} from './orderDraftEnvelope';
+export type {
+  OrderDraft,
+  DraftNote,
+  DraftAttachment,
+  DraftTzDoc,
+} from './orderDraftEnvelope';
 
 // --- Существующий заказ → черновик формы (правка 12.09, п. 7) ------------------
 

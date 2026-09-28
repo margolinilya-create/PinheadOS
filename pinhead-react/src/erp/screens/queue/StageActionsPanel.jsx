@@ -19,10 +19,11 @@ import { Button } from '../../components/Button';
 import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
-import { isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { MoveStageSelect } from './MoveStageSelect';
+import { embroideryProgramBlock, isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
 import { useStageMove } from '../../hooks/useStageMove';
-import { deptShortName } from '../../data/departments';
 
 /**
  * Действия цеха над заданием: «Взять в работу», «Записать результат», «Проблема»,
@@ -42,7 +43,6 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const { moveStageTo, canMove, targetsFor } = useStageMove();
   const canMoveDept = canMove(stage);
   const moveTargets = useMemo(() => targetsFor(stage), [targetsFor, stage]);
-  const [moveTo, setMoveTo] = useState('');
   /** Задача дневного плана этого этапа на сегодня — если руководитель её ставил */
   const todaySlot = useErpStore(useShallow((st) => (st.planSlots ?? []).find(
     (sl) => sl.stage_id === stage.id
@@ -55,8 +55,13 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
 
   const overdue = stageOverdue(stage.planned_end, stage.status);
   const needsAck = overdue && !stage.overdue_ack_at;
-  const qtyDone = stage.qty_done ?? 0;
-  const remaining = Math.max(item.qty - qtyDone, 0);
+  // Остаток — от потолка учёта, а не от тиража (правка 27.09, п. 7); брак
+  // по отчётам панель не читает — точное «не учтено» показывает форма
+  const remaining = stageUnaccounted({
+    stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported: 0,
+  });
+  // Вышивка ждёт «Разработку программы вышивки» той же позиции (27.09, п. 3)
+  const programBlock = embroideryProgramBlock(stage, item.stages ?? []);
 
   // Норматив участка (правка 12) и справочники быстрых причин (правка 12)
   const normDays = useErpStore(
@@ -368,7 +373,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   /* Файл — единственный результат этого этапа (решение
                      владельца): закрытый пустым, он оставил бы вышивальщицу
                      без программы, и выяснилось бы это уже в цехе */
-                  disabled={busy || (fileResult && resultFiles.length === 0)}
+                  disabled={busy || (fileResult && resultFiles.length === 0) || Boolean(programBlock)}
                   onClick={() => run(() => onDone(entry))}
                 >
                   <Icon name="check" size={14} /> Завершить этап
@@ -379,6 +384,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   Приложите файл программы — без него этап не закрыть.
                 </span>
               )}
+              {programBlock && <span className={styles.subText}>{programBlock}</span>}
               {!blockMode && !defectMode && (
                 <>
                   {/*
@@ -436,40 +442,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               )}
             </>
           )}
-          {/*
-            ПЕРЕНОС В ДРУГОЙ ЦЕХ ЖИВЁТ И ЗДЕСЬ (§2.5 обхода 04.09). Раньше
-            `moveStageToDepartment` звал только канбан, а вид доски по умолчанию
-            — таблица: диспетчер, увидевший затор в очереди участка, обязан был
-            уйти на доску и переключить вид. Логика та же самая
-            (`hooks/useStageMove`) — подтверждение с последствиями и
-            обязательная причина при возврате назад; второй реализации нет.
-          */}
           {canMoveDept && moveTargets.length > 0 && (
-            <span className={styles.checkRow}>
-              <select
-                className={styles.select}
-                value={moveTo}
-                onChange={(e) => setMoveTo(e.target.value)}
-                aria-label="Перенести задание в другой цех"
-              >
-                <option value="">— перенести в цех —</option>
-                {moveTargets.map((d) => (
-                  <option key={d.id} value={d.id}>{deptShortName(d.code, d.name)}</option>
-                ))}
-              </select>
-              <Button
-                variant="ghost"
-                loading={busy}
-                disabled={busy || !moveTo}
-                onClick={() => run(async () => {
-                  const dept = moveTargets.find((d) => d.id === moveTo);
-                  if (dept) await moveStageTo(entry, dept);
-                  setMoveTo('');
-                })}
-              >
-                <Icon name="arrowRight" size={14} /> Перенести
-              </Button>
-            </span>
+            <MoveStageSelect entry={entry} targets={moveTargets} busy={busy} run={run} moveStageTo={moveStageTo} />
           )}
           {group === 'done' && perms.defect && !defectMode && (
             <Button variant="ghost" onClick={() => setDefectMode(true)}>

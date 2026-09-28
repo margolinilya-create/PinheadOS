@@ -169,6 +169,54 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
     return true;
   },
 
+  setRollLeftover: async (rollId, kind) => {
+    if (kind !== 'usable' && kind !== 'scrap') return false;
+    const ok = await erpWrite('Остаток рулона не записан', () => supabase
+      .from('erp_material_rolls')
+      .update({ leftover_kind: kind, status: 'used' })
+      .eq('id', rollId)
+      .select());
+    if (!ok) return false;
+    // Не optimistic: судьба остатка — необратимое решение, и показать его
+    // записанным раньше ответа сервера значило бы соврать закройщику
+    set((s) => ({
+      orders: s.orders.map((o) => ({
+        ...o,
+        materials: o.materials.map((m) => ({
+          ...m,
+          rolls: (m.rolls ?? []).map((r) => (
+            r.id === rollId ? { ...r, leftover_kind: kind, status: 'used' as const } : r)),
+        })),
+      })),
+    }));
+    toast.success(kind === 'usable'
+      ? 'Остаток записан как пригодный — он появится в «Остатках ткани»'
+      : 'Малый остаток списан');
+    return true;
+  },
+
+  setRollParams: async (rollId, params) => {
+    const order = get().orders.find((o) => o.materials.some(
+      (m) => (m.rolls ?? []).some((r) => r.id === rollId)));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_roll_set_params', {
+      p_roll_id: rollId,
+      p_width_cm: params.width_cm ?? null,
+      p_density_gsm: params.density_gsm ?? null,
+      p_length_m: params.length_m ?? null,
+      p_length_source: params.length_source ?? null,
+      p_reason: params.reason ?? null,
+    }));
+    if (error) {
+      erpError('Параметры рулона не записаны', error);
+      return false;
+    }
+    // Производные (метраж, коэффициент, цена за метр) считает сервер —
+    // перечитываем заказ, а не дописываем их в сторе
+    if (order) await get().loadOne(order.id);
+    toast.success('Параметры рулона записаны');
+    return true;
+  },
+
   confirmStockMaterial: async (id) => {
     // Материал со склада: подтверждение наличия → «Доступен со склада» (reserved)
     const ok = await get().updateMaterial(id, {
@@ -316,27 +364,46 @@ export const materialsSlice: StateCreator<ErpStore, [], [], MaterialsSlice> = (s
    * Второй писатель здесь снова завёл бы ту же развилку.
    */
 
+  /**
+   * АВТОЗАКРЫТИЕ ЗАКУПКИ ДЕЛАЕТ СЕРВЕР (правка заказчика 27.09, п. 9).
+   *
+   * До правки этап закупки закрывал КЛИЕНТ — `setStageStatus(…, 'done')`
+   * из этого же действия. При приёмке оно шло от лица кладовщика, а страж
+   * не пускает его в чужой цех: 42501, тост «Этап не обновлён», и закупка
+   * закрывалась, когда закупщик в следующий раз что-нибудь правил. Заказ
+   * 65004 из документа стоял «В работе» при всех принятых материалах ровно
+   * поэтому.
+   *
+   * Теперь этап закрывает триггер `erp_supply_autoclose` в транзакции,
+   * которая меняет материал. Здесь остаётся ЧЕЛОВЕЧЕСКАЯ часть: сказать,
+   * чего ещё ждут (плановое количество), и перечитать заказ, чтобы закрытие
+   * увидели экран и гейты. Второго писателя статуса нет — иначе два
+   * закрытия одного этапа наперегонки и двойное событие в истории.
+   *
+   * Правило «полностью поступил» — `isMaterialFullyReceived`, зеркало
+   * серверного `erp_material_fully_received`. Пустой список готовым
+   * НЕ считается: заказ без заведённых материалов не должен закрывать
+   * закупку сам собой — для него есть явное `closeSupply` с комментарием.
+   */
   maybeCloseSupply: async (orderId) => {
     const order = get().orders.find((o) => o.id === orderId);
     const supplyDept = findSupplyDept(get().departments);
     if (!order || !supplyDept) return;
-    // «Готов» = пришло / зарезервировано со склада / не требуется.
-    // Пустой список готовым НЕ считается: заказ без заведённых материалов
-    // не должен закрывать закупку сам собой (аудит, LOW). Для него есть
-    // явное действие `closeSupply` — с комментарием, от человека.
+    const openBefore = openSupplyStages(order, supplyDept.id).length;
+    if (openBefore === 0) return;
     const summary = supplyMaterialSummary(order.materials);
-    if (!summary.allSettled) return;
     // Правка 4.1.3: плановое кол-во (qty_expected) — обязательная графа закупки. Без него
     // сделка не идёт дальше (иначе на приёмке склад не увидит план). Гейтим только закупаемые.
     if (summary.missingPlan.length > 0) {
       toast.warning(`Укажите плановое кол-во в закупке: ${summary.missingPlan.map((m) => m.name).join(', ')}`);
       return;
     }
-    const openSupply = openSupplyStages(order, supplyDept.id);
-    for (const st of openSupply) {
-      await get().setStageStatus(st.id, 'done', { comment: 'Материалы готовы — закупка закрыта автоматически' });
+    if (!summary.allFullyReceived) return;
+    await get().loadOne(orderId);
+    const fresh = get().orders.find((o) => o.id === orderId);
+    if (fresh && openSupplyStages(fresh, supplyDept.id).length === 0) {
+      toast.success('Материалы приняты полностью — закупка по заказу закрыта');
     }
-    if (openSupply.length > 0) toast.success('Материалы готовы — закупка по заказу закрыта');
   },
 
   takeSupply: async (orderId, plannedEnd = null) => {

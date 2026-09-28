@@ -20,6 +20,7 @@ import {
   isItemEmpty,
   loadOrderDraft,
   normalizeDraft,
+  fileNameFromPath,
   orderNeedsPurchase,
   validateOrderForm,
 } from '../../utils/orderForm';
@@ -30,13 +31,9 @@ import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
 import { DraftPicker } from './create/DraftPicker';
 import { Icon } from '../../components/Icon';
-import { currentDocuments, deptNeedsTz, tzFilePath, validateTzDocs } from '../../utils/tz';
-import { translateSupabaseError } from '../../../utils/i18n';
-import { currentActor, erpQuery } from '../../store/shared';
-import { supabase } from '../../../lib/supabase';
+import { currentDocuments, deptNeedsTz, validateTzDocs } from '../../utils/tz';
+import { currentActor } from '../../store/shared';
 import {
-  TZ_BUCKET,
-  TZ_MAX_BYTES,
   TZ_MIME,
   PACKAGING_LABELS,
   STICKERS_LABELS,
@@ -46,6 +43,7 @@ import styles from '../../styles';
 // Секции и примитивы формы вынесены в ./create/ — модалка осталась композицией
 import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
+import { useTzDocs } from './create/useTzDocs';
 import { PurchaseListSection } from './create/PurchaseListSection';
 import { SavedFiles } from './create/SavedFiles';
 import { NotesSection } from './create/NotesSection';
@@ -260,23 +258,14 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     () => buildTzItems(items, itemRoutes, deptByCode), [items, itemRoutes, deptByCode]);
 
   /**
-   * ТЗ в PDF. File-объекты держим ОТДЕЛЬНО от form/items: черновик пишется
-   * через JSON.stringify, и File сериализовался бы в {} молча.
-   * tzDocs: { groupId, itemIndex (null = общее ТЗ заказа), file, state, error, path }
-   *
-   * ТЗ принадлежит позиции: назначать документ каждому цеху больше не нужно —
-   * файл виден всему производственному маршруту позиции (правка 2026-08-03).
-   *
-   * Файл уходит в бакет СРАЗУ при выборе, а не в сабмите. Раньше загрузка шла
-   * только по «Создать заказ»: интерфейс показывал приложенный файл, которого
-   * в Storage ещё не было, и первую же ошибку человек видел вместо созданного заказа.
+   * ТЗ в PDF — своя подсистема формы (`useTzDocs`, вынос 27.09): выбор,
+   * загрузка при выборе, повтор, снимок для черновика. Из черновика приходят
+   * только загруженные документы — без `File`, с именем/типом/размером.
    */
-  const [tzDocs, setTzDocs] = useState(
-    /* Из черновика — только загруженные: у `File` в JSON не остаётся ничего */
-    () => (restoredDraft?.tzDocs ?? []).filter((d) => d?.path && d.state === 'uploaded'),
-  );
-  const tzUploading = tzDocs.some((d) => d.state === 'uploading');
-  const tzFailed = tzDocs.some((d) => d.state === 'error');
+  const tz = useTzDocs(restoredDraft?.tzDocs);
+  const { tzDocs, addTzDoc, retryTzDoc, removeTzDoc } = tz;
+  const tzUploading = tz.uploading;
+  const tzFailed = tz.failed;
 
   /**
    * ЧТО УЖЕ ПРИЛОЖЕНО К ПРАВИМОМУ ЗАКАЗУ (правка заказчика 12.09, баг 03).
@@ -306,68 +295,6 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     [isEdit, order],
   );
 
-  /**
-   * Путь детерминированный (`group_id` живёт в стейте формы), поэтому `upsert: true`:
-   * повторная попытка перезаписывает свой же файл. Чужой затереть нельзя — group_id
-   * генерирует клиент. Ключ строго ASCII (`tzFilePath`): Storage отвечает InvalidKey
-   * на кириллицу, и именно на этом ломалось создание любого заказа с русским ТЗ.
-   */
-  const uploadTzFile = async (groupId, file) => {
-    const path = tzFilePath('new', groupId, 1, file.name);
-    /**
-     * `erpQuery`, а не голый `await`: без ответа сервера supabase-js БРОСАЕТ, и тогда
-     * `setTzDocs` ниже не выполнялся вовсе — файл оставался в состоянии «загружается»
-     * навсегда, а «Создать заказ» блокировалась незавершённой загрузкой, которая
-     * никогда не завершится. Кнопки «Загрузить заново» человек при этом не видел:
-     * она показывается только в состоянии ошибки.
-     */
-    const { error } = await erpQuery(() => supabase.storage
-      .from(TZ_BUCKET)
-      // Тип берётся у файла (правка 12.09, п. 4): жёсткий `application/pdf`
-      // клал .xlsx в бакет под чужим типом, и браузер отказывался его открывать
-      .upload(path, file, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: true,
-      }));
-    setTzDocs((arr) => arr.map((d) => {
-      if (d.groupId !== groupId) return d;
-      if (!error) return { ...d, state: 'uploaded', error: null, path };
-      return {
-        ...d,
-        state: 'error',
-        error: navigator.onLine === false
-          ? 'нет сети'
-          : translateSupabaseError(error.message),
-      };
-    }));
-  };
-
-  const addTzDoc = (file, itemIndex) => {
-    if (!file) return;
-    // Формат больше не проверяется (правка 12.09, п. 4) — только размер,
-    // и он повторяет лимит бакета, чтобы причина называлась СРАЗУ
-    if (file.size > TZ_MAX_BYTES) {
-      toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
-      return;
-    }
-    const groupId = crypto.randomUUID();
-    setTzDocs((arr) => [...arr, { groupId, itemIndex, file, state: 'uploading', error: null, path: null }]);
-    uploadTzFile(groupId, file);
-  };
-
-  /** Повторная загрузка после сбоя: перезаливается только файл, форма не трогается */
-  const retryTzDoc = (groupId) => {
-    const doc = tzDocs.find((d) => d.groupId === groupId);
-    if (!doc) return;
-    setTzDocs((arr) => arr.map((d) => (
-      d.groupId === groupId ? { ...d, state: 'uploading', error: null } : d)));
-    uploadTzFile(groupId, doc.file);
-  };
-
-  const removeTzDoc = (groupId) => {
-    setTzDocs((arr) => arr.filter((d) => d.groupId !== groupId));
-  };
-
   // Удаление позиции сдвигает индексы — пересобираем привязку файлов ТЗ,
   // иначе следующая позиция унаследовала бы чужой документ
   const removeItem = async (i) => {
@@ -388,10 +315,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
       if (!ok) return;
     }
     setItems((arr) => arr.filter((_, idx) => idx !== i));
-    const shift = (idx) => (idx > i ? idx - 1 : idx);
-    setTzDocs((arr) => arr
-      .filter((d) => d.itemIndex !== i)
-      .map((d) => (d.itemIndex === null ? d : { ...d, itemIndex: shift(d.itemIndex) })));
+    tz.dropItem(i);
     // Тот же сдвиг для файлов упаковки и техблока: иначе следующая позиция
     // унаследует чужое превью упаковки
     attach.dropItem(i);
@@ -549,17 +473,14 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * а не `form`, и черновик бы их не заметил.
    */
   const attachSnapshot = attach.draftSnapshot;
+  const tzSnapshot = tz.draftSnapshot;
   const draftPayload = useCallback(() => ({
     form,
     items,
     notes,
     attachments: attachSnapshot(),
-    tzDocs: tzDocs
-      .filter((d) => d.state === 'uploaded' && d.path)
-      // `File` и текст ошибки в снимок не уезжают: первый в JSON
-      // превращается в `{}`, второй относится к прошлой попытке
-      .map(({ file: _file, error: _error, ...rest }) => rest),
-  }), [form, items, notes, attachSnapshot, tzDocs]);
+    tzDocs: tzSnapshot(),
+  }), [form, items, notes, attachSnapshot, tzSnapshot]);
 
   const rowIdRef = useRef(draftId);
   useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
@@ -654,7 +575,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     setItems(draft.items.length > 0 ? draft.items : [newDraftItem()]);
     setNotes(draft.notes ?? []);
     attach.replaceAll(draft.attachments ?? []);
-    setTzDocs((draft.tzDocs ?? []).filter((d) => d?.path && d.state === 'uploaded'));
+    tz.replaceAll(draft.tzDocs ?? []);
     rowIdRef.current = row.id;
     setRowId(row.id);
     setSubmitted(false);
@@ -690,7 +611,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     setItems([newDraftItem()]);
     setNotes([]);
     attach.replaceAll([]);
-    setTzDocs([]);
+    tz.clear();
     setSubmitted(false);
   };
 
@@ -966,9 +887,11 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         group_id: d.groupId,
         item_index: itemIndex ?? null,
         file_path: d.path,
-        file_name: d.file.name,
-        mime_type: d.file.type || TZ_MIME,
-        size_bytes: d.file.size,
+        // Восстановленный из черновика документ `File` не несёт (правка 27.09,
+        // п. 12): имя, тип и размер едут в снимке; у черновиков до правки — из пути
+        file_name: d.name || d.file?.name || fileNameFromPath(d.path),
+        mime_type: d.type || d.file?.type || TZ_MIME,
+        size_bytes: d.size ?? d.file?.size ?? null,
         uploaded_by: actor,
       });
     }

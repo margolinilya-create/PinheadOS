@@ -798,7 +798,27 @@ describe('useErpStore — материал со склада / авто-закр
     eta_date: null, received_at: null, notes: null, created_at: '', updated_at: '', ...over,
   });
 
-  it('addMaterial сразу-готового материала закрывает этап «Закупка» (баг-фикс)', async () => {
+  /**
+   * ЭТАП ЗАКУПКИ ЗАКРЫВАЕТ СЕРВЕР (правка заказчика 27.09, п. 9): триггер
+   * `erp_supply_autoclose` в транзакции, которая меняет материал. Клиент
+   * НЕ пишет `done` сам — от лица кладовщика страж его не пускал (42501),
+   * и заказ 65004 стоял «В работе» при всех принятых материалах. Здесь
+   * клиент перечитывает заказ и сообщает результат; мок отдаёт заказ уже
+   * с закрытым этапом — так же, как это делает сервер.
+   */
+  const reloadedWithSupplyDone = (materials: any[]) => {
+    const o = useErpStore.getState().orders[0];
+    h.singleData = {
+      ...o,
+      items: [{ ...o.items[0], stages: [{ ...o.items[0].stages[0], status: 'done' }] }],
+      materials,
+    };
+  };
+  const clientWroteStage = () => h.updateCalls.some((c) => c.table === 'erp_item_stages');
+  const reloadedOrder = () => h.selectCalls.some(
+    (c) => c.table === 'erp_orders' && c.filters.includes('eq:id=o1'));
+
+  it('addMaterial сразу-готового материала: заказ перечитан, этап закрыт сервером', async () => {
     seedSupply();
     /**
      * «Сразу готов» — это «доступен со склада»: с 04.09 пришедший материал
@@ -806,10 +826,14 @@ describe('useErpStore — материал со склада / авто-закр
      * Приёмка ставит `received` при любом исходе, включая отказ, — см.
      * `utils/supply.isMaterialSettled`.
      */
+    reloadedWithSupplyDone([mat({ source: 'client', status: 'reserved' })]);
     await useErpStore.getState().addMaterial('o1', {
       kind: 'fabric', name: 'X', source: 'client', status: 'reserved',
     } as any);
+    expect(clientWroteStage()).toBe(false);
+    expect(reloadedOrder()).toBe(true);
     expect(supplyStage().status).toBe('done');
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/закупка по заказу закрыта/));
   });
 
   it('addMaterial пришедшего, но не принятого складом материала закупку НЕ закрывает', async () => {
@@ -879,14 +903,41 @@ describe('useErpStore — материал со склада / авто-закр
     expect(useErpStore.getState().orders[0].materials[0].status).toBe('received');
   });
 
-  it('confirmStockMaterial → reserved + закрывает закупку', async () => {
+  it('confirmStockMaterial → reserved; закупку закрывает сервер, клиент перечитывает', async () => {
     seedSupply([mat({ status: 'pending' })]);
+    reloadedWithSupplyDone([mat({ status: 'reserved' })]);
     const ok = await useErpStore.getState().confirmStockMaterial('m1');
     expect(ok).toBe(true);
     const m = useErpStore.getState().orders[0].materials[0];
     expect(m.status).toBe('reserved');
-    expect(m.received_at).toBeTruthy();
+    expect(clientWroteStage()).toBe(false);
     expect(supplyStage().status).toBe('done');
+  });
+
+  /**
+   * «При частичном поступлении… оставлять закупку открытой» (27.09, п. 9):
+   * принято частично — заказ даже не перечитывается, ждать закрытия нечего.
+   * Для гейтов ЦЕХА такой материал по-прежнему «на месте» (решение 22.07).
+   */
+  it('частично принятый материал закупку не закрывает и заказ не перечитывает', async () => {
+    seedSupply([mat({
+      source: 'purchase', status: 'received', accept_status: 'accepted_partial',
+      qty_expected: 100, qty_received: 60,
+    })]);
+    await useErpStore.getState().maybeCloseSupply('o1');
+    expect(reloadedOrder()).toBe(false);
+    expect(clientWroteStage()).toBe(false);
+    expect(supplyStage().status).toBe('in_progress');
+  });
+
+  it('accepted_full с недостающим количеством закупку не закрывает', async () => {
+    seedSupply([mat({
+      source: 'purchase', status: 'received', accept_status: 'accepted_full',
+      qty_expected: 100, qty_received: 90,
+    })]);
+    await useErpStore.getState().maybeCloseSupply('o1');
+    expect(reloadedOrder()).toBe(false);
+    expect(supplyStage().status).toBe('in_progress');
   });
 
   /**
@@ -934,19 +985,23 @@ describe('useErpStore — материал со склада / авто-закр
    * строки материала, то есть закупка закрывалась, когда закупщик в следующий
    * раз что-нибудь правил, — событие, которого могло и не случиться.
    */
-  it('acceptMaterial: годная приёмка закрывает этап закупки', async () => {
+  it('acceptMaterial: годная приёмка — этап закупки закрыт сервером, кладовщик это видит', async () => {
     seedSupply([mat({ status: 'pending', accept_status: null, qty_expected: 100 })]);
     expect(supplyStage().status).not.toBe('done');
-    // Мок отдаёт перечитанный заказ уже с вердиктом приёмки — так же,
-    // как это делает `erp_material_accept` на сервере
-    h.singleData = {
-      ...useErpStore.getState().orders[0],
-      materials: [mat({ status: 'received', accept_status: 'accepted_full', qty_expected: 100 })],
-    };
+    // Мок отдаёт перечитанный заказ уже с вердиктом приёмки И закрытым
+    // этапом закупки — так же, как это делают `erp_material_accept`
+    // и триггер `erp_supply_autoclose` в одной транзакции
+    reloadedWithSupplyDone([mat({
+      status: 'received', accept_status: 'accepted_full', qty_expected: 100, qty_received: 100,
+    })]);
     await useErpStore.getState().acceptMaterial('m1', {
       qty: 100, accept_status: 'accepted_full',
     });
     expect(supplyStage().status).toBe('done');
+    // Клиент этап не трогал: от лица кладовщика страж отвечал бы 42501
+    expect(clientWroteStage()).toBe(false);
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/закупка по заказу закрыта/));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('acceptMaterial: частичная приёмка пишется как partial_receipt', async () => {
@@ -2795,7 +2850,7 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
     expect(toast.warning).toHaveBeenCalled();
   });
 
-  it('maybeCloseSupply: с плановым кол-вом закупку закрывает', async () => {
+  it('maybeCloseSupply: с плановым кол-вом и полным приходом перечитывает заказ, этап не пишет', async () => {
     const stage = {
       id: 'st-sup', item_id: 'it1', department_id: 'd-sup', depends_on: [],
       status: 'in_progress', qty_done: 0, qty_rework: 0, sort_order: 10,
@@ -2807,15 +2862,18 @@ describe('useErpStore — правки ПМ 4.1.3 / 4.2.1 / 4.2.2 / 4.2.3', () =
         materials: [{
           id: 'm1', order_id: 'o1', kind: 'fabric', name: 'Футер',
           source: 'purchase', status: 'received', accept_status: 'accepted_full',
-          qty_expected: 128,
+          qty_expected: 128, qty_received: 128,
         }],
       }] as any,
       departments: depts as any, loaded: true,
     });
     await useErpStore.getState().maybeCloseSupply('o1');
+    // Закрывает сервер (правка 27.09, п. 9); клиент только перечитывает
     const stageDone = h.updateCalls.find(
       (c) => c.table === 'erp_item_stages' && c.patch.status === 'done');
-    expect(stageDone).toBeTruthy();
+    expect(stageDone).toBeFalsy();
+    expect(h.selectCalls.some(
+      (c) => c.table === 'erp_orders' && c.filters.includes('eq:id=o1'))).toBe(true);
   });
 
   /**

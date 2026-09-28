@@ -30,8 +30,9 @@ const EMPTY = {
     released: 0, released_prev: 0, defect: 0, rework: 0, extra: 0,
     assembly_avg: null, assembly_covered_qty: 0,
     fabric_kg: 0, fabric_rolls: 0, fabric_per_item: null,
+    fabric_m: 0, fabric_cut_good: 0, fabric_calc: false, fabric_incomplete: false,
   },
-  series: [], bySku: [], byDept: [],
+  series: [], bySku: [], byDept: [], fabricBySku: [],
 };
 
 const FILLED = {
@@ -39,7 +40,8 @@ const FILLED = {
     ...EMPTY.overview,
     released: 120, released_prev: 100, defect: 4, rework: 2, extra: 5,
     assembly_avg: 415.5, assembly_covered_qty: 120,
-    fabric_kg: 48.6, fabric_rolls: 3, fabric_per_item: 0.405,
+    fabric_kg: 48.6, fabric_rolls: 3, fabric_per_item: 0.9375,
+    fabric_m: 112.5, fabric_cut_good: 120, fabric_calc: false, fabric_incomplete: false,
   },
   series: [{ bucket: '2026-09-15', released: 120, defect: 4, rework: 2, extra: 5, fabric: 48.6 }],
   bySku: [{
@@ -47,6 +49,10 @@ const FILLED = {
     extra: 5, defect_pct: 3.2, assembly_avg: 415.5, orders: 2,
   }],
   byDept: [{ department_id: 'd-sew', released: 120, defect: 4, rework: 2, defect_pct: 3.2 }],
+  fabricBySku: [{
+    product_type: 'Футболка', material: 'Кулирка', width_cm: 180, fabric_m: 112.5,
+    cut_good: 120, per_item: 0.9375, calc: false, incomplete: false, orders: 2,
+  }],
 };
 
 let loadAnalytics;
@@ -68,8 +74,10 @@ describe('раздел «Аналитика» — показатели', () => {
     expect(screen.getByText('Выпущено изделий, шт')).toBeInTheDocument();
     expect(screen.getByText('Количество плюсов, шт')).toBeInTheDocument();
     expect(screen.getByText('Средняя себестоимость сборки, ₽/шт')).toBeInTheDocument();
-    expect(screen.getByText('Использовано ткани, кг')).toBeInTheDocument();
-    expect(screen.getByText('Средний расход ткани, кг/изделие')).toBeInTheDocument();
+    // В МЕТРАХ (правка 27.09, п. 5): «кг/изделие» → «м/изделие»
+    expect(screen.getByText('Использовано ткани, м')).toBeInTheDocument();
+    expect(screen.getByText('Средний расход ткани, м/изделие')).toBeInTheDocument();
+    expect(screen.queryByText(/ткани, кг/)).not.toBeInTheDocument();
   });
 
   it('сравнивает с предыдущим сопоставимым периодом', () => {

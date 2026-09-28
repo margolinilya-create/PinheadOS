@@ -15,7 +15,9 @@
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { materialsBlockingCompletion } from './supply';
-import { isFileResultStage } from './stageResult';
+import { embroideryProgramBlock, isFileResultStage } from './stageResult';
+import { deptAccountsByReports } from './stageRemaining';
+import { rollsAwaitingFate, rollsFateBlock } from './cutRolls';
 import type { ErpDepartment, ErpItemStage, ErpMaterial } from '../types';
 
 /**
@@ -32,6 +34,8 @@ export interface StageDoneWarningInput {
    */
   stage: Pick<ErpItemStage, 'id'> & {
     qty_done: number | null;
+    /** Участок этапа — для судьбы остатков рулонов (правка 27.09, п. 2) */
+    department_id?: string | null;
     /**
      * Вид результата этапа (правка 13.09, п. 9). Нужен ЗДЕСЬ, а не у кнопки:
      * у этапа, чей результат — файл, количественного предупреждения быть
@@ -41,10 +45,21 @@ export interface StageDoneWarningInput {
   };
   /** Тираж позиции */
   qty: number;
-  /** Все этапы позиции — чтобы назвать те, что разблокируются */
-  allStages: Pick<ErpItemStage, 'id' | 'department_id' | 'depends_on'>[];
+  /**
+   * Все этапы позиции — чтобы назвать те, что разблокируются, и найти
+   * незавершённую «Разработку программы вышивки» (правка 27.09, п. 3)
+   */
+  allStages: (Pick<ErpItemStage, 'id' | 'department_id' | 'depends_on'>
+    & Partial<Pick<ErpItemStage, 'status' | 'result_kind'>>)[];
   /** id цеха → короткое имя */
   deptNameById?: Map<string, string>;
+  /**
+   * Участок этапа — ради `result_fields` (правка 27.09, п. 7): у участка
+   * с формой результата остаток не дописывается, а учитывается, и диалога
+   * «будут записаны как выполненные» у него нет. Необязателен здесь, чтобы
+   * тексты последствий тестировались без справочника цехов.
+   */
+  dept?: (Pick<ErpDepartment, 'result_fields'> & { is_production?: boolean | null }) | null;
 }
 
 /**
@@ -59,8 +74,22 @@ export interface StageDoneWarningInput {
 export interface StageDoneInput extends StageDoneWarningInput {
   /** Материалы ПОЗИЦИИ (`materialsForItem`), а не всего заказа */
   materials: readonly ErpMaterial[];
-  /** Цех этапа — от его `gate_material_kinds` зависит, гейтится ли он вовсе */
-  dept: Pick<ErpDepartment, 'gate_material_kinds'> | null | undefined;
+  /**
+   * Цех этапа — от его `gate_material_kinds` зависит, гейтится ли он вовсе,
+   * от `result_fields` — дописывается ли остаток при закрытии, от
+   * `result_detail` — спрашивается ли судьба остатков рулонов
+   */
+  dept: (Pick<ErpDepartment, 'gate_material_kinds' | 'result_fields' | 'result_detail'>
+    & { is_production?: boolean | null }) | null | undefined;
+  /**
+   * Позиции ЗАКАЗА с этапами (правка 27.09, п. 2): судьба остатка рулона
+   * спрашивается, только когда в заказе не осталось других открытых этапов
+   * того же участка — рулон мог ждать соседнюю позицию. Без списка —
+   * считается, что других нет.
+   */
+  orderItems?: readonly { id?: string; stages?: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[] }[] | null;
+  /** id позиции этапа — отбор материалов и рулонов тот же, что у формы */
+  itemId?: string | null;
 }
 
 /** Этапы, которые ждут именно этот (после закрытия они откроются) */
@@ -86,6 +115,14 @@ export function stageDoneWarning(input: StageDoneWarningInput): string | null {
    * о самой сути этапа, а не просто лишним вопросом.
    */
   if (isFileResultStage(stage)) return null;
+  /**
+   * УЧАСТОК С ФОРМОЙ РЕЗУЛЬТАТА НИЧЕГО НЕ ДОПИСЫВАЕТ (правка 27.09, п. 7):
+   * его остаток — изделия на участке, и кнопка либо закрывает учтённое
+   * как есть, либо получает отказ от писателя («не учтено N»). Вопрос
+   * «записать оставшиеся выполненными?» ему задать нельзя — это ровно
+   * та потеря 104 изделий, только в другую сторону.
+   */
+  if (deptAccountsByReports(input.dept)) return null;
   const done = stage.qty_done ?? 0;
   const remaining = qty - done;
   if (remaining <= 0) return null;
@@ -111,7 +148,17 @@ export function stageDoneWarning(input: StageDoneWarningInput): string | null {
  */
 export function stageCompletionBlock(input: StageDoneInput): string | null {
   const blocking = materialsBlockingCompletion(input.materials, input.dept);
-  if (blocking.length === 0) return null;
+  if (blocking.length === 0) {
+    /**
+     * СУДЬБА ОСТАТКОВ РУЛОНОВ (правка 27.09, п. 2) — у участка с разбором
+     * по рулонам. Рулон «в работе» с остатком и без вида после закрытия
+     * последнего этапа участка повисает мимо «Остатков ткани».
+     */
+    if (input.dept?.result_detail !== 'rolls') return null;
+    return rollsFateBlock(rollsAwaitingFate(
+      input.materials, input.itemId ?? null, input.stage, input.orderItems,
+    ));
+  }
   const names = blocking.slice(0, 4).map((m) => m.name).join(', ');
   const rest = blocking.length > 4 ? ` и ещё ${blocking.length - 4}` : '';
   /**
@@ -136,7 +183,17 @@ export async function confirmStageDone(input: StageDoneInput): Promise<boolean> 
    * а не выбор, и спрашивать «записать остаток?» у действия, которое всё
    * равно не состоится, значит предлагать несуществующее решение.
    */
-  const blocked = stageCompletionBlock(input);
+  /**
+   * Программа вышивки раньше вышивки (правка 27.09, п. 3): у самой вышивки
+   * `department_id` тот же, что у этапа программы, и `allStages` — этапы
+   * позиции; ниже тот же отказ даст писатель, здесь он звучит раньше.
+   */
+  const program = input.stage.department_id !== undefined
+    ? embroideryProgramBlock(
+      { id: input.stage.id, department_id: input.stage.department_id ?? '', status: 'in_progress', result_kind: input.stage.result_kind },
+      input.allStages.map((s) => ({ ...s, status: s.status ?? 'waiting' })),
+    ) : null;
+  const blocked = program ?? stageCompletionBlock(input);
   if (blocked) {
     toast.error(blocked);
     return false;

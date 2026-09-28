@@ -192,13 +192,13 @@ function warehouseSortValue({ order, task }, key) {
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, acceptMaterial, setRollWeights,
+    orders, loaded, loadError, loadAll, acceptMaterial, setRollWeights, setRollParams,
     advanceWarehouseTask, shipOrder,
     submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
-      acceptMaterial: s.acceptMaterial, setRollWeights: s.setRollWeights,
+      acceptMaterial: s.acceptMaterial, setRollWeights: s.setRollWeights, setRollParams: s.setRollParams,
       advanceWarehouseTask: s.advanceWarehouseTask,
       shipOrder: s.shipOrder,
       submitWarehouseReport: s.submitWarehouseReport,
@@ -468,7 +468,7 @@ export default function Warehouse() {
                 order={open.order}
                 task={open.task}
                 onAccept={acceptMaterial}
-                onSetRollWeights={setRollWeights}
+                onSetRollWeights={setRollWeights} onSetRollParams={setRollParams}
               />
             )}
             {open.task.task_type === 'subcontract_send' && (

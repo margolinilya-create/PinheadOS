@@ -1,17 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { stageInputQty, stageRemainingQty } from '../utils/stageInput';
+import { stageInputQty } from '../utils/stageInput';
+import { reportedAccountedBySize, reportedDefect, stageUnaccounted } from '../utils/stageRemaining';
 import { overPlanBlock, overPlanConfirm, stageQtyCap } from '../utils/stageOverPlan';
 import { confirm } from '../../store/useConfirmStore';
-import { useEffect } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
-import { SizeResultTable } from './SizeResultTable';
+import { SizeReportSection } from './SizeReportSection';
+import { useStageReports } from './useStageReports';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
 import {
   sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
-  rowEntered,
 } from '../utils/stageSizes';
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
@@ -108,40 +107,19 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
   const [assemblyCost, setAssemblyCost] = useState('');
-  const [prevReports, setPrevReports] = useState([]);
-  const [ownReports, setOwnReports] = useState([]);
-
-  const loadStageReports = useErpStore(useShallow((st) => st.loadStageReports));
-
   /**
-   * Отчёты предшественников — точечной загрузкой при открытии формы: журнал
-   * результатов растёт быстрее всего, и возить его в выборке заказа ради
-   * одной формы нельзя.
+   * Отчёты предков (столбец «Покроено» сквозь нанесение, правка 27.09, п. 6)
+   * и свои прежние (плюсы, остаток по размерам и «Осталось сдать», п. 7) —
+   * хук `useStageReports`; здесь только их производные.
    */
-  useEffect(() => {
-    if (!bySizes) return undefined;
-    let alive = true;
-    const deps = stage.depends_on ?? [];
-    if (deps.length === 0) return undefined;
-    loadStageReports(deps).then((rows) => { if (alive) setPrevReports(rows); });
-    return () => { alive = false; };
-  }, [bySizes, stage.depends_on, loadStageReports]);
-
-  /**
-   * СОБСТВЕННЫЕ прежние отчёты этого этапа — для плюсов (правка 21.09, п. 3).
-   *
-   * Закрой сдаёт частями, и плюс считается накопительно: 30 шт сегодня
-   * и 25 завтра при плане 50 — это плюс 5, а не два раза «меньше плана».
-   * Сервер считает то же и по тем же строкам; здесь они нужны, чтобы цех
-   * ВИДЕЛ плюс до нажатия кнопки, а не узнавал о нём из журнала.
-   */
-  useEffect(() => {
-    if (!byRolls) return undefined;
-    let alive = true;
-    loadStageReports([stage.id]).then((rows) => { if (alive) setOwnReports(rows); });
-    return () => { alive = false; };
-  }, [byRolls, stage.id, loadStageReports]);
+  const { prevReports, ownReports } = useStageReports(stage, item.stages ?? [], bySizes);
+  const setRollLeftover = useErpStore((st) => st.setRollLeftover);
+  /** Параметры рулона без метража — дозаполняются прямо в блоке сдачи (27.09, п. 4) */
+  const setRollParams = useErpStore((st) => st.setRollParams);
   const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
+  // Только СВОИ отчёты: выборка по id и так своя, но сумма обязана не зависеть от того
+  const accountedBySize = useMemo(() => reportedAccountedBySize(ownReports, stage.id), [ownReports, stage.id]);
+  const defectReported = useMemo(() => reportedDefect(ownReports, stage.id), [ownReports, stage.id]);
 
   const sizeInput = useMemo(
     () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
@@ -152,8 +130,10 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     [bySizes, stage, item.stages, prevReports],
   );
   const sizeRows = useMemo(
-    () => (bySizes ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev) : []),
-    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev],
+    () => (bySizes
+      ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize)
+      : []),
+    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize],
   );
   /**
    * ТАБЛИЦА ЕСТЬ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ СТРОКИ (правка 20.09, п. 8).
@@ -221,9 +201,16 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     () => stageInputQty(stage, item.stages ?? [], item.qty),
     [stage, item],
   );
+  /**
+   * «Осталось сдать» — по учтённому (правка 27.09, п. 7): потолок минус
+   * сдано минус окончательный брак. Формула одна с сервером
+   * (`erp_stage_unaccounted`), и после сдачи 368 из 472 здесь 104.
+   */
   const remaining = useMemo(
-    () => stageRemainingQty(stage, item.stages ?? [], item.qty),
-    [stage, item],
+    () => stageUnaccounted({
+      stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported,
+    }),
+    [stage, item, defectReported],
   );
   /**
    * ПОТОЛОК ФАКТА (правка 12.09, вторая порция, п. 4): «плюсы» появляются
@@ -354,8 +341,11 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         <CutRollsSection
           order={fullOrder}
           item={fullItem}
+          stage={stage}
           entries={rollEntries}
           onChange={setRollEntries}
+          onRollFate={setRollLeftover}
+          onRollParams={setRollParams}
           reported={reportedSizes}
           disabled={busy}
         />
@@ -364,58 +354,15 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
       ))}
 
       {useSizeTable && (
-        <>
-          <span className={styles.fieldLabel}>Размерная разбивка</span>
-          <SizeResultTable
-            rows={sizeRows.map((r) => ({ ...r, expected: r.expected ?? '—' }))}
-            columns={[
-              {
-                code: 'good',
-                label: 'Сшито, шт',
-                /* Подсветка ИМЕННО этого поля: документ просит показать,
-                   какую строку исправлять, а не «где-то превышение» */
-                invalid: (row, vals) => row.expected !== null
-                  && row.expected !== '—'
-                  && rowEntered(vals) > Number(row.expected),
-              },
-              ...(canDefect ? [
-                { code: 'defect', label: 'Брак, шт' },
-                { code: 'rework', label: 'В переделку, шт' },
-              ] : []),
-              {
-                code: 'state',
-                label: 'Статус',
-                /* Колонка-ВЫВОД: считается, а не вводится. Мастер видит
-                   состояние строки, не сверяя два числа глазами */
-                render: (row, vals) => {
-                  if (row.expected === null || row.expected === '—') {
-                    return <span className={styles.subText}>—</span>;
-                  }
-                  const entered = rowEntered(vals);
-                  if (entered === 0) return <span className={styles.subText}>не заполнено</span>;
-                  if (entered > Number(row.expected)) {
-                    return (
-                      <span className={styles.cellError}>
-                        Нельзя указать больше, чем покроено
-                      </span>
-                    );
-                  }
-                  const left = Number(row.expected) - entered;
-                  return left > 0
-                    ? <span className={styles.subText}>осталось {left}</span>
-                    : <span className={styles.subText}>готово</span>;
-                },
-              },
-            ]}
-            values={sizeValues}
-            onChange={(key, code, value) => setSizeValues((v) => ({
-              ...v, [key]: { ...v[key], [code]: value },
-            }))}
-            expectedLabel="Покроено, шт"
-            caption="Результат пошива по размерам"
-            disabled={busy}
-          />
-        </>
+        <SizeReportSection
+          rows={sizeRows}
+          values={sizeValues}
+          onChange={(key, code, value) => setSizeValues((v) => ({
+            ...v, [key]: { ...v[key], [code]: value },
+          }))}
+          canDefect={canDefect}
+          disabled={busy}
+        />
       )}
 
       {/*

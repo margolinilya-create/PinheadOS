@@ -602,8 +602,18 @@ export interface StagesSlice {
     rolls?: {
       roll_id: string;
       material_id?: string | null;
-      qty_used: number;
+      /**
+       * Расход в ПОГОННЫХ МЕТРАХ полной ширины (правка 27.09, п. 4) — то,
+       * что вводит закройщик. Килограммы сервер считает сам по коэффициенту
+       * рулона; `qty_used` остаётся только для прежнего пути в кг.
+       */
+      length_used_m?: number;
+      qty_used?: number;
       finished?: boolean;
+      /** Судьба остатка законченного рулона (правка 21.09, п. 5; обязательна с 27.09, п. 2) */
+      leftover?: 'usable' | 'scrap' | null;
+      /** Измеренный остаток при завершении, м — уезжает корректировкой, не расходом */
+      leftover_measured_m?: number | null;
       sizes: StageReportSizeInput[];
     }[];
   }) => Promise<boolean>;
@@ -707,6 +717,25 @@ export interface MaterialsSlice {
   updateMaterial: (id: string, patch: Partial<ErpMaterial>) => Promise<boolean>;
   /** Подтвердить наличие материала со склада → «Доступен со склада» (открывает закрой) */
   confirmStockMaterial: (id: string) => Promise<boolean>;
+  /**
+   * Судьба остатка рулона, оставленного «в работе» прежней сдачей (правка
+   * 27.09, п. 2): закрыть рулон видом остатка без новой строки расхода.
+   * Пишет прямо в `erp_material_rolls` под политикой прав этапа.
+   */
+  setRollLeftover: (rollId: string, kind: 'usable' | 'scrap') => Promise<boolean>;
+  /**
+   * Дозаполнить или уточнить ширину, плотность и метраж рулона (правка
+   * 27.09, п. 4) — RPC `erp_material_roll_set_params`. До первого расхода
+   * сервер пересчитывает метраж, коэффициент и цену за метр; после — пишет
+   * корректировку и новые коэффициенты для следующих операций.
+   */
+  setRollParams: (rollId: string, params: {
+    width_cm?: number | null;
+    density_gsm?: number | null;
+    length_m?: number | null;
+    length_source?: 'supplier' | 'measured' | null;
+    reason?: string | null;
+  }) => Promise<boolean>;
 
   /** Варианты поставщиков на позицию закупки (правка 10) */
   addSupplierOption: (
@@ -722,7 +751,11 @@ export interface MaterialsSlice {
   selectSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
   /** Удалить вариант; удаление выбранного очищает поставщика у позиции */
   deleteSupplierOption: (materialId: string, optionId: string) => Promise<boolean>;
-  /** Все материалы заказа готовы → закрыть этап «Закупка» (received/reserved/not_needed) */
+  /**
+   * Все материалы заказа поступили полностью → перечитать заказ и сказать,
+   * что закупка закрыта. Сам этап закрывает СЕРВЕР (триггер
+   * `erp_supply_autoclose`, правка 27.09, п. 9); клиент его не пишет.
+   */
   maybeCloseSupply: (orderId: string) => Promise<void>;
   /**
    * Взять закупку по заказу в работу — все её открытые этапы разом.
@@ -772,9 +805,34 @@ export interface AnalyticsOverview {
   assembly_avg: number | null;
   /** Сколько изделий выпуска покрыто стоимостью: среднее без покрытия врёт */
   assembly_covered_qty: number;
+  /** Килограммы по строкам старого учёта — остались для сверки, плитки нет */
   fabric_kg: number;
   fabric_rolls: number;
+  /**
+   * ТКАНЬ В МЕТРАХ (правка 27.09, п. 5): расход по отчётам закроя и средний
+   * расход на годную скроенную единицу ТЕХ ЖЕ отчётов (включая плюсы), а не
+   * на выпуск другого цеха. `fabric_calc` — часть строк пересчитана из кг
+   * по коэффициенту рулона («Расчёт»); `fabric_incomplete` — часть строк
+   * пересчитать не из чего, они исключены вместе со своим количеством.
+   */
+  fabric_m: number;
+  fabric_cut_good: number;
   fabric_per_item: number | null;
+  fabric_calc: boolean;
+  fabric_incomplete: boolean;
+}
+
+/** Расход полотна по моделям, материалу и ширине (правка 27.09, п. 5) */
+export interface AnalyticsFabricRow {
+  product_type: string;
+  material: string;
+  width_cm: number | null;
+  fabric_m: number;
+  cut_good: number;
+  per_item: number | null;
+  calc: boolean;
+  incomplete: boolean;
+  orders: number;
 }
 
 export interface AnalyticsSeriesRow {
@@ -817,6 +875,8 @@ export interface AnalyticsSnapshot {
   series: AnalyticsSeriesRow[];
   bySku: AnalyticsSkuRow[];
   byDept: AnalyticsDeptRow[];
+  /** Расход полотна по моделям × материалу × ширине (правка 27.09, п. 5) */
+  fabricBySku: AnalyticsFabricRow[];
 }
 
 /**
@@ -831,30 +891,156 @@ export interface AnalyticsSnapshot {
  * его следующей правкой.
  */
 export interface ItemEconomicsFabric {
-  unit: string | null;
-  qty_used: number;
+  /** Расход в погонных метрах: введённые + пересчитанные из кг */
+  metres: number;
+  /** Метры, у которых есть цена за метр: среднее по трети выглядит как среднее по всему */
+  priced_metres: number;
+  /** Метры, пересчитанные из кг по коэффициенту рулона — «Расчёт» */
+  calc_metres: number;
+  /** Килограммы строк, которые пересчитать не из чего (нет коэффициента рулона) */
+  incomplete_kg: number;
+  rows: number;
+  /** Средний расход на годную ВЫКРОЕННУЮ единицу, включая плюсы; null — кроя не было */
+  avg_m_per_cut: number | null;
+}
+
+/** Пригодный остаток рулона в блоке «Остатки и потери» */
+export interface EconomicsLeftoverRow {
+  roll_id: string;
+  label: string;
+  material: string | null;
+  width_cm: number | null;
+  density_gsm: number | null;
+  length_m: number | null;
+  length_source: 'calc' | 'supplier' | 'measured' | null;
+  kg: number | null;
+  price_per_m: number | null;
   cost: number | null;
-  /** По какой доле расхода цена нашлась: среднее по трети выглядит как среднее по всему */
-  priced_qty: number;
-  /** Средний расход на ВЫКРОЕННУЮ единицу; null — кроя ещё не было */
-  avg_per_cut: number | null;
+  owner_order_id: string | null;
+  /** Использовано другими позициями после этой — движение запаса */
+  used_elsewhere_m: number;
+}
+
+export interface EconomicsScrapRow {
+  adjustment_id: string;
+  roll_id: string;
+  label: string;
+  material: string | null;
+  length_m: number;
+  cost: number | null;
+  reason: string | null;
+  author: string | null;
+  created_at: string;
+  report_id: string | null;
+}
+
+export interface EconomicsAdjustmentRow {
+  adjustment_id: string;
+  roll_id: string;
+  label: string;
+  kind: 'length_refine' | 'leftover_measure' | 'cost_residual';
+  before_m: number | null;
+  after_m: number | null;
+  delta_m: number | null;
+  cost: number | null;
+  reason: string | null;
+  author: string | null;
+  created_at: string;
+}
+
+export interface EconomicsDefectRow {
+  report_id: string;
+  stage_id: string;
+  department: string;
+  dept_code: string;
+  qty: number;
+  reason: string | null;
+  author: string | null;
+  created_at: string;
+  /** Накопленная стоимость на момент списания; null — «Не рассчитано» */
+  cost: number | null;
+  calc: boolean;
+}
+
+export interface EconomicsWipRow {
+  stage_id: string;
+  department: string;
+  dept_code: string;
+  status: string;
+  unaccounted: number;
+  rework: number;
+  by_size: { color: string; size: string; qty: number }[];
+  cost: number | null;
+  calc: boolean;
+}
+
+/**
+ * «ОСТАТКИ И ПОТЕРИ ПО ЗАКАЗУ» (правка 27.09, п. 8): что осталось в запасах,
+ * что в работе и что потеряно — по позиции, с раскрытием до записей.
+ */
+export interface ItemEconomicsLosses {
+  leftovers_usable: EconomicsLeftoverRow[];
+  leftovers_usable_cost: number | null;
+  leftovers_scrap: EconomicsScrapRow[];
+  leftovers_scrap_cost: number | null;
+  adjustments: EconomicsAdjustmentRow[];
+  /** Остаточных стоимостей без подтверждения — держат расчёт предварительным */
+  adjustments_open: number;
+  extras: {
+    cut_extra: number;
+    by_size: { color: string; size: string; qty: number }[];
+    finished: number;
+    shipped: number;
+    in_stock: number;
+    unit_cost: number | null;
+    value: number | null;
+  };
+  defects: EconomicsDefectRow[];
+  defects_qty: number;
+  defects_cost: number | null;
+  wip: EconomicsWipRow[];
+  wip_qty: number;
+  wip_rework: number;
 }
 
 export interface ItemEconomics {
   item_id: string;
-  fabric: ItemEconomicsFabric[];
+  client_qty: number;
+  fabric: ItemEconomicsFabric;
   fabric_cost_total: number | null;
   rolls_used: number;
   qty_cut: number;
   qty_good: number;
+  qty_extra: number;
   assembly: {
     avg: number | null;
     covered_qty: number;
     /** `reports` — из отчётов швейки; `item_fallback` — из колонки позиции */
     source: 'reports' | 'item_fallback' | null;
+    /** Сумма сборки по сданному; null — у части сдач цены нет */
+    total: number | null;
   };
   fabric_cost_per_good: number | null;
   direct_unit_cost: number | null;
+  losses: ItemEconomicsLosses;
+  /** Готовый выпуск — отчёты терминальных производственных этапов */
+  final_good: number;
+  shipped: number;
+  production_done: boolean;
+  costs_filled: boolean;
+  preliminary: boolean;
+  costs: {
+    fabric: number | null;
+    scrap: number | null;
+    assembly: number | null;
+    total: number | null;
+    /** Какие статьи не учтены: `fabric`, `fabric_price`, `assembly` */
+    missing: ('fabric' | 'fabric_price' | 'assembly')[];
+  };
+  /** Затраты / готовый годный выпуск (с плюсами); null — «Нет данных для расчёта» */
+  unit_cost_good: number | null;
+  /** Затраты / клиентский тираж — управленческий показатель покрытия */
+  unit_cost_plan: number | null;
 }
 
 export interface OrderEconomicsRow {
@@ -933,6 +1119,19 @@ export interface WarehouseSlice {
        * офлайна хранит уже собранные вызовы, и ломать их выкатом нельзя.
        */
       rollWeights?: number[] | null;
+      /**
+       * ПАРАМЕТРЫ КАЖДОГО РУЛОНА (правка 27.09, п. 4): вес, ширина, плотность,
+       * метраж поставщика или замер. Заменяют `rollWeights` (вес внутри);
+       * сервер по ним считает метраж, коэффициент кг/м и цену за метр.
+       * Ширина и плотность пустые — подставятся из материала.
+       */
+      rollParams?: {
+        weight_kg: number;
+        width_cm?: number | null;
+        density_gsm?: number | null;
+        length_m?: number | null;
+        length_source?: 'supplier' | 'measured' | null;
+      }[] | null;
     },
   ) => Promise<boolean>;
   /**

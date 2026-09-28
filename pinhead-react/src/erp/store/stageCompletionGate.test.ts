@@ -77,6 +77,20 @@ const GATED_DEPT = {
 };
 /** Участок без гейта — на нём ни один писатель отказывать не должен */
 const OPEN_DEPT = { ...GATED_DEPT, id: 'd-vto', code: 'vto', name: 'ВТО', gate_material_kinds: [] };
+/** Участок с формой результата и без материального гейта — швейка без ткани в гейте */
+const FORM_DEPT = {
+  ...OPEN_DEPT, id: 'd-sew', code: 'sewing', name: 'Швейный цех',
+  result_fields: [{ code: 'good', label: 'Сшито', target: 'qty_good' }],
+};
+
+/** Закрой как на проде: разбор по рулонам, без материального гейта в этом тесте */
+const ROLLS_DEPT = { ...OPEN_DEPT, id: 'd-cut2', code: 'cutting', name: 'Закрой', result_detail: 'rolls' };
+/** Ткань принята, рулон оставлен «в работе» с остатком и без вида */
+const FABRIC_WITH_ROLL = {
+  id: 'm2', order_id: 'o1', item_id: null, kind: 'fabric', name: 'Кулирка 180',
+  status: 'received', accept_status: 'accepted_full',
+  rolls: [{ id: 'r1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5, leftover_kind: null, unit: 'кг' }],
+};
 
 /** Ткань, которой ещё нет на фабрике: не received / reserved / not_needed */
 const PENDING_FABRIC = {
@@ -105,7 +119,7 @@ function seed(opts: {
     finished_at: null,
   };
   useErpStore.setState({
-    departments: [GATED_DEPT, OPEN_DEPT] as never,
+    departments: [GATED_DEPT, OPEN_DEPT, FORM_DEPT, ROLLS_DEPT] as never,
     bypasses: (opts.bypasses ?? []) as never,
     orders: [{
       id: 'o1',
@@ -192,5 +206,97 @@ describe('аварийное снятие материального гейта 
   it('возвращённое снятие (restored_at) снова держит гейт', async () => {
     seed({ bypasses: [{ ...BYPASS[0], restored_at: '2026-09-03T10:00:00Z' }] });
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+  });
+});
+
+/**
+ * НЕ УЧТЁННЫЕ ИЗДЕЛИЯ ДЕРЖАТ ЗАКРЫТИЕ (правка заказчика 27.09, п. 7).
+ *
+ * «Блокировать обычное завершение этапа, пока остаются изделия в работе
+ * или в переделке». Гейт у ПИСАТЕЛЯ: кнопка, дорожка канбана и чип доски
+ * проходят через `setStageStatus`, и ни одной не нужно помнить о проверке.
+ * Только у участка с формой результата — остальным нечем сдать иначе.
+ */
+describe('не учтённые изделия держат «Завершить этап» у участка с формой', () => {
+  it('сдано 40 из 100 — отказ с числом, записи нет', async () => {
+    seed({ deptId: FORM_DEPT.id, qtyDone: 40 });
+    expect(await s().setStageStatus('st1', 'done', {})).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+
+  it('учтено всё — закрывается', async () => {
+    seed({ deptId: FORM_DEPT.id, qtyDone: 100 });
+    expect(await s().setStageStatus('st1', 'done', {})).toBe(true);
+  });
+
+  it('участок без формы результата закрывается тиражом, как прежде', async () => {
+    seed({ deptId: OPEN_DEPT.id, qtyDone: 40 });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
+  });
+});
+
+/**
+ * СУДЬБА ОСТАТКА РУЛОНА ДЕРЖИТ ЗАКРЫТИЕ ЗАКРОЯ (правка заказчика 27.09, п. 2):
+ * рулон «в работе» с остатком и без вида после закрытия повисает мимо
+ * «Остатков ткани». Гейт у писателя — все три пути закрытия.
+ */
+describe('рулон без судьбы остатка держит закрытие закроя', () => {
+  it('«Завершить этап» — отказ, записи нет', async () => {
+    seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 100 });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+
+  it('судьба выбрана — закрывается', async () => {
+    seed({
+      deptId: ROLLS_DEPT.id, qtyDone: 100,
+      materials: [{ ...FABRIC_WITH_ROLL, rolls: [{ ...FABRIC_WITH_ROLL.rolls[0], status: 'used', leftover_kind: 'usable' }] }],
+    });
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
+  });
+
+  it('частичная сдача при таком рулоне законна — гейт только на закрытии', async () => {
+    seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 0 });
+    expect(await s().reportProgress('st1', 40)).toBe(true);
+  });
+});
+
+/**
+ * ПРОГРАММА ВЫШИВКИ РАНЬШЕ ВЫШИВКИ (правка заказчика 27.09, п. 3) — у писателя:
+ * и кнопка, и сдача, добирающая тираж, и частичная готовность на остаток
+ * закрыли бы вышивку без программы. Этап программы — той же позиции и того же
+ * участка; программа другой позиции ограничение не снимает.
+ */
+describe('незавершённая программа вышивки держит закрытие вышивки', () => {
+  const EMB_DEPT = { ...OPEN_DEPT, id: 'd-emb', code: 'embroidery', name: 'Вышивка' };
+  const withProgram = (status: string) => {
+    seed({ deptId: EMB_DEPT.id, qtyDone: 0 });
+    useErpStore.setState((st) => ({
+      departments: [...st.departments, EMB_DEPT] as never,
+      orders: st.orders.map((o) => ({
+        ...o,
+        items: o.items.map((it) => ({
+          ...it,
+          stages: [...it.stages, {
+            id: 'prog', item_id: 'it1', department_id: EMB_DEPT.id, status, qty_done: 0,
+            qty_rework: 0, depends_on: [], sort_order: 5, result_kind: 'embroidery_program',
+          }],
+        })),
+      })) as never,
+    }));
+  };
+
+  it('все три писателя отказывают, пока программа не завершена', async () => {
+    withProgram('in_progress');
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+    expect(await s().reportProgress('st1', 100)).toBe(false);
+    expect(await s().submitStageReport('st1', { qtyGood: 100 })).toBe(false);
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it('программа завершена — вышивка закрывается', async () => {
+    withProgram('done');
+    expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
   });
 });

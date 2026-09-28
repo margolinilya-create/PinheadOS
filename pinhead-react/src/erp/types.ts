@@ -187,10 +187,27 @@ export interface ErpStageReportRoll {
   report_id: string;
   roll_id: string | null;
   material_id: string | null;
-  qty_used: number;
+  /**
+   * Расход в килограммах. До 27.09 — введённый закройщиком (`qty_source =
+   * 'entered'`); с правки 27.09 п. 4 — РАСЧЁТНЫЙ из метров по коэффициенту
+   * рулона (`'calc'`), и `null`, когда коэффициента у рулона нет.
+   */
+  qty_used: number | null;
+  qty_source: 'entered' | 'calc' | null;
   unit: string | null;
   roll_finished: boolean;
   created_at: string;
+  /**
+   * СНИМКИ ОПЕРАЦИИ (правка 27.09, п. 4): метры, коэффициент и его источник,
+   * цена за метр и стоимость — «изменение справочника материала не должно
+   * менять закрытые операции». `null` у строк, записанных в килограммах
+   * до правки: их пересчёт — только на чтении и с отметкой «Расчёт».
+   */
+  length_used_m: number | null;
+  kg_per_m: number | null;
+  kg_per_m_source: 'params' | 'measured' | 'refined' | null;
+  price_per_m: number | null;
+  cost: number | null;
 }
 
 /** Что уезжает в `erp_stage_submit_report` одной размерной строкой */
@@ -224,6 +241,12 @@ export interface ErpStageReport {
    * не из чего, кроме этой. Единственный писатель — `erp_stage_submit_report`.
    */
   assembly_cost_per_unit?: number | null;
+  /**
+   * Ключ попытки сдачи (правка 27.09, п. 4): повтор с тем же ключом не пишет
+   * второй отчёт и не списывает метры с рулона дважды. Тот же приём, что
+   * у приёмки склада.
+   */
+  client_key?: string | null;
   created_at: string;
 }
 
@@ -626,6 +649,55 @@ export interface ErpMaterialRoll {
   unit: string | null;
   status: 'in_stock' | 'in_use' | 'used';
   created_at: string;
+  /**
+   * УЧЁТ В МЕТРАХ (правка 27.09, п. 4). Ширина и плотность — снимок
+   * с материала на момент приёмки, уточняемый для партии или рулона.
+   * Метраж (`length_m`) — рабочий: расчётный по весу и параметрам
+   * (`length_source = 'calc'`), по данным поставщика или замер.
+   * `length_calc_m` хранится отдельно и не стирается уточнением — «изменение
+   * метража не должно стирать исходный вес закупки», и расчёт тоже.
+   * Все величины ведёт сервер (`erp_roll_recalc`, `erp_material_roll_set_params`).
+   */
+  width_cm: number | null;
+  density_gsm: number | null;
+  length_calc_m: number | null;
+  length_m: number | null;
+  length_source: 'calc' | 'supplier' | 'measured' | null;
+  /**
+   * Коэффициент кг/м КОНКРЕТНОГО рулона: по ширине и плотности (`params`),
+   * по замеру (`measured`) или после сверки остатка (`refined`). Общего
+   * курса «кг → м» не существует — плотность у каждого артикула своя.
+   */
+  kg_per_m: number | null;
+  kg_per_m_source: 'params' | 'measured' | 'refined' | null;
+  /** Остаток в метрах: доступно на начало работы − расход; ведёт `erp_stage_submit_report` */
+  length_left_m: number | null;
+  length_left_source: 'calc' | 'supplier' | 'measured' | null;
+  /** Цена за метр = цена за кг × коэффициент; только для чтения, считает сервер */
+  price_per_m: number | null;
+}
+
+/**
+ * Корректировка метража рулона (правка 27.09, п. 4): расхождение замера
+ * с расчётом, уточнение метража, списание малого остатка, остаточная
+ * стоимость при нулевом остатке. Пишется ТОЛЬКО сервером и не прибавляется
+ * к расходу: «не добавлять его автоматически в расход или брак».
+ */
+export interface ErpMaterialRollAdjustment {
+  id: string;
+  roll_id: string;
+  kind: 'length_refine' | 'leftover_measure' | 'scrap_writeoff' | 'cost_residual';
+  before_m: number | null;
+  after_m: number | null;
+  delta_m: number | null;
+  /** Деньги корректировки: списанный остаток, остаточная стоимость */
+  cost: number | null;
+  reason: string | null;
+  report_id: string | null;
+  item_id: string | null;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
 }
 
 export interface ErpMaterial {
@@ -701,6 +773,14 @@ export interface ErpMaterial {
    * хранить производную значит завести расхождение.
    */
   price_per_unit?: number | null;
+  /**
+   * Ширина полотна (см) и плотность (г/м²) — параметры ткани для учёта
+   * в метрах (правка 27.09, п. 4). Подставляются в рулоны при приёмке,
+   * где их можно уточнить для партии. Обнуляемые: черновик закупки
+   * заводится и без них, а закрой дозаполнит до записи расхода.
+   */
+  width_cm?: number | null;
+  density_gsm?: number | null;
   // Факт приёмки (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом)
   fact_name: string | null;
   fact_color: string | null;
