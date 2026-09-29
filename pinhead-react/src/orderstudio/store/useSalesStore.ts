@@ -54,6 +54,15 @@ let pricer: ((o: SalesOrder) => OrderPrice | null) | null = null;
  * сохранение создало бы второй заказ.
  */
 let session = 0;
+/**
+ * Метка «карточку открыли снова». `close()` ждёт сохранения несохранённой
+ * правки; если за это время тот же заказ открыли снова (StrictMode
+ * перемонтирует карточку, возврат из визарда позиции), закрытие не должно
+ * обнулить уже открытую карточку — иначе «Заказ не найден» (поймано обходом
+ * в браузере). Отдельно от `session`: та решает, чей ответ сохранения
+ * применять, и её сдвиг здесь потерял бы id нового заказа.
+ */
+let reopened = 0;
 /** Прошлое сохранение упало — повторный сбой тоста не даёт */
 let lastFailed = false;
 
@@ -114,7 +123,10 @@ export const useSalesStore = create<SalesState>((set, get) => {
     },
 
     open: async (id) => {
-      if (get().current?.id === id) return get().current;
+      if (get().current?.id === id) {
+        reopened += 1;
+        return get().current;
+      }
       await get().close();
       session += 1;
       const mySession = session;
@@ -127,8 +139,10 @@ export const useSalesStore = create<SalesState>((set, get) => {
     },
 
     close: async () => {
+      const mark = reopened;
       if (timer || get().saveState === 'dirty' || get().saveState === 'error') await runSave();
       else if (inFlight) await inFlight;
+      if (mark !== reopened) return;
       session += 1;
       set({ current: null, currentLoading: false, saveState: 'idle' });
     },
@@ -175,5 +189,6 @@ export function __resetSalesStoreForTests(): void {
   pricer = null;
   session = 0;
   lastFailed = false;
+  reopened = 0;
   useSalesStore.setState({ list: [], listLoading: false, current: null, currentLoading: false, saveState: 'idle' });
 }

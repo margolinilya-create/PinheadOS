@@ -92,7 +92,8 @@ pinhead-react/src/
 ├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
 └── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
                              # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
-                             # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id)
+                             # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
+                             # ItemWizard), wizard/ (wizardAdapter, itemSession), leaveGuard
 ```
 
 ```
@@ -136,6 +137,7 @@ supabase/
 | `/admin` | AdminPanel | admin, director |
 | `/analytics` | Dashboard | admin, director, rop, production |
 | `/sales`, `/sales/:id` | Order v4: SalesList, SalesCard (пилот) | admin, director |
+| `/sales/:id/item/:key` | ItemWizard — шаги визарда «Изделие»/«Дизайн» для позиции v4 (`key` = `new` или ключ) | admin, director |
 
 ## Роли
 
@@ -486,6 +488,11 @@ NULL читается как `purchased`) — у давальческого из
   моста роняет typecheck и сторож `orderstudio/bridge/tzToErpDraft.test.ts`.
   Экраны и данные Order не импортируют РАНТАЙМ ERP (типы можно): общий модуль
   сборщик выносит в чанк оболочки ERP — сторож `orderstudio/erpImports.test.ts`
+- **Визард Order Studio внутри «Заказов v4» — только через сессию позиции**
+  (`orderstudio/wizard/itemSession.ts`): шаги визарда пишут в общий `useStore`
+  рядом с недоделанным заказом главной, поэтому вход снимает его в память
+  и ставит на паузу черновик (`useDraft.setDraftPaused`), выход возвращает.
+  Пауза снимается ДО возврата состояния — подписка черновика синхронна
 - ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
   кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
   приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`

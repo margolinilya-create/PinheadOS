@@ -169,7 +169,8 @@ URL: https://pinhead-os.vercel.app
   и pricingCore.test.ts; формула — в ядре, pricing.ts — обёртки с getPrices()
 - orderstudio/ — priceOrder (16), tzToErpDraft (22, сторож контракта с формой ERP),
   salesOrders (7, туда-обратно с RPC), useSalesStore (9, очередь автосохранения),
-  erpImports (сторож: без рантайм-импорта ERP)
+  erpImports (сторож: без рантайм-импорта ERP), wizardAdapter (13), itemSession (5),
+  ItemWizard (4), leaveGuard (3)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

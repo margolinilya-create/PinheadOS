@@ -36,6 +36,7 @@ const StepSummary = lazy(() => import('../components/steps/StepSummary'));
 import RolePreviewBar from '../components/shared/RolePreviewBar'
 import OnboardingTips from '../components/shared/OnboardingTips'
 import CommandPalette from '../components/shared/CommandPalette'
+import { shouldBlockLeave } from './leaveGuard'
 
 const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
@@ -54,6 +55,7 @@ const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 // Order v4 (срез 1) — пилот владельца, admin/director
 const SalesList = React.lazy(() => import('./screens/SalesList'));
 const SalesCard = React.lazy(() => import('./screens/SalesCard'));
+const ItemWizard = React.lazy(() => import('./screens/ItemWizard'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
  * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
@@ -129,11 +131,9 @@ export default function OrderStudioApp({ user }) {
   const [catalogsReady, setCatalogsReady] = useState(false);
   const { step, saved } = useStore(useShallow(s => ({ step: s.step, saved: s.saved })));
 
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    step > 0 &&
-    !saved &&
-    currentLocation.pathname !== nextLocation.pathname
-  );
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockLeave({
+    step, saved, from: currentLocation.pathname, to: nextLocation.pathname,
+  }));
 
   useEffect(() => {
     useStore.getState().loadCatalogs().finally(() => setCatalogsReady(true));
@@ -203,6 +203,7 @@ export default function OrderStudioApp({ user }) {
         <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
         <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
+        <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </main>

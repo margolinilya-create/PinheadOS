@@ -6,8 +6,8 @@ import { storageGet, storageSet, storageRemove } from '../lib/storage';
 const STORAGE_KEY = 'pinhead_draft';
 const SAVE_DELAY = 800; // ms debounce
 
-// Поля которые сохраняем в черновик
-const DRAFT_FIELDS = [
+// Поля которые сохраняем в черновик (их же снимает сессия позиции Order v4)
+export const DRAFT_FIELDS = [
   'step', 'items', 'activeItemIdx',
   'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes',
   'fit', 'fitChosen', 'extras', 'labels', 'zones', 'tech', 'textileColor',
@@ -16,6 +16,17 @@ const DRAFT_FIELDS = [
   'role', 'name', 'contact', 'email', 'deadline', 'address', 'notes',
   'packOption', 'packType', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];
+
+/**
+ * Пауза автосохранения. Пока в карточке «Заказы v4» открыт визард позиции,
+ * он работает в том же сторе, что и главный визард, — без паузы черновик
+ * главного визарда (`pinhead_draft`) перезаписался бы позицией v4
+ * (`orderstudio/wizard/itemSession.ts`).
+ */
+let paused = false;
+export function setDraftPaused(value) {
+  paused = value;
+}
 
 function getDraftData(state) {
   const data = {};
@@ -61,6 +72,7 @@ export function useDraft() {
     const unsub = useStore.subscribe(
       getDraftData,
       (data) => {
+        if (paused) return;
         if (timerRef.current) clearTimeout(timerRef.current);
         setDraftStatus('saving');
 

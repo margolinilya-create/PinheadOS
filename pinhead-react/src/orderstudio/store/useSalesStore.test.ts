@@ -133,6 +133,19 @@ describe('useSalesStore — создание и закрытие', () => {
     expect(useSalesStore.getState().current).toBeNull();
   });
 
+  it('закрытие с правкой и повторное открытие того же заказа — карточка остаётся открытой', async () => {
+    await open('o-1');
+    const save = deferred();
+    api.saveSalesOrder.mockReturnValueOnce(save.promise);
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'B' }));
+    const closing = useSalesStore.getState().close();
+    await useSalesStore.getState().open('o-1');
+    save.resolve(ok());
+    await closing;
+    expect(useSalesStore.getState().current).toMatchObject({ id: 'o-1', title: 'B' });
+    expect(api.fetchSalesOrder).toHaveBeenCalledTimes(1);
+  });
+
   it('открытие другого заказа сохраняет правки прежнего', async () => {
     await open('o-1');
     api.saveSalesOrder.mockResolvedValue(ok());

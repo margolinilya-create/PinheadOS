@@ -60,7 +60,7 @@ describe('SalesCard — карточка заказа v4', () => {
 
   it('позиция добавляется и удаляется', () => {
     renderCard(newSalesOrder({ id: 'o-1' }));
-    fireEvent.click(screen.getByRole('button', { name: '+ Позиция' }));
+    fireEvent.click(screen.getByRole('button', { name: '+ Позиция вручную' }));
     expect(screen.getByRole('region', { name: 'Позиция 1' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Удалить позицию' }));
     expect(screen.queryByRole('region', { name: 'Позиция 1' })).toBeNull();

@@ -21,12 +21,12 @@ const SAVE_LABELS = {
 export default function SalesCard() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { order, loading, saveState, open, close, edit } = useSalesStore(useShallow((s) => ({
+  const { order, loading, saveState, open, flush, edit } = useSalesStore(useShallow((s) => ({
     order: s.current,
     loading: s.currentLoading,
     saveState: s.saveState,
     open: s.open,
-    close: s.close,
+    flush: s.flush,
     edit: s.edit,
   })));
   const price = useOrderPrice(order);
@@ -34,8 +34,10 @@ export default function SalesCard() {
   useEffect(() => {
     if (id) open(id);
   }, [id, open]);
-  // Уход с карточки сохраняет несохранённое, не дожидаясь паузы
-  useEffect(() => () => { close(); }, [close]);
+  // Уход с карточки сохраняет несохранённое, не дожидаясь паузы. Карточку
+  // не закрывает: визард позиции и возврат из него работают с тем же заказом
+  // без перечитывания, а другой заказ закрывает прежний сам (`open`)
+  useEffect(() => () => { flush(); }, [flush]);
 
   if (loading || (!order && id)) {
     return <div className={styles.page}><div className={styles.empty}>{loading ? 'Загрузка…' : 'Заказ не найден'}</div></div>;
@@ -156,9 +158,13 @@ export default function SalesCard() {
               price={price?.items.find((p) => p.key === it.key) ?? null}
               onChange={(patch) => setItem(i, patch)}
               onRemove={() => removeItem(i)}
+              onWizard={() => navigate(`/sales/${order.id}/item/${it.key}`)}
             />
           ))}
-          <button type="button" className="btn" onClick={addItem}>+ Позиция</button>
+          <div className={styles.row}>
+            <button type="button" className="btn btn-primary" onClick={() => navigate(`/sales/${order.id}/item/new`)}>+ Позиция в визарде</button>
+            <button type="button" className="btn" onClick={addItem}>+ Позиция вручную</button>
+          </div>
         </div>
 
         <PricePanel order={order} price={price} />
