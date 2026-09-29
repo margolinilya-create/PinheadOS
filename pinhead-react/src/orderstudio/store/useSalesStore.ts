@@ -34,8 +34,11 @@ interface SalesState {
   loadList: () => Promise<void>;
   open: (id: string) => Promise<SalesOrder | null>;
   close: () => Promise<void>;
-  /** Новый заказ сохраняется сразу — у карточки должен быть адрес */
-  createNew: () => Promise<string | null>;
+  /**
+   * Новый заказ сохраняется сразу — у карточки должен быть адрес.
+   * `seed` — готовое содержимое («Оформить как заказ v4» из визарда главной)
+   */
+  createNew: (seed?: Partial<SalesOrder>) => Promise<string | null>;
   edit: (fn: (o: SalesOrder) => SalesOrder) => void;
   /** Сохранить немедленно (уход с карточки, тесты) */
   flush: () => Promise<void>;
@@ -147,10 +150,10 @@ export const useSalesStore = create<SalesState>((set, get) => {
       set({ current: null, currentLoading: false, saveState: 'idle' });
     },
 
-    createNew: async () => {
+    createNew: async (seed) => {
       await get().close();
       session += 1;
-      set({ current: newSalesOrder(), saveState: 'dirty' });
+      set({ current: newSalesOrder(seed), saveState: 'dirty' });
       await runSave();
       const cur = get().current;
       if (!cur?.id) {

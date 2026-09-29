@@ -93,7 +93,8 @@ pinhead-react/src/
 └── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
                              # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
                              # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
-                             # ItemWizard), wizard/ (wizardAdapter, itemSession), leaveGuard
+                             # ItemWizard), wizard/ (wizardAdapter, itemSession,
+                             # wizardOrderToSales + transferToSales — «Оформить как заказ v4»), leaveGuard
 ```
 
 ```
@@ -492,7 +493,10 @@ NULL читается как `purchased`) — у давальческого из
   (`orderstudio/wizard/itemSession.ts`): шаги визарда пишут в общий `useStore`
   рядом с недоделанным заказом главной, поэтому вход снимает его в память
   и ставит на паузу черновик (`useDraft.setDraftPaused`), выход возвращает.
-  Пауза снимается ДО возврата состояния — подписка черновика синхронна
+  Пауза снимается ДО возврата состояния — подписка черновика синхронна.
+  Блокировщик ухода (`useBlocker` в `OrderStudioApp`) читает `useStore.getState()`
+  В МОМЕНТ перехода: сброс визарда и `navigate` в одном обработчике иначе
+  ловят «Заказ не сохранён» по шагу из прошлого рендера
 - ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
   кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
   приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
