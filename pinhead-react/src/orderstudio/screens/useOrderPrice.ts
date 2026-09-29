@@ -21,6 +21,19 @@ export function rulesFromPrices(P: PricesExt): PriceRules {
   return { ...DEFAULT_PRICE_RULES, prepFees: prep, minMarginPct: min };
 }
 
+type PricerSource = PriceCatalogs & { prices?: unknown };
+
+/**
+ * Расчёт цены заказа по прайсу и каталогам стора визарда. Вне хука — для
+ * «Оформить как заказ v4»: первое сохранение нового заказа уходит до того,
+ * как карточка смонтируется и поставит свой расчёт.
+ */
+export function makeOrderPricer(src: PricerSource): (o: SalesOrder) => OrderPrice {
+  const P = (src.prices ?? getPrices()) as PricesExt;
+  const rules = rulesFromPrices(P);
+  return (o: SalesOrder) => priceOrder(o, P, src, rules);
+}
+
 export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
   const cat = useStore(useShallow((s) => ({
     prices: s.prices,
@@ -31,12 +44,7 @@ export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
     usdRate: s.usdRate,
   })));
 
-  const pricer = useMemo(() => {
-    const P = (cat.prices ?? getPrices()) as PricesExt;
-    const catalogs = cat as unknown as PriceCatalogs;
-    const rules = rulesFromPrices(P);
-    return (o: SalesOrder) => priceOrder(o, P, catalogs, rules);
-  }, [cat]);
+  const pricer = useMemo(() => makeOrderPricer(cat as unknown as PricerSource), [cat]);
 
   // Снимок цены при сохранении — тот же расчёт, что видит менеджер
   useEffect(() => {

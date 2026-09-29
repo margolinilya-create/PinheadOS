@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useOrdersStore } from '../../store/useOrdersStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { storageRemove } from '../../lib/storage';
 import { toast } from '../../store/useToastStore';
 import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
 import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice, calcExtrasCost } from '../../utils/pricing';
@@ -147,6 +149,11 @@ export default function StepSummary() {
   const [saving, setSaving] = useState(false);
   const [savedNum, setSavedNum] = useState(null);
   const [copyLabel, setCopyLabel] = useState(null);
+  const [transferring, setTransferring] = useState(false);
+  // «Заказы v4» — пилот admin/director, тот же гейт, что у маршрута /sales
+  const user = useAuthStore(s => s.user);
+  const previewRole = useAuthStore(s => s.previewRole);
+  const canSalesV4 = ['admin', 'director'].includes(previewRole || user?.role);
 
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
@@ -252,6 +259,27 @@ export default function StepSummary() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ─── Перенос в «Заказы v4» ───
+  // Модуль v4 грузится по клику: чанк «Итога» не тянет стор и API v4
+  const handleToSalesV4 = async () => {
+    if (transferring || saving || hasErrors) return;
+    setTransferring(true);
+    try {
+      const { transferWizardToSales } = await import('../../orderstudio/wizard/transferToSales');
+      const res = await transferWizardToSales(user?.name || '');
+      if (!res) return; // сбой сохранения уже показал стор v4, визард не тронут
+      storageRemove('pinhead_draft');
+      resetOrder();
+      toast.success(`Заказ ${res.number} создан в «Заказах v4»`);
+      if (res.notes) toast.warning(`Комментарий к заказу перенесите вручную: «${res.notes}»`);
+      navigate(`/sales/${res.id}`);
+    } catch {
+      toast.error('Не удалось открыть «Заказы v4» — обновите страницу');
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -451,6 +479,16 @@ export default function StepSummary() {
             ? <><span className="btn-spinner" />Сохранение...</>
             : _editingOrderId ? 'Обновить заказ' : 'Сохранить заказ'}
         </button>
+        {canSalesV4 && !_editingOrderId && (
+          <button
+            className={`btn-secondary${transferring ? ' loading' : ''}`}
+            disabled={transferring || saving || hasErrors}
+            onClick={handleToSalesV4}
+            title={hasErrors ? 'Заполните обязательные поля' : 'Новый заказ в «Заказах v4» с этими позициями'}
+          >
+            {transferring ? <><span className="btn-spinner" />Переносим...</> : 'Оформить как заказ v4'}
+          </button>
+        )}
         <button className="btn-secondary" onClick={resetOrder}>Новый заказ</button>
       </div>
     </div>

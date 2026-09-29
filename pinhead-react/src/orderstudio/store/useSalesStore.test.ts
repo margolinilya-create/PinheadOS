@@ -118,6 +118,13 @@ describe('useSalesStore — создание и закрытие', () => {
     expect(api.saveSalesOrder.mock.calls[1][0]).toMatchObject({ id: 'new-1', title: 'B' });
   });
 
+  it('создание с готовым содержимым: засеянный заказ уходит первой записью', async () => {
+    api.saveSalesOrder.mockResolvedValue(ok('new-1'));
+    await useSalesStore.getState().createNew({ customer: 'ООО Ромашка', urgent: true });
+    expect(api.saveSalesOrder.mock.calls[0][0]).toMatchObject({ id: null, customer: 'ООО Ромашка', urgent: true });
+    expect(useSalesStore.getState().current).toMatchObject({ id: 'new-1', customer: 'ООО Ромашка' });
+  });
+
   it('сбой создания — карточки нет, null', async () => {
     api.saveSalesOrder.mockResolvedValue(null);
     expect(await useSalesStore.getState().createNew()).toBeNull();

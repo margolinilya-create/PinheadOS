@@ -21,7 +21,6 @@ import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
-import { useShallow } from 'zustand/react/shallow'
 import { useAuthStore } from '../store/useAuthStore'
 import Header from '../components/layout/Header'
 import ProgressBar from '../components/layout/ProgressBar'
@@ -129,11 +128,14 @@ function LoadingScreen() {
 export default function OrderStudioApp({ user }) {
   const previewRole = useAuthStore(s => s.previewRole);
   const [catalogsReady, setCatalogsReady] = useState(false);
-  const { step, saved } = useStore(useShallow(s => ({ step: s.step, saved: s.saved })));
-
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockLeave({
-    step, saved, from: currentLocation.pathname, to: nextLocation.pathname,
-  }));
+  // Состояние визарда читается В МОМЕНТ перехода, а не из прошлого рендера:
+  // «Оформить как заказ v4» сбрасывает визард и тут же уходит в карточку —
+  // замыкание рендера ещё видело шаг 4 и показывало «Заказ не сохранён»
+  // (поймано обходом в браузере)
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    const { step, saved } = useStore.getState();
+    return shouldBlockLeave({ step, saved, from: currentLocation.pathname, to: nextLocation.pathname });
+  });
 
   useEffect(() => {
     useStore.getState().loadCatalogs().finally(() => setCatalogsReady(true));
