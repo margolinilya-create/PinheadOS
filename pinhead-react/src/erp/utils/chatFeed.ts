@@ -130,3 +130,19 @@ export function buildFeed(
 
   return out;
 }
+
+/**
+ * СИСТЕМНЫЙ АВТОР (правка 01.10, п. 5). Сообщение без `author_id` пишет
+ * сама ERP — запрос причины просрочки. Подписать его менеджером значило бы
+ * приписать человеку слова, которых он не писал; «Сотрудник» (подпись
+ * неизвестного автора) читался бы как сбой справочника.
+ */
+export const SYSTEM_AUTHOR_NAME = 'ERP';
+
+/** Подпись автора: системное → «ERP», иначе — по справочнику */
+export function chatAuthorName(
+  authorId: string | null | undefined,
+  nameOf: (id: string) => string,
+): string {
+  return authorId ? nameOf(authorId) : SYSTEM_AUTHOR_NAME;
+}

@@ -159,7 +159,7 @@ export function SkuCatalogTab() {
       )}
 
       {adding && (
-        <Modal title="Новая модель" onClose={() => setAdding(null)}>
+        <Modal title="Новая модель" onClose={() => setAdding(null)} closeOnOverlay={false} closeOnEscape={false}>
           <div className={styles.formGrid}>
             <Field
               label="Артикул"

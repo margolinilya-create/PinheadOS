@@ -29,7 +29,9 @@ import styles from '../styles';
  * оно есть, у разработки его нет, и кнопка не рисуется. Кнопка, которой
  * сервер откажет (`erp_attachment_guard`), хуже отсутствующей.
  */
-export function FileCard({ att, canManage, busy, onRemove, moveTo = null, subtitle = null }) {
+export function FileCard({
+  att, canManage, busy, onRemove, moveTo = null, subtitle = null, canRemove = true,
+}) {
   const url = attachmentUrl(att.file_path);
   const name = att.file_name || 'файл';
 
@@ -62,13 +64,17 @@ export function FileCard({ att, canManage, busy, onRemove, moveTo = null, subtit
               → {moveTo.title}
             </Button>
           )}
-          <Button
-            variant="secondary" size="sm" disabled={busy}
-            aria-label={`Удалить файл ${name}`}
-            onClick={() => onRemove(att)}
-          >
-            Удалить
-          </Button>
+          {/* Удалить — только там, где сервер позволит (правка 01.10, п. 6):
+              иначе «кнопка есть, действие падает» с отказом в правах */}
+          {canRemove && (
+            <Button
+              variant="secondary" size="sm" disabled={busy}
+              aria-label={`Удалить файл ${name}`}
+              onClick={() => onRemove(att)}
+            >
+              Удалить
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -83,6 +89,7 @@ export function FileCard({ att, canManage, busy, onRemove, moveTo = null, subtit
  */
 export function FileFolder({
   folder, files, canManage, busy, onUpload, onRemove, moveTargetFor = null, emptyText,
+  canRemoveFile = null,
 }) {
   const inputRef = useRef(null);
 
@@ -130,6 +137,7 @@ export function FileFolder({
               busy={busy}
               onRemove={onRemove}
               moveTo={moveTargetFor ? moveTargetFor(a) : null}
+              canRemove={canRemoveFile ? canRemoveFile(a) : true}
               subtitle={a.subtitle ?? null}
             />
           ))}

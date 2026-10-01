@@ -145,7 +145,10 @@ describe('удаление объекта на клиенте спрашивае
     expect(deleteOrder.slice(0, deleteOrder.indexOf('return true;')))
       .toMatch(/freeOfSkuCards\(paths\)/);
 
-    const deleteAtt = orderWrite.slice(orderWrite.indexOf('deleteOrderAttachment: async'));
+    // С 01.10 действия с вложениями — в своём модуле (ратчет размера slice)
+    const attActions = read('slices/orderAttachmentActions.ts');
+    const deleteAtt = attActions.slice(attActions.indexOf('deleteOrderAttachment: async'));
+    expect(attActions.indexOf('deleteOrderAttachment: async')).toBeGreaterThan(0);
     expect(deleteAtt.slice(0, deleteAtt.indexOf('return true;')))
       .toMatch(/freeOfSkuCards\(\[att\.file_path\]\)/);
 

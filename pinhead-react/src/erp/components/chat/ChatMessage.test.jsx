@@ -195,3 +195,18 @@ describe('цитата удалённого', () => {
     expect(screen.getByText('Сообщение удалено')).toBeInTheDocument();
   });
 });
+
+/**
+ * СИСТЕМНОЕ СООБЩЕНИЕ (правка 01.10, п. 5): запрос причины просрочки пишет
+ * сама ERP. Без автора — подпись «ERP», ответить можно, править и удалять нет.
+ */
+describe('системное сообщение', () => {
+  it('подписано «ERP», без «Изменить» и «Удалить», «Ответить» есть', () => {
+    show(MSG({ author_id: null, body: '@Мария, заказ №1 просрочен.', mentions: [OTHER] }));
+    expect(screen.getByText('ERP')).toBeInTheDocument();
+    expect(screen.queryByText('Сотрудник')).toBeNull();
+    expect(screen.queryByText('Изменить')).toBeNull();
+    expect(screen.queryByText('Удалить')).toBeNull();
+    expect(screen.getByText('Ответить')).toBeInTheDocument();
+  });
+});

@@ -28,21 +28,23 @@ import { isOrderReadyToShip } from '../../utils/stageUi';
 import { shipmentTotals } from '../../utils/shipment';
 import { isBypassed } from '../../utils/bypass';
 import { pluralize } from '../../../utils/i18n';
-import { attachmentFilePath } from '../../utils/storageKey';
 import type {
   ErpItemStage, ErpOrder, ErpOrderAttachment, ErpOrderStatus,
 } from '../../types';
 import { TZ_BUCKET } from '../../types';
 import {
-  currentActor, erpError, erpQuery, erpWrite, freeOfSkuCards, removeOrphanUpload,
+  currentActor, erpError, erpQuery, erpWrite, freeOfSkuCards,
   withPending,
 } from '../shared';
 import { invalidate } from '../queryCache';
 import { ORDER_SELECT } from '../orderHelpers';
 import { orderBundleKey, orderFilePaths } from './ordersSlice';
 import type { ErpOrderComment, ErpStore, OrderWriteSlice } from '../types';
+import { orderAttachmentActions } from './orderAttachmentActions';
 
 export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = (set, get) => ({
+  // Файлы заказа (загрузка, снятие, папки) — свой модуль, вынос 01.10
+  ...orderAttachmentActions(set, get),
   createOrder: async (input) => {
     const { departments } = get();
     const deptByCode = new Map(departments.map((d) => [d.code, d]));
@@ -551,116 +553,6 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
   },
 
 
-  /**
-   * ФАЙЛ ЗАКАЗА: общий («Файлы сделки») либо рабочий («Файлы производства»,
-   * правка 14.09, п. 3). Вид приходит параметром со значением по умолчанию —
-   * у действия тринадцать лет истории и два вызывающих на `.js`
-   * (фото блокировки и фото брака в `useStageActions`), где тайпчек аргументы
-   * не проверяет: обязательный параметр молча остался бы `undefined`.
-   */
-  uploadOrderAttachment: async (orderId, file, note, kind = 'attachment') => {
-    /**
-     * Ключ объекта — общий `attachmentFilePath`: строго ASCII с транслитом
-     * кириллицы. Прежняя схема (`<orderId>/<время>.<расширение>`) человеческое
-     * имя теряла вовсе, а Supabase на русское имя отвечает `InvalidKey` —
-     * на этом однажды не создавался НИ ОДИН заказ с ТЗ.
-     */
-    const path = attachmentFilePath(orderId, kind, crypto.randomUUID(), file.name);
-    const { error: upErr } = await erpQuery(() => supabase.storage
-      .from(TZ_BUCKET)
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' }));
-    if (upErr) {
-      erpError('Не удалось загрузить файл', upErr);
-      return false;
-    }
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_order_attachments')
-      .insert({
-        order_id: orderId,
-        file_path: path,
-        file_name: note ? `${note} — ${file.name}` : file.name,
-        kind,
-        uploaded_by: currentActor(),
-      })
-      .select());
-    const row = data?.[0] as ErpOrderAttachment | undefined;
-    if (error || !row) {
-      await removeOrphanUpload(TZ_BUCKET, path);
-      erpError('Файл загружен, но не привязан к заказу', error);
-      return false;
-    }
-    set((s) => ({
-      orders: s.orders.map((o) =>
-        o.id === orderId
-          ? { ...o, attachments: [...(o.attachments ?? []), row] }
-          : o),
-    }));
-    return true;
-  },
-
-  /**
-   * Снятие файла заказа (правка 14.09, п. 3: «сделать возможность удалять
-   * и заменять файлы внутри карточки „файлы"»).
-   *
-   * НЕ оптимистично и с `.select()` — RLS запрещает DELETE через `USING`,
-   * то есть отдаёт «0 строк», а не ошибку, и зелёное «файл снят» было бы
-   * неправдой. Объект бакета убирается ПОСЛЕ строки: обратный порядок при
-   * отказе прав оставил бы живую строку, ссылающуюся в пустоту.
-   *
-   * «Замена» отдельным действием не заводится: это загрузка нового файла
-   * и снятие старого. Перезаписывать объект в бакете нельзя — на него уже
-   * могут быть ссылки, а прежняя версия нужна тем, кто её видел.
-   */
-  deleteOrderAttachment: async (orderId, attachmentId) => {
-    const order = get().orders.find((o) => o.id === orderId) ?? null;
-    const att = (order?.attachments ?? []).find((a) => a.id === attachmentId) ?? null;
-    const { data, error } = await erpQuery(() => supabase
-      .from('erp_order_attachments').delete().eq('id', attachmentId).select());
-    if (error || (data ?? []).length === 0) {
-      erpError('Файл не снят', error ?? { message: 'Нет прав на удаление файла' });
-      return false;
-    }
-    set((s) => ({
-      orders: s.orders.map((o) => (o.id === orderId
-        ? { ...o, attachments: (o.attachments ?? []).filter((a) => a.id !== attachmentId) }
-        : o)),
-    }));
-    // Объект уходит, только если на него не ссылается карточка модели
-    if (att?.file_path && (await freeOfSkuCards([att.file_path])).length > 0) {
-      await removeOrphanUpload(TZ_BUCKET, att.file_path);
-    }
-    invalidate(orderBundleKey(orderId));
-    return true;
-  },
-
-  /**
-   * Перекладывание файла между папками «Файлы сделки» ↔ «Файлы производства»
-   * (правка 14.09, п. 3).
-   *
-   * Пишется РОВНО `kind`; всё остальное у вложения неизменно, и это же
-   * повторяет серверный страж `erp_attachment_guard`. Через `erpWrite`:
-   * отказ RLS на UPDATE приходит пустым результатом, а не ошибкой.
-   */
-  moveOrderAttachment: async (orderId, attachmentId, kind) => {
-    const ok = await erpWrite(
-      'Не удалось переместить файл',
-      () => supabase.from('erp_order_attachments')
-        .update({ kind }).eq('id', attachmentId).select(),
-    );
-    if (!ok) return false;
-    set((s) => ({
-      orders: s.orders.map((o) => (o.id === orderId
-        ? {
-          ...o,
-          attachments: (o.attachments ?? []).map((a) => (a.id === attachmentId
-            ? { ...a, kind }
-            : a)),
-        }
-        : o)),
-    }));
-    invalidate(orderBundleKey(orderId));
-    return true;
-  },
 
 
   addComment: async (orderId, text) => {

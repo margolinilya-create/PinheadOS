@@ -32,15 +32,23 @@ export interface TzSource {
   tz_required?: boolean;
 }
 
-/** Актуальная версия группы. Если `is_current` почему-то нет — берём старшую версию. */
+/**
+ * Актуальная версия группы — строка с `is_current`.
+ *
+ * ГРУППА БЕЗ `is_current` — СНЯТЫЙ ДОКУМЕНТ (правка заказчика 01.10, п. 6:
+ * «удалять ранее загруженные» файлы в форме правки). Снятие пишет
+ * `erp_tz_document_remove`: флаг уходит со всей группы, история версий
+ * остаётся. До правки здесь стоял откат на старшую версию — «флага почему-то
+ * нет, берём последнюю», — и снятое ТЗ тут же возвращалось бы цехам.
+ * Откат прикрывал единственный сбой: замена, у которой упала и вставка новой
+ * версии, и компенсация (`replaceTzDocument`); человек при этом получает
+ * ошибку и видит, что документа нет, — честнее, чем молча показывать старый.
+ */
 export function currentVersion(
   documents: ErpTzDocument[] | null | undefined,
   groupId: string,
 ): ErpTzDocument | null {
-  const group = (documents ?? []).filter((d) => d.group_id === groupId);
-  if (group.length === 0) return null;
-  return group.find((d) => d.is_current)
-    ?? group.reduce((best, d) => (d.version > best.version ? d : best));
+  return (documents ?? []).find((d) => d.group_id === groupId && d.is_current) ?? null;
 }
 
 /** Все актуальные документы заказа (по одному на группу), в порядке загрузки */

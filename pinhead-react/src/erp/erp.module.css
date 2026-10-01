@@ -566,16 +566,6 @@
 }
 .pageSub { color: var(--text-dim); margin-top: var(--space-xs); font-size: var(--type-body-sm); }
 
-/* ─── Карточки цехов ─── */
-.card {
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  padding: 14px var(--space-lg);
-  transition: border-color var(--dur-base) var(--ease-out);
-}
-.card:hover { border-color: var(--border-mid); }
-
 /* ─── Заглушки ─── */
 /* Пустое состояние — базовый примитив: пунктирная рамка, центр, приглушённый текст */
 .emptyState {
@@ -889,7 +879,10 @@
   background: var(--card);
   padding: var(--space-sm) 10px;
 }
-.queueRow:hover { border-color: var(--border-mid); }
+/* Строка очереди НЕ подсвечивается при наведении (правка владельца, п. 2
+   «Подсветка нерабочих элементов»): строка целиком не кликается, задание
+   открывает название-ссылка. Рамка, загоравшаяся на всей строке, обещала
+   действие, которого нет. */
 .queueRowDragging { opacity: 0.45; }
 /* Метка места вставки при перетаскивании — приоритет меняется по месту, а не по цвету строки */
 .queueRowDropBefore { box-shadow: inset 0 3px 0 0 var(--accent); }
@@ -1461,7 +1454,10 @@ a.noticeRow { text-decoration: none; }
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.dataCardTitle:hover { color: var(--accent); }
+/* Подсветка — только у заголовка-ССЫЛКИ. Тот же класс носят простой текст
+   (черновики, остатки, позиции подряда), и `.dataCardTitle:hover` красил его
+   так же, как ссылку, хотя клик ничего не делал (правка владельца, п. 2). */
+a.dataCardTitle:hover { color: var(--accent); }
 .dataCardMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
 /* Строка внутри карточки, отбитая от предыдущей: позиция заказа,
    группа полей закупки, содержимое складской задачи */
@@ -1590,16 +1586,23 @@ a.noticeRow { text-decoration: none; }
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   margin-bottom: 6px;
-  cursor: grab;
+  /* Курсор «рука» — только у карточки, которую ДЕЙСТВИТЕЛЬНО можно тащить
+     (`[draggable="true"]` ниже). Доска ЭКС отдаёт перетаскивание лишь
+     технологу и не у закрытой разработки, а `cursor: grab` стоял у всех
+     карточек — обещание действия, которого нет (правка владельца, п. 2). */
+  cursor: default;
   /* без выделения текста — иначе попытка перетащить карточку выделяет текст (ERP-12) */
   user-select: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
 }
-.kanbanCard:active { cursor: grabbing; }
+/* Карточка целиком открывает заказ (доска цехов) — указатель */
+.kanbanCardClickable { cursor: pointer; }
+.kanbanCard[draggable="true"] { cursor: grab; }
+.kanbanCard[draggable="true"]:active { cursor: grabbing; }
 .kanbanCardDragging { opacity: 0.4; border-style: dashed; }
-.kanbanCardBlocked { border-left: 3px solid var(--color-error); cursor: default; }
+.kanbanCardBlocked { border-left: 3px solid var(--color-error); }
 /* flex-wrap обязателен: колонка канбана жёстко 290px, и строка «500 шт · брак 12 ·
    3 ч · 🚫» без переноса вылезала за границы карточки */
 .kanbanCardHead {
@@ -1626,7 +1629,8 @@ a.noticeRow { text-decoration: none; }
   overflow: hidden;
   overflow-wrap: anywhere;
 }
-.kanbanCardTitle:hover { color: var(--accent); }
+/* Только ссылка: на доске ЭКС название изделия — обычный текст (п. 2) */
+a.kanbanCardTitle:hover { color: var(--accent); }
 .kanbanCardFoot {
   display: flex;
   gap: var(--space-xs) 10px;
@@ -1892,7 +1896,11 @@ a.noticeRow { text-decoration: none; }
   width: 3px;
   background: var(--border-mid);
 }
-.kpiCard:hover { border-color: var(--border-mid); box-shadow: var(--shadow-raise); }
+/* Подъём при наведении — только у плитки-ссылки или кнопки. Плитки аналитики,
+   закупки и скелетона — `<div>`, и «приподнимались» под курсором, хотя клик
+   по ним ничего не делает (правка владельца, п. 2). */
+a.kpiCard:hover,
+button.kpiCard:hover { border-color: var(--border-mid); box-shadow: var(--shadow-raise); }
 /* ТОН ПОЯВЛЯЕТСЯ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ НА ЧТО РЕАГИРОВАТЬ.
    Классы вешает экран по значению (`> 0`), а не разметка навсегда: плитка
    «Просрочено: 0» — это хорошая новость, и красная кромка на ней была бы

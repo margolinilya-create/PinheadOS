@@ -159,14 +159,15 @@ export function UserModal({ profile, onClose }) {
   const deptOptions = departments.filter((d) => d.active || d.id === emp?.department_id);
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
+    // Клик мимо панели окно НЕ закрывает (правка 01.10, п. 3): это форма
+    // ввода, и промах мышью терял набранное. Закрытие — «Отмена»/Escape
+    <div className={styles.modalOverlay} role="presentation">
       <div
         ref={trapRef}
         className={styles.modal}
         role="dialog"
         aria-modal="true"
         aria-label={isNew ? 'Новый пользователь' : 'Карточка пользователя'}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.modalTitle}>
           {isNew ? 'Новый пользователь' : (profile.name || profile.email)}

@@ -10,6 +10,8 @@ import { MATERIAL_STATUS_LABELS } from '../../types';
 import styles from '../../styles';
 import { Button } from '../../components/Button';
 import { createAttemptKeeper } from '../../utils/attemptKey';
+import { useDictionary } from '../../store/useDictionary';
+import { materialTracksRolls } from '../../utils/materialUnit';
 
 /**
  * Чего именно ждёт задание из группы «Ожидают материалы» (правка менеджера
@@ -36,6 +38,7 @@ export function MaterialWait({ materials, compact = false }) {
   );
   const access = useErpAccess();
   const canReceive = access.can('material.receive');
+  const units = useDictionary('unit');
   const [busy, setBusy] = useState(null);
   /**
    * Ключ идемпотентности попытки — по той же причине, что в карточке склада:
@@ -57,6 +60,18 @@ export function MaterialWait({ materials, compact = false }) {
      * `Number(m.qty_expected) || 0`, то есть у позиции без плана оформлялась
      * приёмка нулевого количества.
      */
+    /**
+     * РУЛОННУЮ ТКАНЬ ОТСЮДА НЕ ПРИНИМАЕМ (правка 01.10, п. 1). Кнопка
+     * оформляла приход одним числом, без рулонов, — и закрой по такой
+     * ткани потом не сдать: расход он пишет только по рулонам.
+     */
+    if (!fromStock && materialTracksRolls(m, units)) {
+      toast.error(
+        'Ткань учитывается рулонами — примите её на экране «Склад», указав '
+        + 'количество рулонов и вес каждого',
+      );
+      return;
+    }
     if (!fromStock && !(planned > 0)) {
       toast.error(
         'У материала не задано плановое количество — примите его на экране «Склад», '

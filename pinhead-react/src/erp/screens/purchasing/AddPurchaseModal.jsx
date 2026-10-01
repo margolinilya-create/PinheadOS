@@ -170,7 +170,9 @@ export function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
       supplier: form.supplier.trim() || null, color: form.color.trim() || null,
       article: form.article.trim() || null, qty: form.qty.trim() || null,
       qty_expected: form.qty_expected === '' ? null : qtyExpected,
-      unit: form.unit.trim() || null,
+      // Ткань без единицы считается в кг (правка 01.10, п. 1): пустая
+      // единица уводила приёмку мимо рулонов, и закрой потом вставал
+      unit: form.unit.trim() || (form.kind === 'fabric' ? 'кг' : null),
       price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
       eta_date: form.eta_date || null,
       width_cm: form.kind === 'fabric' && form.width_cm !== '' ? Number(form.width_cm) : null,
@@ -192,7 +194,7 @@ export function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
   };
 
   return (
-    <Modal title="Новая закупка" onClose={onClose}>
+    <Modal title="Новая закупка" onClose={onClose} closeOnOverlay={false} closeOnEscape={false}>
         <div className={styles.formGrid} ref={bodyRef}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Заказ *</span>

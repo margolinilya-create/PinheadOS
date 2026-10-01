@@ -254,6 +254,29 @@ export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (s
   },
 
   /**
+   * РУЛОНЫ К ПРИНЯТОЙ ТКАНИ (правка 01.10, п. 1): «к уже закрытому приходу
+   * разрешить добавить рулоны без повторного поступления и удвоения
+   * остатка». Повторная приёмка записала бы второй приход, поэтому путь
+   * отдельный: журнал приходов не трогается, рулоны раскладывают уже
+   * принятое. Не optimistic — номера и метраж считает сервер.
+   */
+  addMaterialRolls: async (materialId, rollParams, clientKey = null) => {
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_rolls_add', {
+      p_material_id: materialId,
+      p_roll_params: rollParams,
+      p_client_key: clientKey,
+    }));
+    if (error) {
+      erpError('Рулоны не добавлены', error);
+      return false;
+    }
+    if (order) await get().loadOne(order.id);
+    toast.success('Рулоны добавлены — закрой может записывать расход');
+    return true;
+  },
+
+  /**
    * Журнал приходов позиций закупки — точечной выборкой.
    *
    * В `ORDER_SELECT` журнал не кладётся: он растёт быстрее всего и нужен

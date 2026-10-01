@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
@@ -15,13 +16,15 @@ import { setFeature } from '../../config/features';
 import { storageGet, storageSet, storageGetRaw, storageSetRaw } from '../../lib/storage';
 import { deptsSettled } from '../store/shared';
 import { deptIcon, deptShortName, isProductionDept } from '../data/departments';
-import { orderNotices, personalNotices } from '../utils/notifications';
+import { orderNotices } from '../utils/notifications';
+import { setNoticeNavigate } from '../utils/noticeNav';
 import { orderOverdueDays } from '../utils/stageUi';
 import { daysLeft } from '../utils/time';
 import { Sidebar } from './Sidebar';
 import { Icon } from '../components/Icon';
 import StaleDataBar from '../components/StaleDataBar';
 import styles from '../erp.module.css';
+import bellStyles from './bell.module.css';
 import appStyles from '../../App.module.css';
 
 /*
@@ -58,7 +61,7 @@ export default function ErpLayout({ user, children }) {
   const isAdmin = ['admin', 'director'].includes(user?.role);
   const { theme, toggleTheme } = useTheme();
   const {
-    orders, departments, experimental, bypasses, bootstrapLoaded, notifications,
+    orders, departments, experimental, bypasses, bootstrapLoaded, unreadPersonal,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders,
@@ -66,7 +69,7 @@ export default function ErpLayout({ user, children }) {
       experimental: s.experimental,
       bypasses: s.bypasses,
       bootstrapLoaded: s.bootstrapLoaded,
-      notifications: s.notifications,
+      unreadPersonal: s.notificationsUnread,
     })),
   );
   /**
@@ -97,6 +100,14 @@ export default function ErpLayout({ user, children }) {
   const [navOpen, setNavOpen] = useState(false);
   /** Центр уведомлений раскрыт прямо в шапке (правка 20.09, п. 4) */
   const [noticesOpen, setNoticesOpen] = useState(false);
+
+  /**
+   * Окно браузера о новом сообщении создаёт стор, а ведёт оно к сообщению
+   * роутером раздела (правка 01.10, п. 4): `location.assign` перезагрузил бы
+   * ERP целиком ради одного перехода.
+   */
+  const navigate = useNavigate();
+  useEffect(() => setNoticeNavigate(navigate), [navigate]);
 
   // Живой ERP: изменения этапов/заказов долетают без обновления страницы
   useEffect(() => {
@@ -136,6 +147,12 @@ export default function ErpLayout({ user, children }) {
      * страницу».
      */
     if (!s.notificationsLoaded) s.loadNotifications();
+    /**
+     * Звук и окно браузера — настройки СОТРУДНИКА из базы (правка 01.10,
+     * п. 4), и нужны они до первого уведомления, а не при открытии центра:
+     * иначе первое упоминание за смену прозвучало бы по умолчанию.
+     */
+    if (!s.noticeSettingsLoaded) s.loadNoticeSettings();
   }, []);
 
   // Счётчики активных задач по разделам (из уже загруженных данных стора).
@@ -175,7 +192,8 @@ export default function ErpLayout({ user, children }) {
    * персональные уведомления (`erp_notifications`) рисует тот же виджет,
    * значит колокол обязан их считать. Не посчитать — вернуть ровно тот
    * дефект, ради которого счётчик и переписывали: индикатор ведёт туда,
-   * где сверху лежит непосчитанное им.
+   * где сверху лежит непосчитанное им. С 01.10 (п. 4) оба считаются
+   * по-прежнему, но ПОРОЗНЬ — см. `deadlineCount` ниже.
    */
   const orderAlerts = useMemo(
     () => orders
@@ -183,10 +201,19 @@ export default function ErpLayout({ user, children }) {
       .flatMap((o) => orderNotices(o, orderOverdueDays(o, daysLeft(o.due_date)))),
     [orders],
   );
-  const overdueCount = useMemo(
-    () => orderAlerts.length + personalNotices(notifications).length,
-    [orderAlerts, notifications],
-  );
+  /**
+   * ДВА СЧЁТЧИКА, А НЕ СУММА (правка 01.10, п. 4): «в колокольчике личные
+   * сообщения нужно отделить от напоминаний о сроках». Сумма смешивала
+   * «вас позвали» (у события есть прочитанность, и оно гаснет, когда
+   * сообщение увидели) с «заказ горит» (повод живёт, пока живёт состояние
+   * заказа). Красный бейдж — личные непрочитанные ЧИСЛОМ С СЕРВЕРА;
+   * сроки — отдельная метка своего цвета внизу колокола.
+   */
+  const deadlineCount = orderAlerts.length;
+  const bellLabel = [
+    unreadPersonal > 0 && `непрочитанных сообщений ${unreadPersonal}`,
+    deadlineCount > 0 && `напоминаний о сроках ${deadlineCount}`,
+  ].filter(Boolean).join(', ');
 
   // Постоянное меню цехов (правка 1): участок + число заданий в его очереди
   // (готовые к запуску + уже взятые в работу).
@@ -290,11 +317,8 @@ export default function ErpLayout({ user, children }) {
             type="button"
             className={styles.iconBtn}
             title="Уведомления"
-            /* Имя называет то, что посчитано: в счёте не одни просрочки,
-               а всё, что требует вмешательства (см. `orderNotices`) */
-            aria-label={overdueCount > 0
-              ? `Уведомления: требуют внимания ${overdueCount}`
-              : 'Уведомления'}
+            /* Имя называет ОБА счёта по отдельности — как и бейджи */
+            aria-label={bellLabel ? `Уведомления: ${bellLabel}` : 'Уведомления'}
             aria-expanded={noticesOpen}
             /*
               ЦЕНТР ОТКРЫВАЕТСЯ НА МЕСТЕ (правка 20.09, п. 4): «центр
@@ -305,8 +329,11 @@ export default function ErpLayout({ user, children }) {
             onClick={() => setNoticesOpen((v) => !v)}
           >
             <Icon name="bell" size={19} />
-            {overdueCount > 0 && (
-              <span className={styles.iconDot} aria-hidden="true">{overdueCount}</span>
+            {unreadPersonal > 0 && (
+              <span className={styles.iconDot} aria-hidden="true">{unreadPersonal}</span>
+            )}
+            {deadlineCount > 0 && (
+              <span className={bellStyles.deadlineDot} aria-hidden="true">{deadlineCount}</span>
             )}
           </button>
           {noticesOpen && (

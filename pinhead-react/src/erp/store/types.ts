@@ -1213,6 +1213,22 @@ export interface WarehouseSlice {
     weights: { roll_id: string; qty: number }[],
   ) => Promise<boolean>;
   /**
+   * Рулоны к УЖЕ принятой ткани (правка 01.10, п. 1) — без новой строки
+   * журнала приходов: принятое не удваивается. Сумма весов всех рулонов
+   * сверяется с принятым на сервере (`erp_material_rolls_add`).
+   */
+  addMaterialRolls: (
+    materialId: string,
+    rollParams: {
+      weight_kg: number;
+      width_cm: number | null;
+      density_gsm: number | null;
+      length_m: number | null;
+      length_source: 'supplier' | 'measured' | null;
+    }[],
+    clientKey?: string | null,
+  ) => Promise<boolean>;
+  /**
    * Журнал приходов конкретных позиций закупки (`erp_material_receipts`).
    *
    * ТОЧЕЧНО, а не в общей выборке заказа: журнал растёт быстрее всего,
@@ -1520,6 +1536,29 @@ export interface NotificationsSlice {
   noticeSeen: string[];
   /** Закрыть карточку — по нажатию или по таймеру */
   dismissNoticePopup: (id: string) => void;
+  /**
+   * Непрочитанных личных — ЧИСЛОМ С СЕРВЕРА (правка 01.10, п. 4), а не
+   * длиной загруженных 50 строк: бейдж колокола обязан показывать реальное.
+   */
+  notificationsUnread: number;
+  /** «Отметить все» — все непрочитанные адресата, а не загруженные */
+  markAllNotificationsRead: () => Promise<boolean>;
+  /**
+   * Сообщения показаны в чате: сервер уже погасил уведомления о них
+   * (`erp_chat_mark_seen`), здесь — то же в памяти, без второго запроса.
+   */
+  noteMessagesSeen: (messageIds: string[]) => void;
+  /** Звук и окно браузера — настройки сотрудника из `erp_user_settings` */
+  noticeSettings: NoticeSettings;
+  noticeSettingsLoaded: boolean;
+  loadNoticeSettings: () => Promise<void>;
+  saveNoticeSettings: (patch: Partial<NoticeSettings>) => Promise<boolean>;
+}
+
+/** Личные настройки уведомлений (правка 01.10, п. 4) */
+export interface NoticeSettings {
+  sound: boolean;
+  desktop: boolean;
 }
 
 /**
@@ -1895,6 +1934,12 @@ export interface TzSlice {
    */
   replaceTzDocument: (groupId: string, file: File, note?: string | null)
     => Promise<ErpTzDocument | null>;
+  /**
+   * Снять документ с заказа (правка 01.10, п. 6): RPC `erp_tz_document_remove`
+   * снимает `is_current` со всей группы, история версий остаётся.
+   * `true` — снят, `null` — отказ (toast уже показан).
+   */
+  removeTzDocument: (groupId: string) => Promise<true | null>;
   /** Включить/выключить требование ТЗ у заказа (для заказов, заведённых до внедрения) */
   setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
 }
@@ -1967,6 +2012,15 @@ export interface PlanSlice {
  * Список читает оболочка, а ПИШЕТ только ленивый экран: почему это
  * разделено, написано в шапке самого слайса.
  */
+/**
+ * Привязки вложения к строкам заказа — для ЗАМЕНЫ файла в форме правки
+ * (правка 01.10, п. 6): новый файл обязан встать туда же, где был старый
+ * (макет — к своему нанесению, файл техблока — к своей позиции), иначе
+ * цех перестанет видеть его в задании.
+ */
+export type OrderAttachmentLinks = Partial<Pick<ErpOrderAttachment,
+  'item_id' | 'material_id' | 'stage_id' | 'print_id' | 'label_id' | 'note_id'>>;
+
 export interface OrderWriteSlice {
   /**
    * Правка созданного заказа одной транзакцией (правка 12.09, п. 7).
@@ -2007,6 +2061,7 @@ export interface OrderWriteSlice {
    */
   uploadOrderAttachment: (
     orderId: string, file: File, note?: string, kind?: ErpAttachmentKind,
+    links?: OrderAttachmentLinks,
   ) => Promise<boolean>;
   /** Снять файл заказа (строка + объект бакета). Не оптимистично: «0 строк» — отказ RLS */
   deleteOrderAttachment: (orderId: string, attachmentId: string) => Promise<boolean>;

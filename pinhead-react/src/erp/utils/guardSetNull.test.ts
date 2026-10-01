@@ -37,6 +37,18 @@ const EXEMPT: Record<string, string> = {
     + 'их роли по умолчанию (director, dispatcher, manager) это право имеют. Пересмотреть '
     + 'на мосте «ТЗ → производство»: сегодня связанных заказов 0, а rop или менеджер '
     + 'с цеховой должностью без order.manage удалить связанный заказ ТЗ не сможет',
+  'erp_chat_messages.experimental_id':
+    'страж erp_chat_system_guard (01.10) смотрит только body, deleted_at и edited_at '
+    + 'системного сообщения; обнуление ссылки при удалении родителя он не задевает',
+  'erp_chat_messages.item_id':
+    'страж erp_chat_system_guard (01.10) смотрит только body, deleted_at и edited_at '
+    + 'системного сообщения; обнуление ссылки при удалении родителя он не задевает',
+  'erp_chat_messages.reply_to':
+    'страж erp_chat_system_guard (01.10) смотрит только body, deleted_at и edited_at '
+    + 'системного сообщения; обнуление ссылки при удалении родителя он не задевает',
+  'erp_chat_messages.stage_id':
+    'страж erp_chat_system_guard (01.10) смотрит только body, deleted_at и edited_at '
+    + 'системного сообщения; обнуление ссылки при удалении родителя он не задевает',
 };
 
 /** Таблица → её страж: `create trigger … before update on … execute function …_guard()` */

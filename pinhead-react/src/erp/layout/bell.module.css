@@ -1,0 +1,29 @@
+/*
+  МЕТКА СРОКОВ НА КОЛОКОЛЕ (правка 01.10, п. 4): «личные сообщения нужно
+  отделить от напоминаний о сроках». Красный бейдж сверху — непрочитанные
+  личные; эта метка снизу — поводы по срокам и остановкам. Цвет —
+  предупреждение, а не ошибка: срок горит, но «вас позвали» важнее.
+  Текст `--color-warning-ink` на `--bg-warning` — пара «текст × подложка»
+  статусов раздела (AA), а не белый по заливке.
+
+  Отдельный модуль, а не `erp.module.css`: правило едет в оболочку всем,
+  и ему незачем тянуть за собой что-либо ещё.
+*/
+.deadlineDot {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-pill);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -20,7 +20,7 @@ import {
   schedulePing,
 } from '../realtimeCoalesce';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
-import { flushQueue } from '../offlineQueue';
+import { resyncRealtime } from './realtimeResync';
 import type { ErpStore, RealtimeSlice } from '../types';
 import { dropChannel, upsertChildRow } from '../realtimeHelpers';
 import {
@@ -132,35 +132,8 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
   /** Идёт перечитывание после разрыва — полоса говорит «обновляем», а не «всё плохо» */
   realtimeResyncing: false,
 
-  /**
-   * Перечитать данные после разрыва.
-   *
-   * Зовётся из трёх мест: возврат вкладки, появление сети, восстановление
-   * канала. Всё это — «мы не знаем, что произошло, пока нас не было», и ответ
-   * один: спросить сервер заново. `loadAll` намеренно без guard'а от повторного
-   * вызова (правило в `ordersSlice`), поэтому лишний вызов безопаснее пропуска.
-   */
-  resyncRealtime: async () => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-    // Уже перечитываем — второй запуск дал бы второй полный loadAll
-    if (get().realtimeResyncing) return;
-    set({ realtimeResyncing: true });
-    try {
-      /**
-       * Сначала отдать накопленное, потом читать. Обратный порядок показал бы
-       * человеку состояние БЕЗ его же приёмок, сделанных без связи, — и он
-       * ввёл бы их заново, теперь уже вторым приходом.
-       */
-      await flushQueue();
-      await get().loadAll();
-      set({ realtimeLive: true });
-    } finally {
-      // В `finally`: сбой перезагрузки не должен оставить полосу «обновляем…»
-      // навсегда — это ровно тот вечный индикатор, от которого её и ставят
-      set({ realtimeResyncing: false });
-    }
-  },
+  // Перечитывание после разрыва — `realtimeResync` (вынесено по ратчету размера, 01.10)
+  resyncRealtime: resyncRealtime(set, get),
 
   applyRealtimeEvent: (ev) => {
     const row = (ev.eventType === 'DELETE' ? ev.old : ev.new) ?? {};

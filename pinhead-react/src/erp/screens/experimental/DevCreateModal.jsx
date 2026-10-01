@@ -53,7 +53,7 @@ export function DevCreateModal({ onClose, onCreated }) {
   };
 
   return (
-    <Modal title="Новая разработка" onClose={onClose}>
+    <Modal title="Новая разработка" onClose={onClose} closeOnOverlay={false} closeOnEscape={false}>
       <div className={styles.formGrid}>
         <Field
           label="Техническое название"

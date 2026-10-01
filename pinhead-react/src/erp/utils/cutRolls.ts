@@ -149,6 +149,16 @@ export function rollsForItem(
     || a.roll.seq - b.roll.seq);
 }
 
+/** Ткань позиции принята общим весом, без рулонов (правка 01.10, п. 1): их добавляет склад */
+export function fabricAcceptedWithoutRolls(
+  materials: ErpMaterial[] | null | undefined,
+  itemId: string | null | undefined,
+): boolean {
+  return materialsForItem(materials, itemId).some(
+    (m) => m.kind === 'fabric' && acceptedForCutting(m) && (m.rolls ?? []).length === 0,
+  );
+}
+
 // Рулоны чужих заказов — `utils/foreignRolls` (ратчет размера, правка 28.09)
 export { foreignRollOptions } from './foreignRolls';
 export type { ForeignRollRow } from './foreignRolls';

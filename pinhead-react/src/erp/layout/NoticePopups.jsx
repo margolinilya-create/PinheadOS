@@ -59,10 +59,9 @@ function Popup({ notice, onOpen, onClose }) {
 
 export function NoticePopups() {
   const navigate = useNavigate();
-  const { popups, dismiss, markRead, win } = useErpStore(useShallow((s) => ({
+  const { popups, dismiss, win } = useErpStore(useShallow((s) => ({
     popups: s.noticePopups,
     dismiss: s.dismissNoticePopup,
-    markRead: s.markNotificationsRead,
     win: s.chatWindow,
   })));
 
@@ -85,12 +84,10 @@ export function NoticePopups() {
           onOpen={(notice) => {
             /**
              * Переход ведёт К СООБЩЕНИЮ (ссылка несёт `?tab=chat&msg=…`),
-             * а уведомление гасится: человек идёт читать, и оставлять его
-             * непрочитанным значит просить прочитать дважды. Сам ТЕКСТ
-             * прочитанным при этом не считается — это решает видимая
-             * область ленты (документ разводит их прямо).
+             * а карточка уходит. Уведомление при этом НЕ гасится (правка
+             * 01.10, п. 4): прочитанным его делает показ сообщения в ленте
+             * — `erp_chat_mark_seen`, — а не нажатие на карточку.
              */
-            void markRead([notice.id]);
             if (notice.link) navigate(notice.link);
             dismiss(notice.id);
           }}

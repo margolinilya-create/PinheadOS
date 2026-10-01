@@ -31,7 +31,7 @@ import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
 import { DraftPicker } from './create/DraftPicker';
 import { Icon } from '../../components/Icon';
-import { currentDocuments, deptNeedsTz, validateTzDocs } from '../../utils/tz';
+import { deptNeedsTz, validateTzDocs } from '../../utils/tz';
 import { currentActor } from '../../store/shared';
 import {
   TZ_MIME,
@@ -45,7 +45,8 @@ import { FormSection, FieldError } from './create/FormParts';
 import { TzSection } from './create/TzSection';
 import { useTzDocs } from './create/useTzDocs';
 import { PurchaseListSection } from './create/PurchaseListSection';
-import { SavedFiles } from './create/SavedFiles';
+import { EditOtherFilesSection, EditPurchaseList, EditTzFiles } from './create/EditOrderFiles';
+import { useEditOrderFiles } from './create/useEditOrderFiles';
 import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
@@ -267,33 +268,10 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const tzUploading = tz.uploading;
   const tzFailed = tz.failed;
 
-  /**
-   * ЧТО УЖЕ ПРИЛОЖЕНО К ПРАВИМОМУ ЗАКАЗУ (правка заказчика 12.09, баг 03).
-   *
-   * «Повторно требует заполнить/загрузить данные, которые уже сохранены»:
-   * состояния загрузки (`tzDocs`, `attach`) принадлежат ФОРМЕ и в правке
-   * стартуют пустыми — то есть секции ТЗ и листа закупки показывали пустоту
-   * там, где файлы есть, и гейт требовал приложить их заново.
-   *
-   * Показываем приложенное, но НЕ заводим здесь второй способ его менять:
-   * загрузка, замена и версии ТЗ живут в карточке заказа
-   * (`orderCard/TzDocsSection`, `uploadTzDocument`/`replaceTzDocument`).
-   * Вторая поверхность с тем же решением — ровно то, от чего проект уходил
-   * в подряде и закупке.
-   *
-   * `currentDocuments` — актуальные версии внутри `group_id`: список всех
-   * версий показал бы заменённые файлы как отдельные документы.
-   */
-  const savedTzDocs = useMemo(
-    () => (isEdit ? currentDocuments(order) : []),
-    [isEdit, order],
-  );
-  const savedPurchaseFiles = useMemo(
-    () => (isEdit
-      ? (order.attachments ?? []).filter((a) => a.kind === 'purchase_list')
-      : []),
-    [isEdit, order],
-  );
+  // Файлы правимого заказа (п. 6 правки 01.10) — `create/useEditOrderFiles`
+  const {
+    liveOrder, savedTzDocs, savedPurchaseFiles, filesPending, trackFileOp, reloadIfTouched,
+  } = useEditOrderFiles(order, isEdit);
 
   // Удаление позиции сдвигает индексы — пересобираем привязку файлов ТЗ,
   // иначе следующая позиция унаследовала бы чужой документ
@@ -378,7 +356,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
 
   // Аккордеон-секции: все раскрыты по умолчанию
   const [open, setOpen] = useState({
-    main: true, items: true, extra: true, tz: true, notes: false,
+    main: true, items: true, extra: true, tz: true, notes: false, files: true,
     /**
      * Лист закупки РАЗВЁРНУТ (правки 20.08). Он был свёрнут, пока внутри лежали
      * необязательные строки. Теперь там обязательное решение — приложить лист
@@ -397,8 +375,8 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * Он отвечает на вопрос «можно ли ЗАВЕСТИ заказ без техзадания»: заказ
    * с производственным маршрутом без ТЗ встанет в первом же цехе. К правке
    * существующего заказа вопрос не относится — документы у него свои,
-   * живут в карточке (`TzDocsSection`), и секция `tz` в payload правки
-   * не едет вовсе. Оставь гейт здесь — и заказ, заведённый до появления
+   * правятся сразу (карточка `TzDocsSection` и с 01.10 — `create/EditOrderFiles`
+   * в этой же форме), и секция `tz` в payload правки не едет вовсе. Оставь гейт здесь — и заказ, заведённый до появления
    * требования, стало бы нельзя отредактировать вообще: кнопка заблокирована
    * из-за файла, которого эта форма даже не показывает.
    */
@@ -691,11 +669,20 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const requestClose = async () => {
     if (saving || closingRef.current) return;
     clearOrderDraft();
+    reloadIfTouched(); // файлы правились в форме — карточка перечитает заказ
     onClose();
   };
 
-  // Focus-trap + Escape → requestClose (важно: до эффекта autofocus, чтобы фокус остался на первом поле)
-  const trapRef = useFocusTrap(true, requestClose);
+  /**
+   * Focus-trap БЕЗ закрытия по Escape (правка заказчика 01.10, п. 3): «форма
+   * нового заказа закрывается от случайного клика… Закрыть — через „Отмена",
+   * сохранить — „Сохранить в черновики"». Escape закрывал форму молча — тот же
+   * случайный выход, что и промах мышью мимо панели, и набранное терялось без
+   * вопроса (окна «Сохранить черновик?» больше нет — правка 21.09, п. 6).
+   * Трап нужен по-прежнему: без него Tab уходит под оверлей. Стоит до эффекта
+   * autofocus, чтобы фокус остался на первом поле.
+   */
+  const trapRef = useFocusTrap(true);
   const firstFieldRef = useRef(null);
 
   useEffect(() => { firstFieldRef.current?.focus(); }, []);
@@ -762,6 +749,10 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
      * загрузки. Иначе форма покажет файл приложенным, а в Storage его не будет —
      * и обнаружит это цех, когда откроет пустое вложение.
      */
+    if (filesPending > 0) {
+      toast.error('Файлы заказа ещё сохраняются — дождитесь окончания');
+      return;
+    }
     if (attach.uploading || attach.failed) {
       toast.error(attach.uploading
         ? 'Файлы ещё загружаются — дождитесь окончания'
@@ -1118,11 +1109,11 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className={styles.modalOverlay} onClick={requestClose} role="presentation">
+    /* Клик мимо панели форму НЕ закрывает (п. 3 правки 01.10) — только «Отмена» */
+    <div className={styles.modalOverlay} role="presentation">
       <form
         ref={trapRef}
         className={styles.modal}
-        onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
         noValidate
         role="dialog"
@@ -1309,7 +1300,8 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
             err={err}
             inputCls={inputCls}
             route={itemRoutes[i]}
-            attach={attach}
+            // В правке пикеров нет — сироты в бакете (п. 6, 01.10; см. ItemFilePicker)
+            attach={isEdit ? null : attach}
             setItem={setItem}
             setBranding={setBranding}
             setPrint={setPrint}
@@ -1349,10 +1341,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           onToggle={() => toggleSection('tz')}
         >
         {isEdit ? (
-          <SavedFiles
-            files={savedTzDocs}
-            emptyText="ТЗ в PDF к заказу не приложено."
-          />
+          <EditTzFiles order={liveOrder} track={trackFileOp} />
         ) : (
           <TzSection
             tzItems={tzItems}
@@ -1372,24 +1361,13 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           onToggle={() => toggleSection('purchase')}
         >
         {isEdit ? (
-          <>
-            {/* Отметку «Закупка не требуется» правка меняет — это поле заказа,
-                а не файл: оно вырезает этап `supply` из маршрута */}
-            <label className={styles.checkRow}>
-              <input
-                type="checkbox"
-                checked={form.purchase_required === false}
-                onChange={(e) => setForm({ ...form, purchase_required: !e.target.checked })}
-              />
-              <span>Закупка не требуется</span>
-            </label>
-            {form.purchase_required !== false && (
-              <SavedFiles
-                files={savedPurchaseFiles}
-                emptyText="Лист закупки к заказу не приложен."
-              />
-            )}
-          </>
+          <EditPurchaseList
+            order={liveOrder}
+            notRequired={form.purchase_required === false}
+            onToggleNotRequired={(v) => setForm({ ...form, purchase_required: !v })}
+            error={err('purchase_list')}
+            track={trackFileOp}
+          />
         ) : (
           <PurchaseListSection
             attach={attach}
@@ -1401,15 +1379,33 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         )}
         </FormSection>
 
-        <FormSection
-          id="order-section-notes"
-          title="Заметки к заказу"
-          summary={notes.length > 0 ? `${notes.length}` : 'нет'}
-          open={open.notes}
-          onToggle={() => toggleSection('notes')}
-        >
-          <NotesSection notes={notes} setNotes={setNotes} attach={attach} />
-        </FormSection>
+        {/*
+          ЗАМЕТКИ — ТОЛЬКО ПРИ СОЗДАНИИ. Правка заказа их не сохраняет
+          (`erp_update_order` секции заметок не знает), а секция в правке
+          стартовала пустой: набранное терялось молча, а изображение уходило
+          в бакет сиротой. Изображения уже заведённых заметок правятся
+          в «Файлах заказа» (п. 6 правки 01.10).
+        */}
+        {!isEdit && (
+          <FormSection
+            id="order-section-notes"
+            title="Заметки к заказу"
+            summary={notes.length > 0 ? `${notes.length}` : 'нет'}
+            open={open.notes}
+            onToggle={() => toggleSection('notes')}
+          >
+            <NotesSection notes={notes} setNotes={setNotes} attach={attach} />
+          </FormSection>
+        )}
+
+        {isEdit && (
+          <EditOtherFilesSection
+            order={liveOrder}
+            open={open.files}
+            onToggle={() => toggleSection('files')}
+            track={trackFileOp}
+          />
+        )}
 
         <FormSection
           id="order-section-extra"
@@ -1553,6 +1549,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
             variant="primary"
             type="submit"
             disabled={saving || tzUploading || tzFailed || attach.uploading || attach.failed
+          || filesPending > 0
           || tzValidation.missing.length > 0
           || (submitted && (validation.missing.length > 0 || validation.invalid.length > 0))}>
             {isEdit

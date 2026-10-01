@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ErpDictionaryItem } from '../types';
-import { normalizeUnit, unitTracksRolls, unitShortLabel } from './materialUnit';
+import { materialTracksRolls, normalizeUnit, unitTracksRolls, unitShortLabel } from './materialUnit';
 
 /**
  * Справочник в том виде, в каком он лежит на боевой базе 16.09: у значения
@@ -95,5 +95,26 @@ describe('unitShortLabel', () => {
 
   it('пустая единица не даёт пустой подписи с запятой', () => {
     expect(unitShortLabel(null, dict())).toBe('');
+  });
+});
+
+/**
+ * ТКАНЬ БЕЗ ЕДИНИЦЫ (правка 01.10, п. 1): на бою четыре ткани заведены
+ * с пустой единицей и приняты без рулонов — закрой по ним не сдать.
+ */
+describe('materialTracksRolls', () => {
+  it('ткань без единицы — рулонами', () => {
+    expect(materialTracksRolls({ kind: 'fabric', unit: null }, dict())).toBe(true);
+    expect(materialTracksRolls({ kind: 'fabric', unit: '  ' }, dict())).toBe(true);
+  });
+  it('ткань в кг — рулонами, как раньше', () => {
+    expect(materialTracksRolls({ kind: 'fabric', unit: 'Килограммы' }, dict())).toBe(true);
+  });
+  it('ткань в явной нерулонной единице — без рулонов', () => {
+    expect(materialTracksRolls({ kind: 'fabric', unit: 'шт' }, dict())).toBe(false);
+  });
+  it('не ткань без единицы — без рулонов', () => {
+    expect(materialTracksRolls({ kind: 'hardware', unit: null }, dict())).toBe(false);
+    expect(materialTracksRolls(null, dict())).toBe(false);
   });
 });

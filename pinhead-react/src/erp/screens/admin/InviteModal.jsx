@@ -134,7 +134,7 @@ export function InviteModal({ onClose }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <Modal title="Пригласить сотрудника" onClose={onClose}>
+    <Modal title="Пригласить сотрудника" onClose={onClose} closeOnOverlay={false} closeOnEscape={false}>
         <div className={styles.subText}>
           Роль и цех уезжают в саму ссылку: человек перейдёт по ней, задаст пароль
           и сразу начнёт работать. Письма не отправляются — ссылку передайте сами.

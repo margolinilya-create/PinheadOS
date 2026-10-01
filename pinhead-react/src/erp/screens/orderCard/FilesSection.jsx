@@ -4,6 +4,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { useErpAccess } from '../../store/useErpAccess';
 import { confirm } from '../../../store/useConfirmStore';
 import { FileFolder } from '../../components/FilesBoard';
+import { canRemoveOrderAttachment } from '../../utils/attachmentRights';
 import {
   ORDER_FOLDERS, filesInFolder, kindForFolder, moveTargetOf,
 } from '../../utils/orderFolders';
@@ -29,7 +30,11 @@ export function FilesSection({ orderId, attachments }) {
     deleteOrderAttachment: s.deleteOrderAttachment,
     moveOrderAttachment: s.moveOrderAttachment,
   })));
-  const canManage = useErpAccess().can('files.manage');
+  const access = useErpAccess();
+  const canManage = access.can('files.manage');
+  // Зеркало DELETE-политики: лист закупки и упаковку снимает `order.manage`,
+  // а не `files.manage` (правка 01.10, п. 6)
+  const canRemoveFile = (att) => canRemoveOrderAttachment(att, access.can, access.isAdmin);
   const [busy, setBusy] = useState(false);
 
   const upload = async (folderKey, files) => {
@@ -97,6 +102,7 @@ export function FilesSection({ orderId, attachments }) {
           onUpload={upload}
           onRemove={remove}
           moveTargetFor={moveTargetFor}
+          canRemoveFile={canRemoveFile}
         />
       ))}
     </>

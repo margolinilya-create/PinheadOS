@@ -3,6 +3,9 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SupplyQueue } from './SupplyQueue';
 
+const layout = vi.hoisted(() => ({ compact: false }));
+vi.mock('../../layout/useCompactLayout', () => ({ useCompactLayout: () => layout.compact }));
+
 /**
  * Очередь закупки — блок, которого не было и из-за отсутствия которого
  * заказ с этапом «Закупка» не показывался нигде.
@@ -140,5 +143,25 @@ describe('очередь закупки — вложенный архив', () =
   it('пустой архив говорит о себе своими словами', () => {
     renderQueue([], { title: null, emptyText: 'Завершённых закупок нет.' });
     expect(screen.getByText('Завершённых закупок нет.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * ЗАГОЛОВОК КАРТОЧКИ — ССЫЛКА НА ЗАКАЗ (правка владельца, п. 2 «Подсветка
+ * нерабочих элементов»). В компактной раскладке заголовок подсвечивался под
+ * курсором, а клик по нему не делал ничего.
+ */
+describe('очередь закупки — компактная раскладка', () => {
+  it('заголовок карточки ведёт в карточку заказа', () => {
+    layout.compact = true;
+    try {
+      renderQueue([order()]);
+      const link = screen.getByRole('link', { name: /№4821/ });
+      expect(link).toHaveAttribute('href', '/orders/o1');
+      // Закупку по-прежнему открывает кнопка, а не заголовок
+      expect(screen.getByRole('button', { name: 'Открыть закупку' })).toBeInTheDocument();
+    } finally {
+      layout.compact = false;
+    }
   });
 });

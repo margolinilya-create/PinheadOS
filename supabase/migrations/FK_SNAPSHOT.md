@@ -1,7 +1,7 @@
 # Эталон внешних ключей `erp_*` на боевой базе
 
-**Снято:** 2026-09-24 с `pinhead-os-v2` (`pg_constraint`, `contype = 'f'`).
-**Записей:** 100.
+**Снято:** 2026-09-24, дополнено 2026-10-01 (erp_overdue_requests, erp_user_settings) с `pinhead-os-v2` (`pg_constraint`, `contype = 'f'`).
+**Записей:** 102.
 
 ## Зачем этот файл
 
@@ -109,6 +109,8 @@ erp_order_shipments · erp_order_shipments_item_id_fkey · FOREIGN KEY (item_id)
 erp_order_shipments · erp_order_shipments_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_orders · erp_orders_created_by_fkey · FOREIGN KEY (created_by) REFERENCES profiles(id)
 erp_orders · erp_orders_tz_order_id_fkey · FOREIGN KEY (tz_order_id) REFERENCES orders(id) ON DELETE SET NULL
+erp_overdue_requests · erp_overdue_requests_message_id_fkey · FOREIGN KEY (message_id) REFERENCES erp_chat_messages(id) ON DELETE SET NULL
+erp_overdue_requests · erp_overdue_requests_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_plan_comments · erp_plan_comments_slot_id_fkey · FOREIGN KEY (slot_id) REFERENCES erp_calendar_slots(id) ON DELETE CASCADE
 erp_procurement_tasks · erp_procurement_tasks_item_id_fkey · FOREIGN KEY (item_id) REFERENCES erp_order_items(id) ON DELETE SET NULL
 erp_procurement_tasks · erp_procurement_tasks_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
@@ -138,6 +140,7 @@ erp_subcontracting · erp_subcontracting_stage_id_fkey · FOREIGN KEY (stage_id)
 erp_tz_documents · erp_tz_documents_item_id_fkey · FOREIGN KEY (item_id) REFERENCES erp_order_items(id) ON DELETE CASCADE
 erp_tz_documents · erp_tz_documents_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_tz_documents · erp_tz_documents_stage_id_fkey · FOREIGN KEY (stage_id) REFERENCES erp_item_stages(id) ON DELETE CASCADE
+erp_user_settings · erp_user_settings_user_id_fkey · FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 erp_warehouse_ops · erp_warehouse_ops_material_id_fkey · FOREIGN KEY (material_id) REFERENCES erp_materials(id) ON DELETE SET NULL
 erp_warehouse_ops · erp_warehouse_ops_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_warehouse_tasks · erp_warehouse_tasks_item_id_fkey · FOREIGN KEY (item_id) REFERENCES erp_order_items(id) ON DELETE SET NULL

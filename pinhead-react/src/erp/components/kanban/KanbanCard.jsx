@@ -47,6 +47,9 @@ export function KanbanCard({
     <div
       className={[
         styles.kanbanCard,
+        // Карточка целиком открывает заказ — указатель даже у заблокированной,
+        // которую нельзя тащить (курсор «рука» ставит `[draggable="true"]`)
+        styles.kanbanCardClickable,
         dragging && styles.kanbanCardDragging,
         group === 'blocked' && styles.kanbanCardBlocked,
         dropBefore && styles.queueRowDropBefore,

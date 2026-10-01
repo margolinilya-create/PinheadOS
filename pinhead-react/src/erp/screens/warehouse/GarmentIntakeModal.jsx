@@ -130,7 +130,7 @@ export function GarmentIntakeModal({ entry, onClose }) {
   };
 
   return (
-    <Modal title={`${title} — ${item.product_type}`} onClose={onClose}>
+    <Modal title={`${title} — ${item.product_type}`} onClose={onClose} closeOnOverlay={false} closeOnEscape={false}>
       <p className={styles.subText}>
         Заказ {order.title} · тираж {item.qty} шт
       </p>
