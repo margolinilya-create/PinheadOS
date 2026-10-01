@@ -282,7 +282,7 @@ test.describe('Формы и объявления', () => {
 });
 
 test.describe('Модалки', () => {
-  test('форма создания заказа: роль диалога, Escape закрывает', async ({ page }) => {
+  test('форма создания заказа: роль диалога, Escape не теряет введённое, «Отмена» закрывает', async ({ page }) => {
     await page.goto('/orders?new=1&studio=0');
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -295,7 +295,11 @@ test.describe('Модалки', () => {
     });
     expect(inside).toBe(true);
 
+    // Правка 01.10, п. 3: случайное Escape не закрывает форму —
+    // введённые данные и файлы теряются; закрыть можно только «Отменой»
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('button', { name: 'Отмена' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 });
