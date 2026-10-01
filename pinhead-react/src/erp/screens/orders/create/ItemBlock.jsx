@@ -24,7 +24,7 @@ import {
 import styles from '../../../styles';
 import { Button } from '../../../components/Button';
 import { RouteFields, RouteIssues } from '../../../components/RouteFields';
-import { AttachmentPicker } from '../../../components/AttachmentPicker';
+import { ItemFilePicker } from './ItemFilePicker';
 import { emptyStep, routeIssues } from '../../../utils/routeDraft';
 import { OUTSOURCE_DEPT_CODE } from '../../../utils/outsourcing';
 
@@ -399,19 +399,15 @@ export function ItemBlock({
               `erp_item_prints` в этот момент ещё не существует — заказ
               создаётся одной транзакцией.
             */}
-            {attach && (
-              <AttachmentPicker
-                label="+ Макет нанесения"
-                hint="файл именно этого нанесения — цех не будет угадывать"
-                files={attach.files}
-                kind="print"
-                itemIndex={i}
-                ownerKey={p.key}
-                onAdd={(file) => attach.add(file, 'print', i, p.key)}
-                onRetry={attach.retry}
-                onRemove={attach.remove}
-              />
-            )}
+            <ItemFilePicker
+              label="+ Макет нанесения"
+              hint="файл именно этого нанесения — цех не будет угадывать"
+              kind="print"
+              itemIndex={i}
+              ownerKey={p.key}
+              onAdd={(file) => attach.add(file, 'print', i, p.key)}
+              attach={attach}
+            />
           </div>
         ))}
 
@@ -600,18 +596,14 @@ function TechBlock({ it, i, setItem, attach }) {
       </div>
       {/* Документ (п. 5): «схема узла, расположение бирки, вариант обработки,
           пример раскроя, пример пошива» — словами это не передаётся */}
-      {attach && (
-        <AttachmentPicker
-          label="+ Файлы техблока"
-          hint="схема узла, расположение бирки, пример раскроя"
-          files={attach.files}
-          kind="tech"
-          itemIndex={i}
-          onAdd={attach.add}
-          onRetry={attach.retry}
-          onRemove={attach.remove}
-        />
-      )}
+      <ItemFilePicker
+        label="+ Файлы техблока"
+        hint="схема узла, расположение бирки, пример раскроя"
+        kind="tech"
+        itemIndex={i}
+        onAdd={attach?.add}
+        attach={attach}
+      />
     </details>
   );
 }
@@ -687,19 +679,15 @@ function LabelsBlock({ it, i, setItem, attach }) {
               onChange={(e) => setLabel(li, { comment: e.target.value })}
             />
           </div>
-          {attach && (
-            <AttachmentPicker
-              label="+ Макет бирки"
-              hint="файл именно этой бирки"
-              files={attach.files}
-              kind="label"
-              itemIndex={i}
-              ownerKey={l.key}
-              onAdd={(file) => attach.add(file, 'label', i, l.key)}
-              onRetry={attach.retry}
-              onRemove={attach.remove}
-            />
-          )}
+          <ItemFilePicker
+            label="+ Макет бирки"
+            hint="файл именно этой бирки"
+            kind="label"
+            itemIndex={i}
+            ownerKey={l.key}
+            onAdd={(file) => attach.add(file, 'label', i, l.key)}
+            attach={attach}
+          />
         </div>
       ))}
       <div className={styles.checkRow}>
@@ -825,18 +813,14 @@ function PackagingBlock({ it, i, setItem, attach }) {
       </label>
       {/* Документ (п. 1): вариант упаковки, расположение стикера и маркировки
           показываются картинкой, а не описываются */}
-      {attach && (
-        <AttachmentPicker
-          label="+ Файлы упаковки"
-          hint="вариант упаковки, расположение стикера и маркировки"
-          files={attach.files}
-          kind="packaging"
-          itemIndex={i}
-          onAdd={attach.add}
-          onRetry={attach.retry}
-          onRemove={attach.remove}
-        />
-      )}
+      <ItemFilePicker
+        label="+ Файлы упаковки"
+        hint="вариант упаковки, расположение стикера и маркировки"
+        kind="packaging"
+        itemIndex={i}
+        onAdd={attach?.add}
+        attach={attach}
+      />
     </details>
   );
 }
@@ -894,19 +878,17 @@ function RouteBlock({ it, i, setItem, route, attach }) {
    */
   const stageFiles = (gi, si) => {
     const ownerKey = `stage:${i}:${gi}:${si}`;
-    return attach ? (
-      <AttachmentPicker
+    return (
+      <ItemFilePicker
+        attach={attach}
         label="+ ТЗ / файлы подрядчику"
         hint="схема узла, раскладка, образец шва — уедут подрядчику"
-        files={attach.files}
         kind="subcontract"
         itemIndex={i}
         ownerKey={ownerKey}
         onAdd={(file) => attach.add(file, 'subcontract', i, ownerKey)}
-        onRetry={attach.retry}
-        onRemove={attach.remove}
       />
-    ) : null;
+    );
   };
 
   return (

@@ -8,6 +8,7 @@ import { Icon } from '../../../components/Icon';
 import { ATTACH_KIND_LABEL, attachmentUrl } from '../../../utils/attachmentView';
 import { canRemoveOrderAttachment } from '../../../utils/attachmentRights';
 import { currentDocuments, itemLabel } from '../../../utils/tz';
+import { FieldError, FormSection } from './FormParts';
 import styles from '../../../styles';
 
 /**
@@ -331,5 +332,69 @@ export function EditAttachmentFiles({
       removeMessage={(f) => `«${f.name}» будет снят с заказа — удаление необратимо.`}
       track={track}
     />
+  );
+}
+
+/**
+ * Лист закупки в правке: отметка «Закупка не требуется» (поле ЗАКАЗА — оно
+ * вырезает этап `supply` из маршрута) и сами файлы листа.
+ */
+export function EditPurchaseList({ order, notRequired, onToggleNotRequired, error, track }) {
+  return (
+    <>
+      <label className={styles.checkRow}>
+        <input
+          type="checkbox"
+          checked={notRequired}
+          onChange={(e) => onToggleNotRequired(e.target.checked)}
+        />
+        <span>Закупка не требуется</span>
+      </label>
+      {!notRequired && (
+        <EditAttachmentFiles
+          order={order}
+          kinds={['purchase_list']}
+          uploadKind="purchase_list"
+          uploadLabel="+ Лист закупки"
+          emptyText="Лист закупки к заказу не приложен."
+          track={track}
+        />
+      )}
+      {error && <FieldError id="err-purchase-list" text={error} />}
+    </>
+  );
+}
+
+/**
+ * Виды секции «Файлы заказа» в правке: то, что заводит форма (упаковка,
+ * техблок, макеты, бирки, заметки, файлы подрядчику), и свободные файлы
+ * сделки. Лист закупки — в своей секции. Файлы чата, результаты этапов
+ * и файлы разработки — не форма заказа: у них свой хозяин.
+ */
+const OTHER_FILE_KINDS = [
+  'attachment', 'production', 'preview', 'note', 'packaging', 'tech',
+  'print', 'label', 'purchase', 'subcontract',
+];
+
+/** «Для всех файлов заказа — ТЗ, листов закупки и других вложений» (п. 6) */
+export function EditOtherFilesSection({ order, open, onToggle, track }) {
+  const count = (order.attachments ?? []).filter((a) => OTHER_FILE_KINDS.includes(a.kind)).length;
+  return (
+    <FormSection
+      id="order-section-files"
+      title="Файлы заказа"
+      summary={`${count}`}
+      open={open}
+      onToggle={onToggle}
+    >
+      <EditAttachmentFiles
+        order={order}
+        kinds={OTHER_FILE_KINDS}
+        uploadKind="attachment"
+        uploadLabel="+ Файл сделки"
+        emptyText="Других файлов у заказа нет."
+        track={track}
+      />
+    </FormSection>
   );
 }

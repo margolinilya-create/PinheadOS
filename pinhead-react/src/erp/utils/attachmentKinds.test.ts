@@ -109,12 +109,16 @@ describe('удаление вложений: одна политика на ко
   );
 
   it('отдельной политики dev-файлов не остаётся', () => {
-    expect(latest).toMatch(/drop policy if exists erp_att_delete_dev/);
+    // С 01.10 сводную правит `alter policy` (drop/create на бою зависал):
+    // отдельную политику снимать уже нечего — её не создаёт никто после 24.08
+    if (!/alter policy erp_order_attachments_delete/.test(latest)) {
+      expect(latest).toMatch(/drop policy if exists erp_att_delete_dev/);
+    }
     expect(latest).not.toMatch(/create policy erp_att_delete_dev/);
   });
 
   it('сводная политика знает все четыре вида файлов разработки', () => {
-    const create = latest.slice(latest.indexOf('create policy erp_order_attachments_delete'));
+    const create = latest.slice(latest.search(/(create|alter) policy erp_order_attachments_delete/));
     for (const kind of ['dev_pattern', 'dev_passport', 'dev_photo', 'dev_task']) {
       expect(create, `${kind} выпал из сводной политики`).toContain(`'${kind}'`);
     }

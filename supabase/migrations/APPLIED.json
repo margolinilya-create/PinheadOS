@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-09-28",
+  "capturedAt": "2026-10-01",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -2319,6 +2319,20 @@
       "name": "orders_v4",
       "files": [
         "20260928213529_orders_v4.sql"
+      ]
+    },
+    {
+      "version": "20261001185238",
+      "name": "erp_fabric_rolls_add",
+      "files": [
+        "20261001185238_erp_fabric_rolls_add.sql"
+      ]
+    },
+    {
+      "version": "20261001185758",
+      "name": "erp_order_files_edit",
+      "files": [
+        "20261001185758_erp_order_files_edit.sql"
       ]
     }
   ]

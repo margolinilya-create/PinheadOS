@@ -14,11 +14,12 @@ import { latestMatching, withoutComments } from './migrations.testutil';
  * правом совпадали с клиентскими дословно.
  */
 const policy = (() => {
+  // Политику задаёт `create policy` или (с 01.10) `alter policy … using`
   const sql = withoutComments(latestMatching(
-    /create policy erp_order_attachments_delete/,
+    /(create|alter) policy erp_order_attachments_delete/,
     'DELETE-политику вложений',
   ));
-  const from = sql.indexOf('create policy erp_order_attachments_delete');
+  const from = sql.search(/(create|alter) policy erp_order_attachments_delete/);
   return sql.slice(from, sql.indexOf(';', from));
 })();
 
