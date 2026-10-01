@@ -281,10 +281,9 @@ describe('чат: правка и удаление', () => {
 
   it('оба действия — только своё сообщение', () => {
     for (const [name, body] of [['erp_chat_edit', EDIT_BODY], ['erp_chat_delete', DEL_BODY]]) {
-      // С 01.10 (п. 5) у системного сообщения автора нет, и `<>` с пустым
-      // автором давал NULL — проверка молча пропускала любого участника
-      expect(body, `${name}: нет проверки авторства`).toContain('v_row.author_id is distinct from v_me');
-      expect(body, `${name}: сверка автора не null-безопасна`).not.toContain('v_row.author_id <> v_me');
+      // Пустой автор (системное сообщение, 01.10) здесь проходит `<>` —
+      // его держит страж `erp_chat_system_guard` (сторож overdueRequests.test)
+      expect(body, `${name}: нет проверки авторства`).toContain('v_row.author_id <> v_me');
       expect(body, `${name}: отказ не 42501`).toContain("errcode = '42501'");
     }
   });

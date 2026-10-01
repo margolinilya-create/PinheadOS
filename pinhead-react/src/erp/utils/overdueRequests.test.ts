@@ -51,15 +51,26 @@ describe('erp_overdue_requests_run', () => {
 });
 
 describe('системный автор не открывает правку и удаление', () => {
-  it.each(['erp_chat_edit', 'erp_chat_delete'])('%s сверяет автора null-безопасно', (fn) => {
-    const body = withoutComments(functionBody(latestDefining(fn), fn));
-    expect(body).toMatch(/author_id is distinct from v_me/);
-    expect(body).not.toMatch(/author_id <> v_me/);
+  /*
+   * `erp_chat_edit`/`erp_chat_delete` сверяют автора через `<>`, и пустой
+   * автор даёт NULL — проверка пропускает любого. Закрывает это страж
+   * на таблице: любое изменение текста, удаления или правки у сообщения
+   * без автора от вошедшего пользователя — 42501 (проба на бою 01.10).
+   */
+  const sql = migration(migrationFiles().find((f) => /erp_overdue_chat_request/.test(f))!);
+  const guard = withoutComments(functionBody(sql, 'erp_chat_system_guard'));
+
+  it('миграция разрешает пустого автора и ставит страж на UPDATE', () => {
+    expect(sql).toMatch(/alter column author_id drop not null/);
+    expect(sql).toMatch(/before update on public\.erp_chat_messages[\s\S]*erp_chat_system_guard/);
   });
 
-  it('миграция, разрешающая пустого автора, идёт вместе с этой правкой', () => {
-    const file = migrationFiles().find((f) => /erp_overdue_chat_request/.test(f));
-    expect(file).toBeTruthy();
-    expect(migration(file!)).toMatch(/alter column author_id drop not null/);
+  it('страж держит текст, удаление и правку системного сообщения', () => {
+    expect(guard).toMatch(/old\.author_id is null/);
+    expect(guard).toMatch(/\(select auth\.uid\(\)\) is not null/);
+    for (const col of ['body', 'deleted_at', 'edited_at']) {
+      expect(guard).toContain(`new.${col} is distinct from old.${col}`);
+    }
+    expect(guard).toMatch(/errcode = '42501'/);
   });
 });

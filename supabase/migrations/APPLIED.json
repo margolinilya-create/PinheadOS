@@ -2341,6 +2341,20 @@
       "files": [
         "20261001190924_erp_chat_notify_read.sql"
       ]
+    },
+    {
+      "version": "20261001194514",
+      "name": "erp_overdue_chat_request",
+      "files": [
+        "20261001194514_erp_overdue_chat_request.sql"
+      ]
+    },
+    {
+      "version": "20261001194849",
+      "name": "erp_chat_system_guard_revoke",
+      "files": [
+        "20261001194849_erp_chat_system_guard_revoke.sql"
+      ]
     }
   ]
 }

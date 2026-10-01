@@ -235,7 +235,7 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `order.manage` для файлов формы заказа (зеркало — `utils/attachmentRights.ts`),
 `erp_tz_document_remove` снимает ТЗ (`is_current = false` у группы).
 Чат: `erp_chat_messages.author_id` допускает NULL — системное сообщение «ERP»
-(правка/удаление сверяют автора `is distinct from`); `erp_chat_mark_seen` гасит
+(его правку и удаление держит страж `erp_chat_system_guard` на таблице — десятый страж, BEFORE UPDATE); `erp_chat_mark_seen` гасит
 и личные уведомления о показанных сообщениях; упоминание и ответ не глушатся
 режимом `none`; `erp_user_settings` (звук/окно браузера, RLS на себя);
 `erp_overdue_requests` + `erp_overdue_requests_run()` (`pg_cron` 06:00 UTC) —
