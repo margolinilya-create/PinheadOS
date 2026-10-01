@@ -2334,6 +2334,13 @@
       "files": [
         "20261001185758_erp_order_files_edit.sql"
       ]
+    },
+    {
+      "version": "20261001190924",
+      "name": "erp_chat_notify_read",
+      "files": [
+        "20261001190924_erp_chat_notify_read.sql"
+      ]
     }
   ]
 }

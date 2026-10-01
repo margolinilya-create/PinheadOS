@@ -1,3 +1,6 @@
+-- Применено к pinhead-os-v2 01.10 без `drop … if exists` и `comment on`:
+-- инструмент базы ждёт ручного подтверждения на drop, таблица была новой.
+--
 -- УВЕДОМЛЕНИЯ ЧАТА: ПРОЧТЕНИЕ, АДРЕСАТЫ, НАСТРОЙКИ СОТРУДНИКА
 -- (правка заказчика 01.10, п. 4 «Уведомления чата»).
 --
@@ -76,8 +79,6 @@ begin
   return v_ins;
 end $$;
 
-comment on function public.erp_chat_mark_seen(uuid[]) is
-  'Отметить показанные сообщения прочитанными (правка 20.09, п. 4) и погасить личные уведомления о них (правка 01.10, п. 4). Возвращает число новых строк просмотра. Invoker: уведомления правятся под политикой адресата и стражем read_at.';
 
 revoke execute on function public.erp_chat_mark_seen(uuid[]) from public, anon;
 grant execute on function public.erp_chat_mark_seen(uuid[]) to authenticated;
@@ -316,11 +317,8 @@ create table if not exists public.erp_user_settings (
   chat_desktop boolean not null default false,
   updated_at   timestamptz default now()
 );
+ пишет и читает только её владелец.';
 
-comment on table public.erp_user_settings is
-  'Личные настройки уведомлений ERP (правка 01.10, п. 4): звук и уведомления браузера. Одна строка на учётную запись; пишет и читает только её владелец.';
-
-drop trigger if exists erp_user_settings_updated_at on public.erp_user_settings;
 create trigger erp_user_settings_updated_at
   before update on public.erp_user_settings
   for each row execute function public.erp_set_updated_at();
@@ -334,17 +332,14 @@ alter table public.erp_user_settings enable row level security;
   DELETE-политики нет: настройку выключают, а не удаляют, и отсутствие
   строки уже значит «умолчание» — удалять нечего.
 */
-drop policy if exists erp_user_settings_select on public.erp_user_settings;
 create policy erp_user_settings_select on public.erp_user_settings
   for select to authenticated
   using (user_id = (select auth.uid()));
 
-drop policy if exists erp_user_settings_insert on public.erp_user_settings;
 create policy erp_user_settings_insert on public.erp_user_settings
   for insert to authenticated
   with check (user_id = (select auth.uid()));
 
-drop policy if exists erp_user_settings_update on public.erp_user_settings;
 create policy erp_user_settings_update on public.erp_user_settings
   for update to authenticated
   using (user_id = (select auth.uid()))

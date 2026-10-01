@@ -227,6 +227,20 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
 
+Правки 01.10 (сессия 77, PR #195): ткань без единицы учитывается рулонами
+(`erp_material_tracks_rolls(kind, unit)` — зеркало `materialTracksRolls`);
+`erp_material_rolls_add` (`security definer`, `material.receive`) заводит рулоны
+к ПРИНЯТОЙ ткани без новой строки журнала приходов, ключ попытки —
+`erp_material_rolls.add_key`. DELETE-политика `erp_order_attachments` открыта
+`order.manage` для файлов формы заказа (зеркало — `utils/attachmentRights.ts`),
+`erp_tz_document_remove` снимает ТЗ (`is_current = false` у группы).
+Чат: `erp_chat_messages.author_id` допускает NULL — системное сообщение «ERP»
+(правка/удаление сверяют автора `is distinct from`); `erp_chat_mark_seen` гасит
+и личные уведомления о показанных сообщениях; упоминание и ответ не глушатся
+режимом `none`; `erp_user_settings` (звук/окно браузера, RLS на себя);
+`erp_overdue_requests` + `erp_overdue_requests_run()` (`pg_cron` 06:00 UTC) —
+запрос причины просрочки один раз на срок.
+
 Правки 27.09 (сессия 72, PR 2) перевели **учёт полотна на погонные метры**
 (отменяет правило 20.09 «пересчёта единиц система не делает»): закупка
 по-прежнему вводит кг и цену за кг (`erp_materials.price_per_unit` — цена
