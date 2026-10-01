@@ -204,9 +204,15 @@ describe('чат: справочник и права на вызов', () => {
   it('у каждой функции чата отозван public и явно выдан authenticated', () => {
     // `revoke … from anon` в одиночку не делает НИЧЕГО: право приходит
     // от PUBLIC, и `anon` его наследует (правило проекта)
-    const grants = clean(latestDefining('erp_chat_send'));
+    /**
+     * Права читаются из ПОСЛЕДНЕГО определения КАЖДОЙ функции, а не из файла
+     * `erp_chat_send`: с правки 01.10 (п. 4) отправку пересоздаёт отдельная
+     * миграция, и сторож, искавший там права всех пяти функций, проверял бы
+     * файл, в котором остальных четырёх нет.
+     */
     for (const fn of ['erp_chat_directory', 'erp_chat_send', 'erp_chat_page',
-      'erp_chat_unread', 'erp_chat_mark_read']) {
+      'erp_chat_unread', 'erp_chat_mark_read', 'erp_chat_mark_seen']) {
+      const grants = clean(latestDefining(fn));
       expect(grants, `${fn}: нет отзыва у public`)
         .toMatch(new RegExp(`revoke execute on function public\\.${fn}\\([^)]*\\) from public, anon`));
       expect(grants, `${fn}: не выдан authenticated — PostgREST его не покажет`)
@@ -275,7 +281,10 @@ describe('чат: правка и удаление', () => {
 
   it('оба действия — только своё сообщение', () => {
     for (const [name, body] of [['erp_chat_edit', EDIT_BODY], ['erp_chat_delete', DEL_BODY]]) {
-      expect(body, `${name}: нет проверки авторства`).toContain('v_row.author_id <> v_me');
+      // С 01.10 (п. 5) у системного сообщения автора нет, и `<>` с пустым
+      // автором давал NULL — проверка молча пропускала любого участника
+      expect(body, `${name}: нет проверки авторства`).toContain('v_row.author_id is distinct from v_me');
+      expect(body, `${name}: сверка автора не null-безопасна`).not.toContain('v_row.author_id <> v_me');
       expect(body, `${name}: отказ не 42501`).toContain("errcode = '42501'");
     }
   });

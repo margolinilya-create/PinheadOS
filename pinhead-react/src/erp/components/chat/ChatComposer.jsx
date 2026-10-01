@@ -8,6 +8,7 @@ import {
   applyMention, matchPeople, mentionQuery, mentionsInText,
 } from '../../utils/mentions';
 import { MentionPicker } from './MentionPicker';
+import { chatAuthorName } from '../../utils/chatFeed';
 import styles from '../../styles';
 
 /**
@@ -114,7 +115,7 @@ export function ChatComposer({
       {replyTo && (
         <div className={styles.chatReplyBar}>
           <span className={styles.chatReplyText}>
-            Ответ <strong>{nameOf(replyTo.author_id)}</strong>: {replyTo.body.slice(0, 80)}
+            Ответ <strong>{chatAuthorName(replyTo.author_id, nameOf)}</strong>: {replyTo.body.slice(0, 80)}
           </span>
           <button
             type="button"

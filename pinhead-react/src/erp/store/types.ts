@@ -1536,6 +1536,29 @@ export interface NotificationsSlice {
   noticeSeen: string[];
   /** Закрыть карточку — по нажатию или по таймеру */
   dismissNoticePopup: (id: string) => void;
+  /**
+   * Непрочитанных личных — ЧИСЛОМ С СЕРВЕРА (правка 01.10, п. 4), а не
+   * длиной загруженных 50 строк: бейдж колокола обязан показывать реальное.
+   */
+  notificationsUnread: number;
+  /** «Отметить все» — все непрочитанные адресата, а не загруженные */
+  markAllNotificationsRead: () => Promise<boolean>;
+  /**
+   * Сообщения показаны в чате: сервер уже погасил уведомления о них
+   * (`erp_chat_mark_seen`), здесь — то же в памяти, без второго запроса.
+   */
+  noteMessagesSeen: (messageIds: string[]) => void;
+  /** Звук и окно браузера — настройки сотрудника из `erp_user_settings` */
+  noticeSettings: NoticeSettings;
+  noticeSettingsLoaded: boolean;
+  loadNoticeSettings: () => Promise<void>;
+  saveNoticeSettings: (patch: Partial<NoticeSettings>) => Promise<boolean>;
+}
+
+/** Личные настройки уведомлений (правка 01.10, п. 4) */
+export interface NoticeSettings {
+  sound: boolean;
+  desktop: boolean;
 }
 
 /**

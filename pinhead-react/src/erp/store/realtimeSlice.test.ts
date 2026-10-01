@@ -73,6 +73,21 @@ describe('resyncRealtime', () => {
     expect(useErpStore.getState().realtimeResyncing).toBe(false);
   });
 
+  /**
+   * КОЛОКОЛ ТОЖЕ «ПОКА НАС НЕ БЫЛО» (правка 01.10, п. 4: «новые уведомления
+   * приходят без перезагрузки ERP»). Упоминание, пришедшее в разрыв канала,
+   * события не даст никогда — его можно только перечитать.
+   */
+  it('перечитывает и личные уведомления', async () => {
+    const loadAll = vi.fn().mockResolvedValue(undefined);
+    const loadNotifications = vi.fn().mockResolvedValue(undefined);
+    useErpStore.setState({ loadAll, loadNotifications, realtimeLive: false });
+
+    await useErpStore.getState().resyncRealtime();
+
+    expect(loadNotifications).toHaveBeenCalledTimes(1);
+  });
+
   it('в скрытой вкладке не ходит в сеть', async () => {
     setVisibility('hidden');
     const loadAll = vi.fn().mockResolvedValue(undefined);

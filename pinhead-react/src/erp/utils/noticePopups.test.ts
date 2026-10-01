@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { newPopups, seenIds, mergePopups, POPUP_LIMIT } from './noticePopups';
+import {
+  newPopups, seenIds, mergePopups, POPUP_LIMIT, SEEN_LIMIT,
+} from './noticePopups';
 import type { ErpNotification } from '../types';
 
 const N = (id: string, extra: Partial<ErpNotification> = {}): ErpNotification => ({
@@ -57,5 +59,24 @@ describe('всплывающие уведомления', () => {
   it('пустой приход ничего не меняет', () => {
     const cur = [N('a')];
     expect(mergePopups(cur, [])).toBe(cur);
+  });
+
+  /**
+   * ПЕРЕПОДКЛЮЧЕНИЕ НЕ ДАЁТ ДУБЛЕЙ (правка 01.10, п. 4). Память накопительная:
+   * уведомление, выпавшее из окна в 50 строк и вернувшееся в него при
+   * следующем перечитывании, не считается новым.
+   */
+  it('уже виденное, выпавшее из окна и вернувшееся, не всплывает снова', () => {
+    const first = seenIds([N('a')]);
+    const second = seenIds([N('b')], first);
+    expect(second).toEqual(['b', 'a']);
+    expect(newPopups([N('a'), N('b')], second, false)).toEqual([]);
+  });
+
+  it('память вкладки ограничена', () => {
+    const prev = Array.from({ length: SEEN_LIMIT }, (_, i) => `old${i}`);
+    const next = seenIds([N('new')], prev);
+    expect(next).toHaveLength(SEEN_LIMIT);
+    expect(next[0]).toBe('new');
   });
 });

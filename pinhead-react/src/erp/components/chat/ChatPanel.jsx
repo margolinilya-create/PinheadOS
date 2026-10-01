@@ -26,10 +26,16 @@ import styles from '../../styles';
  * показывается только там, где контекст вообще есть, и не обещает никакой
  * приватности.
  */
+/**
+ * Сколько страниц дочитывать в поисках сообщения из уведомления: 20 × 50 —
+ * тысяча реплик, дальше это уже архив, а не «вас позвали».
+ */
+const FOCUS_MAX_PAGES = 20;
+
 export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId = null }) {
   const {
     messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, realtimeLive,
-    openChat, loadMore, refresh, send, loadDirectory, markRead, markSeen, loadUnread, closeChat,
+    openChat, loadMore, refresh, send, loadDirectory, markSeen, loadUnread, closeChat,
     editMessage, deleteMessage,
   } = useErpStore(useShallow((s) => ({
     messages: s.chatMessages,
@@ -46,7 +52,6 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     refresh: s.refreshChat,
     send: s.sendChatMessage,
     loadDirectory: s.loadChatDirectory,
-    markRead: s.markChatRead,
     editMessage: s.editChatMessage,
     deleteMessage: s.deleteChatMessage,
     markSeen: s.markChatSeen,
@@ -127,9 +132,9 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    */
   /**
    * ПОШТУЧНОЕ ПРОЧТЕНИЕ (правка 20.09, п. 4): прочитанным считается то,
-   * что реально показалось на глаза при активном окне. Водяная отметка
-   * ниже остаётся — она отвечает за счётчик вкладки и за всё, что прочитано
-   * до перехода на поштучную модель.
+   * что реально показалось на глаза при активном окне. С 01.10 это
+   * ЕДИНСТВЕННЫЙ путь прочтения из ленты: водяная отметка хранит лишь
+   * прочитанное до перехода на поштучную модель и сама больше не двигается.
    */
   const onSeen = useCallback(async (ids) => {
     const added = await markSeen(ids);
@@ -154,11 +159,17 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     [messages, unreadAnchor],
   );
 
+  /**
+   * ОТКРЫТИЕ ЛЕНТЫ НИЧЕГО НЕ ГАСИТ (правка 01.10, п. 4). Здесь стоял
+   * `markChatRead` по последнему сообщению: водяная отметка уезжала
+   * к «сейчас» при КАЖДОМ показе ленты, и счётчик обнулялся, даже если
+   * человек открыл чат и увидел верхние три реплики из двадцати. Документ:
+   * «счётчики должны показывать реальное число непрочитанных». Прочитанным
+   * теперь считается ровно то, что показалось на глаза (`onSeen` выше),
+   * а `erp_chat_unread` считает «позже отметки И без строки просмотра» —
+   * отметка просто перестала двигаться сама.
+   */
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
-  useEffect(() => {
-    if (!lastMessageId) return;
-    void markRead(orderId, scoped ? (context.stageId ?? null) : null);
-  }, [orderId, lastMessageId, scoped, context.stageId, markRead]);
 
   // Новое сообщение прокручивает ленту вниз — но только если человек и так
   // внизу: иначе чтение старого разговора уезжало бы из-под пальца
@@ -173,9 +184,9 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    * то есть событие; считать его в эффекте нельзя (правило `set-state-in-effect`
    * и, по сути, та же беда: пересчёт на каждый кадр ленты).
    *
-   * Счётчик вкладки для этого не годится: `markChatRead` двигает водяную
-   * отметку по ПОКАЗУ ленты, поэтому `unread.total` гаснет, даже когда
-   * человек стоит выше и пришедшего внизу не видел.
+   * Счётчик вкладки для этого не годится: он про всю сделку (или задачу),
+   * а не про «пришло, пока человек читал выше», и гаснет по показу
+   * сообщений — то есть ровно тогда, когда индикатор уже не нужен.
    */
   const [tail, setTail] = useState({ atBottom: true, count: 0 });
   const pendingBelow = tail.atBottom ? 0 : Math.max(0, messages.length - tail.count);
@@ -197,15 +208,34 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    * человека позвали в разговор недельной давности, и «последнее сообщение»
    * ответа на «зачем меня звали» не даёт.
    *
-   * Сообщения может не оказаться в загруженной странице — тогда прокрутки
-   * не будет, и это честно: лента остаётся там, где открылась, а кнопка
-   * «Показать более ранние» на месте.
+   * СООБЩЕНИЯ НЕТ В ЗАГРУЖЕННОЙ СТРАНИЦЕ — ДОЧИТЫВАЕМ ВВЕРХ (правка 01.10,
+   * п. 4: «нажатие на уведомление открывает… само сообщение»). Прежде лента
+   * оставалась там, где открылась, и человек искал реплику руками за кнопкой
+   * «Показать более ранние». Теперь страницы догружаются, пока сообщение
+   * не найдётся или история не кончится; потолок страниц — от бесконечного
+   * цикла на случай, если сообщение удалено или не входит в этот контекст.
+   *
+   * Прокрутка — ОДИН РАЗ на ссылку: иначе каждое новое сообщение снова
+   * уводило бы ленту к старой реплике из-под пальца читающего.
    */
+  const focusDone = useRef(null);
+  const focusPages = useRef({ id: null, n: 0 });
   useEffect(() => {
-    if (!focusId || messages.length === 0) return;
-    const node = document.getElementById(`chat-msg-${focusId}`);
-    if (node) node.scrollIntoView({ block: 'center' });
-  }, [focusId, messages.length]);
+    if (!focusId || focusDone.current === focusId || messages.length === 0) return;
+    if (messages.some((m) => m.id === focusId)) {
+      const node = document.getElementById(`chat-msg-${focusId}`);
+      if (!node) return;
+      node.scrollIntoView({ block: 'center' });
+      focusDone.current = focusId;
+      atBottom.current = false;
+      return;
+    }
+    if (!hasMore || loading) return;
+    if (focusPages.current.id !== focusId) focusPages.current = { id: focusId, n: 0 };
+    if (focusPages.current.n >= FOCUS_MAX_PAGES) return;
+    focusPages.current.n += 1;
+    void loadMore();
+  }, [focusId, messages, hasMore, loading, loadMore]);
 
   const nameOf = useCallback((userId) => {
     const person = directory.find((p) => p.user_id === userId);

@@ -12,6 +12,8 @@ vi.mock('../assets/garments/shopper.svg?raw', () => ({ default: '<svg>shopper</s
 const mockChain = {
   select: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
+  // `is('read_at', null)` — счётчик непрочитанных уведомлений колокола
+  is: vi.fn().mockReturnThis(),
   single: vi.fn().mockResolvedValue({ data: null, error: null }),
   upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
   insert: vi.fn().mockResolvedValue({ data: null, error: null }),

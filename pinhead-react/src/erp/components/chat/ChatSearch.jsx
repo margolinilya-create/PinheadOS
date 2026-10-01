@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useErpStore } from '../../store/useErpStore';
 import { Button } from '../Button';
 import { Icon } from '../Icon';
-import { messageFullTime } from '../../utils/chatFeed';
+import { messageFullTime, chatAuthorName } from '../../utils/chatFeed';
 import { searchSnippet } from '../../utils/chatSearch';
 import styles from '../../styles';
 
@@ -29,7 +29,7 @@ export function ChatSearch({ orderId, onOpenMessage }) {
   const [hits, setHits] = useState(null);   // null — ещё не искали
   const [busy, setBusy] = useState(false);
 
-  const nameOf = (id) => directory.find((p) => p.user_id === id)?.name ?? 'Сотрудник';
+  const nameOf = (id) => chatAuthorName(id, (uid) => directory.find((p) => p.user_id === uid)?.name ?? 'Сотрудник');
 
   const run = async (e) => {
     e.preventDefault();

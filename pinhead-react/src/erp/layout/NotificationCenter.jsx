@@ -5,11 +5,9 @@ import { useErpStore } from '../store/useErpStore';
 import { Button } from '../components/Button';
 import { OrderLink } from '../components/OrderLink';
 import { groupNotices } from '../utils/notifications';
-import {
-  askPermission, desktopEnabled, notifyPermission, setDesktopEnabled,
-  setSoundEnabled, soundEnabled,
-} from '../utils/desktopNotify';
+import { askPermission, notifyPermission } from '../utils/desktopNotify';
 import styles from '../erp.module.css';
+import local from './noticeCenter.module.css';
 
 /**
  * ЦЕНТР УВЕДОМЛЕНИЙ В ШАПКЕ (правка заказчика 20.09, п. 4).
@@ -27,6 +25,18 @@ import styles from '../erp.module.css';
  * НАЖАТИЕ ВЕДЁТ К СООБЩЕНИЮ, А НЕ К ЗАКАЗУ: ссылка уведомления уже несёт
  * `?tab=chat&msg=<id>`, и лента прокручивается к нему сама. «Открыть заказ»
  * на месте этого оставляло бы человека искать, ради чего его позвали.
+ *
+ * НАЖАТИЕ НЕ ГАСИТ (правка 01.10, п. 4): «открытие колокольчика не отмечает
+ * сообщение прочитанным: это происходит, когда сотрудник увидел его в чате».
+ * Гасит показ сообщения в ленте (`erp_chat_mark_seen` на сервере), то есть
+ * ровно то событие, о котором уведомление, — на любом устройстве сразу.
+ * Отметка руками осталась («✓» у строки и «Отметить все прочитанными»):
+ * документ 20.09 её требует, и это решение человека, а не побочный эффект.
+ *
+ * ДВА РАЗДЕЛА (там же): «личные сообщения нужно отделить от напоминаний
+ * о сроках». «Сообщения» — `erp_notifications` со своей прочитанностью;
+ * «Сроки» — поводы `orderNotices`, у которых прочитанности нет по
+ * построению: они уходят вместе с состоянием заказа.
  */
 const TABS = [
   { id: 'all', label: 'Все' },
@@ -47,39 +57,34 @@ const ALERTS_SHOWN = 8;
 
 /**
  * `alerts` — производственные поводы (`orderNotices`: просрочка, остановленный
- * этап, дозакупка), те же, что колокол считает в бейдже.
- *
- * КОЛОКОЛ СЧИТАЕТ ТО, К ЧЕМУ ВЕДЁТ (обход 04.09) — а с 20.09 он ведёт сюда.
- * Центр показывал одни `erp_notifications`, и при просроченном заказе на
- * бейдже горело «1», а внутри стояло «Непрочитанных нет». Прочитанности
- * у этих поводов нет по построению: они уходят вместе с состоянием заказа,
- * поэтому живут отдельным блоком, а не строками вкладок.
+ * этап, дозакупка), те же, что колокол считает меткой сроков.
  */
 export function NotificationCenter({ alerts = [], onClose }) {
   const navigate = useNavigate();
-  const { rows, markRead } = useErpStore(useShallow((s) => ({
+  const {
+    rows, unread, markRead, markAll, settings, saveSettings,
+  } = useErpStore(useShallow((s) => ({
     rows: s.notifications,
+    unread: s.notificationsUnread,
     markRead: s.markNotificationsRead,
+    markAll: s.markAllNotificationsRead,
+    settings: s.noticeSettings,
+    saveSettings: s.saveNoticeSettings,
   })));
-  const [tab, setTab] = useState('unread');
   /**
-   * Настройки читаются из localStorage ОДИН раз при открытии центра:
-   * это личный выбор человека на этом устройстве, а не состояние стора —
-   * общего у них ничего нет, и переживать выход из системы он должен.
+   * Какой раздел открыт первым: где есть непрочитанное личное — там
+   * «Сообщения»; если писать некому, а сроки горят — «Сроки». Открыть
+   * пустой раздел при непустом соседнем — заставить человека искать.
    */
-  const [desktop, setDesktop] = useState(() => desktopEnabled());
-  const [sound, setSound] = useState(() => soundEnabled());
+  const [section, setSection] = useState(
+    () => (unread === 0 && alerts.length > 0 ? 'deadlines' : 'messages'),
+  );
+  const [tab, setTab] = useState('unread');
   const [perm, setPerm] = useState(() => notifyPermission());
 
-  // Открыли центр — ничего не гасим: «очистка уведомления не означает,
-  // что текст сообщения прочитан» (документ). Прочтение ставит человек
   const list = useMemo(
     () => (rows ?? []).filter((n) => matches(tab, n)),
     [rows, tab],
-  );
-  const unreadIds = useMemo(
-    () => (rows ?? []).filter((n) => !n.read_at).map((n) => n.id),
-    [rows],
   );
 
   // Порядок срочности — тот же, что у виджета обзора (`groupNotices`)
@@ -87,7 +92,6 @@ export function NotificationCenter({ alerts = [], onClose }) {
     () => groupNotices(alerts).flatMap((g) => g.items),
     [alerts],
   );
-  const showAlerts = alertRows.length > 0 && (tab === 'all' || tab === 'unread');
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -104,36 +108,42 @@ export function NotificationCenter({ alerts = [], onClose }) {
         навигации стрелками, есть подбор списка. Группа кнопок с
         `aria-pressed` честнее: она обещает ровно то, что делает.
       */}
-      <div className={styles.noticeTabs} role="group" aria-label="Что показать">
-        {TABS.map((t) => (
+      <div className={styles.noticeTabs} role="group" aria-label="Раздел">
+        {[
+          { id: 'messages', label: 'Сообщения', count: unread },
+          { id: 'deadlines', label: 'Сроки', count: alertRows.length },
+        ].map((t) => (
           <button
             key={t.id}
             type="button"
-            aria-pressed={tab === t.id}
-            className={`${styles.noticeTab} ${tab === t.id ? styles.noticeTabActive : ''}`}
-            onClick={() => setTab(t.id)}
+            aria-pressed={section === t.id}
+            className={`${styles.noticeTab} ${section === t.id ? styles.noticeTabActive : ''}`}
+            onClick={() => setSection(t.id)}
           >
-            {t.label}
+            {t.label}{t.count > 0 ? ` · ${t.count}` : ''}
           </button>
         ))}
       </div>
 
-      {showAlerts && (
-        <section className={styles.noticeSection} aria-label="Требуют внимания">
-          <h3 className={styles.noticeSectionTitle}>Требуют внимания · {alertRows.length}</h3>
-          <ul className={styles.noticeList}>
-            {alertRows.slice(0, ALERTS_SHOWN).map((n) => (
-              <li key={n.id}>
-                <OrderLink orderId={n.orderId} className={styles.noticeRow} onClick={onClose}>
-                  <span className={styles.noticeTitle}>
-                    {n.text}
-                    {n.overdueDays > 0 && ` · ${n.overdueDays} дн.`}
-                  </span>
-                  {n.sub && <span className={styles.subText}>{n.sub}</span>}
-                </OrderLink>
-              </li>
-            ))}
-          </ul>
+      {section === 'deadlines' && (
+        <section className={styles.noticeSection} aria-label="Сроки">
+          {alertRows.length === 0 ? (
+            <p className={styles.subText}>Сроки в порядке — заказов, требующих внимания, нет</p>
+          ) : (
+            <ul className={styles.noticeList}>
+              {alertRows.slice(0, ALERTS_SHOWN).map((n) => (
+                <li key={n.id}>
+                  <OrderLink orderId={n.orderId} className={styles.noticeRow} onClick={onClose}>
+                    <span className={styles.noticeTitle}>
+                      {n.text}
+                      {n.overdueDays > 0 && ` · ${n.overdueDays} дн.`}
+                    </span>
+                    {n.sub && <span className={styles.subText}>{n.sub}</span>}
+                  </OrderLink>
+                </li>
+              ))}
+            </ul>
+          )}
           {alertRows.length > ALERTS_SHOWN && (
             // Никаких тихих лимитов: сколько показано и где остальные
             <Link to="/#notifications" className={styles.noticeMore} onClick={onClose}>
@@ -143,45 +153,79 @@ export function NotificationCenter({ alerts = [], onClose }) {
         </section>
       )}
 
-      {list.length === 0 ? (
-        <p className={styles.subText}>
-          {tab === 'unread'
-            ? (showAlerts ? 'Личных непрочитанных нет' : 'Непрочитанных нет')
-            : 'Пусто'}
-        </p>
-      ) : (
-        <ul className={styles.noticeList}>
-          {list.map((n) => (
-            <li key={n.id} className={n.read_at ? undefined : styles.noticeUnread}>
+      {section === 'messages' && (
+        <>
+          <div className={styles.noticeTabs} role="group" aria-label="Что показать">
+            {TABS.map((t) => (
               <button
+                key={t.id}
                 type="button"
-                className={styles.noticeRow}
-                onClick={() => {
-                  /**
-                   * Уведомление гасится ПРИ ПЕРЕХОДЕ: человек идёт читать,
-                   * и оставлять его непрочитанным значит просить прочитать
-                   * дважды. Само СООБЩЕНИЕ при этом прочитанным не считается —
-                   * это решает видимая область ленты (документ разводит
-                   * их прямо).
-                   */
-                  if (!n.read_at) void markRead([n.id]);
-                  if (n.link) navigate(n.link);
-                  onClose();
-                }}
+                aria-pressed={tab === t.id}
+                className={`${styles.noticeTab} ${tab === t.id ? styles.noticeTabActive : ''}`}
+                onClick={() => setTab(t.id)}
               >
-                <span className={styles.noticeTitle}>{n.title}</span>
-                {n.body && <span className={styles.subText}>{n.body}</span>}
+                {t.label}
               </button>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
+
+          {list.length === 0 ? (
+            <p className={styles.subText}>
+              {tab === 'unread' ? 'Непрочитанных сообщений нет' : 'Пусто'}
+            </p>
+          ) : (
+            <ul className={styles.noticeList}>
+              {list.map((n) => (
+                <li
+                  key={n.id}
+                  className={`${local.item} ${n.read_at ? '' : styles.noticeUnread}`}
+                >
+                  <button
+                    type="button"
+                    className={styles.noticeRow}
+                    onClick={() => {
+                      /**
+                       * Только переход: прочитанным уведомление станет, когда
+                       * сообщение покажется в ленте (правка 01.10, п. 4).
+                       * Погасить здесь — объявить прочитанным то, до чего
+                       * человек мог и не долистать.
+                       */
+                      if (n.link) navigate(n.link);
+                      onClose();
+                    }}
+                  >
+                    <span className={styles.noticeTitle}>{n.title}</span>
+                    {n.body && <span className={styles.subText}>{n.body}</span>}
+                  </button>
+                  {!n.read_at && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="check"
+                      iconOnly
+                      aria-label="Отметить прочитанным"
+                      title="Отметить прочитанным"
+                      onClick={() => markRead([n.id])}
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {unread > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => markAll()}>
+              Отметить все прочитанными
+            </Button>
+          )}
+        </>
       )}
 
       {/*
-        БРАУЗЕРНЫЕ УВЕДОМЛЕНИЯ И ЗВУК (вторая очередь чата). Оба выключены
-        по умолчанию — звук документ объявляет выключенным сам, а разрешение
-        браузера спрашивается ТОЛЬКО по нажатию: отказ, полученный при входе,
-        браузер помнит навсегда, и включить уведомления человек уже не сможет.
+        БРАУЗЕРНЫЕ УВЕДОМЛЕНИЯ И ЗВУК. С 01.10 (п. 4) — настройки СОТРУДНИКА
+        в базе (`erp_user_settings`): выбор идёт за человеком на планшет цеха
+        и на ноутбук. Разрешение браузера спрашивается ТОЛЬКО по нажатию:
+        отказ, полученный при входе, браузер помнит навсегда.
 
         Подпись честная: это уведомления, пока ERP ОТКРЫТА (хотя бы в фоне).
         Доставка при закрытом браузере — отдельная подсистема (service worker
@@ -191,17 +235,16 @@ export function NotificationCenter({ alerts = [], onClose }) {
         <label className={styles.noticeToggle}>
           <input
             type="checkbox"
-            checked={desktop}
+            checked={settings.desktop}
             disabled={perm === 'unsupported' || perm === 'denied'}
             onChange={async (e) => {
               const on = e.target.checked;
               if (on) {
                 const got = await askPermission();
                 setPerm(got);
-                if (got !== 'granted') { setDesktop(false); setDesktopEnabled(false); return; }
+                if (got !== 'granted') return;
               }
-              setDesktop(on);
-              setDesktopEnabled(on);
+              void saveSettings({ desktop: on });
             }}
           />
           <span>Уведомления браузера, пока ERP открыта</span>
@@ -217,22 +260,12 @@ export function NotificationCenter({ alerts = [], onClose }) {
         <label className={styles.noticeToggle}>
           <input
             type="checkbox"
-            checked={sound}
-            onChange={(e) => { setSound(e.target.checked); setSoundEnabled(e.target.checked); }}
+            checked={settings.sound}
+            onChange={(e) => { void saveSettings({ sound: e.target.checked }); }}
           />
           <span>Звук нового уведомления</span>
         </label>
       </div>
-
-      {unreadIds.length > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => markRead(unreadIds)}
-        >
-          Отметить все прочитанными
-        </Button>
-      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import {
+  render, screen, waitFor, fireEvent, act,
+} from '@testing-library/react';
 import { ChatPanel } from './ChatPanel';
 import { useErpStore } from '../../store/useErpStore';
 
@@ -64,27 +66,21 @@ beforeEach(() => {
 });
 
 describe('окно чата: контекст и прочтение', () => {
-  it('в контексте задачи отмечает прочитанной ИМЕННО задачу', async () => {
+  /**
+   * ОТКРЫТИЕ НЕ ГАСИТ СЧЁТЧИК (правка 01.10, п. 4). Прежде показ ленты
+   * двигал водяную отметку к «сейчас», и непрочитанное обнулялось, даже
+   * если человек увидел три реплики из двадцати. Прочитанным считается
+   * только показанное (`markChatSeen` по видимой области).
+   */
+  it('показ ленты не двигает водяную отметку — ни у задачи, ни у сделки', async () => {
     const a = setup();
-    render(<ChatPanel orderId="o1" context={{ stageId: 's1' }} contextLabel="Закрой" />);
-    await waitFor(() => expect(a.markChatRead).toHaveBeenCalled());
-    // Второй аргумент — этап: `null` погасил бы счётчик ВСЕЙ сделки,
-    // чего документ прямо запрещает
-    expect(a.markChatRead).toHaveBeenCalledWith('o1', 's1');
-  });
-
-  it('в ленте всей сделки гасит общий счётчик', async () => {
-    const a = setup();
-    render(<ChatPanel orderId="o1" />);
-    await waitFor(() => expect(a.markChatRead).toHaveBeenCalledWith('o1', null));
-  });
-
-  it('пустая лента ничего не отмечает прочитанным', async () => {
-    // Иначе «прочитано» ставилось бы по факту ОТКРЫТИЯ, а не показа
-    const a = setup({ chatMessages: [] });
-    render(<ChatPanel orderId="o1" />);
+    const { unmount } = render(<ChatPanel orderId="o1" context={{ stageId: 's1' }} contextLabel="Закрой" />);
     await waitFor(() => expect(a.openChat).toHaveBeenCalled());
+    unmount();
+    render(<ChatPanel orderId="o1" />);
+    await waitFor(() => expect(a.openChat).toHaveBeenCalledTimes(2));
     expect(a.markChatRead).not.toHaveBeenCalled();
+    expect(useErpStore.getState().chatUnread.o1.total).toBe(3);
   });
 
   it('переключение на «всю сделку» перечитывает ленту с пустым контекстом', async () => {
@@ -338,5 +334,60 @@ describe('индикатор новых сообщений ниже', () => {
 
     fireEvent.click(screen.getByText(/Новые сообщения/));
     expect(screen.queryByText(/Новые сообщения/)).not.toBeInTheDocument();
+  });
+});
+
+describe('окно чата: переход к сообщению из уведомления', () => {
+  const older = (id, at) => ({ ...MSG, id, body: `Реплика ${id}`, created_at: at });
+
+  it('сообщение в загруженной странице — прокрутка к нему, без догрузки', async () => {
+    const a = setup({ chatMessages: [older('m0', '2026-09-14T09:00:00Z'), MSG], chatHasMore: true });
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    spy.mockClear();
+    render(<ChatPanel orderId="o1" focusId="m0" />);
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(a.loadMoreChat).not.toHaveBeenCalled();
+  });
+
+  it('сообщения нет — дочитывает вверх, пока не найдёт, и прокручивает к нему', async () => {
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    spy.mockClear();
+    let page = 0;
+    const a = setup({ chatHasMore: true });
+    a.loadMoreChat.mockImplementation(async () => {
+      page += 1;
+      const s = useErpStore.getState();
+      // Первая догрузка — мимо, вторая приносит нужное и кончает историю
+      const add = page === 1
+        ? older('m-1', '2026-09-13T10:00:00Z')
+        : older('target', '2026-09-12T10:00:00Z');
+      useErpStore.setState({ chatMessages: [add, ...s.chatMessages], chatHasMore: page < 2 });
+    });
+    useErpStore.setState({ loadMoreChat: a.loadMoreChat });
+    render(<ChatPanel orderId="o1" focusId="target" />);
+    await waitFor(() => expect(a.loadMoreChat).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(document.getElementById('chat-msg-target')).not.toBeNull();
+  });
+
+  it('история кончилась, сообщения нет — не крутится вечно', async () => {
+    const a = setup({ chatHasMore: false });
+    render(<ChatPanel orderId="o1" focusId="nowhere" />);
+    await waitFor(() => expect(a.openChat).toHaveBeenCalled());
+    expect(a.loadMoreChat).not.toHaveBeenCalled();
+  });
+
+  it('новое сообщение не уводит ленту обратно к старой реплике', async () => {
+    setup({ chatMessages: [older('m0', '2026-09-14T09:00:00Z'), MSG] });
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    spy.mockClear();
+    render(<ChatPanel orderId="o1" focusId="m0" />);
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    act(() => {
+      useErpStore.setState({
+        chatMessages: [...useErpStore.getState().chatMessages, older('m9', '2026-09-14T11:00:00Z')],
+      });
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

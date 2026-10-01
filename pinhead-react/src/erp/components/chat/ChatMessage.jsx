@@ -4,7 +4,7 @@ import { confirm } from '../../../store/useConfirmStore';
 import { Icon } from '../Icon';
 import { Button } from '../Button';
 import styles from '../../styles';
-import { messageTime, messageFullTime } from '../../utils/chatFeed';
+import { messageTime, messageFullTime, chatAuthorName } from '../../utils/chatFeed';
 import { splitMentions, mentionsInText } from '../../utils/mentions';
 import { ChatReadReceipts } from './ChatReadReceipts';
 import { ChatReactions } from './ChatReactions';
@@ -50,7 +50,11 @@ export function ChatMessage({
    */
   observeRef,
 }) {
-  const mine = message.author_id === meId;
+  // Системное сообщение (правка 01.10, п. 5) — без автора: подпись «ERP»,
+  // ответить на него можно, править и удалять — нет
+  const system = !message.author_id;
+  const mine = !system && message.author_id === meId;
+  const author = chatAuthorName(message.author_id, nameOf);
   const deleted = Boolean(message.deleted_at);
   const [draft, setDraft] = useState(null);   // null — правка не открыта
   const [busy, setBusy] = useState(false);
@@ -68,11 +72,13 @@ export function ChatMessage({
       id={`chat-msg-${message.id}`}
       ref={observeRef}
       data-message-id={message.id}
-      aria-label={`Сообщение от ${nameOf(message.author_id)}`}
+      aria-label={`Сообщение от ${author}`}
     >
       <header className={styles.chatMsgHead}>
         {!compact && (
-          <strong className={styles.chatMsgAuthor}>{nameOf(message.author_id)}</strong>
+          <strong className={styles.chatMsgAuthor} title={system ? 'Сообщение системы' : undefined}>
+            {author}
+          </strong>
         )}
         {/* Время — ЧЧ:ММ по поясу фабрики; полная дата в подсказке
             (документ: «полная дата и время доступны по наведению») */}
@@ -146,7 +152,7 @@ export function ChatMessage({
         /* Цитата приезжает с сервера обрезанной: искать исходное сообщение
            в выгруженной ленте нельзя — оно может быть выше страницы */
         <a className={styles.chatQuote} href={`#chat-msg-${message.reply.id}`}>
-          <span className={styles.chatQuoteAuthor}>{nameOf(message.reply.author_id)}</span>
+          <span className={styles.chatQuoteAuthor}>{chatAuthorName(message.reply.author_id, nameOf)}</span>
           {/* Тело удалённого затёрто СЕРВЕРОМ — без этой ветки здесь была бы
               пустая полоска вместо ответа на понятный вопрос «а на что это» */}
           <span className={styles.chatQuoteBody}>
