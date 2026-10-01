@@ -40,7 +40,23 @@ import {
 import { invalidate } from '../queryCache';
 import { ORDER_SELECT } from '../orderHelpers';
 import { orderBundleKey, orderFilePaths } from './ordersSlice';
-import type { ErpOrderComment, ErpStore, OrderWriteSlice } from '../types';
+import type {
+  ErpOrderComment, ErpStore, OrderAttachmentLinks, OrderWriteSlice,
+} from '../types';
+
+/**
+ * Только известные привязки и только заданные: вызывающие на `.js` тайпчеком
+ * не проверяются, и лишний ключ ушёл бы в INSERT колонкой, которой нет.
+ */
+const LINK_KEYS = ['item_id', 'material_id', 'stage_id', 'print_id', 'label_id', 'note_id'] as const;
+function pickLinks(links: OrderAttachmentLinks | undefined): OrderAttachmentLinks {
+  const out: OrderAttachmentLinks = {};
+  for (const k of LINK_KEYS) {
+    const v = links?.[k];
+    if (v) out[k] = v;
+  }
+  return out;
+}
 
 export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = (set, get) => ({
   createOrder: async (input) => {
@@ -558,7 +574,7 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
    * (фото блокировки и фото брака в `useStageActions`), где тайпчек аргументы
    * не проверяет: обязательный параметр молча остался бы `undefined`.
    */
-  uploadOrderAttachment: async (orderId, file, note, kind = 'attachment') => {
+  uploadOrderAttachment: async (orderId, file, note, kind = 'attachment', links = {}) => {
     /**
      * Ключ объекта — общий `attachmentFilePath`: строго ASCII с транслитом
      * кириллицы. Прежняя схема (`<orderId>/<время>.<расширение>`) человеческое
@@ -581,6 +597,9 @@ export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = 
         file_name: note ? `${note} — ${file.name}` : file.name,
         kind,
         uploaded_by: currentActor(),
+        // Привязки строки — только при замене файла в форме правки (п. 6, 01.10):
+        // новая версия встаёт к тому же нанесению/позиции, что и старая
+        ...pickLinks(links),
       })
       .select());
     const row = data?.[0] as ErpOrderAttachment | undefined;

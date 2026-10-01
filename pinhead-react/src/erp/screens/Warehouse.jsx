@@ -199,9 +199,7 @@ export default function Warehouse() {
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
       acceptMaterial: s.acceptMaterial, setRollWeights: s.setRollWeights, setRollParams: s.setRollParams,
-      addMaterialRolls: s.addMaterialRolls,
-      advanceWarehouseTask: s.advanceWarehouseTask,
-      shipOrder: s.shipOrder,
+      addMaterialRolls: s.addMaterialRolls, advanceWarehouseTask: s.advanceWarehouseTask, shipOrder: s.shipOrder,
       submitWarehouseReport: s.submitWarehouseReport,
       subcontractingLoaded: s.subcontractingLoaded,
       loadSubcontracting: s.loadSubcontracting,
@@ -470,8 +468,7 @@ export default function Warehouse() {
                 order={open.order}
                 task={open.task}
                 onAccept={acceptMaterial}
-                onSetRollWeights={setRollWeights} onSetRollParams={setRollParams}
-                onAddRolls={addMaterialRolls}
+                onSetRollWeights={setRollWeights} onSetRollParams={setRollParams} onAddRolls={addMaterialRolls}
               />
             )}
             {open.task.task_type === 'subcontract_send' && (

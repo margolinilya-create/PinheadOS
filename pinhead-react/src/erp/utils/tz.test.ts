@@ -46,13 +46,20 @@ describe('currentVersion', () => {
     expect(currentVersion(docs, 'g1')?.version).toBe(2);
   });
 
-  it('падает обратно на старшую версию, если is_current нигде не стоит', () => {
+  /**
+   * Группа без `is_current` — снятый документ (правка 01.10, п. 6,
+   * `erp_tz_document_remove`). Прежний откат на старшую версию возвращал
+   * бы снятое ТЗ цехам.
+   */
+  it('группа без is_current снята — актуальной версии нет', () => {
     const docs = [
       doc({ group_id: 'g1', version: 1, is_current: false }),
       doc({ group_id: 'g1', version: 3, is_current: false }),
       doc({ group_id: 'g1', version: 2, is_current: false }),
+      doc({ group_id: 'g2', version: 1, is_current: true }),
     ];
-    expect(currentVersion(docs, 'g1')?.version).toBe(3);
+    expect(currentVersion(docs, 'g1')).toBeNull();
+    expect(currentDocuments({ tz_documents: docs }).map((d) => d.group_id)).toEqual(['g2']);
   });
 
   it('возвращает null для неизвестной группы', () => {

@@ -3686,6 +3686,43 @@ describe('ТЗ в PDF (волна 4)', () => {
     expect(readyCountFor(orders, departments, 'cutting')).toBe(1);
   });
 
+  /**
+   * СНЯТИЕ ТЗ В ФОРМЕ ПРАВКИ (правка 01.10, п. 6). Строки не удаляются —
+   * RPC снимает `is_current` со всей группы; стор меняется только после
+   * ответа сервера (не оптимистично), и цех получает событие истории.
+   */
+  it('removeTzDocument снимает группу через RPC и пишет событие цеху', async () => {
+    seedTz({
+      tz_documents: [
+        { id: 'doc1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: false, file_path: 'p1', file_name: 'tz.pdf', created_at: '2026-07-20T10:00:00Z' },
+        { id: 'doc2', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 2, is_current: true, file_path: 'p2', file_name: 'tz-v2.pdf', created_at: '2026-07-21T10:00:00Z' },
+      ],
+    });
+    h.rpcByFn.erp_tz_document_remove = { data: 1, error: null };
+
+    expect(await useErpStore.getState().removeTzDocument('g1')).toBe(true);
+
+    expect(h.rpcCalls).toContainEqual({ fn: 'erp_tz_document_remove', args: { p_group_id: 'g1' } });
+    // История на месте, актуальной версии нет — для currentVersion документ снят
+    expect(orderNow().tz_documents).toHaveLength(2);
+    expect(orderNow().tz_documents.some((d: any) => d.is_current)).toBe(false);
+    // Строк никто не удалял и файлов из бакета не убирал
+    expect(h.removeCalls).toHaveLength(0);
+    expect(h.insertCalls.some((c) => c.table === 'erp_stage_events'
+      && String((c.row as any).comment).includes('ТЗ снято: tz-v2.pdf'))).toBe(true);
+  });
+
+  it('removeTzDocument при отказе: toast, null, стор не тронут', async () => {
+    seedTz({
+      tz_documents: [{ id: 'doc1', order_id: 'o1', item_id: 'it1', group_id: 'g1', version: 1, is_current: true, file_path: 'p1', created_at: '2026-07-20T10:00:00Z' }],
+    });
+    h.rpcByFn.erp_tz_document_remove = { data: null, error: { message: 'Нет права менять ТЗ заказа' } };
+
+    expect(await useErpStore.getState().removeTzDocument('g1')).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('ТЗ не снято'));
+    expect(orderNow().tz_documents[0].is_current).toBe(true);
+  });
+
   it('требование ТЗ включается вручную — optimistic с откатом', async () => {
     seedTz({ tz_required: false });
     expect(await useErpStore.getState().setTzRequired('o1', true)).toBe(true);

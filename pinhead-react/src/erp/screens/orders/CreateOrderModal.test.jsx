@@ -6,6 +6,7 @@ import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
 import { supabase } from '../../../lib/supabase';
 import { addDays, factoryToday } from '../../../utils/date';
+import { useConfirmStore } from '../../../store/useConfirmStore';
 
 /**
  * Форма монтируется НАПРЯМУЮ, минуя `lazyScreen`, — доменные действия надо
@@ -426,6 +427,8 @@ describe('CreateOrderModal — правка созданного заказа', 
       findOrdersByBitrixId,
       saveOrderDraft: vi.fn(),
       deleteOrderDraft: vi.fn(),
+      // Форму правки открывает менеджер: order.manage, tz.manage, files.manage
+      myRole: 'manager',
       employees: [],
       profilesList: [],
       employeesLoaded: true,
@@ -468,11 +471,13 @@ describe('CreateOrderModal — правка созданного заказа', 
   });
 
   /**
-   * МАРШРУТ И ТЗ В PAYLOAD ПРАВКИ НЕ ЕДУТ. Этапы правятся конструктором
+   * МАРШРУТ И ФАЙЛЫ В PAYLOAD ПРАВКИ НЕ ЕДУТ. Этапы правятся конструктором
    * в карточке позиции: тронь их здесь — и правка срока стёрла бы `qty_done`,
-   * журнал и плановые даты, то есть работу цеха.
+   * журнал и плановые даты, то есть работу цеха. Файлы (ТЗ, лист закупки,
+   * вложения) с 01.10 (п. 6) правятся в форме, но СРАЗУ — отдельными
+   * действиями стора, а не секцией payload: см. блок «файлы в правке» ниже.
    */
-  it('этапы и ТЗ в payload правки не попадают', async () => {
+  it('этапы и файлы в payload правки не попадают', async () => {
     const { saveOrderEdits } = setupEdit();
     fireEvent.click(screen.getByRole('button', { name: /Сохранить изменения/ }));
     await waitFor(() => expect(saveOrderEdits).toHaveBeenCalled());
@@ -531,17 +536,219 @@ describe('CreateOrderModal — правка созданного заказа', 
   });
 
   /**
-   * ТЗ ПОКАЗАНО ПРИЛОЖЕННЫМ (правка 12.09, баг 03). Секция рисовалась
-   * компонентом создания и показывала пустоту у заказа, где ТЗ есть.
+   * ТЗ ПОКАЗАНО ПРИЛОЖЕННЫМ (правка 12.09, баг 03) — и с 01.10 (п. 6)
+   * его можно заменить и снять прямо здесь, а не только «смотреть».
    */
-  it('приложенное ТЗ видно в форме правки', () => {
+  it('приложенное ТЗ видно в форме правки и правится', () => {
     setupEdit({
       tz_documents: [{
-        id: 'tz-1', group_id: 'g-1', version: 1, item_id: 'it-1',
+        id: 'tz-1', group_id: 'g-1', version: 1, item_id: 'it-1', is_current: true,
         file_path: 'tz/o-1/g-1/v1.pdf', file_name: 'ТЗ футболка.pdf',
       }],
     });
     expect(screen.getByText('ТЗ футболка.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Заменить файл ТЗ футболка.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Удалить файл ТЗ футболка.pdf' })).toBeInTheDocument();
+    expect(screen.queryByText(/Эта форма их не меняет/)).toBeNull();
+  });
+});
+
+/**
+ * ФАЙЛЫ В ПРАВКЕ (правка заказчика 01.10, п. 6): «удалять ранее загруженные,
+ * загружать новые взамен старых; для всех файлов заказа — ТЗ, листов закупки
+ * и других вложений; после сохранения в заказе отображаются актуальные версии».
+ *
+ * Проверяется контракт: действие уходит в стор СРАЗУ, удаление ждёт ответа
+ * сервера (файл виден, пока тот не подтвердил), замена снимает старый файл
+ * только ПОСЛЕ того, как новый лёг в заказ, а форма показывает то, что
+ * сейчас в сторе.
+ */
+describe('CreateOrderModal — файлы в правке', () => {
+  const TZ = {
+    id: 'tz-1', order_id: 'o-1', group_id: 'g-1', version: 1, item_id: 'it-1', is_current: true,
+    file_path: 'tz/o-1/g-1/v1.pdf', file_name: 'ТЗ футболка.pdf', created_at: '2026-09-01T10:00:00Z',
+  };
+  const LIST = {
+    id: 'att-1', order_id: 'o-1', kind: 'purchase_list',
+    file_path: 'orders/o-1/list.pdf', file_name: 'Лист закупки.pdf',
+  };
+  const ORDER = {
+    id: 'o-1', bitrix_id: '4821', title: 'BOX39 футболки', customer: '', manager: '',
+    launch_date: DAYS_FROM_TODAY(-20), due_date: DAYS_FROM_TODAY(30),
+    purchase_required: true,
+    items: [{
+      id: 'it-1', product_type: 'Футболка', qty: 100, production_type: 'sewing',
+      branding_on: 'cut', prints: [], labels: [], stages: [],
+    }],
+    tz_documents: [TZ],
+    attachments: [LIST],
+  };
+
+  function setupFiles(actions = {}) {
+    const order = { ...ORDER };
+    const store = {
+      saveOrderEdits: vi.fn().mockResolvedValue(true),
+      uploadTzDocument: vi.fn().mockResolvedValue({ id: 'tz-2' }),
+      replaceTzDocument: vi.fn().mockResolvedValue({ id: 'tz-2' }),
+      removeTzDocument: vi.fn().mockResolvedValue(true),
+      uploadOrderAttachment: vi.fn().mockResolvedValue(true),
+      deleteOrderAttachment: vi.fn().mockResolvedValue(true),
+      loadOne: vi.fn().mockResolvedValue(null),
+      ...actions,
+    };
+    useErpStore.setState({
+      departments: DEPARTMENTS,
+      orders: [order],
+      loaded: true,
+      createOrder: vi.fn(),
+      findOrdersByBitrixId: vi.fn().mockResolvedValue([]),
+      saveOrderDraft: vi.fn(),
+      deleteOrderDraft: vi.fn(),
+      employees: [],
+      profilesList: [],
+      employeesLoaded: true,
+      loadEmployees: vi.fn().mockResolvedValue(undefined),
+      // Права — у менеджера: order.manage, tz.manage, files.manage
+      myRole: 'manager',
+      ...store,
+    });
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <CreateOrderModal order={order} onClose={onClose} />
+      </MemoryRouter>,
+    );
+    return { ...store, onClose };
+  }
+
+  const pickFor = (buttonName, file) => {
+    const btn = screen.getByRole('button', { name: buttonName });
+    fireEvent.change(btn.parentElement.querySelector('input[type="file"]'), {
+      target: { files: [file] },
+    });
+  };
+  const confirmYes = async () => {
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(true);
+  };
+
+  beforeEach(() => {
+    useConfirmStore.setState({ open: false, _resolver: null });
+  });
+
+  it('удаление ТЗ: после подтверждения — RPC, и документ уходит из формы', async () => {
+    const { removeTzDocument } = setupFiles({
+      removeTzDocument: vi.fn(async (groupId) => {
+        // Стор меняется после ответа сервера — как в настоящем слайсе
+        useErpStore.setState((s) => ({
+          orders: s.orders.map((o) => ({
+            ...o,
+            tz_documents: o.tz_documents.map((d) => (d.group_id === groupId ? { ...d, is_current: false } : d)),
+          })),
+        }));
+        return true;
+      }),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить файл ТЗ футболка.pdf' }));
+    await confirmYes();
+
+    await waitFor(() => expect(removeTzDocument).toHaveBeenCalledWith('g-1'));
+    await waitFor(() => expect(screen.queryByText('ТЗ футболка.pdf')).toBeNull());
+  });
+
+  it('отказ в подтверждении — ничего не удаляется', async () => {
+    const { removeTzDocument } = setupFiles();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить файл ТЗ футболка.pdf' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(false);
+    await new Promise((r) => { setTimeout(r, 0); });
+    expect(removeTzDocument).not.toHaveBeenCalled();
+    expect(screen.getByText('ТЗ футболка.pdf')).toBeInTheDocument();
+  });
+
+  it('замена ТЗ — новая версия в той же группе', async () => {
+    const { replaceTzDocument } = setupFiles();
+    const file = pdf('ТЗ v2.pdf');
+    pickFor('Заменить файл ТЗ футболка.pdf', file);
+    await waitFor(() => expect(replaceTzDocument).toHaveBeenCalledWith('g-1', file));
+  });
+
+  it('загрузка ТЗ позиции идёт сразу в заказ, к своей позиции', async () => {
+    const { uploadTzDocument } = setupFiles();
+    const file = pdf('Новое ТЗ.pdf');
+    pickFor('+ Загрузить ТЗ — ТЗ: Футболка', file);
+    await waitFor(() => expect(uploadTzDocument)
+      .toHaveBeenCalledWith({ orderId: 'o-1', itemId: 'it-1', file }));
+  });
+
+  /**
+   * НЕ ОПТИМИСТИЧНО: пока сервер не ответил, файл в списке и помечен
+   * «удаляется…», а «Сохранить изменения» недоступна.
+   */
+  it('удаление листа закупки ждёт сервер, сохранение на это время заблокировано', async () => {
+    let release;
+    const { deleteOrderAttachment } = setupFiles({
+      deleteOrderAttachment: vi.fn(() => new Promise((r) => { release = r; })),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить файл Лист закупки.pdf' }));
+    await confirmYes();
+
+    await waitFor(() => expect(deleteOrderAttachment).toHaveBeenCalledWith('o-1', 'att-1'));
+    expect(screen.getByText('Лист закупки.pdf')).toBeInTheDocument();
+    expect(screen.getByText('удаляется…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сохранить изменения/ })).toBeDisabled();
+
+    release(false);
+    // Сервер отказал — файл остался, форма говорит об этом
+    expect(await screen.findByText('не удалён — повторите')).toBeInTheDocument();
+    expect(screen.getByText('Лист закупки.pdf')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Сохранить изменения/ })).toBeEnabled());
+  });
+
+  it('замена листа закупки: сначала новый файл, старый — только после успеха', async () => {
+    const calls = [];
+    const { uploadOrderAttachment, deleteOrderAttachment } = setupFiles({
+      uploadOrderAttachment: vi.fn(async () => { calls.push('upload'); return true; }),
+      deleteOrderAttachment: vi.fn(async () => { calls.push('delete'); return true; }),
+    });
+    const file = pdf('Лист v2.pdf');
+    pickFor('Заменить файл Лист закупки.pdf', file);
+
+    await waitFor(() => expect(deleteOrderAttachment).toHaveBeenCalledWith('o-1', 'att-1'));
+    expect(calls).toEqual(['upload', 'delete']);
+    expect(uploadOrderAttachment).toHaveBeenCalledWith(
+      'o-1', file, undefined, 'purchase_list', expect.any(Object));
+  });
+
+  it('новый файл не загрузился — старый лист закупки не снимается', async () => {
+    const { deleteOrderAttachment } = setupFiles({
+      uploadOrderAttachment: vi.fn().mockResolvedValue(false),
+    });
+    pickFor('Заменить файл Лист закупки.pdf', pdf('Лист v2.pdf'));
+    expect(await screen.findByText('не заменён — повторите')).toBeInTheDocument();
+    expect(deleteOrderAttachment).not.toHaveBeenCalled();
+  });
+
+  /**
+   * СИРОТ В БАКЕТЕ НЕТ: пикеры позиции грузили файл «на будущее»,
+   * а сохранение правки вложений не несёт. В правке их нет вовсе.
+   */
+  it('пикеров файлов позиции и заметок в правке нет', () => {
+    setupFiles();
+    expect(screen.queryByRole('button', { name: '+ Файлы техблока' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Файлы упаковки/ })).toBeNull();
+    expect(screen.queryByText('Заметки к заказу')).toBeNull();
+    // …зато прочие файлы заказа правятся своей секцией
+    expect(screen.getByText('Файлы заказа')).toBeInTheDocument();
+  });
+
+  it('закрытие после правки файлов перечитывает заказ — карточка покажет актуальное', async () => {
+    const { loadOne, onClose } = setupFiles();
+    pickFor('Заменить файл ТЗ футболка.pdf', pdf('ТЗ v2.pdf'));
+    await waitFor(() => expect(useErpStore.getState().replaceTzDocument).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: /^Отмена$/ }));
+    expect(onClose).toHaveBeenCalled();
+    expect(loadOne).toHaveBeenCalledWith('o-1');
   });
 });
 
@@ -767,6 +974,38 @@ describe('черновики внутри формы', () => {
     });
     await new Promise((r) => { setTimeout(r, 700); });
     expect(saveOrderDraft).not.toHaveBeenCalled();
+  });
+
+  /**
+   * СЛУЧАЙНЫЙ ВЫХОД ЗАКРЫТ (правка заказчика 01.10, п. 3): «клик вне формы
+   * не должен её закрывать: всё заполненное остаётся. Закрыть — через
+   * „Отмена", сохранить — „Сохранить в черновики"». Escape — тот же
+   * случайный выход, что и промах мышью.
+   */
+  it('клик мимо формы и Escape её не закрывают — набранное на месте', async () => {
+    const onClose = vi.fn();
+    useErpStore.setState({
+      departments: DEPARTMENTS, orders: [], loaded: true,
+      createOrder: vi.fn(), saveOrderDraft: vi.fn(), deleteOrderDraft: vi.fn(),
+      employees: [], profilesList: [], employeesLoaded: true,
+      loadEmployees: vi.fn().mockResolvedValue(undefined),
+    });
+    render(
+      <MemoryRouter>
+        <CreateOrderModal onClose={onClose} />
+      </MemoryRouter>,
+    );
+    const title = screen.getByPlaceholderText('напр. BOX39 свитшоты');
+    fireEvent.change(title, { target: { value: 'Набранный заказ' } });
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(dialog.parentElement);
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    fireEvent.keyDown(title, { key: 'Escape' });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('напр. BOX39 свитшоты')).toHaveValue('Набранный заказ');
   });
 
   it('выход из формы не спрашивает про черновик', async () => {

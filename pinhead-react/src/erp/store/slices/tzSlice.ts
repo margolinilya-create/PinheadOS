@@ -216,6 +216,60 @@ export const tzSlice: StateCreator<ErpStore, [], [], TzSlice> = (set, get) => ({
     return row;
   },
 
+  /**
+   * СНЯТЬ ТЗ С ЗАКАЗА (правка заказчика 01.10, п. 6: в форме правки «удалять
+   * ранее загруженные» файлы).
+   *
+   * Строки не удаляются: `erp_tz_document_remove` снимает `is_current` со всей
+   * группы, история версий остаётся, файл в бакете — тоже (на него ссылаются
+   * строки истории). Группа без актуальной версии для `currentVersion` —
+   * снятый документ, гейт ТЗ её больше не засчитывает.
+   *
+   * Не оптимистично: стор меняется только после ответа сервера.
+   */
+  removeTzDocument: async (groupId) => {
+    const order = get().orders.find((o) =>
+      (o.tz_documents ?? []).some((d) => d.group_id === groupId)) ?? null;
+    const { error } = await erpQuery(() => supabase
+      .rpc('erp_tz_document_remove', { p_group_id: groupId }));
+    if (error) {
+      erpError('ТЗ не снято', error);
+      return null;
+    }
+    if (!order) return true;
+    const removed = (order.tz_documents ?? []).find((d) => d.group_id === groupId && d.is_current);
+    set((s) => ({
+      orders: patchOrder(s.orders, order.id, (o) => ({
+        ...o,
+        tz_documents: (o.tz_documents ?? []).map((d) =>
+          (d.group_id === groupId ? { ...d, is_current: false } : d)),
+      })),
+    }));
+    /**
+     * Цех должен узнать, что документ ушёл, — тем же событием истории, что
+     * и замену (`replaceTzDocument`): незакрытым производственным этапам
+     * позиции, а у общего ТЗ — всем позициям заказа.
+     */
+    if (removed) {
+      const touched = order.items.filter((i) => removed.item_id === null || i.id === removed.item_id);
+      for (const item of touched) {
+        for (const stage of item.stages) {
+          if (stage.status === 'done' || stage.status === 'skipped') continue;
+          logStageEvent({
+            stage_id: stage.id,
+            order_id: order.id,
+            from_status: stage.status,
+            to_status: stage.status,
+            qty_done: null,
+            qty_rework: null,
+            comment: `ТЗ снято: ${removed.file_name ?? 'файл'}`,
+          });
+        }
+      }
+    }
+    return true;
+  },
+
   setTzRequired: async (orderId, required) => {
     const prev = get().orders;
     set((s) => ({

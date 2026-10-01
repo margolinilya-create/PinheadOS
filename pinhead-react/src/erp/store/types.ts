@@ -1911,6 +1911,12 @@ export interface TzSlice {
    */
   replaceTzDocument: (groupId: string, file: File, note?: string | null)
     => Promise<ErpTzDocument | null>;
+  /**
+   * Снять документ с заказа (правка 01.10, п. 6): RPC `erp_tz_document_remove`
+   * снимает `is_current` со всей группы, история версий остаётся.
+   * `true` — снят, `null` — отказ (toast уже показан).
+   */
+  removeTzDocument: (groupId: string) => Promise<true | null>;
   /** Включить/выключить требование ТЗ у заказа (для заказов, заведённых до внедрения) */
   setTzRequired: (orderId: string, required: boolean) => Promise<boolean>;
 }
@@ -1983,6 +1989,15 @@ export interface PlanSlice {
  * Список читает оболочка, а ПИШЕТ только ленивый экран: почему это
  * разделено, написано в шапке самого слайса.
  */
+/**
+ * Привязки вложения к строкам заказа — для ЗАМЕНЫ файла в форме правки
+ * (правка 01.10, п. 6): новый файл обязан встать туда же, где был старый
+ * (макет — к своему нанесению, файл техблока — к своей позиции), иначе
+ * цех перестанет видеть его в задании.
+ */
+export type OrderAttachmentLinks = Partial<Pick<ErpOrderAttachment,
+  'item_id' | 'material_id' | 'stage_id' | 'print_id' | 'label_id' | 'note_id'>>;
+
 export interface OrderWriteSlice {
   /**
    * Правка созданного заказа одной транзакцией (правка 12.09, п. 7).
@@ -2023,6 +2038,7 @@ export interface OrderWriteSlice {
    */
   uploadOrderAttachment: (
     orderId: string, file: File, note?: string, kind?: ErpAttachmentKind,
+    links?: OrderAttachmentLinks,
   ) => Promise<boolean>;
   /** Снять файл заказа (строка + объект бакета). Не оптимистично: «0 строк» — отказ RLS */
   deleteOrderAttachment: (orderId: string, attachmentId: string) => Promise<boolean>;

@@ -112,14 +112,14 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
     : `В план${dept ? ` · ${deptShortName(dept.code, dept.name)}` : ''}`;
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose} role="presentation">
+    // Клик мимо панели окно НЕ закрывает (правка 01.10, п. 3): форма ввода
+    <div className={styles.modalOverlay} role="presentation">
       <div
         ref={ref}
         className={styles.modal}
         role="dialog"
         aria-modal="true"
         aria-label="Поставить задачу в план"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.matSectionHead}>
           <b>{title}</b>

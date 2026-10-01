@@ -49,7 +49,7 @@ const CEILINGS: Record<string, number> = {
   'erp/screens/experimental/DevCard.jsx': 790,
   'erp/screens/Experimental.jsx': 734,
   'erp/screens/PlanScreen.jsx': 722,
-  'erp/screens/warehouse/MaterialReceiptCard.jsx': 661,
+  'erp/screens/warehouse/MaterialReceiptCard.jsx': 602,
   'erp/store/slices/orderWriteSlice.ts': 681,
   'erp/screens/DepartmentQueue.jsx': 653,
   'components/editors/sku/SkuDetailModal.jsx': 631,

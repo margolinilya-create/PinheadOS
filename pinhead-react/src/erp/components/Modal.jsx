@@ -27,10 +27,21 @@ import styles from '../styles';
  * не оформлением, а поведением (своя анимация, свой слой `--z-drawer`),
  * и сводить их значило бы завести переключатель вида у окна.
  */
-export function Modal({ title, onClose, children, labelledBy, className = '' }) {
-  // Без трапа Tab уходит под оверлей, а Escape не закрывает — при объявленном
-  // `aria-modal` это прямое нарушение обещания разметки
-  const trapRef = useFocusTrap(true, onClose);
+/**
+ * `closeOnOverlay` / `closeOnEscape` — ФОРМА ВВОДА НЕ ЗАКРЫВАЕТСЯ СЛУЧАЙНО
+ * (правка заказчика 01.10, п. 3): «клик вне формы не должен её закрывать:
+ * всё заполненное остаётся». У окна-справки промах мимо панели — законный
+ * способ закрыть, у формы с набранными данными — потеря работы без вопроса.
+ * Поэтому умолчание прежнее (`true`), а формы ввода передают `false`
+ * и закрываются только своей кнопкой «Отмена»/✕.
+ */
+export function Modal({
+  title, onClose, children, labelledBy, className = '',
+  closeOnOverlay = true, closeOnEscape = true,
+}) {
+  // Без трапа Tab уходит под оверлей. Escape закрывает только там, где это
+  // безопасно: у формы ввода трап держит фокус, но окно не снимает
+  const trapRef = useFocusTrap(true, closeOnEscape ? onClose : undefined);
   /**
    * Идентификатор берётся у `useId`, а не собирается из заголовка: в `id`
    * попадали бы пробелы и двоеточия («Поставщики: Футер»), а `aria-labelledby`
@@ -41,7 +52,11 @@ export function Modal({ title, onClose, children, labelledBy, className = '' }) 
   const titleId = labelledBy ?? (title ? autoId : undefined);
 
   return (
-    <div className={styles.modalOverlay} role="presentation" onClick={onClose}>
+    <div
+      className={styles.modalOverlay}
+      role="presentation"
+      onClick={closeOnOverlay ? onClose : undefined}
+    >
       <div
         ref={trapRef}
         className={`${styles.modal} ${className}`.trim()}
