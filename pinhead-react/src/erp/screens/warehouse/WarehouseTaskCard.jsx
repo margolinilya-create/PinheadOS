@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
+import { OrderLink } from '../../components/OrderLink';
 import styles from '../../styles';
 
 /**
@@ -18,7 +19,7 @@ import styles from '../../styles';
  * колонок, и «28.07» без слова «Срок» ничего не значит.
  */
 function WarehouseTaskCardBase({
-  typeLabel, typeIcon, orderNo, orderTitle, summary, statusLabel, statusVariant, deadline, onOpen,
+  typeLabel, typeIcon, orderId, orderNo, orderTitle, summary, statusLabel, statusVariant, deadline, onOpen,
 }) {
   return (
     <article className={styles.dataCard} aria-label={`${typeLabel} — заказ ${orderTitle}`}>
@@ -30,9 +31,18 @@ function WarehouseTaskCardBase({
         <Badge variant={statusVariant}>{statusLabel}</Badge>
       </div>
 
-      <div className={styles.dataCardTitle} title={orderTitle}>
-        №{orderNo || '—'} · {orderTitle}
-      </div>
+      {/* Заголовок — ССЫЛКА на заказ (правка владельца, п. 2): он подсвечивался
+          под курсором, как ссылка, а клик не делал ничего. Без id заказа
+          остаётся текстом — подсветку CSS даёт только `a.dataCardTitle`. */}
+      {orderId ? (
+        <OrderLink orderId={orderId} className={styles.dataCardTitle} title={orderTitle}>
+          №{orderNo || '—'} · {orderTitle}
+        </OrderLink>
+      ) : (
+        <div className={styles.dataCardTitle} title={orderTitle}>
+          №{orderNo || '—'} · {orderTitle}
+        </div>
+      )}
 
       <div className={styles.dataCardFields}>
         <span className={styles.dataCardField}>

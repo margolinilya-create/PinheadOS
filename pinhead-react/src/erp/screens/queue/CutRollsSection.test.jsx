@@ -193,3 +193,26 @@ describe('уточнение метража', () => {
     expect(screen.getByText(/410,40 ₽\/м/)).toBeInTheDocument();
   });
 });
+
+/**
+ * ТКАНЬ ПРИНЯТА БЕЗ РУЛОНОВ (правка 01.10, п. 1): закрой говорит, почему
+ * расход записать не с чего и кто это снимает, — без ложного «сдайте числом».
+ */
+describe('нет рулонов', () => {
+  it('ткань принята общим весом — «Ткань принята без разбивки по рулонам»', () => {
+    renderSection({
+      order: { ...ORDER, materials: [{ ...ORDER.materials[0], rolls: [] }] },
+      entries: [],
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Ткань принята без разбивки по рулонам');
+    expect(screen.getByRole('status')).not.toHaveTextContent(/сдать числом/);
+  });
+
+  it('ткань ещё не принята — ждём приёмку', () => {
+    renderSection({
+      order: { ...ORDER, materials: [{ ...ORDER.materials[0], accept_status: null, rolls: [] }] },
+      entries: [],
+    });
+    expect(screen.getByRole('status')).toHaveTextContent(/ещё не принял ткань/);
+  });
+});

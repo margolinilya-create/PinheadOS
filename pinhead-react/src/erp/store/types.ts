@@ -1213,6 +1213,22 @@ export interface WarehouseSlice {
     weights: { roll_id: string; qty: number }[],
   ) => Promise<boolean>;
   /**
+   * Рулоны к УЖЕ принятой ткани (правка 01.10, п. 1) — без новой строки
+   * журнала приходов: принятое не удваивается. Сумма весов всех рулонов
+   * сверяется с принятым на сервере (`erp_material_rolls_add`).
+   */
+  addMaterialRolls: (
+    materialId: string,
+    rollParams: {
+      weight_kg: number;
+      width_cm: number | null;
+      density_gsm: number | null;
+      length_m: number | null;
+      length_source: 'supplier' | 'measured' | null;
+    }[],
+    clientKey?: string | null,
+  ) => Promise<boolean>;
+  /**
    * Журнал приходов конкретных позиций закупки (`erp_material_receipts`).
    *
    * ТОЧЕЧНО, а не в общей выборке заказа: журнал растёт быстрее всего,

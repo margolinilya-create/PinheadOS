@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { EmptyState } from '../../components/ErpStates';
+import { OrderLink } from '../../components/OrderLink';
 import { daysLeft } from '../../utils/time';
 import { dueLabelCompact } from '../../utils/format';
 import {
@@ -131,9 +132,12 @@ function SupplyCard({ order, supplyDeptId, today, selected, onSelect }) {
   return (
     <div className={`${styles.dataCard} ${selected ? styles.rowSelected : ''}`} role="listitem">
       <div className={styles.dataCardHead}>
-        <span className={styles.dataCardTitle}>
+        {/* Заголовок ведёт в карточку заказа (правка владельца, п. 2): он
+            подсвечивался под курсором, а клик не делал ничего. Закупку
+            по-прежнему открывает кнопка ниже. */}
+        <OrderLink orderId={order.id} className={styles.dataCardTitle} title={order.title}>
           №{order.bitrix_id || '—'} · {order.title}
-        </span>
+        </OrderLink>
         <Badge variant={SUPPLY_STATE_BADGE[state].variant}>
           {SUPPLY_STATE_BADGE[state].label}
         </Badge>

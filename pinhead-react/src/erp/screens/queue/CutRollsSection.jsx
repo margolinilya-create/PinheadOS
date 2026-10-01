@@ -3,7 +3,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
   rollsForItem, cutTotals, rollTotal, cellKey, rollLeft, rollAvailable, rollHasMetres,
-  rollsAwaitingFate, rollLeftText, metresText,
+  rollsAwaitingFate, rollLeftText, metresText, fabricAcceptedWithoutRolls,
 } from '../../utils/cutRolls';
 import {
   fmtKg, kgFromLength, rollKgPerM, rollPricePerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
@@ -127,13 +127,23 @@ export function CutRollsSection({
   ]);
   const removeRoll = (index) => onChange(entries.filter((_, i) => i !== index));
 
+  /*
+   * НЕТ РУЛОНОВ — ДВЕ РАЗНЫЕ ПРИЧИНЫ (правка 01.10, п. 1). Прежний текст
+   * обещал «результат можно сдать числом», но поле «Скроено» при разборе
+   * по рулонам убрано — обещание было ложным, и заказ вставал. Теперь
+   * называем причину и того, кто её снимает: рулоны к принятой ткани
+   * добавляет склад, приход при этом не повторяется.
+   */
   if (options.length === 0 && entries.length === 0) {
     return (
       <p className={styles.queueReason} role="status">
         <Icon name="alert" size={13} />
         {' '}
-        Склад ещё не принял рулоны по этой позиции — расход фиксировать не с чего.
-        Результат можно сдать числом, а рулоны появятся после приёмки ткани.
+        {fabricAcceptedWithoutRolls(order?.materials, item?.id)
+          ? 'Ткань принята без разбивки по рулонам. Склад добавляет рулоны в приёмке '
+            + 'материала — после этого здесь можно записать расход и сдать результат.'
+          : 'Склад ещё не принял ткань по этой позиции — расход фиксировать не с чего. '
+            + 'Рулоны появятся после приёмки.'}
       </p>
     );
   }

@@ -149,6 +149,24 @@ export function rollsForItem(
     || a.roll.seq - b.roll.seq);
 }
 
+/**
+ * Ткань позиции ПРИНЯТА, но без единого рулона (правка 01.10, п. 1).
+ *
+ * Закрой пишет расход только по рулонам, и пустой список значил одно
+ * из двух: ткань ещё не приняли — или приняли общим весом. Во втором
+ * случае ждать нечего, рулоны добавляет склад к закрытому приходу,
+ * и закрой должен сказать именно это: «Ткань принята без разбивки
+ * по рулонам».
+ */
+export function fabricAcceptedWithoutRolls(
+  materials: ErpMaterial[] | null | undefined,
+  itemId: string | null | undefined,
+): boolean {
+  return materialsForItem(materials, itemId).some(
+    (m) => m.kind === 'fabric' && acceptedForCutting(m) && (m.rolls ?? []).length === 0,
+  );
+}
+
 // Рулоны чужих заказов — `utils/foreignRolls` (ратчет размера, правка 28.09)
 export { foreignRollOptions } from './foreignRolls';
 export type { ForeignRollRow } from './foreignRolls';

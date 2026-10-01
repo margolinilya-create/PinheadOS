@@ -211,3 +211,74 @@ describe('рулоны при приёмке ткани (правка 16.09, п.
     }));
   });
 });
+
+/**
+ * ТКАНЬ БЕЗ РУЛОНОВ (правка 01.10, п. 1): «у склада при приёмке пропали
+ * пункты по количеству рулонов и ширине полотна. К уже закрытому приходу
+ * нужно разрешить добавить рулоны без повторного поступления и удвоения
+ * остатка».
+ */
+describe('ткань без разбивки по рулонам (правка 01.10, п. 1)', () => {
+  const UNITS = [
+    { id: 'u1', kind: 'unit', code: 'кг', name: 'Килограммы', sort_order: 1, active: true, meta: { rolls: true } },
+  ];
+
+  it('у ткани без единицы поле рулонов есть', () => {
+    useErpStore.setState({ dictionaries: UNITS });
+    render(
+      <MaterialReceiptCard
+        order={{ ...ORDER, materials: [{ ...MATERIAL, status: 'in_transit', unit: null }] }}
+        task={{ ...TASK, material_id: 'm1' }}
+        onAccept={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/Количество рулонов/)).toBeInTheDocument();
+  });
+
+  const accepted = {
+    ...MATERIAL, status: 'received', unit: 'кг', accept_status: 'accepted_full',
+    qty_received: 40, rolls: [],
+  };
+
+  const renderAccepted = (material, onAddRolls = vi.fn(async () => true)) => {
+    useErpStore.setState({ dictionaries: UNITS });
+    render(
+      <MaterialReceiptCard
+        order={{ ...ORDER, materials: [material] }}
+        task={{ ...TASK, status: 'accepted', material_id: 'm1' }}
+        onAccept={vi.fn()}
+        onAddRolls={onAddRolls}
+      />,
+    );
+    return onAddRolls;
+  };
+
+  it('принятая без рулонов — сообщение и добавление рулонов без нового прихода', async () => {
+    const onAddRolls = renderAccepted(accepted);
+    expect(screen.getByText('Ткань принята без разбивки по рулонам')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Добавить рулонов/), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Вес рулона 1, Футер 3-нитка'), { target: { value: '15' } });
+    fireEvent.change(screen.getByLabelText('Вес рулона 2, Футер 3-нитка'), { target: { value: '20' } });
+    // 35 из 40 — не сходится, кнопка погашена, расхождение названо числом
+    expect(screen.getByRole('button', { name: 'Добавить рулоны' })).toBeDisabled();
+    expect(screen.getByText(/не хватает 5/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Вес рулона 2, Футер 3-нитка'), { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить рулоны' }));
+    expect(onAddRolls).toHaveBeenCalledTimes(1);
+    const [materialId, payload, key] = onAddRolls.mock.calls[0];
+    expect(materialId).toBe('m1');
+    expect(payload.map((r) => r.weight_kg)).toEqual([15, 25]);
+    expect(key).toBeTruthy();
+  });
+
+  it('всё принятое разбито по рулонам — блока нет', () => {
+    renderAccepted({
+      ...accepted,
+      rolls: [{ id: 'r1', seq: 1, label: 'Рулон №1', qty: 40, status: 'in_stock' }],
+    });
+    expect(screen.queryByText(/без разбивки по рулонам/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Добавить рулоны' })).toBeNull();
+  });
+});

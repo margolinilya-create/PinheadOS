@@ -864,7 +864,10 @@ a.cellTitle:hover { color: var(--accent); }
   border: 1px solid var(--border-light); border-radius: var(--radius-md);
   background: var(--card); text-decoration: none; color: var(--text);
 }
-.fileCard:hover { border-color: var(--accent); }
+/* Рамка загорается, когда курсор над ССЫЛКОЙ, а не над всей плиткой: подпись
+   и строка действий ссылкой не являются, и подсветка на них обещала переход,
+   которого нет (правка владельца, п. 2) */
+.fileCard:has(> .fileCardLink:hover) { border-color: var(--accent); }
 /* Плитка файла перестала быть ссылкой целиком (правка 14.09, п. 3): рядом
    с ней живут «Удалить» и «→ в другую папку», а кнопка внутри ссылки — это
    вложенная интерактивность, которую клавиатура и скринридер разбирают неверно.
@@ -2087,8 +2090,10 @@ a.cellTitle:hover { color: var(--accent); }
   background: none;
   border: 0;
   padding: 2px 0;
-  cursor: pointer;
 }
+/* «Прочитали N» — кнопка со списком; «Отправлено» — простой текст тем же
+   классом, и указатель на нём обещал клик, которого нет (п. 2) */
+button.chatReceipt { cursor: pointer; }
 .chatReceiptList {
   position: absolute;
   right: 0;

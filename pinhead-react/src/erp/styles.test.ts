@@ -89,3 +89,51 @@ describe('заглавные начертания объявлены в одно
     expect(CSS).toContain('.fieldLabel,');
   });
 });
+
+/**
+ * ПОДСВЕТКА ТОЛЬКО У ТОГО, ЧТО НАЖИМАЕТСЯ (правка владельца, п. 2
+ * «Подсветка нерабочих элементов»).
+ *
+ * Классы заголовков и плиток носят и ссылки, и простой текст: черновики,
+ * остатки ткани, позиции подряда, плитки аналитики и закупки. Голое
+ * `.dataCardTitle:hover` красило текст так же, как ссылку, и человек кликал
+ * в заголовок, который никуда не ведёт. Поэтому подсветка обязана стоять
+ * за тегом (`a.` или `button.`), а у строк и плиток-контейнеров её нет вовсе.
+ *
+ * Комментарии снимаются ДО поиска: в них эти селекторы упомянуты словами.
+ */
+const SCREENS_CSS = readFileSync(join(process.cwd(), 'src/erp/screens.module.css'), 'utf8');
+const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+const BASE_CODE = stripComments(CSS);
+const SCREENS_CODE = stripComments(SCREENS_CSS);
+
+describe('hover-подсветка — только у кликабельных элементов', () => {
+  it.each(['dataCardTitle', 'kanbanCardTitle', 'kpiCard'])(
+    '.%s:hover стоит только за тегом a/button',
+    (cls) => {
+      const hits = [...BASE_CODE.matchAll(new RegExp(`(\\S*)\\.${cls}:hover`, 'g'))];
+      expect(hits.length, `нет ни одного правила .${cls}:hover`).toBeGreaterThan(0);
+      for (const [, prefix] of hits) {
+        expect(['a', 'button'], `.${cls}:hover без тега: «${prefix}»`).toContain(prefix);
+      }
+    },
+  );
+
+  it('строка очереди и плитка файла целиком не подсвечиваются', () => {
+    expect(BASE_CODE).not.toMatch(/\.queueRow:hover/);
+    expect(SCREENS_CODE).not.toMatch(/\.fileCard:hover/);
+  });
+
+  it('карточка канбана показывает «руку» только когда её можно тащить', () => {
+    const at = BASE_CODE.indexOf('\n.kanbanCard {');
+    const body = BASE_CODE.slice(at, BASE_CODE.indexOf('}', at));
+    expect(body).not.toMatch(/cursor:\s*grab/);
+    expect(BASE_CODE).toMatch(/\.kanbanCard\[draggable="true"\]\s*\{\s*cursor:\s*grab/);
+  });
+
+  it('указатель у «Отправлено» не стоит — только у кнопки «Прочитали N»', () => {
+    const at = SCREENS_CODE.indexOf('\n.chatReceipt {');
+    const body = SCREENS_CODE.slice(at, SCREENS_CODE.indexOf('}', at));
+    expect(body).not.toMatch(/cursor:\s*pointer/);
+  });
+});

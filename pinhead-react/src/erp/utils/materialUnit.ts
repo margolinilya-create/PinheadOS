@@ -81,6 +81,26 @@ export function unitTracksRolls(
 }
 
 /**
+ * Учитывается ли МАТЕРИАЛ рулонами (правка 01.10, п. 1).
+ *
+ * Сверх признака единицы: ткань БЕЗ единицы считается как ткань в кг.
+ * На бою 01.10 у четырёх тканей единица пустая (форма закупки по умолчанию
+ * пишет `''`), и все четыре приняты без рулонов — закрой по ним не сдать.
+ * Ткань в явной нерулонной единице («шт») остаётся без рулонов: так
+ * заведены позиции, которые по сути не полотно.
+ *
+ * Серверное зеркало — `erp_material_tracks_rolls(kind, unit)`.
+ */
+export function materialTracksRolls(
+  material: { kind?: string | null; unit?: string | null } | null | undefined,
+  dictionary: readonly ErpDictionaryItem[] | null | undefined,
+): boolean {
+  if (!material) return false;
+  if (unitTracksRolls(material.unit, dictionary)) return true;
+  return material.kind === 'fabric' && !normalizeUnit(material.unit);
+}
+
+/**
  * Подпись единицы человеку: код справочника, если он найден, иначе как есть.
  *
  * Нужна, чтобы «Пришло сейчас, Килограммы» читалось как «Пришло сейчас, кг» —

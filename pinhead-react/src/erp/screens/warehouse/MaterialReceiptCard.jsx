@@ -10,10 +10,10 @@ import { createAttemptKeeper } from '../../utils/attemptKey';
 import { SizeResultTable } from '../../components/SizeResultTable';
 import { isGarmentPurchase } from '../../utils/garmentPurchase';
 import { cellsToGrid, gridCells, gridRowsTotal } from '../../utils/sizeGrid';
-import { unitShortLabel, unitTracksRolls } from '../../utils/materialUnit';
+import { materialTracksRolls, unitShortLabel } from '../../utils/materialUnit';
 import { useDictionary } from '../../store/useDictionary';
 import { STATUS_VARIANT, statusChipClass } from '../../utils/statusUi';
-import { RollParamsFields, LegacyRollParams } from './RollParamsFields';
+import { RollParamsFields, LegacyRollParams, AddRollsBlock } from './RollParamsFields';
 import { rollParamsPayload, rollParamsSignature, weightsFilled, weightsSum } from '../../utils/rollParams';
 
 /**
@@ -119,7 +119,7 @@ function LegacyRollWeights({ material: m, unitLabel, onSave }) {
   );
 }
 
-function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams }) {
+function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams, onAddRolls }) {
   // Приёмка — цеховой экран, и открывают её со склада, то есть с планшета
   const compact = useCompactLayout();
   const done = !awaitsAcceptance(m) && m.accept_status;
@@ -148,9 +148,11 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams 
    * единиц, а не сравнение строки: в `unit` на бою лежат и код («кг»),
    * и имя («Килограммы») одного значения. То же правило зеркалит сервер
    * (`erp_unit_tracks_rolls`), и обязательность стоит с обеих сторон.
+   * С 01.10 (п. 1) ткань без единицы считается как ткань в кг —
+   * `materialTracksRolls` / `erp_material_tracks_rolls`.
    */
   const units = useDictionary('unit');
-  const byRolls = unitTracksRolls(m.unit, units);
+  const byRolls = materialTracksRolls(m, units);
   const unitLabel = unitShortLabel(m.unit, units);
   /**
    * СТАТУС ВЫВОДИТСЯ ИЗ ЧИСЕЛ, ПОКА ЧЕЛОВЕК НЕ СКАЗАЛ ИНАЧЕ (§3.4 обхода 04.09).
@@ -578,6 +580,9 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams 
         {byRolls && onSetRollParams && (
           <LegacyRollParams material={m} onSave={onSetRollParams} />
         )}
+        {byRolls && done && onAddRolls && (
+          <AddRollsBlock material={m} unitLabel={unitLabel} onAdd={onAddRolls} />
+        )}
         {/* Причина, по которой кнопка погашена, называется рядом с кнопкой */}
         {needsQty && (
           <span className={styles.subText}>
@@ -586,7 +591,7 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams 
         )}
         {needsRolls && (
           <span className={styles.subText}>
-            Материал учитывается в {unitLabel || m.unit} — укажите количество рулонов:
+            Материал учитывается {unitLabel || m.unit ? `в ${unitLabel || m.unit}` : 'рулонами'} — укажите количество рулонов:
             по ним закрой отчитывается о расходе ткани.
           </span>
         )}
@@ -616,7 +621,9 @@ function AcceptBlock({ material: m, onAccept, onSetRollWeights, onSetRollParams 
   );
 }
 
-export function MaterialReceiptCard({ order, task, onAccept, onSetRollWeights, onSetRollParams = null }) {
+export function MaterialReceiptCard({
+  order, task, onAccept, onSetRollWeights, onSetRollParams = null, onAddRolls = null,
+}) {
   const accepted = task.status === 'accepted';
   /**
    * ЗАДАЧА ПРИНАДЛЕЖИТ ПОЗИЦИИ ЗАКУПКИ (правка 12.09, баг 01): её заводит
@@ -654,6 +661,7 @@ export function MaterialReceiptCard({ order, task, onAccept, onSetRollWeights, o
           onAccept={onAccept}
           onSetRollWeights={onSetRollWeights}
           onSetRollParams={onSetRollParams}
+          onAddRolls={onAddRolls}
         />
       ))}
     </section>
