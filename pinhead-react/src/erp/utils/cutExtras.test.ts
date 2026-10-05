@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutExtras, cutExtrasText, reportedSizesOf } from './cutExtras';
+import { cutExtras, cutExtrasText, reportedSizesOf, reportedSizesText } from './cutExtras';
 import { cellKey } from './cutRolls';
 
 /**
@@ -134,5 +134,14 @@ describe('cutExtrasText', () => {
 
   it('без плюсов — пустая строка, а не «0 шт»', () => {
     expect(cutExtrasText(cutExtras([roll([['XS', 10]])], GRID))).toBe('');
+  });
+});
+
+describe('reportedSizesText (правка 05.10, п. 5)', () => {
+  it('записанный выпуск — одной строкой, цвет при наличии', () => {
+    expect(reportedSizesText({ '—\u0000XS': 30, 'чёрный\u0000S': 5, '—\u0000M': 0 }))
+      .toBe('XS — 30 шт · S · чёрный — 5 шт');
+    expect(reportedSizesText({})).toBe('');
+    expect(reportedSizesText(null)).toBe('');
   });
 });

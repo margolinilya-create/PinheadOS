@@ -4,6 +4,7 @@ import {
   choiceKey, isSizeTaken, freeChoices, normalizeSize,
 } from '../../utils/sizeChoices';
 import { NO_COLOR } from '../../utils/sizeGrid';
+import { cellKey } from '../../utils/cellKey';
 import styles from '../../styles';
 
 /** Значение селекта, включающее ручной ввод размера */
@@ -21,15 +22,21 @@ const OTHER = '__other__';
  *
  * Вынесено из `CutRollsSection` 27.09 (п. 4): секция получила учёт
  * в метрах и параметры рулона, и потолок размера файла требовал резки.
+ *
+ * КОМПАКТНО И С ЗАПИСАННЫМ (правка 05.10, п. 5): «компактную таблицу
+ * выпуска по размерам и цветам… уже записанный выпуск и новую партию
+ * показывать отдельно». У строки — сколько этого размера уже записано
+ * прежними сдачами (`reported`, ключ ячейки), поле — только новая партия.
  */
-export function CutSizeRows({ rows, choices, disabled, onRows }) {
+export function CutSizeRows({ rows, choices, disabled, onRows, reported = {} }) {
   return (
     <div className={styles.cutSizes}>
-      <span className={styles.fieldLabel}>Размеры с этого рулона</span>
+      <span className={styles.fieldLabel}>Выпуск с этого рулона, шт</span>
       {rows.map((row, ri) => {
         const isOther = Boolean(row.size)
           && !choices.some((c) => c.size === row.size && c.color === row.color);
         const current = choices.find((c) => c.size === row.size && c.color === row.color);
+        const already = row.size ? (reported[cellKey(row.color || NO_COLOR, row.size)] ?? 0) : 0;
         return (
           <div key={ri} className={styles.cutSizeRow}>
             <label className={styles.field}>
@@ -88,7 +95,7 @@ export function CutSizeRows({ rows, choices, disabled, onRows }) {
               </label>
             ) : null}
 
-            <label className={styles.field}>
+            <label className={`${styles.field} ${styles.cutQtyField}`}>
               <span className={styles.visuallyHidden}>Скроено, строка {ri + 1}</span>
               <input
                 type="number" min="0" step="1" inputMode="numeric"
@@ -101,6 +108,7 @@ export function CutSizeRows({ rows, choices, disabled, onRows }) {
                   ? { ...r, qty: e.target.value } : r)))}
               />
             </label>
+            {already > 0 && <span className={styles.subText}>записано {already}</span>}
 
             <Button
               variant="ghost"

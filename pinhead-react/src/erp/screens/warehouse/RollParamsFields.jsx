@@ -1,120 +1,154 @@
 import { useRef, useState } from 'react';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { RollParamsForm } from '../../components/RollParamsForm';
 import {
-  fmtM, kgPerMFromMeasure, kgPerMFromParams, lengthFromWeight, pricePerM, rollWorkingLength,
+  fmtM, kgPerMFromMeasure, kgPerMFromParams, pricePerM, rollWorkingLength,
 } from '../../utils/fabricMetres';
-import { rollParamsPayload, weightsFilled, weightsSum } from '../../utils/rollParams';
+import {
+  newRollRow, rollParamsPayload, rollRowMetres, weightsFilled, weightsSum,
+} from '../../utils/rollParams';
 import { createAttemptKeeper } from '../../utils/attemptKey';
 import styles from '../../styles';
 
 /**
- * ПАРАМЕТРЫ КАЖДОГО РУЛОНА В ФОРМЕ ПРИЁМКИ (правка 27.09, п. 4).
+ * РУЛОНЫ ПОСТАВКИ — ОДИН РУЛОН, ОДНА СТРОКА (правка 27.09, п. 4; таблицей —
+ * правка заказчика 05.10, п. 4).
  *
- * Строки раскрываются от введённого количества рулонов (правка 21.09, п. 2:
- * «после ввода количества рулонов создавать отдельные сущности „Рулон 1",
- * „Рулон 2"… каждый рулон хранит свой первоначальный вес»). Теперь у строки
- * кроме веса — ширина и плотность (подставлены из материала, уточняются
- * для партии) и метраж поставщика, если он на бирке.
+ * «Параметры рулона разбиты на две строки, у полей нет отдельных подписей…
+ * Один рулон – одна строка: номер, вес в кг, ширина в см, плотность в г/м²,
+ * фактический метраж и расчётный метраж в м. У каждого поля должна быть
+ * подпись с единицей измерения. Ширину и плотность подставлять из закупки,
+ * но давать менять по рулонам». Число рулонов = число строк: строку
+ * добавляет «+ Рулон», убирает ✕ у строки.
  *
- * Расчётный метраж показывается сразу: кладовщик видит «46,30 м» до нажатия
- * и может сверить с биркой. Номера ПРЕДВАРИТЕЛЬНЫЕ: настоящие даёт сервер
- * сквозной нумерацией внутри материала.
+ * На широкой панели — таблица (подписи с единицами в шапке), на компактной
+ * раскладке — карточки с подписью у каждого поля: та же строка, развёрнутая
+ * вертикально, а не вторая копия с другими правилами.
  *
- * Вынесено из `MaterialReceiptCard` (потолок размера): там остаётся
- * решение «что обязательно», здесь — только поля.
+ * Номера ПРЕДВАРИТЕЛЬНЫЕ: настоящие даёт сервер сквозной нумерацией внутри
+ * материала, и у каждого рулона он сохраняется.
+ *
+ * `noun` различает подписи двух таблиц одной панели: приёмки новой
+ * поставки и добавления рулонов к принятому («добавляемого рулона»).
  */
+const COLUMNS = [
+  { key: 'weight', label: 'Вес, кг', aria: 'Вес', step: '0.01' },
+  { key: 'width', label: 'Ширина, см', aria: 'Ширина', step: '1' },
+  { key: 'density', label: 'Плотность, г/м²', aria: 'Плотность', step: '1' },
+  { key: 'length', label: 'Фактический метраж, м', aria: 'Фактический метраж', step: '0.01' },
+];
+
 export function RollParamsFields({
-  count, params, onChange, material, unitLabel, arriving, disabled = false, required = false,
+  rows, onChange, material, disabled = false, noun = 'рулона', compact = false,
 }) {
-  const setField = (i, key, value) => onChange((prev) => {
-    const next = [...prev];
-    next[i] = { ...(next[i] ?? {}), [key]: value };
-    return next;
-  });
-  const sum = weightsSum(params, count);
-  const filled = weightsFilled(params, count);
-  const width = (i) => params[i]?.width ?? material.width_cm ?? '';
-  const density = (i) => params[i]?.density ?? material.density_gsm ?? '';
+  const setField = (i, key, value) => onChange((prev) => prev.map(
+    (row, j) => (j === i ? { ...row, [key]: value } : row)));
+  const add = () => onChange((prev) => [...prev, newRollRow(material)]);
+  const remove = (i) => onChange((prev) => prev.filter((_, j) => j !== i));
+
+  const cells = (row, i) => {
+    const metres = rollRowMetres(row, material);
+    /**
+     * ПОДСВЕТКА НЕДОСТАЮЩЕГО (правка 28.09): ширина и плотность нужны, пока
+     * нет фактического метража; это подсказка, а не запрет.
+     */
+    const needParams = metres.actual === null && Number(row.weight) > 0;
+    const missing = {
+      width: needParams && !(Number(row.width ?? material?.width_cm) > 0),
+      density: needParams && !(Number(row.density ?? material?.density_gsm) > 0),
+    };
+    const perM = pricePerM(material?.price_per_unit, metres.actual !== null
+      ? kgPerMFromMeasure(row.weight, metres.actual)
+      : kgPerMFromParams(row.width || material?.width_cm, row.density || material?.density_gsm));
+    const inputs = COLUMNS.map((c) => (
+      <input
+        key={c.key}
+        type="number" min="0" step={c.step} inputMode="decimal"
+        className={`${styles.input} ${styles.qtySmallInput}${missing[c.key] ? ` ${styles.inputError}` : ''}`}
+        aria-invalid={missing[c.key] || undefined}
+        value={row[c.key] ?? ''}
+        disabled={disabled}
+        aria-label={`${c.aria} ${noun} ${i + 1}, ${material?.name ?? ''}`}
+        onChange={(e) => setField(i, c.key, e.target.value)}
+      />
+    ));
+    /** «Если фактический метраж указан, использовать его. Если нет – расчётный, с пометкой „расчёт"» */
+    const calc = (
+      <span className={styles.subText}>
+        {metres.calc === null ? '—' : fmtM(metres.calc)}
+        {metres.calc !== null && (metres.actual === null ? ' · расчёт' : ' · для справки')}
+        {perM !== null ? ` · ≈ ${perM.toFixed(2).replace('.', ',')} ₽/м` : ''}
+      </span>
+    );
+    const drop = (
+      <Button
+        variant="ghost" size="sm" disabled={disabled}
+        aria-label={`Убрать строку ${noun} ${i + 1}`}
+        onClick={() => remove(i)}
+      >
+        ✕
+      </Button>
+    );
+    return { inputs, calc, drop };
+  };
 
   return (
     <div className={`${styles.field} ${styles.fieldWide}`}>
-      <span className={styles.fieldLabel}>
-        Рулоны: вес{unitLabel ? `, ${unitLabel}` : ''}, ширина, плотность, метраж{required ? ' *' : ''}
-      </span>
-      <div className={styles.cutSizes}>
-        {Array.from({ length: count }, (_, i) => {
-          const calc = lengthFromWeight(params[i]?.weight, width(i), density(i));
-          const length = Number(params[i]?.length) > 0 ? Number(params[i].length) : null;
-          /**
-           * ПОДСВЕТКА НЕДОСТАЮЩЕГО (правка 28.09): «недостающие поля
-           * подсвечивать красным». Ширина и плотность нужны, пока нет метража
-           * по бирке; черновик приёмки сохраняется и без них — это подсказка,
-           * а не запрет.
-           */
-          const needParams = length === null && Number(params[i]?.weight) > 0;
-          const widthMissing = needParams && !(Number(width(i)) > 0);
-          const densityMissing = needParams && !(Number(density(i)) > 0);
-          const kgm = length !== null
-            ? kgPerMFromMeasure(params[i]?.weight, length) : kgPerMFromParams(width(i), density(i));
-          const perM = pricePerM(material.price_per_unit, kgm);
-          return (
-            <div key={i} className={styles.cutSizeRow}>
-              <span className={styles.dataCardFieldLabel}>Рулон {i + 1}</span>
-              <input
-                type="number" min="0" step="0.01" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}`}
-                value={params[i]?.weight ?? ''}
-                disabled={disabled}
-                placeholder="кг"
-                aria-label={`Вес рулона ${i + 1}, ${material.name}`}
-                onChange={(e) => setField(i, 'weight', e.target.value)}
-              />
-              <input
-                type="number" min="0" step="1" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}${widthMissing ? ` ${styles.inputError}` : ''}`}
-                aria-invalid={widthMissing || undefined}
-                value={width(i)}
-                disabled={disabled}
-                placeholder="см"
-                aria-label={`Ширина рулона ${i + 1}, ${material.name}`}
-                onChange={(e) => setField(i, 'width', e.target.value)}
-              />
-              <input
-                type="number" min="0" step="1" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}${densityMissing ? ` ${styles.inputError}` : ''}`}
-                aria-invalid={densityMissing || undefined}
-                value={density(i)}
-                disabled={disabled}
-                placeholder="г/м²"
-                aria-label={`Плотность рулона ${i + 1}, ${material.name}`}
-                onChange={(e) => setField(i, 'density', e.target.value)}
-              />
-              <input
-                type="number" min="0" step="0.01" inputMode="decimal"
-                className={`${styles.input} ${styles.qtySmallInput}`}
-                value={params[i]?.length ?? ''}
-                disabled={disabled}
-                placeholder="м (по бирке)"
-                aria-label={`Метраж рулона ${i + 1}, ${material.name}`}
-                onChange={(e) => setField(i, 'length', e.target.value)}
-              />
-              <span className={styles.subText}>
-                {length !== null
-                  ? `${fmtM(length)} (по данным поставщика)`
-                  : calc !== null ? `${fmtM(calc)} (расчёт)` : 'метраж: — (нужны вес, ширина и плотность)'}
-                {perM !== null ? ` · ≈ ${perM.toFixed(2).replace('.', ',')} ₽/м` : ''}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <span className={styles.subText} role="status">
-        Сумма весов: <b>{sum}</b>
-        {unitLabel ? ` ${unitLabel}` : ''}
-        {arriving > 0 && ` из ${arriving}`}
-        {!filled && ' · вес каждого рулона обязателен'}
-      </span>
+      {compact ? (
+        <div className={styles.cutSizes}>
+          {rows.map((row, i) => {
+            const { inputs, calc, drop } = cells(row, i);
+            return (
+              <div key={i} className={styles.dataCard}>
+                <div className={styles.matSectionHead}>
+                  <strong>Рулон {i + 1}</strong>
+                  {drop}
+                </div>
+                {COLUMNS.map((c, k) => (
+                  /* Подпись видима, имя поля — его aria-label с номером рулона */
+                  <div key={c.key} className={styles.field}>
+                    <span className={styles.fieldLabel} aria-hidden="true">{c.label}</span>
+                    {inputs[k]}
+                  </div>
+                ))}
+                <span className={styles.fieldLabel}>Расчётный метраж, м</span>
+                {calc}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <ScrollHintBox className={styles.tableWrap} label="Рулоны поставки">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>№</th>
+                {COLUMNS.map((c) => <th key={c.key}>{c.label}</th>)}
+                <th>Расчётный метраж, м</th>
+                <th><span className={styles.visuallyHidden}>Убрать</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const { inputs, calc, drop } = cells(row, i);
+                return (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    {inputs.map((input, k) => <td key={COLUMNS[k].key}>{input}</td>)}
+                    <td>{calc}</td>
+                    <td>{drop}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ScrollHintBox>
+      )}
+      <Button variant="secondary" size="sm" disabled={disabled} onClick={add} aria-label={`Добавить строку ${noun}`}>
+        <Icon name="plus" size={14} /> Рулон
+      </Button>
     </div>
   );
 }
@@ -170,13 +204,13 @@ export function LegacyRollParams({ material: m, onSave }) {
  * Поэтому отдельное действие (`erp_material_rolls_add`) раскладывает уже
  * принятые килограммы — блок виден, пока часть принятого не разбита.
  */
-export function AddRollsBlock({ material: m, unitLabel, onAdd }) {
+export function AddRollsBlock({ material: m, unitLabel, onAdd, compact = false }) {
   const rolls = m.rolls ?? [];
   const received = Number(m.qty_received ?? 0);
   const covered = rolls.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
   const left = Math.round((received - covered) * 100) / 100;
-  const [count, setCount] = useState('');
-  const [params, setParams] = useState([]);
+  // Строки — как в приёмке (правка 05.10, п. 4): число рулонов = число строк
+  const [rows, setRows] = useState(() => [newRollRow(m)]);
   const [saving, setSaving] = useState(false);
   const attempt = useRef(null);
   if (attempt.current == null) { attempt.current = createAttemptKeeper(); }
@@ -184,17 +218,17 @@ export function AddRollsBlock({ material: m, unitLabel, onAdd }) {
   // Рулоны без веса дозаполняются своим блоком: без веса сумму не сверить
   if (received <= 0 || left <= 0.01 || rolls.some((r) => r.qty == null)) return null;
 
-  const n = Number(count) > 0 ? Math.min(Math.round(Number(count)), 500) : 0;
-  const filled = weightsFilled(params, n);
-  const sum = weightsSum(params, n);
+  const n = rows.length;
+  const filled = weightsFilled(rows, n);
+  const sum = weightsSum(rows, n);
   const mismatch = n > 0 && filled && Math.abs(sum - left) > 0.01;
 
   const save = async () => {
     setSaving(true);
-    const payload = rollParamsPayload(params, n);
+    const payload = rollParamsPayload(rows, n);
     const ok = await onAdd(m.id, payload, attempt.current.keyFor(JSON.stringify([m.id, payload])));
     setSaving(false);
-    if (ok) { attempt.current.reset(); setCount(''); setParams([]); }
+    if (ok) { attempt.current.reset(); setRows([newRollRow(m)]); }
   };
 
   const u = unitLabel ? ` ${unitLabel}` : '';
@@ -207,27 +241,14 @@ export function AddRollsBlock({ material: m, unitLabel, onAdd }) {
         Не разбито: <b>{left}</b>{u} из принятых {received}{u}. Закрой записывает расход
         только по рулонам — добавьте их. Приход при этом не повторяется.
       </span>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Количество рулонов, шт</span>
-        <input
-          type="number" min="1" step="1" className={styles.input}
-          value={count} disabled={saving}
-          onChange={(e) => setCount(e.target.value)}
-          aria-label={`Добавить рулонов, ${m.name}`}
-        />
-      </label>
-      {n > 0 && (
-        <RollParamsFields
-          count={n} params={params} onChange={setParams} material={m}
-          unitLabel={unitLabel} arriving={left} disabled={saving} required={!filled || mismatch}
-        />
-      )}
-      {mismatch && (
-        <span className={styles.subText}>
-          Сумма весов {sum}{u} против неразбитых {left}{u} — {sum > left ? 'лишние' : 'не хватает'}{' '}
-          {Math.round(Math.abs(sum - left) * 100) / 100}{u}
-        </span>
-      )}
+      <RollParamsFields
+        rows={rows} onChange={setRows} material={m} disabled={saving}
+        noun="добавляемого рулона" compact={compact}
+      />
+      <span className={styles.subText} role="status">
+        Рулонов: {n} · сумма весов {sum}{u} из {left}{u}
+        {mismatch && ` — ${sum > left ? 'лишние' : 'не хватает'} ${Math.round(Math.abs(sum - left) * 100) / 100}${u}`}
+      </span>
       <Button variant="secondary" size="sm" disabled={saving || n === 0 || !filled || mismatch} onClick={save}>
         Добавить рулоны
       </Button>
