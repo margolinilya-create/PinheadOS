@@ -2369,6 +2369,13 @@
       "files": [
         "20261005083947_erp_rolls_fate_text.sql"
       ]
+    },
+    {
+      "version": "20261005092131",
+      "name": "erp_stage_fact_flow_fixes",
+      "files": [
+        "20261005092131_erp_stage_fact_flow_fixes.sql"
+      ]
     }
   ]
 }
