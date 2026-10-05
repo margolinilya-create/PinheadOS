@@ -97,6 +97,7 @@
 Как считается маршрут, что такое подрядный этап, гейты запуска и завершения,
 закупка, склад, подряд, разработка образцов.
 
+- `pravila-pravok-05-10-sessiya-78.md` — **выход этапа = факт**, прозрачный этап, потолок = вход, отгрузка по выпущенному
 - `pravila-erp-podryad-kak-etap-marshruta-sessiya-32.md`
 - `pravila-erp-uchastok-podryad-dokument-21-08.md`
 - `pravila-erp-pravki-zakazchika-12-08-zakupka-i-model-eks.md`

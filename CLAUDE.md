@@ -227,6 +227,18 @@ ERP, правка 14.09: карточка отвечает на «как это 
 `erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
 с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
 
+Правки 05.10 (сессия 78) — **передаётся факт, а не план**: выход этапа —
+`qty_done`; прозрачный этап (`erp_item_stages.qty_passthrough`: пропущенный,
+непроизводственный, файловый, старый закрытый с нулём; ведёт триггер
+`erp_stage_passthrough`) передаёт свой вход. `erp_stage_input_qty` →
+`erp_stage_input_qty_d` (рекурсия), `erp_stage_output_qty`,
+`erp_item_produced_qty` (выпущено по позиции — предел склада ГП и отгрузки),
+`erp_item_production_closed`; потолок `erp_clamp_stage_qty` — вход этапа
+(кроме закроя, прозрачных и меток `erp.moving`/`erp.subcontract_rollup`);
+`erp_stage_unaccounted` — от принятого, когда предшественники закрыты;
+`erp_ship_order` не отгружает больше выпущенного. Правила —
+`docs/rules/pravila-pravok-05-10-sessiya-78.md`.
+
 Правки 01.10 (сессия 77, PR #195): ткань без единицы учитывается рулонами
 (`erp_material_tracks_rolls(kind, unit)` — зеркало `materialTracksRolls`);
 `erp_material_rolls_add` (`security definer`, `material.receive`) заводит рулоны

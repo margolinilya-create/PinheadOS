@@ -85,8 +85,9 @@ URL: https://pinhead-os.vercel.app
   контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
   точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
   utils (routes/time/stageUi/orderForm (+ orderDraftEnvelope — снимок черновика,
-  файлы проходят нормализацию)/stageRemaining (не учтено = greatest(тираж, принято)
-  − сдано − брак; stageDonePatch)/progress/filterStages/queueEntries/queueOrder/
+  файлы проходят нормализацию)/stageRemaining (не учтено = принято − сдано − брак,
+  пока предшественник в работе — от большего из тиража; stageDonePatch пишет принятое)/
+  stageInput (выход этапа = факт, прозрачный этап, itemProducedQty — 05.10)/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
   читателей)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
