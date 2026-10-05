@@ -523,3 +523,81 @@ describe('форма сдачи дозагружает полный заказ',
     expect(within(size).getByRole('option', { name: 'XS (в заказе 200)' })).toBeInTheDocument();
   });
 });
+
+/**
+ * ЗАПИСЬ ПАРТИИ ЗАКРОЯ (правка заказчика 05.10, п. 5): «Из метража вычитать
+ * весь сохранённый расход; остаток на экране = проверке при сохранении.
+ * Расход больше остатка нельзя… двойной клик не списывает ещё 40».
+ */
+describe('запись партии закроя (05.10, п. 5)', () => {
+  const CUTTING = {
+    id: 'd-cut', name: 'Закройный', result_detail: 'rolls', allows_over_plan: true,
+    result_fields: [
+      { code: 'cut', label: 'Скроено', unit: 'шт', required: true, target: 'qty_good' },
+      { code: 'defect', label: 'Брак', unit: 'шт', required: false, target: 'qty_defect' },
+    ],
+  };
+  /** 111,11 м, уже списано 40 — сервер ведёт доступное 71,11 */
+  const order = {
+    id: 'o-5', title: 'Заказ',
+    items: [{ id: 'it-5', qty: 100, stages: [], size_grid: [{ color: '—', sizes: { XS: 100 } }] }],
+    materials: [{
+      id: 'm-5', kind: 'fabric', name: 'Футер', item_id: null, accept_status: 'accepted_full',
+      rolls: [{
+        id: 'r-5', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 50,
+        length_m: 111.11, length_source: 'calc', length_left_m: 71.11, kg_per_m: 0.45,
+      }],
+    }],
+  };
+  const entry = {
+    order, item: order.items[0],
+    stage: { id: 'st-5', item_id: 'it-5', department_id: 'd-cut', qty_done: 0, depends_on: [], status: 'in_progress' },
+  };
+
+  function setup(onSubmit) {
+    const loadFabricLeftovers = vi.fn(async () => []);
+    useErpStore.setState({
+      orders: [order], detailIds: ['o-5'], fabricLeftovers: [],
+      loadFabricLeftovers, loadOrderForeignRolls: vi.fn(async () => []),
+    });
+    render(
+      <StageReportForm entry={entry} dept={CUTTING} busy={false} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Добавить рулон/ }));
+    fireEvent.change(screen.getByLabelText('Скроено, шт, размер XS, строка 1'), { target: { value: '10' } });
+    return { loadFabricLeftovers };
+  }
+
+  it('доступно — метраж минус весь сохранённый расход', () => {
+    setup(vi.fn());
+    expect(screen.getByText(/Исходный метраж/)).toHaveTextContent('записано расходом 40,00 м · доступно 71,11 м');
+  });
+
+  it('расход 100 м при доступных 71,11 блокируется с числами', () => {
+    setup(vi.fn());
+    fireEvent.change(screen.getByLabelText('Расход сейчас, м, строка 1'), { target: { value: '100' } });
+    expect(screen.getByText(/доступно 71,11 м, а списывается 100,00 м/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
+  });
+
+  it('двойной клик не списывает ещё раз; после сдачи остатки перечитываются', async () => {
+    let resolve;
+    const onSubmit = vi.fn(() => new Promise((r) => { resolve = r; }));
+    const { loadFabricLeftovers } = setup(onSubmit);
+    fireEvent.change(screen.getByLabelText('Расход сейчас, м, строка 1'), { target: { value: '40' } });
+    const button = screen.getByRole('button', { name: /Сдать результат/ });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].rolls[0]).toMatchObject({ roll_id: 'r-5', length_used_m: 40, finished: false });
+    const before = loadFabricLeftovers.mock.calls.length;
+    resolve(true);
+    await vi.waitFor(() => expect(loadFabricLeftovers.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it('в форме записи нет завершения рулона — оно отдельной кнопкой', () => {
+    setup(vi.fn());
+    expect(screen.queryByText(/Работа по рулону закончена/)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Рулоны в работе' })).toHaveTextContent('Рулон №1');
+  });
+});

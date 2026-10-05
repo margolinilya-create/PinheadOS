@@ -754,6 +754,17 @@ export interface MaterialsSlice {
     /** Чистый вес рулона без веса (правка 28.09): без него метраж не связать с закупкой */
     weight_kg?: number | null;
   }) => Promise<boolean>;
+  /**
+   * Завершить рулон (правка 05.10, п. 5): замер остатка — уточнением полного
+   * метража (`refineLengthM`, `utils/rollFinish`), затем судьба остатка.
+   * `kind = null` — остатка нет, пишется только замер.
+   */
+  finishRoll: (rollId: string, opts: {
+    kind: 'usable' | 'scrap' | null;
+    itemId?: string | null;
+    refineLengthM?: number | null;
+    reason?: string | null;
+  }) => Promise<boolean>;
 
   /** Варианты поставщиков на позицию закупки (правка 10) */
   addSupplierOption: (

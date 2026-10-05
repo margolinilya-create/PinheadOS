@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { CutRollsSection } from './CutRollsSection';
 
 /**
@@ -122,12 +122,12 @@ describe('производственный плюс', () => {
 });
 
 /**
- * РУЛОН БЕЗ СУДЬБЫ ОСТАТКА ЗАКРЫВАЕТСЯ ПРЯМО В ФОРМЕ (правка 27.09, п. 2):
- * оставленный «в работе» прежней сдачей рулон с остатком нельзя закрыть
- * новой строкой расхода (расход обязан быть больше нуля) — поэтому
- * у него свои две кнопки, и нажатие зовёт запись судьбы, а не сдачу.
+ * ЗАВЕРШЕНИЕ РУЛОНА — ОТДЕЛЬНО ОТ ЗАПИСИ РЕЗУЛЬТАТА (правка 05.10, п. 5):
+ * «В форме смешаны выпуск, расход и завершение рулона». Галочки «Работа
+ * по рулону закончена» и выбора судьбы в строке расхода больше нет;
+ * у рулона в работе — своя кнопка «Завершить рулон», окно решает судьбу.
  */
-describe('рулоны без судьбы остатка', () => {
+describe('завершение рулона вынесено из формы', () => {
   const STAGE = { id: 's-cut', department_id: 'd-cut' };
   const orderWithPending = {
     ...ORDER,
@@ -141,27 +141,79 @@ describe('рулоны без судьбы остатка', () => {
     }],
   };
 
-  it('показывает рулон с остатком и без вида, кнопки зовут запись судьбы', () => {
-    const onRollFate = vi.fn();
-    renderSection({
-      order: orderWithPending, stage: STAGE, onRollFate,
-      entries: [entry('r-2', 10, [['XS', 20]])],
-    });
-    const group = screen.getByRole('group', { name: 'Рулоны без судьбы остатка' });
-    expect(group).toHaveTextContent('Рулон №1');
-    expect(group).toHaveTextContent('остаток 5 кг');
-    fireEvent.click(screen.getByRole('button', { name: 'Остаток пригоден' }));
-    expect(onRollFate).toHaveBeenCalledWith('r-1', 'usable', 'it-1');
-    fireEvent.click(screen.getByRole('button', { name: 'Малый остаток, не учитывать' }));
-    expect(onRollFate).toHaveBeenCalledWith('r-1', 'scrap', 'it-1');
+  it('в строке расхода нет галочки завершения и выбора судьбы', () => {
+    renderSection({ order: orderWithPending, stage: STAGE, onFinishRoll: vi.fn() });
+    expect(screen.queryByText(/Работа по рулону закончена/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
-  it('рулон, уже добавленный в форму, решается его галочкой, а не кнопками', () => {
+  it('рулон в работе — кнопка «Завершить рулон» открывает окно без предвыбора', () => {
+    const onFinishRoll = vi.fn(async () => true);
     renderSection({
-      order: orderWithPending, stage: STAGE, onRollFate: vi.fn(),
-      entries: [entry('r-1', 3, [['XS', 5]])],
+      order: orderWithPending, stage: STAGE, onFinishRoll,
+      entries: [entry('r-2', 10, [['XS', 20]])],
     });
-    expect(screen.queryByRole('group', { name: 'Рулоны без судьбы остатка' })).not.toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Рулоны в работе' });
+    expect(group).toHaveTextContent('Рулон №1');
+    expect(group).toHaveTextContent('остаток 5 кг');
+    fireEvent.click(within(group).getByRole('button', { name: 'Завершить рулон' }));
+    const dialog = screen.getByRole('dialog', { name: /Завершить рулон — Рулон №1/ });
+    for (const radio of within(dialog).getAllByRole('radio')) expect(radio).not.toBeChecked();
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Оставить пригодный остаток/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Завершить рулон' }));
+    expect(onFinishRoll).toHaveBeenCalledWith('r-1', expect.objectContaining({ kind: 'usable', itemId: 'it-1' }));
+  });
+
+  it('без права завершать (нет обработчика) кнопки нет', () => {
+    renderSection({ order: orderWithPending, stage: STAGE });
+    expect(screen.queryByRole('button', { name: 'Завершить рулон' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * ДАННЫЕ РУЛОНА В ЗАКРОЙКЕ (правка 05.10, п. 5): «номер, материал, цвет,
+ * исходный метраж и откуда он взят, записанный расход, доступный остаток».
+ * Сценарий заказчика: из рулона 111,11 м списали 40 — при следующем
+ * открытии доступно 71,11; расход 100 м блокируется.
+ */
+describe('метраж рулона в строке расхода', () => {
+  const ROLL = {
+    id: 'r-9', seq: 9, label: 'Рулон №9', status: 'in_use', qty: 50,
+    length_m: 111.11, length_source: 'calc', length_left_m: 71.11, kg_per_m: 0.45,
+  };
+  const order = {
+    ...ORDER,
+    materials: [{ ...ORDER.materials[0], color: 'чёрный', rolls: [ROLL] }],
+  };
+
+  it('исходный метраж с источником, записанный расход и доступно', () => {
+    renderSection({ order, entries: [entry('r-9', '', [['XS', 10]])] });
+    const info = screen.getByText(/Исходный метраж/);
+    expect(info).toHaveTextContent('Исходный метраж 111,11 м (расчёт) · записано расходом 40,00 м · доступно 71,11 м');
+    // Номер, материал и цвет — в подписи рулона
+    expect(screen.getByRole('option', { name: /Рулон №9 · кулирка · чёрный/ })).toBeInTheDocument();
+  });
+
+  it('после записи останется — от доступного, а не от исходного', () => {
+    renderSection({ order, entries: [entry('r-9', 40, [['XS', 10]])] });
+    expect(screen.getByText(/после записи останется/)).toHaveTextContent('после записи останется 31,11 м');
+  });
+
+  it('поле расхода — «Расход сейчас, м»', () => {
+    renderSection({ order, entries: [entry('r-9', '', [['XS', 10]])] });
+    expect(screen.getByLabelText('Расход сейчас, м, строка 1')).toBeInTheDocument();
+  });
+});
+
+/**
+ * УЖЕ ЗАПИСАННЫЙ ВЫПУСК И НОВАЯ ПАРТИЯ — ОТДЕЛЬНО (правка 05.10, п. 5).
+ */
+describe('записанный выпуск по размерам', () => {
+  it('у строки размера — сколько уже записано, в итоге — отдельной строкой', () => {
+    renderSection({ reported: { '—\u0000XS': 30 } });
+    expect(screen.getByText('записано 30')).toBeInTheDocument();
+    expect(screen.getByText(/Записано ранее:/)).toHaveTextContent('Записано ранее: XS — 30 шт');
+    expect(screen.getByText(/Эта запись/)).toHaveTextContent('Скроено: 50 шт');
   });
 });
 

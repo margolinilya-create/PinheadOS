@@ -1072,8 +1072,11 @@
   align-items: flex-end;
   flex-wrap: wrap;
 }
-.cutSizeRow .field { flex: 1 1 140px; min-width: 0; }
+.cutSizeRow .field { flex: 0 1 220px; min-width: 0; }
 .cutSizeRow .qtySmallInput { flex: 0 1 110px; }
+/* Правка 05.10, п. 5: поле количества размера — по своему содержимому,
+   а не на треть строки */
+.cutSizeRow .cutQtyField { flex: 0 0 auto; }
 
 /*
   ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9). Плитки, а не таблица: величин

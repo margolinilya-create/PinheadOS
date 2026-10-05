@@ -30,6 +30,7 @@
 import type { SizeGridRow } from '../types';
 import { gridCells, NO_COLOR } from './sizeGrid';
 import { cellKey } from './cutRolls';
+import { CELL_SEP } from './cellKey';
 import type { CutRollEntry } from './cutRolls';
 
 /** Плюс по одной ячейке «цвет × размер» */
@@ -147,4 +148,20 @@ export function cutExtras(
  */
 export function cutExtrasText(extras: CutExtras | null | undefined): string {
   return (extras?.rows ?? []).map((r) => `${r.label} — ${r.extra} шт`).join(' · ');
+}
+
+/**
+ * Уже записанный выпуск одной строкой — «XS — 30 шт · S · чёрный — 5 шт»
+ * (правка 05.10, п. 5: «уже записанный выпуск и новую партию показывать
+ * отдельно»). Пусто — прежних сдач нет.
+ */
+export function reportedSizesText(reported: ReportedSizes | null | undefined): string {
+  return Object.entries(reported ?? {})
+    .filter(([, qty]) => qty > 0)
+    .map(([key, qty]) => {
+      const [color, size] = key.split(CELL_SEP);
+      const label = color && color !== NO_COLOR ? `${size} · ${color}` : size;
+      return `${label} — ${qty} шт`;
+    })
+    .join(' · ');
 }

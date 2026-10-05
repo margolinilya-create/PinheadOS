@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { StageActionsPanel } from './StageActionsPanel';
+import { useErpStore } from '../../store/useErpStore';
+import { attachDomainSlices } from '../../store/domainSlices';
 
 /**
  * Действия цеха над заданием — общий компонент строки очереди и страницы
@@ -410,5 +412,45 @@ describe('StageActionsPanel — вышивка ждёт разработку п�
     renderCard(entryWith('done'));
     expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeEnabled();
     expect(screen.queryByText(/Сначала завершите задачу/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * ФОРМА ЗАПИСИ РЕЗУЛЬТАТА БЕЗ ЗАВЕРШЕНИЯ ЭТАПА И СМЕНЫ МАРШРУТА (правка
+ * 05.10, п. 5): «Завершение этапа, принудительное завершение и смену
+ * маршрута убрать из формы записи результата». Рядом с записью партии они
+ * читались частью той же записи.
+ */
+describe('StageActionsPanel — форма записи результата открыта', () => {
+  beforeEach(() => {
+    attachDomainSlices();
+    useErpStore.setState({
+      departments: [{
+        id: 'd1', name: 'Закрой', result_fields: [
+          { code: 'done', label: 'Сделано', unit: 'шт', required: true, target: 'qty_good' },
+        ],
+      }],
+    });
+  });
+
+  it('пока форма открыта — нет «Завершить этап», «Пропустить» и «Завершить принудительно»', () => {
+    renderCard(makeEntry('in_progress'), { perms: { ...ALL_PERMS, skip: true, forceComplete: true } });
+    for (const name of [/Завершить этап/, /Пропустить этап/, /Завершить принудительно/]) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole('button', { name: /Записать результат/ }));
+    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeInTheDocument();
+    for (const name of [/Завершить этап/, /Пропустить этап/, /Завершить принудительно/]) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    // Брак и проблема — не завершение, они остаются
+    expect(screen.getByRole('button', { name: /Брак/ })).toBeInTheDocument();
+  });
+
+  it('«Отмена» формы возвращает завершение этапа', () => {
+    renderCard(makeEntry('in_progress'));
+    fireEvent.click(screen.getByRole('button', { name: /Записать результат/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeInTheDocument();
   });
 });

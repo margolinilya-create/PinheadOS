@@ -8,11 +8,14 @@ import {
 import {
   fmtKg, kgFromLength, rollKgPerM, rollPricePerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
 } from '../../utils/fabricMetres';
+import { reportedSizesText } from '../../utils/cutExtras';
 import { sizeChoicesFor, freeChoices, hasPlannedSizes } from '../../utils/sizeChoices';
 import { cutExtras, cutExtrasText } from '../../utils/cutExtras';
 import { NO_COLOR } from '../../utils/sizeGrid';
 import { CutSizeRows } from './CutSizeRows';
 import { RollParamsForm } from '../../components/RollParamsForm';
+import { RollFinishModal } from './RollFinishModal';
+import { rollMetresSummary } from '../../utils/rollFinish';
 import styles from '../../styles';
 
 /**
@@ -39,7 +42,7 @@ import styles from '../../styles';
  * человек заполняет сам, разошлось бы со строками на первой же правке.
  */
 export function CutRollsSection({
-  order, item, stage = null, entries, onChange, onRollFate = null, onRollParams = null,
+  order, item, stage = null, entries, onChange, onFinishRoll = null, onRollParams = null,
   disabled = false, reported = {}, extraRolls = [],
 }) {
   /**
@@ -59,17 +62,27 @@ export function CutRollsSection({
     return next;
   });
   /**
-   * РУЛОНЫ БЕЗ СУДЬБЫ ОСТАТКА (правка 27.09, п. 2): оставлены «в работе»
-   * прежней сдачей, остаток есть, вид не выбран. Пока они не закрыты,
-   * последний этап участка в заказе не закроется — и решить это можно
-   * прямо здесь, без новой строки расхода. Рулон, уже добавленный
-   * в форму, решается его же галочкой ниже.
+   * РУЛОНЫ В РАБОТЕ — ЗАВЕРШАЮТСЯ ОТДЕЛЬНО (правка 05.10, п. 5; прежде
+   * галочкой в строке расхода — 27.09, п. 2). Список — рулоны со
+   * сохранённым расходом и остатком: позиции и те, что держат закрытие
+   * последнего этапа участка (`rollsAwaitingFate` — охват всего заказа).
+   * Завершение учитывает только УЖЕ ЗАПИСАННЫЙ расход: новая партия этой
+   * формы в остаток не входит, пока её не записали.
    */
-  const inEntries = new Set(entries.map((e) => e.rollId).filter(Boolean));
   const awaitingFate = useMemo(
     () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items, extraRolls) : []),
     [order, item, stage, extraRolls],
-  ).filter((o) => !inEntries.has(o.roll.id));
+  );
+  const inWork = useMemo(() => {
+    const seen = new Set();
+    return [...awaitingFate, ...options].filter((o) => {
+      if (seen.has(o.roll.id)) return false;
+      seen.add(o.roll.id);
+      return o.roll.status === 'in_use' && !o.roll.leftover_kind
+        && Number(o.roll.length_left_m ?? o.roll.qty_left ?? 0) > 0.0005;
+    });
+  }, [awaitingFate, options]);
+  const [finishing, setFinishing] = useState(null);
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
   const totals = useMemo(() => cutTotals(entries), [entries]);
@@ -103,6 +116,8 @@ export function CutRollsSection({
     return [...byKey.values()].map((r) => `${r.label} — ${r.qty} шт`);
   }, [entries]);
 
+  /** Уже записанный выпуск — отдельно от новой партии (правка 05.10, п. 5) */
+  const reportedText = reportedSizesText(reported);
   const used = new Set(entries.map((e) => e.rollId).filter(Boolean));
   const free = options.filter((o) => !used.has(o.roll.id));
 
@@ -122,7 +137,6 @@ export function CutRollsSection({
       rollId: free[0]?.roll.id ?? '',
       lengthUsedM: '',
       sizes: freeChoices(choices, [], 2).map((c) => ({ size: c.size, color: c.color, qty: '' })),
-      finished: false,
     },
   ]);
   const removeRoll = (index) => onChange(entries.filter((_, i) => i !== index));
@@ -174,14 +188,12 @@ export function CutRollsSection({
         const working = option ? rollWorkingLength(option.roll, option.material) : null;
         const kgPerM = option ? rollKgPerM(option.roll, option.material) : null;
         const left = rollLeft(option, entry.lengthUsedM);
-        const measured = entry.leftoverMeasuredM;
-        const leftShown = measured !== null && measured !== undefined && measured !== ''
-          ? Number(measured) : left;
+        const summary = rollMetresSummary(option);
         const pricePerM = option ? rollPricePerM(option.roll, option.material) : null;
         /**
-         * ПЕРЕРАСХОД (правка 28.09): «если измеренный расход превышает
-         * расчётный запас, предложить уточнить метраж рулона и подтвердить
-         * корректировку, затем сохранить расход». Прежде был только отказ.
+         * ПЕРЕРАСХОД (правка 28.09; 05.10, п. 5: «Расход больше остатка
+         * нельзя»): кнопка записи гаснет (`cutBlock`), а рядом — уточнение
+         * метража рулона, если замер показал больше.
          */
         const overdraw = hasMetres && available !== null
           && Number(entry.lengthUsedM) > available + 0.005;
@@ -210,33 +222,40 @@ export function CutRollsSection({
                   а размеров с него несколько. Повтори мы его в каждой
                   размерной строке — первый же `sum()` увеличил бы его втрое */}
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>Фактический расход, м *</span>
+                <span className={styles.fieldLabel}>Расход сейчас, м *</span>
                 <input
                   type="number" min="0" step="0.01" inputMode="decimal"
-                  className={`${styles.input} ${styles.qtySmallInput}`}
+                  className={`${styles.input} ${styles.qtySmallInput}${overdraw ? ` ${styles.inputError}` : ''}`}
+                  aria-invalid={overdraw || undefined}
+                  max={available ?? undefined}
                   value={entry.lengthUsedM ?? ''}
                   disabled={disabled || (option !== null && !hasMetres)}
                   onChange={(e) => patch(index, { lengthUsedM: e.target.value })}
-                  aria-label={`Фактический расход, м, строка ${index + 1}`}
+                  aria-label={`Расход сейчас, м, строка ${index + 1}`}
                 />
               </label>
-
-              {/*
-                ДОСТУПНЫЙ МЕТРАЖ И ЕГО ИСТОЧНИК — рядом с полем (документ:
-                «рядом показывать доступный метраж и его источник, а также
-                расчётный эквивалент расхода в кг»). Расчётный вес подписан
-                «расчёт»: это не результат взвешивания.
-              */}
-              {option && hasMetres && (
-                <span className={styles.subText}>
-                  доступно: {metresText(available ?? 0)}
-                  {working ? ` (${sourceLabel(working.source)})` : ''}
-                  {pricePerM !== null ? ` · ${pricePerM.toFixed(2).replace('.', ',')} ₽/м` : ''}
-                  {Number(entry.lengthUsedM) > 0 && kgPerM !== null
-                    ? ` · ≈ ${fmtKg(kgFromLength(entry.lengthUsedM, kgPerM))} (расчёт)` : ''}
-                </span>
-              )}
+              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => removeRoll(index)}>
+                Убрать
+              </Button>
             </div>
+
+            {/*
+              ДАННЫЕ РУЛОНА (правка 05.10, п. 5): «исходный метраж и откуда
+              он взят, записанный расход, доступный остаток». Доступное —
+              метраж минус ВЕСЬ сохранённый расход (ведёт сервер), то есть то
+              же число, по которому сервер проверит запись. Номер, материал
+              и цвет — в подписи рулона в селекте.
+            */}
+            {summary && (
+              <span className={styles.subText}>
+                Исходный метраж {metresText(summary.initial)} ({sourceLabel(summary.source)})
+                {' '}· записано расходом {metresText(summary.spent)}
+                {' '}· доступно <b>{metresText(summary.available)}</b>
+                {pricePerM !== null ? ` · ${pricePerM.toFixed(2).replace('.', ',')} ₽/м` : ''}
+                {Number(entry.lengthUsedM) > 0 && kgPerM !== null
+                  ? ` · расход ≈ ${fmtKg(kgFromLength(entry.lengthUsedM, kgPerM))} (расчёт)` : ''}
+              </span>
+            )}
 
             {/*
               РУЛОН БЕЗ РАБОЧЕГО МЕТРАЖА: расход не записать, пока параметры
@@ -282,137 +301,58 @@ export function CutRollsSection({
             <CutSizeRows
               rows={rows}
               choices={choices}
+              reported={reported}
               disabled={disabled}
               onRows={(next) => patch(index, { sizes: next })}
             />
 
             {/*
-              ОСТАТОК И ЕГО СУДЬБА (правка 21.09, п. 5; в метрах — 27.09, п. 4).
-              Остаток СЧИТАЕТСЯ из доступного метража и расхода — вводить его
-              руками значило бы завести второго писателя той же величины;
-              измеренный остаток при завершении — отдельное поле, и расхождение
-              уезжает корректировкой. «Пока исходный метраж расчётный, остаток
-              тоже обозначать как расчётный».
+              ИТОГ СТРОКИ: изделия с рулона и остаток после ЭТОЙ записи.
+              Остаток считается из доступного и расхода — вводить его руками
+              значило бы завести второго писателя той же величины. Измеренный
+              остаток и судьба — в «Завершить рулон», отдельно (05.10, п. 5).
             */}
-            <div className={styles.queueActions}>
-              <span className={styles.queueReason}>
-                Итого с рулона: <b>{rollTotal(entry)}</b> шт
-                {entry.rollId && (left === null
-                  ? <span className={styles.subText}> · остаток: — (метраж рулона не указан)</span>
-                  : (
-                    <span className={styles.subText}>
-                      {' '}· остаток: {metresText(leftShown ?? 0)}
-                      {measured !== null && measured !== undefined && measured !== ''
-                        ? ' (замер)'
-                        : working?.source === 'calc' ? ' (расчёт)' : ''}
-                      {kgPerM !== null && leftShown !== null
-                        ? ` · ≈ ${fmtKg(kgFromLength(leftShown, kgPerM))} (расчёт)` : ''}
-                    </span>
-                  ))}
-              </span>
-              <label className={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(entry.finished)}
-                  disabled={disabled}
-                  onChange={(e) => patch(index, {
-                    finished: e.target.checked,
-                    // Сняли отметку — вид остатка и замер теряют смысл вместе с ней
-                    ...(e.target.checked ? {} : { leftover: null, leftoverMeasuredM: null, leftoverReason: null }),
-                  })}
-                />
-                {' '}
-                Работа по рулону закончена
-              </label>
-              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => removeRoll(index)}>
-                Убрать
-              </Button>
-            </div>
-
-            {entry.finished && left !== null && (
-              <div className={styles.queueActions} role="group" aria-label="Что с остатком рулона">
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Измеренный остаток, м</span>
-                  <input
-                    type="number" min="0" step="0.01" inputMode="decimal"
-                    className={`${styles.input} ${styles.qtySmallInput}`}
-                    value={entry.leftoverMeasuredM ?? ''}
-                    disabled={disabled}
-                    placeholder="если мерили"
-                    aria-label={`Измеренный остаток, м, строка ${index + 1}`}
-                    onChange={(e) => patch(index, { leftoverMeasuredM: e.target.value })}
-                  />
-                </label>
-                {measured !== null && measured !== undefined && measured !== '' && (
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Причина расхождения</span>
-                    <input
-                      className={styles.input}
-                      value={entry.leftoverReason ?? ''}
-                      disabled={disabled}
-                      placeholder="например, перемерили после раскладки"
-                      aria-label={`Причина расхождения замера, строка ${index + 1}`}
-                      onChange={(e) => patch(index, { leftoverReason: e.target.value })}
-                    />
-                  </label>
-                )}
-                {leftShown !== null && leftShown > 0.0005 && (
-                  <>
-                    <span className={styles.fieldLabel}>
-                      Остаток {metresText(leftShown)}:
-                    </span>
-                    {[
-                      ['usable', 'Остаток пригоден'],
-                      ['scrap', 'Малый остаток, не учитывать'],
-                    ].map(([value, label]) => (
-                      <label key={value} className={styles.checkLabel}>
-                        <input
-                          type="radio"
-                          name={`leftover-${index}`}
-                          value={value}
-                          checked={entry.leftover === value}
-                          disabled={disabled}
-                          onChange={() => patch(index, { leftover: value })}
-                        />
-                        {' '}
-                        {label}
-                      </label>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
+            <span className={styles.queueReason}>
+              Итого с рулона: <b>{rollTotal(entry)}</b> шт
+              {entry.rollId && (left === null
+                ? <span className={styles.subText}> · остаток: — (метраж рулона не указан)</span>
+                : (
+                  <span className={styles.subText}>
+                    {' '}· после записи останется {metresText(left)}
+                    {working?.source === 'calc' ? ' (расчёт)' : ''}
+                  </span>
+                ))}
+            </span>
           </div>
         );
       })}
 
-      {awaitingFate.length > 0 && onRollFate && (
-        <div className={styles.queueBlockForm} role="group" aria-label="Рулоны без судьбы остатка">
+      {inWork.length > 0 && onFinishRoll && (
+        <div className={styles.queueBlockForm} role="group" aria-label="Рулоны в работе">
           <span className={styles.queueReason}>
-            <Icon name="alert" size={13} />
-            {' '}
-            Работа по этим рулонам не закончена, а остаток есть — без решения этап не закроется:
+            {awaitingFate.length > 0 && <><Icon name="alert" size={13} />{' '}</>}
+            Рулоны в работе
+            {awaitingFate.length > 0 ? ' — без решения по остатку этап не закроется' : ''}:
           </span>
-          {awaitingFate.map(({ roll, material, label }) => (
-            <div key={roll.id} className={styles.queueActions}>
+          {inWork.map((o) => (
+            <div key={o.roll.id} className={styles.queueActions}>
               <span className={styles.subText}>
-                {label} · остаток {rollLeftText(roll, material)}
+                {o.label} · остаток {rollLeftText(o.roll, o.material)}
               </span>
-              <Button
-                variant="secondary" size="sm" disabled={disabled}
-                onClick={() => onRollFate(roll.id, 'usable', item?.id ?? null)}
-              >
-                Остаток пригоден
-              </Button>
-              <Button
-                variant="ghost" size="sm" disabled={disabled}
-                onClick={() => onRollFate(roll.id, 'scrap', item?.id ?? null)}
-              >
-                Малый остаток, не учитывать
+              <Button variant="secondary" size="sm" disabled={disabled} onClick={() => setFinishing(o)}>
+                Завершить рулон
               </Button>
             </div>
           ))}
         </div>
+      )}
+      {finishing && (
+        <RollFinishModal
+          option={finishing}
+          itemId={item?.id ?? null}
+          onFinish={onFinishRoll}
+          onClose={() => setFinishing(null)}
+        />
       )}
 
       <div className={styles.queueActions}>
@@ -432,12 +372,15 @@ export function CutRollsSection({
       {entries.length > 0 && (
         <div className={styles.queueActions} role="status">
           <p className={styles.queueReason}>
-            Скроено: <b>{totals.qty}</b> шт · Расход: <b>{metresText(totals.used)}</b>
+            Эта запись — Скроено: <b>{totals.qty}</b> шт · Расход: <b>{metresText(totals.used)}</b>
           </p>
           {sizeSummary.length > 0 && (
             <p className={styles.queueReason}>
               По размерам: {sizeSummary.join(' · ')}
             </p>
+          )}
+          {reportedText && (
+            <p className={styles.subText}>Записано ранее: {reportedText}</p>
           )}
           {extras.total > 0 && (
             <p className={styles.queueReason}>

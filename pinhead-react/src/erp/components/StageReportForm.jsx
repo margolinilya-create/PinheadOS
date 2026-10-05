@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import { stageInputQty } from '../utils/stageInput';
@@ -128,7 +128,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   // Этапы — из свежей позиции: снимок очереди мог отстать от сдачи соседа
   const stages = fullItem.stages ?? item.stages ?? [];
   const { prevReports, ownReports } = useStageReports(stage, stages, bySizes);
-  const setRollLeftover = useErpStore((st) => st.setRollLeftover);
+  // Завершение рулона — отдельное окно у рулона, не часть записи (05.10, п. 5)
+  const finishRoll = useErpStore((st) => st.finishRoll);
   /** Параметры рулона без метража — дозаполняются прямо в блоке сдачи (27.09, п. 4) */
   const setRollParams = useErpStore((st) => st.setRollParams);
   const reportedSizes = useMemo(() => reportedSizesOf(ownReports), [ownReports]);
@@ -170,7 +171,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    */
   const needsCost = bySizes && !savedCost && assemblyCost === '';
   /** Рулоны позиции и остатки других заказов (правка 28.09): их же показывает секция */
-  const foreignRolls = useForeignRolls(order.id, byRolls);
+  const { rolls: foreignRolls, reload: reloadForeign } = useForeignRolls(order.id, byRolls);
   const rollOptions = useMemo(
     () => (byRolls
       ? rollsForItem(fullOrder?.materials, fullItem?.id, rollEntries.map((e) => e.rollId), foreignRolls)
@@ -287,7 +288,10 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const missingRequired = fields.some((f) => f.required && num(f.code) <= 0);
   const overBlock = overPlanBlock(goodQty, stage, stages, item.qty, dept);
 
+  // Двойной тап до перерисовки видит прежний `busy` — не спишет метры дважды
+  const inFlight = useRef(false);
   const submit = async () => {
+    if (inFlight.current) return;
     /**
      * ПРЕВЫШЕНИЕ НА ЗАКРОЕ СПРАШИВАЕТ ПОДТВЕРЖДЕНИЕ (решение владельца):
      * потолка у закроя нет, но опечатка «1000» вместо «100» поднимает потолок
@@ -300,7 +304,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
       message: warn,
       confirmLabel: 'Сдать',
     }))) return;
-    onSubmit({
+    inFlight.current = true;
+    const ok = await onSubmit({
       qtyIn,
       qtyGood: goodQty,
       qtyDefect: defectQty,
@@ -337,6 +342,9 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         }
         : {}),
     });
+    inFlight.current = false;
+    // Сдача списала метры — остатки других заказов перечитываются (05.10, п. 5)
+    if (ok && byRolls) reloadForeign();
   };
 
   return (
@@ -362,7 +370,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
           entries={rollEntries}
           onChange={setRollEntries}
           extraRolls={foreignRolls}
-          onRollFate={setRollLeftover}
+          onFinishRoll={finishRoll}
           onRollParams={setRollParams}
           reported={reportedSizes}
           disabled={busy}

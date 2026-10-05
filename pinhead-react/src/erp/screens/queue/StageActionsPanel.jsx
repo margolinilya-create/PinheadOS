@@ -135,9 +135,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
    */
   const [doneQty, setDoneQty] = useState('');
   /**
-   * Отчёт по схеме участка (правки 10.08, P2). Открывается вместо простого
-   * поля «сколько сделано», КОГДА у цеха задана схема полей: одно и то же
-   * действие «записать результат» — два вида подробности, а не две кнопки.
+   * Отчёт по схеме участка (правки 10.08, P2) — вместо поля «сколько сделано»,
+   * когда у цеха задана схема. Пока он открыт, завершения этапа, пропуска
+   * и смены цеха нет (правка 05.10, п. 5): это не часть записи партии.
    */
   const [reportMode, setReportMode] = useState(false);
   const [blockMode, setBlockMode] = useState(false);
@@ -366,7 +366,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   </Button>
                 </>
               ))}
-              {perms.complete && (
+              {perms.complete && !reportMode && (
                 <Button
                   variant="secondary"
                   loading={busy}
@@ -410,7 +410,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     стоит последним и требует причины. Право `order.manage`:
                     решение принимает тот, кто ведёт заказ, а не цех.
                   */}
-                  {perms.skip && (
+                  {perms.skip && !reportMode && (
                     <Button variant="ghost" loading={busy} disabled={busy} onClick={() => run(() => onSkip(entry))}>
                       <Icon name="chevronRight" size={14} /> Пропустить этап
                     </Button>
@@ -428,7 +428,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     и страж этапов. Скрытой кнопки мало: путь через REST
                     остаётся открытым для любого участника.
                   */}
-                  {perms.forceComplete && (
+                  {perms.forceComplete && !reportMode && (
                     <Button
                       variant="ghost"
                       loading={busy}
@@ -442,7 +442,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               )}
             </>
           )}
-          {canMoveDept && moveTargets.length > 0 && (
+          {canMoveDept && moveTargets.length > 0 && !reportMode && (
             <MoveStageSelect entry={entry} targets={moveTargets} busy={busy} run={run} moveStageTo={moveStageTo} />
           )}
           {group === 'done' && perms.defect && !defectMode && (
