@@ -2310,6 +2310,13 @@ button.chatReceipt { cursor: pointer; }
    колонок. Подпись, план справкой и поле ввода во всю ширину — на 768px
    третья колонка с `input` высотой 44px сжималась в треть экрана */
 .receiptFields { display: flex; flex-direction: column; gap: 10px; }
+/* Шапка приёмки (правка 05.10, п. 4): материал, цвет, поставщик, заказано,
+   ранее принято — одной сеткой, а не таблицей «поле / план / факт» */
+.receiptSummary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm) var(--space-md); margin: 0;
+}
+.receiptSummary dd { margin: 0; font-weight: 600; }
 .receiptField {
   display: flex;
   flex-direction: column;

@@ -40,7 +40,9 @@ const src = (p: string) => readFileSync(join(process.cwd(), 'src/erp', p), 'utf8
 
 const WAREHOUSE_SLICE = src('store/slices/warehouseSlice.ts');
 const MATERIALS_SLICE = src('store/slices/materialsSlice.ts');
-const RECEIPT_CARD = src('screens/warehouse/MaterialReceiptCard.jsx');
+// Форма одного материала вынесена в `AcceptMaterialForm` (05.10, п. 4) — сторож читает обе
+const RECEIPT_CARD = src('screens/warehouse/MaterialReceiptCard.jsx')
+  + src('screens/warehouse/AcceptMaterialForm.jsx');
 const MATERIAL_WAIT = src('screens/queue/MaterialWait.jsx');
 
 describe('приёмка материала: журнал и статус одной транзакцией', () => {

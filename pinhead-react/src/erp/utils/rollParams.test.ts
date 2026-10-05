@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   rollWeightsOf, weightsFilled, weightsSum, rollParamsPayload, rollParamsSignature,
+  newRollRow, rollRowMetres, rollRowsSummary,
 } from './rollParams';
 
 describe('параметры рулонов при приёмке (27.09, п. 4)', () => {
@@ -46,5 +47,62 @@ describe('параметры рулонов при приёмке (27.09, п. 4)
     const b = rollParamsSignature([{ weight: '20', width: '150' }], 1);
     expect(a).not.toBe(b);
     expect(rollParamsSignature([{ weight: '20', width: '180' }], 1)).toBe(a);
+  });
+});
+
+/**
+ * ОДИН РУЛОН — ОДНА СТРОКА (правка заказчика 05.10, п. 4): «Ширину
+ * и плотность подставлять из закупки, но давать менять по рулонам. Если
+ * фактический метраж указан, использовать его. Если нет – расчётный,
+ * с пометкой „расчёт". Метраж = вес кг / (ширина м × плотность кг/м²):
+ * 50 / (1,8 × 0,25) = 111,11 м».
+ */
+describe('строки рулонов приёмки (05.10, п. 4)', () => {
+  const FABRIC = { width_cm: 180, density_gsm: 250 };
+
+  it('новая строка берёт ширину и плотность из закупки, вес пустой', () => {
+    expect(newRollRow(FABRIC)).toEqual({ weight: '', width: '180', density: '250', length: '' });
+    expect(newRollRow({ width_cm: null, density_gsm: null })).toEqual({
+      weight: '', width: '', density: '', length: '',
+    });
+  });
+
+  it('пример заказчика: 50 кг, 180 см, 250 г/м² — расчёт 111,11 м с пометкой «расчёт»', () => {
+    const m = rollRowMetres({ weight: '50', width: '180', density: '250' }, FABRIC);
+    expect(m.calc).toBeCloseTo(111.111, 3);
+    expect(m.actual).toBeNull();
+    expect(m.used).toBeCloseTo(111.111, 3);
+    expect(m.source).toBe('calc');
+  });
+
+  it('фактический метраж указан — используется он, расчёт остаётся для справки', () => {
+    const m = rollRowMetres({ weight: '50', width: '180', density: '250', length: '109' }, FABRIC);
+    expect(m.used).toBe(109);
+    expect(m.source).toBe('supplier');
+    expect(m.calc).toBeCloseTo(111.111, 3);
+  });
+
+  it('пустая ширина строки — берётся из закупки; без параметров метража нет', () => {
+    expect(rollRowMetres({ weight: '50', width: '' }, FABRIC).calc).toBeCloseTo(111.111, 3);
+    expect(rollRowMetres({ weight: '50' }, null).used).toBeNull();
+  });
+
+  it('итог: число рулонов = число строк, вес и метраж — суммы', () => {
+    const rows = [
+      { weight: '50', width: '180', density: '250', length: '' },
+      { weight: '50', width: '180', density: '250', length: '109' },
+    ];
+    const s = rollRowsSummary(rows, FABRIC);
+    expect(s.count).toBe(2);
+    expect(s.weight).toBe(100);
+    expect(s.metres).toBeCloseTo(220.11, 2);
+    expect(s.metresComplete).toBe(true);
+    expect(s.hasCalc).toBe(true);
+  });
+
+  it('у строки без метража итог метража помечен неполным', () => {
+    const s = rollRowsSummary([{ weight: '50' }, { weight: '' }], { width_cm: null, density_gsm: null });
+    expect(s.count).toBe(2);
+    expect(s.metresComplete).toBe(false);
   });
 });
