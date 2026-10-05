@@ -488,7 +488,7 @@ export function rollsFateBlock(pending: readonly RollOption[]): string | null {
   const list = pending
     .map(({ roll, material }) => `${roll.label} (${rollLeftText(roll, material)})`)
     .join(', ');
-  return `Не решена судьба остатка: ${list} — отметьте «Остаток пригоден» или «Малый остаток, не учитывать».`;
+  return `Не решена судьба остатка: ${list} — нажмите «Завершить рулон» и выберите: оставить пригодный остаток или списать непригодный.`;
 }
 
 /** Есть ли у рулона рабочий метраж — то, без чего расход в метрах не записать */

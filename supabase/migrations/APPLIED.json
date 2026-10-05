@@ -2362,6 +2362,13 @@
       "files": [
         "20261005074459_erp_stage_fact_flow.sql"
       ]
+    },
+    {
+      "version": "20261005083947",
+      "name": "erp_rolls_fate_text",
+      "files": [
+        "20261005083947_erp_rolls_fate_text.sql"
+      ]
     }
   ]
 }
