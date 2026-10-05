@@ -2376,6 +2376,13 @@
       "files": [
         "20261005092131_erp_stage_fact_flow_fixes.sql"
       ]
+    },
+    {
+      "version": "20261005092736",
+      "name": "erp_clamp_trusted_state",
+      "files": [
+        "20261005092736_erp_clamp_trusted_state.sql"
+      ]
     }
   ]
 }
