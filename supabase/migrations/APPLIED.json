@@ -2390,6 +2390,13 @@
       "files": [
         "20261005093609_erp_clamp_new_row.sql"
       ]
+    },
+    {
+      "version": "20261005094126",
+      "name": "erp_input_same_item",
+      "files": [
+        "20261005094126_erp_input_same_item.sql"
+      ]
     }
   ]
 }
