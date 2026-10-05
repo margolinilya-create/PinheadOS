@@ -2199,6 +2199,17 @@ button.kpiCard[aria-pressed='true'] {
    Класс, оставшийся без единого носителя, — то же осиротевшее правило,
    что и примитив без вызывающих. */
 .drawerBody { flex: 1; overflow-y: auto; padding: var(--space-lg) 18px; }
+/* Правка 05.10, пп. 4 и 8: широкая панель для форм с таблицей */
+.drawerPanelWide { width: min(1040px, 100%); }
+/* Закреплённый низ формы внутри тела: итог, ошибки, сохранение видны
+   без прокрутки до конца; отступ тела гасится, фон не даёт полям просвечивать */
+.drawerFooter {
+  position: sticky; bottom: calc(-1 * var(--space-lg)); z-index: 1;
+  margin: var(--space-md) -18px calc(-1 * var(--space-lg));
+  padding: var(--space-md) 18px;
+  background: var(--card); border-top: 1px solid var(--border-light);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md);
+}
 
 @keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }

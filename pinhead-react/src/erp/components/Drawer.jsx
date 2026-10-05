@@ -16,15 +16,21 @@ import { Icon } from './Icon';
  * Тот же жанр, что осиротевший вид `pipeline` у `StageIndicator`: удаляя
  * экран, проверьте, не остался ли без вызывающих примитив, который звал он.
  * Вкладки страницы — `components/Tabs`.
+ *
+ * ШИРОКАЯ ПАНЕЛЬ И ЗАКРЕПЛЁННЫЙ НИЗ (правка 05.10, пп. 4 и 8): `wide` —
+ * для форм с таблицей (приёмка рулонов, карточка закупки), где 560px
+ * разбивали строку рулона на две. Итог и сохранение закрепляет сам
+ * вызывающий классом `drawerFooter` внутри тела: состояние формы живёт
+ * в нём, и пробрасывать его наверх ради слота незачем.
  */
-export function Drawer({ onClose, title, subtitle, badge, children }) {
+export function Drawer({ onClose, title, subtitle, badge, wide = false, children }) {
   const panelRef = useFocusTrap(true, onClose);
 
   return (
     <div className={styles.drawerOverlay} onClick={onClose} role="presentation">
       <div
         ref={panelRef}
-        className={styles.drawerPanel}
+        className={`${styles.drawerPanel} ${wide ? styles.drawerPanelWide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title || 'Детали'}
