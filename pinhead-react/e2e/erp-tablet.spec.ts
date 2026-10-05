@@ -214,6 +214,8 @@ test.describe('Склад на планшете', () => {
      */
     await page.goto('/warehouse?studio=0');
     await page.getByRole('button', { name: 'Принять материал' }).first().click();
+    // С правки 05.10 (п. 4) сравнение с закупкой свёрнуто по умолчанию
+    await page.getByText('Сравнение с закупкой').click();
 
     const fact = page.getByRole('textbox', { name: /Факт материал/ });
     await expect(fact).toBeVisible();

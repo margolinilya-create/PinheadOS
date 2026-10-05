@@ -179,7 +179,7 @@ test.describe('Приёмка материала: приход обязател�
 
     const drawer = page.getByRole('dialog');
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
-    await expect(drawer).toContainText('Укажите, сколько пришло');
+    await expect(drawer).toContainText('Укажите вес новой поставки');
   });
 
   /**
@@ -191,7 +191,9 @@ test.describe('Приёмка материала: приход обязател�
    * Одного количества теперь мало — и это ровно то, на чём спека упала
    * при выкате правки: она заполняла килограммы и ждала открытую кнопку.
    */
-  test('количество введено, а рулоны — нет: кнопка погашена и причина названа', async ({ page }) => {
+  // С правки 05.10 (п. 4) поля «Количество рулонов» нет: рулоны — строки
+  // таблицы, первая стоит сразу, и без её веса кнопка не открывается
+  test('вес поставки введён, а вес рулона — нет: кнопка погашена и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
       .getByRole('button', { name: 'Принять материал' }).click();
@@ -199,7 +201,7 @@ test.describe('Приёмка материала: приход обязател�
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
-    await expect(drawer).toContainText('укажите количество рулонов');
+    await expect(drawer).toContainText('Укажите вес каждого рулона');
   });
 
   /**
@@ -219,7 +221,8 @@ test.describe('Приёмка материала: приход обязател�
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
-    await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
     await expect(drawer).toContainText('вес каждого рулона');
   });
@@ -232,7 +235,8 @@ test.describe('Приёмка материала: приход обязател�
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
-    await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
     await drawer.getByLabel(/Вес рулона 1/).fill('20');
     await drawer.getByLabel(/Вес рулона 2/).fill('20');
     await drawer.getByLabel(/Вес рулона 3/).fill('15');
@@ -247,7 +251,8 @@ test.describe('Приёмка материала: приход обязател�
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
-    await drawer.getByLabel(/Количество рулонов/).fill('3');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
     await drawer.getByLabel(/Вес рулона 1/).fill('20');
     await drawer.getByLabel(/Вес рулона 2/).fill('20');
     await drawer.getByLabel(/Вес рулона 3/).fill('20');
@@ -270,12 +275,12 @@ test.describe('Приёмка материала: приход обязател�
   });
 
   /** Сумма журнала — то, чего экран не показывал никогда */
-  test('«Принято всего» показано и равно нулю при пустом журнале', async ({ page }) => {
+  test('«Ранее принято» показано и равно нулю при пустом журнале', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
       .getByRole('button', { name: 'Принять материал' }).click();
 
-    await expect(page.getByRole('dialog')).toContainText('Принято всего');
+    await expect(page.getByRole('dialog')).toContainText('Ранее принято0 кг');
   });
 });
 

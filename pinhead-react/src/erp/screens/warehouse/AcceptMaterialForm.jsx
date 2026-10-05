@@ -209,7 +209,7 @@ export function AcceptMaterialForm({ material: m, onAccept, onSetRollWeights, on
   const factLabel = { name: 'материал', color: 'цвет', article: 'артикул' };
 
   return (
-    <div className={styles.queueBlockForm}>
+    <div className={`${styles.queueBlockForm} ${styles.acceptForm}`}>
       <div className={styles.matSectionHead}>
         <div>
           <strong>{m.name}</strong>
