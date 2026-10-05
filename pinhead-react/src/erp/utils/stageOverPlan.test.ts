@@ -185,10 +185,13 @@ describe('страж повторяет правило словами', () => {
     // Правка 05.10: «цех не может сдать больше, чем получил». Перенос между
     // цехами и приёмка подряда закрывают этап по тиражу — у них прежний
     // потолок, большее из тиража и входа
-    expect(CLAMP).toMatch(/v_cap := public\.erp_stage_input_qty\(new\.id\)/);
+    // Потолок по НОВОЙ строке и только по этапам той же позиции (ревью
+    // безопасности 05.10): сохранённая строка и чужие этапы его не задают
+    expect(CLAMP).toMatch(/p\.item_id = new\.item_id/);
+    expect(CLAMP).toMatch(/v_deps := coalesce\(new\.depends_on/);
+    expect(CLAMP).toMatch(/new\.depends_on is distinct from old\.depends_on/);
     expect(CLAMP).toMatch(/erp\.moving/);
     expect(CLAMP).toMatch(/erp\.subcontract_rollup/);
-    expect(CLAMP).toMatch(/if v_service then/);
   });
 
   it('проверка идёт только когда число выросло', () => {

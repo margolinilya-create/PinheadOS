@@ -2383,6 +2383,13 @@
       "files": [
         "20261005092736_erp_clamp_trusted_state.sql"
       ]
+    },
+    {
+      "version": "20261005093609",
+      "name": "erp_clamp_new_row",
+      "files": [
+        "20261005093609_erp_clamp_new_row.sql"
+      ]
     }
   ]
 }
