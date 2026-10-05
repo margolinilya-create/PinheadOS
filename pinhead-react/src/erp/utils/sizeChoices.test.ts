@@ -33,18 +33,17 @@ describe('sizeChoicesFor — сетка позиции это предпочте
    * «размеров нет вовсе», и цех получал одно поле на весь рулон. На бою так
    * заведена 21 позиция из 49 — именно на такой заказчик и проверял.
    */
-  it('сетки нет: цех всё равно получает шкалу, а не пустоту', () => {
-    const choices = sizeChoicesFor(null);
-    expect(choices.length).toBeGreaterThan(10);
-    expect(choices.map((c) => c.size)).toContain('M');
-    expect(choices.map((c) => c.size)).toContain('104'); // детская тоже
-    // Сравнивать не с чем — план не выдумывается
-    expect(choices.every((c) => c.planned === null)).toBe(true);
+  /**
+   * Правка 05.10, п. 2: стандартная шкала больше не подставляется — на заказе
+   * XS/S/M крой записался в 3XS и 2XS. Размер вне заказа вводится руками.
+   */
+  it('сетки нет — вариантов нет, шкала не выдумывается', () => {
+    expect(sizeChoicesFor(null)).toEqual([]);
     expect(hasPlannedSizes(null)).toBe(false);
   });
 
-  it('пустой массив сетки читается как её отсутствие, а не как «ноль размеров»', () => {
-    expect(sizeChoicesFor([]).length).toBeGreaterThan(10);
+  it('пустой массив сетки — то же отсутствие', () => {
+    expect(sizeChoicesFor([])).toEqual([]);
     expect(hasPlannedSizes([])).toBe(false);
   });
 });

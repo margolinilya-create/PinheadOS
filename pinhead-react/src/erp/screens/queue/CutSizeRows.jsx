@@ -51,7 +51,7 @@ export function CutSizeRows({ rows, choices, disabled, onRows }) {
                     : r)));
                 }}
               >
-                <option value="">Выберите размер…</option>
+                <option value="">{choices.length ? 'Выберите размер…' : 'Сетки нет — размер вне заказа'}</option>
                 {choices.map((c) => (
                   <option
                     key={choiceKey(c)}
@@ -66,7 +66,7 @@ export function CutSizeRows({ rows, choices, disabled, onRows }) {
                     {isSizeTaken(rows, c, ri) ? ' — уже в этом рулоне' : ''}
                   </option>
                 ))}
-                <option value={OTHER}>Другой размер…</option>
+                <option value={OTHER}>Размер вне заказа…</option>
               </select>
             </label>
 

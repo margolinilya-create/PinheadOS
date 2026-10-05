@@ -93,7 +93,9 @@ describe('результат пошива по размерам (правка 16
   const SEWING = { ...DEPT, result_detail: 'sizes' };
   const ITEM = {
     id: 'it1', qty: 100, size_grid: [{ color: '—', sizes: { XS: 10, S: 20 } }],
-    stages: [{ id: 'cut' }, { id: 'st1' }],
+    // Закрой закрыт со своим фактом: с правки 05.10 вход швейки — факт
+    // закроя, а не тираж
+    stages: [{ id: 'cut', status: 'done', qty_done: 30, qty_passthrough: false }, { id: 'st1' }],
   };
   const STAGE = { ...ENTRY.stage, depends_on: ['cut'] };
 
@@ -175,14 +177,64 @@ describe('результат пошива по размерам (правка 16
       />,
     );
     await screen.findByRole('table');
-    // Потолок учёта 100 (тираж) − 27 сдано − 1 брак = 72 в шапке
-    expect(await screen.findByText(/осталось сдать 72/)).toBeInTheDocument();
+    // Правка 05.10: потолок — принятое (закрой закрыт на 30), а не тираж 100:
+    // 30 − 27 сдано − 1 брак = 2 в шапке
+    expect(await screen.findByText(/осталось сдать 2/)).toBeInTheDocument();
     const xs = screen.getByRole('row', { name: /XS/ });
-    expect(xs).toHaveTextContent('осталось 2');
-    fireEvent.change(screen.getByRole('spinbutton', { name: /XS, Сшито/ }), {
+    expect(xs).toHaveTextContent('в работе 2');
+    // Прежние сдачи видны отдельно от новой партии (п. 3)
+    expect(screen.getByRole('columnheader', { name: 'Сдано ранее' })).toBeInTheDocument();
+    expect(xs).toHaveTextContent('7');
+    fireEvent.change(screen.getByRole('spinbutton', { name: /XS, Сдаю сейчас/ }), {
       target: { value: '3' },
     });
     expect(screen.getByText(/больше 2 шт сдать нельзя/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
+  });
+
+  /**
+   * ПРАВКА 05.10, п. 3 — пример документа: крой XS 34 / S 34 / M 34, первая
+   * сдача 34 / 34 / 32. При следующем открытии: получено 102, сдано 100,
+   * в работе M 2 — сдать можно эти 2 шт, а не ещё 50.
+   */
+  it('повторное открытие: крой 34/34/34, сдано 34/34/32 — в работе M 2', async () => {
+    const grid = [{ color: 'белый', sizes: { XS: 50, S: 50, M: 50 } }];
+    const cut = [{
+      id: 'rc', stage_id: 'cut', sizes: ['XS', 'S', 'M'].map((size) => ({
+        color: 'белый', size, qty_good: 34, qty_defect: 0, qty_rework: 0,
+      })),
+    }];
+    const own = [{
+      id: 'r1', stage_id: 'st1', qty_good: 100, qty_defect: 0, qty_rework: 0,
+      sizes: [['XS', 34], ['S', 34], ['M', 32]].map(([size, q]) => ({
+        color: 'белый', size, qty_good: q, qty_defect: 0, qty_rework: 0,
+      })),
+    }];
+    useErpStore.setState({
+      loadStageReports: async (ids) => (ids.includes('st1') ? own : cut),
+    });
+    const item = {
+      id: 'it1', qty: 150, size_grid: grid, assembly_cost_per_unit: 415,
+      stages: [{ id: 'cut', status: 'done', qty_done: 102, qty_passthrough: false }, { id: 'st1' }],
+    };
+    render(
+      <StageReportForm
+        entry={{ ...ENTRY, item, stage: { ...STAGE, qty_done: 100 } }}
+        dept={SEWING}
+        busy={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText(/осталось сдать 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Принято в работу:/)).toHaveTextContent('102');
+    expect(screen.getByRole('row', { name: /^M/ })).toHaveTextContent('в работе 2');
+    expect(screen.getByRole('row', { name: /^XS/ })).toHaveTextContent('учтено');
+    // Стоимость сборки стоит в поле, а не серой подсказкой
+    expect(screen.getByLabelText(/Стоимость сборки за единицу/)).toHaveValue(415);
+    fireEvent.change(screen.getByRole('spinbutton', { name: /^M · белый, Сдаю сейчас/ }), {
+      target: { value: '3' },
+    });
     expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
   });
 

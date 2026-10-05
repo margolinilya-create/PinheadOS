@@ -1079,6 +1079,7 @@ export type Database = {
           planned_end: string | null
           planned_start: string | null
           qty_done: number
+          qty_passthrough: boolean
           qty_rework: number
           queue_position: number | null
           result_kind: string | null
@@ -1107,6 +1108,7 @@ export type Database = {
           planned_end?: string | null
           planned_start?: string | null
           qty_done?: number
+          qty_passthrough?: boolean
           qty_rework?: number
           queue_position?: number | null
           result_kind?: string | null
@@ -1135,6 +1137,7 @@ export type Database = {
           planned_end?: string | null
           planned_start?: string | null
           qty_done?: number
+          qty_passthrough?: boolean
           qty_rework?: number
           queue_position?: number | null
           result_kind?: string | null

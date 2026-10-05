@@ -14,6 +14,7 @@ import type {
 } from '../../types';
 import { erpError, erpQuery, erpRead } from '../shared';
 import { ORDER_LIST_SELECT, sortOrderFull } from '../orderHelpers';
+import { mergeListOverDetail } from '../mergeListOverDetail';
 
 /** Размер страницы архива: заказы грузятся не все разом, а по кнопке «Показать ещё» */
 export const ARCHIVE_PAGE_SIZE = 50;
@@ -109,7 +110,12 @@ export const ordersSlice: StateCreator<ErpStore, [], [], OrdersSlice> = (set, ge
     }
     set({
       ...(deps.data ? { departments: deps.data as ErpDepartment[] } : {}),
-      orders: ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+      // Списочные строки не затирают дозагруженную деталь (правка 05.10, п. 2)
+      orders: mergeListOverDetail(
+        ((orders.data ?? []) as ErpOrderFull[]).map(sortOrderFull),
+        get().orders,
+        get().detailIds,
+      ),
       loading: false,
       loaded: true,
     });

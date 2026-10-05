@@ -66,13 +66,13 @@ describe('итог закроя', () => {
    */
   it('без сетки — отдельное предупреждение, а не приписка к итогу', () => {
     renderSection({ item: { id: 'it-1', qty: 200, size_grid: null } });
-    expect(screen.getByText(/Размерная сетка заказа не найдена/)).toBeInTheDocument();
+    expect(screen.getByText(/нет размерной сетки. Стандартные размеры не подставляются/)).toBeInTheDocument();
     expect(screen.getByText(/Скроено:/)).toHaveTextContent('Скроено: 50 шт · Расход: 20,00 м');
   });
 
   it('с заполненной сеткой предупреждения нет', () => {
     renderSection();
-    expect(screen.queryByText(/Размерная сетка заказа не найдена/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/нет размерной сетки/)).not.toBeInTheDocument();
   });
 });
 

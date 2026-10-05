@@ -3,7 +3,8 @@ import {
   itemProgress, orderProgress, stageCountProgress, stageQtyProgress,
 } from './progress';
 
-const st = (status: string, qty_done = 0) => ({ status, qty_done } as never);
+const st = (status: string, qty_done = 0, qty_passthrough?: boolean) =>
+  ({ status, qty_done, qty_passthrough } as never);
 
 describe('stageQtyProgress', () => {
   it('частичная готовность', () => {
@@ -12,6 +13,10 @@ describe('stageQtyProgress', () => {
 
   it('завершённый этап засчитан целиком, даже если qty_done не набивали', () => {
     expect(stageQtyProgress(st('done', 0), 100)).toEqual({ done: 100, total: 100, pct: 100 });
+  });
+
+  it('закрытый с фактом показывает факт, а не 150/150 (правка 05.10)', () => {
+    expect(stageQtyProgress(st('done', 102, false), 150)).toEqual({ done: 102, total: 150, pct: 68 });
   });
 
   it('ожидающий этап — ноль', () => {

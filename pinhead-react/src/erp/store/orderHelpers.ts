@@ -116,7 +116,7 @@ export const ORDER_LIST_SELECT = `
       planned_start, planned_end, started_at, finished_at, assignee,
       block_reason, sort_order, updated_at, overdue_comment, overdue_ack_at,
       queue_position, cycle, origin,
-      executor, contractor, operation, result_kind
+      executor, contractor, operation, result_kind, qty_passthrough
     ),
     prints:erp_item_prints (*),
     labels:erp_item_labels (*)
@@ -492,3 +492,4 @@ export function lastDefectPhotoUrl(order: ErpOrderFull): string | null {
   const att = atts[atts.length - 1];
   return supabase.storage.from('erp-attachments').getPublicUrl(att.file_path).data.publicUrl;
 }
+

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { orderQty } from '../../utils/shipment';
+import { shipmentTotals } from '../../utils/shipment';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import styles from '../../styles';
@@ -17,8 +17,13 @@ import styles from '../../styles';
  * из двух мест с разными правилами.
  */
 export function FgReceiptCard({ order, task, onSubmit }) {
+  /**
+   * Производство сдало — ВЫПУЩЕННОЕ, а не тираж (правка 05.10, п. 1):
+   * «склад принимает фактический выпуск». После ВТО 100 из плана 150
+   * принять можно максимум 100.
+   */
   const expected = useMemo(
-    () => orderQty(order),
+    () => shipmentTotals(order).lines.reduce((sum, l) => sum + l.produced, 0),
     [order],
   );
   const [good, setGood] = useState('');
@@ -30,6 +35,7 @@ export function FgReceiptCard({ order, task, onSubmit }) {
   const defectN = Math.max(Number(defect) || 0, 0);
   const shortfall = expected > 0 ? Math.max(expected - goodN - defectN, 0) : 0;
   const needsComment = defectN > 0 || (goodN > 0 && shortfall > 0);
+  const overProduced = goodN + defectN > expected;
   const done = task.status === 'accepted';
 
   /**
@@ -100,16 +106,22 @@ export function FgReceiptCard({ order, task, onSubmit }) {
         </label>
       </div>
 
-      {goodN + defectN > 0 && shortfall > 0 && (
+      {overProduced && (
+        <span className={styles.overdue} role="alert">
+          Больше выпущенного принять нельзя: производство сдало {expected} шт
+        </span>
+      )}
+
+      {!overProduced && goodN + defectN > 0 && shortfall > 0 && (
         <span className={styles.overdue}>
           в этом вводе не хватает {shortfall} шт — задача закроется,
-          когда приёмки в сумме доберут тираж
+          когда приёмки в сумме доберут выпущенное
         </span>
       )}
 
       <Button
         variant="primary"
-        disabled={busy || goodN + defectN <= 0 || (needsComment && !comment.trim())}
+        disabled={busy || goodN + defectN <= 0 || overProduced || (needsComment && !comment.trim())}
         onClick={submit}
       >
         <Icon name="check" size={14} /> Записать приёмку

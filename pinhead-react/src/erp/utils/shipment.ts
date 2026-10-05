@@ -1,4 +1,5 @@
-import type { ErpOrderItem } from '../types';
+import type { ErpItemStage, ErpOrderItem } from '../types';
+import { isPassthrough, itemProducedQty } from './stageInput';
 
 /**
  * Отгрузка клиенту: сколько отдано, сколько осталось (правка заказчика
@@ -15,14 +16,24 @@ import type { ErpOrderItem } from '../types';
  * Модуль-лист без зависимостей: его читают и склад, и гейт отгрузки.
  */
 
+/** Позиция со своим маршрутом — выпущенное считается по этапам */
+type ShipItem = ErpOrderItem & { stages?: ErpItemStage[] | null };
+
 export interface ShipmentLine {
-  item: ErpOrderItem;
+  item: ShipItem;
   /** Тираж позиции */
   qty: number;
   /** Уже передано клиенту (сумма журнала, ведёт триггер) */
   shipped: number;
-  /** Осталось передать; никогда не отрицательный */
+  /**
+   * Выпущено производством (правка 05.10, п. 1): минимум выходов терминальных
+   * этапов маршрута. Предел отгрузки — «не больше фактического остатка»
+   */
+  produced: number;
+  /** Осталось передать из выпущенного; никогда не отрицательный */
   left: number;
+  /** Цель отгрузки: тираж, а при закрытом маршруте — выпущенное (не больше тиража) */
+  target: number;
 }
 
 export interface ShipmentTotals {
@@ -37,11 +48,17 @@ export interface ShipmentTotals {
 }
 
 interface OrderLike {
-  items?: ErpOrderItem[] | null;
+  items?: ShipItem[] | null;
 }
 
 /**
  * Остатки по заказу и по каждой позиции.
+ *
+ * ОСТАТОК — ОТ ВЫПУЩЕННОГО, А НЕ ОТ ТИРАЖА (правка 05.10, п. 1): «отгрузить
+ * можно не больше фактического остатка». После ВТО 100 из плана 150 и
+ * отгрузки 60 осталось 40. Заказ завершён, когда отгружена ЦЕЛЬ: тираж,
+ * а при закрытом маршруте — выпущенное. Сервер (`erp_ship_order`) держит
+ * то же правило.
  *
  * Пустой заказ (`items: []`) НЕ считается отгруженным: `complete` требует
  * непустого тиража. Иначе заказ без позиций объявлялся бы завершённым сам
@@ -51,28 +68,50 @@ export function shipmentTotals(order: OrderLike | null | undefined): ShipmentTot
   const lines: ShipmentLine[] = [];
   let qty = 0;
   let shipped = 0;
+  let target = 0;
+  let left = 0;
   for (const item of order?.items ?? []) {
     const itemQty = item.qty ?? 0;
     // `qty_shipped` может приехать `undefined` со старого бандла или урезанной
     // выборки — читаем как ноль, а не как «отгружено неизвестно сколько»
     const itemShipped = Math.max(item.qty_shipped ?? 0, 0);
+    const produced = itemProducedQty({ qty: itemQty, stages: item.stages });
+    const itemTarget = itemProductionClosed(item) ? Math.min(itemQty, produced) : itemQty;
+    const itemLeft = Math.max(produced - itemShipped, 0);
     lines.push({
       item,
       qty: itemQty,
       shipped: itemShipped,
-      left: Math.max(itemQty - itemShipped, 0),
+      produced,
+      left: itemLeft,
+      target: itemTarget,
     });
     qty += itemQty;
     shipped += itemShipped;
+    target += itemTarget;
+    left += itemLeft;
   }
+  const complete = target > 0 && shipped >= target;
   return {
     lines,
     qty,
     shipped,
-    left: Math.max(qty - shipped, 0),
-    complete: qty > 0 && shipped >= qty,
-    partial: shipped > 0 && !(qty > 0 && shipped >= qty),
+    left,
+    complete,
+    partial: shipped > 0 && !complete,
   };
+}
+
+/**
+ * Производственный маршрут позиции закрыт: все этапы, выпускающие изделия,
+ * закрыты или пропущены. Прозрачные (склад, закупка) не держат — зеркало
+ * `erp_item_production_closed` на сервере читает `is_production` участка,
+ * а прозрачность непроизводственного этапа — тот же признак в данных.
+ */
+export function itemProductionClosed(item: Pick<ShipItem, 'stages'>): boolean {
+  return (item.stages ?? [])
+    .filter((s) => (s.origin ?? 'production') === 'production' && !isPassthrough(s))
+    .every((s) => s.status === 'done' || s.status === 'skipped');
 }
 
 /** Суммарный тираж заказа — та самая величина, что жила семью копиями */

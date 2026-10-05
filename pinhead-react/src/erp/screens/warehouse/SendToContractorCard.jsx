@@ -70,7 +70,7 @@ export function SendToContractorCard({ order, task, onAdvance }) {
    * двойной тираж.
    */
   const available = useMemo(
-    () => (stage && item ? stageInputQty(stage, item) : 0), [stage, item]);
+    () => (stage && item ? stageInputQty(stage, item.stages ?? [], item.qty) : 0), [stage, item]);
 
   const run = async (fn) => {
     setSaving(true);

@@ -12,6 +12,7 @@
  */
 
 import type { ErpItemStage } from '../types';
+import { stageFactQty } from './stageQty';
 
 export interface QtyProgress {
   /** Сделано штук */
@@ -25,6 +26,7 @@ export interface QtyProgress {
 /** Минимум этапа для расчёта прогресса */
 type ProgressStage = Pick<ErpItemStage, 'status'> & {
   qty_done?: number | null;
+  qty_passthrough?: boolean | null;
   /** Образец или серия — образец в прогресс СЕРИИ не входит */
   origin?: string | null;
   /** Этап отчитывается файлом — штук у него нет, в прогресс он не входит */
@@ -42,13 +44,16 @@ function pct(done: number, total: number): number {
 
 /**
  * Прогресс одного этапа относительно тиража позиции.
- * Завершённый этап считаем сделанным целиком: цех мог закрыть его кнопкой «Готово»
- * или переносом на канбане, не набивая qty_done по одной штуке.
+ *
+ * ЗАКРЫТЫЙ ЭТАП ПОКАЗЫВАЕТ ФАКТ (правка 05.10, п. 1): «закройка и пошив
+ * показывают 150/150», хотя покроили 102 и пошили 100. Прежде закрытый этап
+ * засчитывался целиком — теперь `qty_done/тираж`, а недовыпуск виден.
+ * Прозрачный этап без числа (старое закрытие кнопкой, непроизводственный)
+ * факта не имеет — у него по-прежнему «целиком».
  */
 export function stageQtyProgress(stage: ProgressStage, itemQty: number): QtyProgress {
   const total = Math.max(itemQty, 0);
-  if (stage.status === 'done') return { done: total, total, pct: pct(total, total) };
-  const done = Math.min(Math.max(stage.qty_done ?? 0, 0), total);
+  const done = Math.min(stageFactQty(stage, total), total);
   return { done, total, pct: pct(done, total) };
 }
 

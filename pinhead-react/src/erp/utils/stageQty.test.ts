@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  hasStageExtra, stageExtraQty, stageFactLabel, stageFactQty, type QtyStage,
+  hasStageExtra, stageExtraQty, stageFactLabel, stageFactQty, stageShortfallQty, type QtyStage,
 } from './stageQty';
 
 /**
@@ -42,6 +42,21 @@ describe('факт и «плюс» этапа', () => {
     expect(stageFactQty(st({ status: 'done', qty_done: 0 }), 100)).toBe(100);
     expect(stageFactQty(st({ status: 'skipped', qty_done: null }), 100)).toBe(100);
     expect(stageExtraQty(st({ status: 'done', qty_done: 0 }), 100)).toBe(0);
+  });
+
+  /**
+   * Правка 05.10, п. 1: «закройка и пошив показывают 150/150», хотя покроили
+   * 102 и пошили 100. Закрытый этап с набитым числом — ровно это число,
+   * а недовыпуск виден отдельно
+   */
+  it('закрытый с фактом — факт, без подмены планом; недовыпуск виден', () => {
+    const sew = st({ status: 'done', qty_done: 100 });
+    expect(stageFactQty(sew, 150)).toBe(100);
+    expect(stageShortfallQty(sew, 150)).toBe(50);
+    expect(stageFactLabel(sew, 150)).toBe('Заказ 150 · Факт 100');
+    // Закрытый с нулём ПОСЛЕ правки (признак сервера снят) — ноль, а не план
+    expect(stageFactQty(st({ status: 'done', qty_done: 0, qty_passthrough: false }), 150)).toBe(0);
+    expect(stageShortfallQty(st({ status: 'in_progress', qty_done: 10 }), 150)).toBe(0);
   });
 
   it('незакрытый этап отдаёт ровно то, что набито', () => {

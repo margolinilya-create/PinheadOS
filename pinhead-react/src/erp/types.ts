@@ -526,6 +526,12 @@ export interface ErpItemStage {
   status: StageStatus;
   qty_done: number;
   qty_rework: number;
+  /**
+   * Этап изделий не выпускает и передаёт дальше свой вход (правка 05.10, п. 1):
+   * пропущенный, непроизводственный участок, файловый результат, старый
+   * закрытый с нулём. Ведёт триггер `erp_stage_passthrough`.
+   */
+  qty_passthrough?: boolean;
   planned_start: string | null;
   planned_end: string | null;
   started_at: string | null;

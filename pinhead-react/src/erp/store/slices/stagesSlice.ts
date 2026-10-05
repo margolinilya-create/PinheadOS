@@ -365,7 +365,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     resetAttempt(stageId);
     const row = (data ?? null) as ErpItemStage | null;
     if (row) set((s) => ({ orders: patchStageIn(s.orders, stageId, row) }));
-
+    void get().loadOne(order.id); // сдача меняет рулоны и стоимость сборки (05.10, пп. 3, 5)
     const after = row?.qty_done ?? (stage.qty_done ?? 0) + good;
     const credited = Math.max(after - (stage.qty_done ?? 0), 0);
     if (credited < good) {

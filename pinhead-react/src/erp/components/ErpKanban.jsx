@@ -224,9 +224,9 @@ export default function ErpKanban({ filters }) {
       });
       if (!ok) return;
       // Что писать — решает `stageDonePatch` (правка 27.09, п. 7): участок
-      // с формой результата закрывается учтённым, остальные — тиражом
+      // с формой результата закрывается учтённым, остальные — принятым
       await setStageStatus(dragged.stage.id, 'done', stageDonePatch(
-        dragged.stage, dragged.item.qty,
+        dragged.stage, dragged.item,
         departments.find((d) => d.id === dragged.stage.department_id),
       ));
     }

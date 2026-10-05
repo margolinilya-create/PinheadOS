@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderQty, shipmentTotals } from './shipment';
+import { itemProductionClosed, orderQty, shipmentTotals } from './shipment';
 import type { ErpOrderItem } from '../types';
 
 /**
@@ -77,5 +77,44 @@ describe('orderQty', () => {
   it('суммарный тираж — та величина, что жила семью копиями по экранам', () => {
     expect(orderQty({ items: [item(), item({ id: 'i2', qty: 50 })] })).toBe(150);
     expect(orderQty(null)).toBe(0);
+  });
+});
+
+/**
+ * ПРАВКА 05.10, п. 1: «после ВТО 100 шт склад может принять максимум 100.
+ * Отгрузили 60 — осталось 40. Принудительное завершение не меняет эти
+ * количества».
+ */
+describe('отгрузка по выпущенному (правка 05.10)', () => {
+  const stage = (id: string, status: string, qty_done: number, depends_on: string[] = [], extra = {}) =>
+    ({ id, status, qty_done, depends_on, qty_passthrough: false, ...extra });
+  const route = [
+    stage('cut', 'done', 102),
+    stage('sew', 'done', 100, ['cut']),
+    stage('vto', 'done', 100, ['sew']),
+    stage('fg', 'in_progress', 0, ['vto'], { qty_passthrough: true }),
+  ];
+
+  it('остаток — от выпущенного: план 150, выпущено 100, отгружено 60 — осталось 40', () => {
+    const t = shipmentTotals({ items: [item({ qty: 150, qty_shipped: 60, stages: route } as never)] });
+    expect(t.lines[0].produced).toBe(100);
+    expect(t.left).toBe(40);
+    // Маршрут закрыт — цель отгрузки выпущенное, а не план
+    expect(t.lines[0].target).toBe(100);
+    expect(t.complete).toBe(false);
+  });
+
+  it('отгружен весь выпуск закрытого маршрута — заказ отгружен', () => {
+    const t = shipmentTotals({ items: [item({ qty: 150, qty_shipped: 100, stages: route } as never)] });
+    expect(t.left).toBe(0);
+    expect(t.complete).toBe(true);
+  });
+
+  it('маршрут в работе — цель тираж, остаток от выпущенного', () => {
+    const open = [stage('cut', 'done', 102), stage('sew', 'in_progress', 50, ['cut'])];
+    const t = shipmentTotals({ items: [item({ qty: 150, qty_shipped: 0, stages: open } as never)] });
+    expect(t.left).toBe(50);
+    expect(t.lines[0].target).toBe(150);
+    expect(itemProductionClosed({ stages: open } as never)).toBe(false);
   });
 });

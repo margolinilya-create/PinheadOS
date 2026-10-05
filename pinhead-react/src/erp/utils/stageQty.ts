@@ -1,4 +1,5 @@
 import type { ErpItemStage } from '../types';
+import { isPassthrough } from './stageInput';
 
 /**
  * ФАКТ И «ПЛЮС» ЭТАПА (правка заказчика 12.09, п. 5).
@@ -23,21 +24,31 @@ import type { ErpItemStage } from '../types';
  */
 
 /** Минимум этапа для расчёта факта */
-export type QtyStage = Pick<ErpItemStage, 'status'> & { qty_done?: number | null };
+export type QtyStage = Pick<ErpItemStage, 'status'> & {
+  qty_done?: number | null;
+  qty_passthrough?: boolean | null;
+};
 
 /**
- * Сколько ФАКТИЧЕСКИ сдано на этапе.
+ * Сколько ФАКТИЧЕСКИ сдано на этапе — `qty_done`, и только он (правка 05.10,
+ * п. 1). Прежде закрытый этап считался сданным не меньше тиража, и швейка,
+ * закрытая принудительно на 100 из 150, показывала «Факт 150».
  *
- * Закрытый этап без набитого количества считаем сданным целиком — то же
- * допущение, что в `utils/progress` и `utils/stageInput`: цех мог закрыть
- * его кнопкой «Готово» или переносом на канбане, не вводя число. Но если
- * число ВВЕДЕНО и оно больше тиража — берётся оно: ровно это правка и просит.
+ * Исключение — ПРОЗРАЧНЫЙ этап без числа (пропущенный, непроизводственный,
+ * старый закрытый с нулём): у него факта нет вовсе, и подпись показывает
+ * тираж, как раньше. Сколько он передаёт дальше, считает `stageInputQty`.
  */
 export function stageFactQty(stage: QtyStage, itemQty: number): number {
   const total = Math.max(itemQty ?? 0, 0);
   const done = Math.max(stage.qty_done ?? 0, 0);
-  if (stage.status === 'done' || stage.status === 'skipped') return Math.max(done, total);
+  if (done === 0 && isPassthrough(stage)) return total;
   return done;
+}
+
+/** Недовыпуск закрытого этапа: план − факт. Ноль — этап не закрыт или добрал план */
+export function stageShortfallQty(stage: QtyStage, itemQty: number): number {
+  if (stage.status !== 'done') return 0;
+  return Math.max(Math.max(itemQty ?? 0, 0) - stageFactQty(stage, itemQty), 0);
 }
 
 /** Сверх тиража: «плюс» этапа. Ноль — перевыполнения нет */

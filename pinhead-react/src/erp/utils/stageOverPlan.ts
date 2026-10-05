@@ -27,6 +27,13 @@ import { stageInputQty } from './stageInput';
  * (`gate_material_kinds`) и схема отчёта (`result_fields`), — и правило
  * проекта прямо запрещает держать в коде константы вида «ткань → закрой».
  *
+ * ⚠️ ПРАВКА 05.10 (п. 1) ОТМЕНЯЕТ ДВА АБЗАЦА НИЖЕ: потолок — ВХОД этапа.
+ * «Цех не может сдать больше, чем получил, в том числе по отдельному размеру
+ * и цвету». «Завершить этап» у участка без формы теперь пишет принятое
+ * (`stageDonePatch`), а перенос между цехами идёт под меткой `erp.moving`,
+ * у которой на сервере прежний потолок, — поэтому «кнопка есть, действие
+ * падает» здесь не возникает. Текст ниже — история решения 12.09.
+ *
  * ПОТОЛОК — БОЛЬШЕЕ ИЗ ТИРАЖА И ПЕРЕДАННОГО, и это читается прямо
  * из документа: «нельзя указать 101 и более» при заказе 100, «можно работать
  * максимум со 105», когда закрой сдал 105. Запрещено ПРЕВЫШЕНИЕ ЗАКАЗА,
@@ -41,8 +48,8 @@ import { stageInputQty } from './stageInput';
  * причём на самом частом действии цеха.
  *
  * Переданное считает тот же `stageInputQty`, что и «принято в работу»
- * в шапке формы: минимум по предшественникам, у закрытого факт не ниже
- * тиража. Второй формулы здесь не заводится.
+ * в шапке формы: минимум по предшественникам, у закрытого — его факт
+ * (правка 05.10). Второй формулы здесь не заводится.
  */
 
 /** Участку разрешено сдавать больше, чем пришло на вход */
@@ -68,10 +75,11 @@ export function stageQtyCap(
   dept: Pick<ErpDepartment, 'allows_over_plan'> | null | undefined,
 ): number | null {
   if (deptAllowsOverPlan(dept)) return null;
-  const total = Math.max(itemQty ?? 0, 0);
+  // ПОТОЛОК — ВХОД (правка 05.10, п. 1): «цех не может сдать больше, чем
+  // получил». Тираж потолком больше не служит — то же у `erp_clamp_stage_qty`
   const input = stageInputQty(stage, allStages, itemQty);
   const done = Math.max(stage.qty_done ?? 0, 0);
-  return Math.max(Math.max(total, input) - done, 0);
+  return Math.max(input - done, 0);
 }
 
 /**
@@ -89,11 +97,9 @@ export function overPlanBlock(
 ): string | null {
   const cap = stageQtyCap(stage, allStages, itemQty, dept);
   if (cap === null || qtyGood <= cap) return null;
-  const total = Math.max(itemQty ?? 0, 0);
-  const ceiling = Math.max(total, stageInputQty(stage, allStages, itemQty));
-  return `Больше ${cap} шт сдать нельзя: потолок этапа ${ceiling} шт`
-    + (ceiling > total ? ` (закрой передал ${ceiling})` : ` (тираж заказа ${total})`)
-    + '. Сверх заказа количество появляется только на закрое.';
+  const input = stageInputQty(stage, allStages, itemQty);
+  return `Больше ${cap} шт сдать нельзя: на этап передано ${input} шт`
+    + '. Сверх переданного количество появляется только на закрое.';
 }
 
 /**

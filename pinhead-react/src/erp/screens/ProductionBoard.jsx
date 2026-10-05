@@ -275,7 +275,7 @@ export default function ProductionBoard() {
     });
     if (!ok) return;
     // Участок с формой результата закрывается учтённым, а не тиражом (27.09, п. 7)
-    await setStageStatus(stage.id, 'done', stageDonePatch(stage, item.qty, deptById.get(stage.department_id)));
+    await setStageStatus(stage.id, 'done', stageDonePatch(stage, item, deptById.get(stage.department_id)));
   };
 
   return (

@@ -54,30 +54,36 @@ describe('сценарий 1: закрой сдал 105 — дальше мак�
     const msg = overPlanBlock(106, stages[1], stages, 100, SEW);
     expect(msg).toContain('105');
     // Текст называет, ОТКУДА взялся потолок: иначе его не проверить
-    expect(msg).toContain('закрой передал 105');
+    expect(msg).toContain('передано 105');
   });
 });
 
 /**
- * ПОТОЛОК — БОЛЬШЕЕ ИЗ ТИРАЖА И ПЕРЕДАННОГО, а не один только вход.
- *
- * Первая редакция этой правки брала потолком вход этапа и оказалась СТРОЖЕ
- * ИНТЕРФЕЙСА: «Завершить этап» и перенос карточки на канбане пишут
- * `qty_done = тираж`, и у этапа, чей предшественник ещё в работе, закрытие
- * упиралось бы в отказ — «кнопка есть, действие падает» на самом частом
- * действии цеха. Документ запрещает превышение ЗАКАЗА, а не недосдачу
- * предыдущего этапа: о ней говорит `stageDoneWarning`.
+ * ПОТОЛОК — ВХОД ЭТАПА (правка 05.10, п. 1): «цех не может сдать больше,
+ * чем получил». Решение 12.09 (потолок — большее из тиража и переданного)
+ * отменено: оно и давало «швейка требует ещё 50», когда закрой выкроил 102
+ * из 150. «Завершить этап» у участка без формы теперь пишет принятое
+ * (`stageDonePatch`), поэтому «кнопка есть, действие падает» не возникает.
  */
-describe('недосдача предыдущего этапа закрыть тираж не мешает', () => {
+describe('недосдача предыдущего этапа — потолок равен переданному', () => {
   const stages = [cutting({ status: 'in_progress', qty_done: 40 }), next()];
 
-  it('тираж сдать можно, хотя передано меньше', () => {
-    expect(stageQtyCap(stages[1], stages, 100, SEW)).toBe(100);
-    expect(overPlanBlock(100, stages[1], stages, 100, SEW)).toBeNull();
+  it('сдать можно ровно переданное', () => {
+    expect(stageQtyCap(stages[1], stages, 100, SEW)).toBe(40);
+    expect(overPlanBlock(40, stages[1], stages, 100, SEW)).toBeNull();
   });
 
-  it('а сверх тиража — нельзя', () => {
-    expect(overPlanBlock(101, stages[1], stages, 100, SEW)).toContain('тираж заказа 100');
+  it('сверх переданного — нельзя, даже в пределах тиража', () => {
+    expect(overPlanBlock(41, stages[1], stages, 100, SEW)).toContain('передано 40');
+  });
+
+  it('пример документа: крой 102, пошив 100 — ВТО получает 100', () => {
+    const route = [
+      cutting({ qty_done: 102 }),
+      next({ id: 'sew', status: 'done', qty_done: 100, qty_passthrough: false }),
+      next({ id: 'vto', depends_on: ['sew'] }),
+    ];
+    expect(stageQtyCap(route[2], route, 150, SEW)).toBe(100);
   });
 });
 
@@ -145,6 +151,9 @@ describe('страж повторяет правило словами', () => {
   const INPUT = withoutComments(
     functionBody(latestDefining('erp_stage_input_qty'), 'erp_stage_input_qty'),
   );
+  const INPUT_D = withoutComments(
+    functionBody(latestDefining('erp_stage_input_qty_d'), 'erp_stage_input_qty_d'),
+  );
 
   it('потолок спрашивается у УЧАСТКА, а не у кода цеха', () => {
     expect(CLAMP).toMatch(/allows_over_plan/);
@@ -160,23 +169,26 @@ describe('страж повторяет правило словами', () => {
   });
 
   it('вход этапа считается тем же правилом, что на клиенте', () => {
+    // Обёртка зовёт рекурсивную половину — правило живёт в ней
+    expect(INPUT).toMatch(/erp_stage_input_qty_d\(p_stage_id, 0\)/);
     // Минимум по предшественникам (параллельные ветки нанесения обрабатывают
     // ОДНИ И ТЕ ЖЕ единицы — сумма дала бы 200 при тираже 100)
-    expect(INPUT).toMatch(/min\(/);
-    // У закрытого предшественника факт не ниже тиража — зеркало stageFactQty
-    expect(INPUT).toMatch(/in \('done', 'skipped'\)/);
-    expect(INPUT).toMatch(/greatest\(/);
+    expect(INPUT_D).toMatch(/least\(/);
+    // Выход — факт; прозрачный этап отдаёт свой вход — зеркало isPassthrough
+    expect(INPUT_D).toMatch(/p\.status = 'skipped' or p\.qty_passthrough/);
+    expect(INPUT_D).toMatch(/erp_stage_input_qty_d\(p\.id, p_depth \+ 1\)/);
+    // Тиража у закрытого предшественника больше нет (правка 05.10)
+    expect(INPUT_D).not.toMatch(/greatest\(coalesce\(p\.qty_done, 0\), v_total\)/);
   });
 
-  it('потолок — большее из тиража и переданного, и пропусков нет', () => {
-    /**
-     * `greatest(тираж, вход)`: перенос этапа и приёмка подряда пишут не больше
-     * тиража и проходят сами — пропуск по метке транзакции здесь не нужен,
-     * а будь он, «плюс» мимо закроя уезжал бы этими же путями.
-     */
-    expect(CLAMP).toMatch(/greatest\(coalesce\(i\.qty, 0\), public\.erp_stage_input_qty/);
-    expect(CLAMP).not.toMatch(/erp\.moving/);
-    expect(CLAMP).not.toMatch(/erp\.subcontract_rollup/);
+  it('потолок — вход этапа; тираж — только у служебных меток', () => {
+    // Правка 05.10: «цех не может сдать больше, чем получил». Перенос между
+    // цехами и приёмка подряда закрывают этап по тиражу — у них прежний
+    // потолок, большее из тиража и входа
+    expect(CLAMP).toMatch(/v_cap := public\.erp_stage_input_qty\(new\.id\)/);
+    expect(CLAMP).toMatch(/erp\.moving/);
+    expect(CLAMP).toMatch(/erp\.subcontract_rollup/);
+    expect(CLAMP).toMatch(/if v_service then/);
   });
 
   it('проверка идёт только когда число выросло', () => {

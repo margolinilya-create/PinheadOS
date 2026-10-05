@@ -131,19 +131,17 @@ export function useStageActions() {
      * «цех сдал ноль», а у этапа, который изделий не производит, этой
      * величины не существует.
      *
-     * Вход следующего этапа при этом не проседает: `stageFactQty` считает
-     * закрытый этап без набитого числа сданным целиком (то же допущение,
-     * что у закрытия кнопкой «Готово» и переносом на канбане), и вышивка
-     * после кроя получает свой тираж как прежде.
+     * Вход следующего этапа при этом не проседает: файловый этап прозрачен
+     * (`qty_passthrough`, правка 05.10) и передаёт дальше то, что получил.
      */
     const fileResult = isFileResultStage(entry.stage);
     /**
      * Что писать — решает `stageDonePatch` (правка 27.09, п. 7): у участка
      * с формой результата `qty_done` остаётся учтённым, у остальных —
-     * весь тираж, как прежде.
+     * принятое с предыдущего этапа (правка 05.10).
      */
     const dept = departments.find((d) => d.id === entry.stage.department_id);
-    const patch = stageDonePatch(entry.stage, entry.item.qty, dept);
+    const patch = stageDonePatch(entry.stage, entry.item, dept);
     const saved = await setStageStatus(entry.stage.id, 'done', patch);
     // Называем количество и следующий цех: задание уходит из списка, и это
     // единственный след того, что именно записано

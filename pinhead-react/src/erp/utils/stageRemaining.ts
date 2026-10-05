@@ -9,11 +9,11 @@
  *
  * ОДНА ФОРМУЛА С СЕРВЕРОМ (`erp_stage_unaccounted`):
  *
- *   не учтено = greatest(тираж, принято) − сдано годных − списано в брак.
+ *   не учтено = принято − сдано годных − списано в брак.
  *
  *   · «принято» — `stageInputQty` (минимум по предшественникам);
- *   · greatest с тиражом — потому что у предшественника В РАБОТЕ вход ещё
- *     растёт, и закрывать по нему рано (тот же потолок, что у `stageQtyCap`);
+ *   · пока предшественник В РАБОТЕ, вход ещё растёт, и закрывать по нему
+ *     рано — тогда потолок большее из тиража и принятого (правка 05.10);
  *   · брак — окончательный, сумма `qty_defect` по отчётам этапа;
  *   · ПЕРЕДЕЛКА ОСТАТОК НЕ УМЕНЬШАЕТ: изделие в переделке вернётся годным
  *     или браком в следующей сдаче, а `qty_rework` — накопительный счётчик
@@ -83,9 +83,21 @@ export function deptAccountsByReports(
     && Array.isArray(dept?.result_fields) && dept.result_fields.length > 0;
 }
 
-/** Потолок учёта: большее из тиража и принятого — то же, что у `stageQtyCap` */
+/**
+ * Потолок учёта (правка 05.10, п. 1): ПРИНЯТОЕ, когда все предшественники
+ * закрыты, — «цех не может сдать больше, чем получил», и недовыпуск закроя
+ * не превращается в «ещё 50 к сдаче» у швейки. Пока предшественник в работе,
+ * вход ещё растёт, и закрывать этап по нему рано — тогда большее из тиража
+ * и принятого. Зеркало `erp_stage_unaccounted`.
+ */
 export function stageCeiling(stage: InputStage, allStages: InputStage[], itemQty: number): number {
-  return Math.max(Math.max(itemQty ?? 0, 0), stageInputQty(stage, allStages, itemQty));
+  const input = stageInputQty(stage, allStages, itemQty);
+  const byId = new Map(allStages.map((s) => [s.id, s]));
+  const upstreamOpen = (stage.depends_on ?? []).some((id) => {
+    const dep = byId.get(id);
+    return dep ? dep.status !== 'done' && dep.status !== 'skipped' : false;
+  });
+  return upstreamOpen ? Math.max(Math.max(itemQty ?? 0, 0), input) : input;
 }
 
 export interface UnaccountedInput {
@@ -164,17 +176,17 @@ export function stageUnaccountedBlock(
  * Что писать этапу при «Завершить этап» / дорожке «Завершено» / чипе доски.
  *
  * Участок с формой результата закрывается тем, что реально учтено, —
- * `qty_done` не трогается (дописать тираж значило бы вернуть ту самую
- * потерю 104 изделий, только в другую сторону). Файловый результат числа
- * не имеет вовсе (правка 13.09, п. 9). Остальным — как прежде, весь тираж:
- * у них нет формы, чтобы сдать иначе, и об этом спрашивает диалог.
+ * `qty_done` не трогается. Файловый результат числа не имеет вовсе
+ * (правка 13.09, п. 9). Остальным — ПРИНЯТОЕ, а не тираж (правка 05.10,
+ * п. 1): «принудительное завершение не добавляет изделия до плана», и
+ * обычное закрытие участка без формы тоже передаёт дальше то, что получил.
  */
 export function stageDonePatch(
-  stage: Pick<ErpItemStage, 'id' | 'result_kind'>,
-  itemQty: number,
+  stage: InputStage & Pick<ErpItemStage, 'result_kind'>,
+  item: { qty: number; stages?: InputStage[] | null },
   dept: Pick<ErpDepartment, 'result_fields'> | null | undefined,
 ): { qty_done?: number } {
   if (isFileResultStage(stage)) return {};
   if (deptAccountsByReports(dept)) return {};
-  return { qty_done: itemQty };
+  return { qty_done: stageInputQty(stage, item.stages ?? [], item.qty) };
 }

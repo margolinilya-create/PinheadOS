@@ -6,6 +6,7 @@ import { STAGE_STATUS_LABELS } from '../types';
 import { isStageAwaitingProcurement, isStageReady, materialsForItem } from '../utils/routes';
 import { stageMissingTz } from '../utils/tz';
 import { itemProgress, stageCountProgress, stageQtyProgress } from '../utils/progress';
+import { stageShortfallQty } from '../utils/stageQty';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import styles from '../erp.module.css';
 
@@ -80,6 +81,9 @@ export function RouteProgress({
               stageMissingTz(order, item.id, dept));
           const display = effectiveReady ? 'ready' : stage.status;
           const p = stageQtyProgress(stage, item.qty);
+          // Недовыпуск закрытого этапа виден отдельно (правка 05.10, п. 1):
+          // «закрыт 100/150» не должен читаться как «готово»
+          const shortfall = stageShortfallQty(stage, item.qty);
           return (
             <li
               key={stage.id}
@@ -103,7 +107,14 @@ export function RouteProgress({
                   </span>
                 )}
               </span>
-              <span className={styles.routeQty}>{p.done}/{p.total}</span>
+              <span className={styles.routeQty}>
+                {p.done}/{p.total}
+                {shortfall > 0 && (
+                  <span className={styles.subText} title="Этап закрыт с недовыпуском">
+                    {' '}· недовыпуск {shortfall}
+                  </span>
+                )}
+              </span>
               {!compact && (
                 <span className={styles.routeBar} aria-hidden="true">
                   <span className={styles.routeBarFill} style={{ width: `${p.pct}%` }} />

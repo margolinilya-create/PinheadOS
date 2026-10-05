@@ -13,15 +13,30 @@ import styles from '../erp.module.css';
  * показ и подсветка.
  */
 export function SizeReportSection({ rows, values, onChange, canDefect, disabled }) {
+  /**
+   * ИСТОРИЯ ОТДЕЛЬНО ОТ НОВОЙ ПАРТИИ (правка 05.10, п. 3): «при открытии формы
+   * показывать полученный крой и все предыдущие сдачи по размерам и цветам…
+   * В поля новой сдачи вводится только новая партия». Колонки «ранее» —
+   * вывод из своих отчётов этапа, а не поле ввода, и форма их не обнуляет.
+   */
+  const anyPrev = rows.some((r) => r.prev && (r.prev.good + r.prev.defect + r.prev.rework) > 0);
+  const prevColumns = anyPrev ? [
+    { code: 'prevGood', label: 'Сдано ранее', render: (row) => row.prev?.good ?? 0 },
+    ...(canDefect ? [
+      { code: 'prevDefect', label: 'Брак ранее', render: (row) => row.prev?.defect ?? 0 },
+      { code: 'prevRework', label: 'Переделка ранее', render: (row) => row.prev?.rework ?? 0 },
+    ] : []),
+  ] : [];
   return (
     <>
       <span className={styles.fieldLabel}>Размерная разбивка</span>
       <SizeResultTable
         rows={rows.map((r) => ({ ...r, expected: r.expected ?? '—' }))}
         columns={[
+          ...prevColumns,
           {
             code: 'good',
-            label: 'Сшито, шт',
+            label: anyPrev ? 'Сдаю сейчас, шт' : 'Сшито, шт',
             /* Подсветка ИМЕННО этого поля: документ просит показать,
                какую строку исправлять, а не «где-то превышение» */
             invalid: (row, vals) => row.remaining !== null
@@ -47,7 +62,7 @@ export function SizeReportSection({ rows, values, onChange, canDefect, disabled 
               const left = Number(row.remaining) - entered;
               if (entered === 0) {
                 return left > 0
-                  ? <span className={styles.subText}>осталось {left}</span>
+                  ? <span className={styles.subText}>в работе {left}</span>
                   : <span className={styles.subText}>учтено</span>;
               }
               if (left < 0) {
@@ -58,7 +73,7 @@ export function SizeReportSection({ rows, values, onChange, canDefect, disabled 
                 );
               }
               return left > 0
-                ? <span className={styles.subText}>осталось {left}</span>
+                ? <span className={styles.subText}>в работе {left}</span>
                 : <span className={styles.subText}>готово</span>;
             },
           },

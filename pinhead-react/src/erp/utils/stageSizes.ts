@@ -201,6 +201,56 @@ export interface SizeInputRow {
    * Именно остаток, а не «принято», — потолок каждой следующей сдачи.
    */
   remaining: number | null;
+  /**
+   * Прежние сдачи этого этапа по строке (правка 05.10, п. 3): «при открытии
+   * формы показывать полученный крой и все предыдущие сдачи по размерам
+   * и цветам». Новая партия вводится отдельно и прибавляется к ним.
+   */
+  prev: SizeLedgerEntry;
+}
+
+/** Сдано своими отчётами по строке: годные, окончательный брак, переделка */
+export interface SizeLedgerEntry {
+  good: number;
+  defect: number;
+  rework: number;
+}
+
+const EMPTY_LEDGER: SizeLedgerEntry = { good: 0, defect: 0, rework: 0 };
+
+/**
+ * Свод прежних сдач этапа по ключу ячейки (правка 05.10, п. 3).
+ *
+ * Сколько уже сдано годных, списано в окончательный брак и отправлено
+ * в переделку — по каждой строке «цвет × размер». Партии складываются,
+ * историю ничто не обнуляет и не заменяет планом заказа. Переделка — счётчик
+ * отправок: исправленное изделие возвращается ГОДНЫМ следующей сдачей,
+ * поэтому остаток в работе считается без неё (иначе одно изделие учлось бы
+ * дважды — и в переделке, и в годных).
+ */
+export function sizeLedger(
+  reports: readonly {
+    stage_id?: string | null;
+    sizes?: readonly {
+      color?: string | null; size: string;
+      qty_good?: number | null; qty_defect?: number | null; qty_rework?: number | null;
+    }[] | null;
+  }[] | null | undefined,
+  stageId?: string,
+): Record<string, SizeLedgerEntry> {
+  const out: Record<string, SizeLedgerEntry> = {};
+  for (const r of reports ?? []) {
+    if (stageId && r.stage_id !== stageId) continue;
+    for (const row of r.sizes ?? []) {
+      const key = sizeKey(row.color, row.size);
+      const acc = out[key] ?? { ...EMPTY_LEDGER };
+      acc.good += Math.max(row.qty_good ?? 0, 0);
+      acc.defect += Math.max(row.qty_defect ?? 0, 0);
+      acc.rework += Math.max(row.qty_rework ?? 0, 0);
+      out[key] = acc;
+    }
+  }
+  return out;
 }
 
 /**
@@ -225,6 +275,8 @@ export function sizeInputRows(
   fromPrevious: readonly SizeCell[] = [],
   /** Уже учтено своими отчётами по ключу ячейки (`reportedAccountedBySize`) */
   accounted: Record<string, number> = {},
+  /** Свод прежних сдач (`sizeLedger`) — для колонок «сдано ранее» */
+  ledger: Record<string, SizeLedgerEntry> = {},
 ): SizeInputRow[] {
   const cells = gridCells(grid);
   const source = cells.length > 0 ? cells : fromPrevious;
@@ -238,6 +290,7 @@ export function sizeInputRows(
       label: cell.color === '—' ? cell.size : `${cell.size} · ${cell.color}`,
       expected,
       remaining: expected === null ? null : Math.max(expected - (accounted[key] ?? 0), 0),
+      prev: ledger[key] ?? EMPTY_LEDGER,
     };
   });
 }

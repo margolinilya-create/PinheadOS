@@ -11,7 +11,8 @@ import { useStageReports } from './useStageReports';
 import { CutRollsSection } from '../screens/queue/CutRollsSection';
 import { useForeignRolls } from './useForeignRolls';
 import {
-  sizeInputCells, sizeInputFor, sizeInputRows, sizeReportBlock, sizeTotals, sizeReportPayload,
+  sizeInputCells, sizeInputFor, sizeInputRows, sizeLedger, sizeReportBlock, sizeTotals,
+  sizeReportPayload,
 } from '../utils/stageSizes';
 import {
   cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
@@ -107,13 +108,26 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
 
   const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
-  const [assemblyCost, setAssemblyCost] = useState('');
+  /**
+   * Стоимость сборки стартует ЗАПИСАННОЙ (правка 05.10, п. 3: «должна
+   * сохраняться после закрытия формы»). Прежде поле открывалось пустым,
+   * а записанное жило серой подсказкой. Деталь заказа могла приехать позже
+   * открытия формы — тогда значение подставляется, пока поле не трогали.
+   */
+  const savedCost = fullItem.assembly_cost_per_unit;
+  const [assemblyCost, setAssemblyCost] = useState(savedCost ? String(savedCost) : '');
+  const [costTouched, setCostTouched] = useState(false);
+  useEffect(() => {
+    if (!costTouched && savedCost) setAssemblyCost(String(savedCost));
+  }, [savedCost, costTouched]);
   /**
    * Отчёты предков (столбец «Покроено» сквозь нанесение, правка 27.09, п. 6)
    * и свои прежние (плюсы, остаток по размерам и «Осталось сдать», п. 7) —
    * хук `useStageReports`; здесь только их производные.
    */
-  const { prevReports, ownReports } = useStageReports(stage, item.stages ?? [], bySizes);
+  // Этапы — из свежей позиции: снимок очереди мог отстать от сдачи соседа
+  const stages = fullItem.stages ?? item.stages ?? [];
+  const { prevReports, ownReports } = useStageReports(stage, stages, bySizes);
   const setRollLeftover = useErpStore((st) => st.setRollLeftover);
   /** Параметры рулона без метража — дозаполняются прямо в блоке сдачи (27.09, п. 4) */
   const setRollParams = useErpStore((st) => st.setRollParams);
@@ -121,20 +135,21 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   // Только СВОИ отчёты: выборка по id и так своя, но сумма обязана не зависеть от того
   const accountedBySize = useMemo(() => reportedAccountedBySize(ownReports, stage.id), [ownReports, stage.id]);
   const defectReported = useMemo(() => reportedDefect(ownReports, stage.id), [ownReports, stage.id]);
+  const ledger = useMemo(() => sizeLedger(ownReports, stage.id), [ownReports, stage.id]);
 
   const sizeInput = useMemo(
-    () => (bySizes ? sizeInputFor(stage, item.stages ?? [], prevReports) : null),
-    [bySizes, stage, item.stages, prevReports],
+    () => (bySizes ? sizeInputFor(stage, stages, prevReports) : null),
+    [bySizes, stage, stages, prevReports],
   );
   const sizeFromPrev = useMemo(
-    () => (bySizes ? sizeInputCells(stage, item.stages ?? [], prevReports) : []),
-    [bySizes, stage, item.stages, prevReports],
+    () => (bySizes ? sizeInputCells(stage, stages, prevReports) : []),
+    [bySizes, stage, stages, prevReports],
   );
   const sizeRows = useMemo(
     () => (bySizes
-      ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize)
+      ? sizeInputRows(fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize, ledger)
       : []),
-    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize],
+    [bySizes, fullItem.size_grid, sizeInput, sizeFromPrev, accountedBySize, ledger],
   );
   /**
    * ТАБЛИЦА ЕСТЬ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ СТРОКИ (правка 20.09, п. 8).
@@ -153,7 +168,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * частичной сдаче незачем — «обязательное» превратилось бы в «вводите
    * одно и то же каждый день».
    */
-  const needsCost = bySizes && !fullItem.assembly_cost_per_unit && assemblyCost === '';
+  const needsCost = bySizes && !savedCost && assemblyCost === '';
   /** Рулоны позиции и остатки других заказов (правка 28.09): их же показывает секция */
   const foreignRolls = useForeignRolls(order.id, byRolls);
   const rollOptions = useMemo(
@@ -200,8 +215,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     [dept, canDefect, byRolls, useSizeTable],
   );
   const qtyIn = useMemo(
-    () => stageInputQty(stage, item.stages ?? [], item.qty),
-    [stage, item],
+    () => stageInputQty(stage, stages, item.qty),
+    [stage, stages, item.qty],
   );
   /**
    * «Осталось сдать» — по учтённому (правка 27.09, п. 7): потолок минус
@@ -210,9 +225,9 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    */
   const remaining = useMemo(
     () => stageUnaccounted({
-      stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported,
+      stage, allStages: stages, itemQty: item.qty, defectReported,
     }),
-    [stage, item, defectReported],
+    [stage, stages, item.qty, defectReported],
   );
   /**
    * ПОТОЛОК ФАКТА (правка 12.09, вторая порция, п. 4): «плюсы» появляются
@@ -223,8 +238,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * у поля ввода не было даже атрибута `max`, и сдать можно было любое число.
    */
   const cap = useMemo(
-    () => stageQtyCap(stage, item.stages ?? [], item.qty, dept),
-    [stage, item, dept],
+    () => stageQtyCap(stage, stages, item.qty, dept),
+    [stage, stages, item.qty, dept],
   );
 
   const [values, setValues] = useState({});
@@ -270,7 +285,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const anything = goodQty + defectQty + reworkQty + totals.qty_extra > 0;
   const needsComment = defectQty > 0 || reworkQty > 0;
   const missingRequired = fields.some((f) => f.required && num(f.code) <= 0);
-  const overBlock = overPlanBlock(goodQty, stage, item.stages ?? [], item.qty, dept);
+  const overBlock = overPlanBlock(goodQty, stage, stages, item.qty, dept);
 
   const submit = async () => {
     /**
@@ -387,9 +402,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
             className={`${styles.input} ${styles.qtySmallInput}`}
             value={assemblyCost}
             disabled={busy}
-            onChange={(e) => setAssemblyCost(e.target.value)}
-            placeholder={fullItem.assembly_cost_per_unit
-              ? String(fullItem.assembly_cost_per_unit) : ''}
+            onChange={(e) => { setCostTouched(true); setAssemblyCost(e.target.value); }}
             aria-label="Стоимость сборки за единицу"
           />
           <span className={styles.subText}>

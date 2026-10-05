@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { stageInputQty, stageRemainingQty } from './stageInput';
+import {
+  isPassthrough, itemProducedQty, stageInputQty, stageOutputQty, stageRemainingQty,
+} from './stageInput';
 import type { InputStage } from './stageInput';
 
 const st = (
@@ -90,5 +92,62 @@ describe('stageRemainingQty', () => {
     const cut = st('cut', 'in_progress', 20);
     const sew = st('sew', 'in_progress', 50, ['cut']);
     expect(stageRemainingQty(sew, [cut, sew], 100)).toBe(0);
+  });
+});
+
+/**
+ * ПРАВКА 05.10, п. 1: передаётся ФАКТ, а не план. «Покроили 102 — в пошив
+ * передаётся 102. Пошили 100 — в ВТО передаётся 100». Принудительное
+ * завершение закрывает этап, но изделий до плана не добавляет.
+ */
+describe('передача фактического количества (правка 05.10)', () => {
+  const real = (
+    id: string, status: InputStage['status'], qtyDone: number, deps: string[] = [],
+  ): InputStage => ({ id, status, qty_done: qtyDone, depends_on: deps, qty_passthrough: false });
+
+  it('пример документа: план 150, крой 102, пошив 100 — ВТО 100', () => {
+    const cut = real('cut', 'done', 102);
+    const sew = real('sew', 'done', 100, ['cut']);
+    const vto = real('vto', 'waiting', 0, ['sew']);
+    const all = [cut, sew, vto];
+    expect(stageInputQty(sew, all, 150)).toBe(102);
+    expect(stageInputQty(vto, all, 150)).toBe(100);
+  });
+
+  it('этап, закрытый с нулём ПОСЛЕ правки, передаёт ноль', () => {
+    const sew = real('sew', 'done', 0);
+    const vto = real('vto', 'waiting', 0, ['sew']);
+    expect(stageInputQty(vto, [sew, vto], 150)).toBe(0);
+  });
+
+  it('прозрачный этап (закупка, старое закрытие) передаёт свой вход', () => {
+    const cut = real('cut', 'done', 102);
+    const supply: InputStage = { id: 'sup', status: 'done', qty_done: 0, depends_on: ['cut'], qty_passthrough: true };
+    const sew = real('sew', 'waiting', 0, ['sup']);
+    expect(stageInputQty(sew, [cut, supply, sew], 150)).toBe(102);
+  });
+
+  it('пропущенный этап прозрачен независимо от признака', () => {
+    const cut = real('cut', 'done', 90);
+    const skip: InputStage = { id: 'x', status: 'skipped', qty_done: 0, depends_on: ['cut'], qty_passthrough: false };
+    const sew = real('sew', 'waiting', 0, ['x']);
+    expect(stageInputQty(sew, [cut, skip, sew], 150)).toBe(90);
+  });
+
+  it('isPassthrough без колонки — закрытый с нулём (fail-open)', () => {
+    expect(isPassthrough({ status: 'done', qty_done: 0 })).toBe(true);
+    expect(isPassthrough({ status: 'done', qty_done: 5 })).toBe(false);
+    expect(isPassthrough({ status: 'done', qty_done: 0, qty_passthrough: false })).toBe(false);
+  });
+
+  it('выпущено по позиции — минимум выходов терминальных этапов', () => {
+    const cut = real('cut', 'done', 102);
+    const sew = real('sew', 'done', 100, ['cut']);
+    const vto = real('vto', 'done', 100, ['sew']);
+    const fg: InputStage = { id: 'fg', status: 'in_progress', qty_done: 0, depends_on: ['vto'], qty_passthrough: true };
+    expect(itemProducedQty({ qty: 150, stages: [cut, sew, vto, fg] })).toBe(100);
+    expect(stageOutputQty(fg, [cut, sew, vto, fg], 150)).toBe(100);
+    // Маршрута нет — тираж
+    expect(itemProducedQty({ qty: 150, stages: [] })).toBe(150);
   });
 });

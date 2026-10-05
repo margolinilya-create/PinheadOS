@@ -54,6 +54,22 @@ describe('stageUnaccounted — формула документа', () => {
     })).toBe(250);
   });
 
+  /**
+   * Правка 05.10, п. 3: «сдали 100 из 102 — система требует ещё 50». Закрой
+   * закрыт с недовыпуском (102 из 150): потолок — принятое, а не тираж
+   */
+  it('предшественник закрыт с недовыпуском — потолок равен принятому', () => {
+    const cut102 = { ...cut, status: 'done' as const, qty_done: 102, qty_passthrough: false };
+    const sew100 = { ...sew, qty_done: 100 };
+    expect(stageCeiling(sew100, [cut102, sew100], 150)).toBe(102);
+    expect(stageUnaccounted({
+      stage: sew100, allStages: [cut102, sew100], itemQty: 150, defectReported: 0,
+    })).toBe(2);
+    expect(stageUnaccounted({
+      stage: sew100, allStages: [cut102, sew100], itemQty: 150, defectReported: 0, addedGood: 2,
+    })).toBe(0);
+  });
+
   it('ниже нуля не уходит', () => {
     expect(stageUnaccounted({
       stage: { ...sew, qty_done: 500 }, allStages: [cut, sew], itemQty: 350, defectReported: 0,
@@ -93,13 +109,16 @@ describe('stageUnaccountedBlock — только у участка с формо
 
 describe('stageDonePatch — что пишет «Завершить этап»', () => {
   it('участок с формой: qty_done не трогается', () => {
-    expect(stageDonePatch({ id: 'sew', result_kind: null }, 350, FORM)).toEqual({});
+    expect(stageDonePatch({ id: 'sew', status: 'in_progress', depends_on: [], result_kind: null }, { qty: 350 }, FORM)).toEqual({});
   });
   it('файловый результат: числа нет вовсе', () => {
-    expect(stageDonePatch({ id: 'p', result_kind: 'embroidery_program' }, 350, NO_FORM)).toEqual({});
+    expect(stageDonePatch({ id: 'p', status: 'in_progress', depends_on: [], result_kind: 'embroidery_program' }, { qty: 350 }, NO_FORM)).toEqual({});
   });
-  it('участок без формы: весь тираж, как прежде', () => {
-    expect(stageDonePatch({ id: 'vto', result_kind: null }, 350, NO_FORM)).toEqual({ qty_done: 350 });
+  it('участок без формы: принятое, а не тираж (правка 05.10)', () => {
+    const cut = { id: 'cut', status: 'done' as const, qty_done: 102, depends_on: [], qty_passthrough: false };
+    const vto = { id: 'vto', status: 'in_progress' as const, qty_done: 0, depends_on: ['cut'], result_kind: null };
+    expect(stageDonePatch(vto, { qty: 150, stages: [cut, vto] }, NO_FORM)).toEqual({ qty_done: 102 });
+    expect(stageDonePatch({ id: 'vto', status: 'in_progress', depends_on: [], result_kind: null }, { qty: 350 }, NO_FORM)).toEqual({ qty_done: 350 });
   });
 });
 
@@ -142,8 +161,9 @@ describe('серверное зеркало (миграция 27.09, п. 7)', ()
   const PROGRESS = withoutComments(functionBody(latestDefining('erp_stage_report_progress'), 'erp_stage_report_progress'));
   const OUTPUT = withoutComments(functionBody(latestDefining('erp_stage_size_output'), 'erp_stage_size_output'));
 
-  it('не учтено = greatest(тираж, принято) − сдано − брак', () => {
-    expect(UNACC).toMatch(/greatest\(v_qty, v_input\)/);
+  it('не учтено = принято − сдано − брак; пока предшественник в работе — от большего из тиража', () => {
+    expect(UNACC).toMatch(/case when v_open then greatest\(v_qty, v_input\) else v_input end/);
+    expect(UNACC).toMatch(/p\.status not in \('done', 'skipped'\)/);
     expect(UNACC).toMatch(/erp_stage_input_qty\(p_stage_id\)/);
     expect(UNACC).toMatch(/erp_stage_defect_reported\(p_stage_id\)/);
     // Переделка в формуле не участвует
