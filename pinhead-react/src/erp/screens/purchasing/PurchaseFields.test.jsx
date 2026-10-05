@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MaterialCell, PlanField } from './PurchaseFields';
+import { MaterialCell, MaterialSizes, PlanField } from './PurchaseFields';
 
 /**
  * ПРАВКА ЗАКАЗЧИКА 16.09, П. 2: «Если позиция в заказе является готовым
@@ -26,14 +26,15 @@ const FABRIC = {
 };
 
 describe('строка закупки готового изделия', () => {
-  it('показывает разбивку по размерам прямо в строке', () => {
-    render(<table><tbody><tr><td><MaterialCell m={GARMENT} /></td></tr></tbody></table>);
+  // С 05.10 (п. 6) разбивка — в подробностях строки, а не в ячейке материала
+  it('показывает разбивку по размерам у строки', () => {
+    render(<MaterialSizes m={GARMENT} />);
     expect(screen.getByText(/XS 10 · S 20 · M 30 · L 25 · XL 15/)).toBeInTheDocument();
   });
 
   it('у обычного материала разбивки нет — строка не обрастает пустотой', () => {
-    render(<table><tbody><tr><td><MaterialCell m={FABRIC} /></td></tr></tbody></table>);
-    expect(screen.queryByText(/XS/)).not.toBeInTheDocument();
+    const { container } = render(<MaterialSizes m={FABRIC} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('вид «готовое изделие» подписан человеку', () => {

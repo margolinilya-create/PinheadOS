@@ -9,17 +9,22 @@ import styles from '../../styles';
  * Задача склада карточкой вместо строки таблицы — компактная раскладка
  * (планшет цеха и телефон).
  *
- * Зачем: «Склад» — экран пилота, и работают с ним с планшета, а таблица здесь
- * из шести колонок. Ниже 1024px она уезжала за край, и колонка «Действие»
- * оказывалась за пределами экрана — то есть кнопки, ради которой на экран
- * и приходят, было не видно вовсе. Тот же приём уже применён у очереди цеха
- * (QueueCard), доски и списка заказов (OrderCardMobile); здесь его не было.
+ * Зачем: «Склад» — экран пилота, и работают с ним с планшета. Ниже 1024px
+ * таблица уезжала за край, и колонка «Действие» оказывалась за пределами
+ * экрана. Подписи полей ставятся ЯВНО: вместе с шапкой таблицы исчезают
+ * названия колонок, и «28.07» без слова «Срок» ничего не значит.
  *
- * Подписи полей ставятся ЯВНО: вместе с шапкой таблицы исчезают названия
- * колонок, и «28.07» без слова «Срок» ничего не значит.
+ * ПОЛЯ И ДЕЙСТВИЕ — ОТ ЗАДАЧИ (правка 05.10, п. 8). Кнопка называет свою
+ * операцию («Принять ткань», «Отгрузить»), а не «Открыть» у всех подряд;
+ * поля приходят списком `fields`: у приёмки материала это поставщик,
+ * сколько принять и срок ПОСТАВКИ, у остальных — содержимое и срок.
+ * Кнопка открывает форму, операцию сразу не проводит.
+ *
+ * @param fields  `[{ label, value, note? }]` — подписанные поля карточки
  */
 function WarehouseTaskCardBase({
-  typeLabel, typeIcon, orderId, orderNo, orderTitle, summary, statusLabel, statusVariant, deadline, onOpen,
+  typeLabel, typeIcon, orderId, orderNo, orderTitle, statusLabel, statusVariant,
+  fields, actionLabel = 'Открыть', onOpen,
 }) {
   return (
     <article className={styles.dataCard} aria-label={`${typeLabel} — заказ ${orderTitle}`}>
@@ -31,8 +36,7 @@ function WarehouseTaskCardBase({
         <Badge variant={statusVariant}>{statusLabel}</Badge>
       </div>
 
-      {/* Заголовок — ССЫЛКА на заказ (правка владельца, п. 2): он подсвечивался
-          под курсором, как ссылка, а клик не делал ничего. Без id заказа
+      {/* Заголовок — ССЫЛКА на заказ (правка владельца, п. 2). Без id заказа
           остаётся текстом — подсветку CSS даёт только `a.dataCardTitle`. */}
       {orderId ? (
         <OrderLink orderId={orderId} className={styles.dataCardTitle} title={orderTitle}>
@@ -45,21 +49,19 @@ function WarehouseTaskCardBase({
       )}
 
       <div className={styles.dataCardFields}>
-        <span className={styles.dataCardField}>
-          <span className={styles.dataCardFieldLabel}>Содержимое</span>
-          <span>{summary}</span>
-        </span>
-        <span className={styles.dataCardField}>
-          <span className={styles.dataCardFieldLabel}>Срок</span>
-          <span>{deadline || '—'}</span>
-        </span>
+        {fields.map((f) => (
+          <span key={f.label} className={styles.dataCardField}>
+            <span className={styles.dataCardFieldLabel}>{f.label}</span>
+            <span>{f.value || '—'}</span>
+            {f.note && <span className={styles.subText}>{f.note}</span>}
+          </span>
+        ))}
       </div>
 
       {/* `block` + собственный @media(pointer: coarse) примитива дают
-          кнопку во всю ширину и ≥44px — на планшете это основная,
-          а часто и единственная цель нажатия */}
+          кнопку во всю ширину и ≥44px — на планшете это основная цель */}
       <Button variant="secondary" block onClick={onOpen}>
-        Открыть
+        {actionLabel}
       </Button>
     </article>
   );

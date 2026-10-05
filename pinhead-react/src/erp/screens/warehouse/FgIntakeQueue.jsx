@@ -96,7 +96,7 @@ export function FgIntakeQueue() {
    */
   const actionLabel = (item) => {
     const action = garmentIntakeAction(item);
-    return action ? GARMENT_INTAKE_LABELS[action] : 'Принять изделие';
+    return action ? GARMENT_INTAKE_LABELS[action] : 'Принять изделия';
   };
 
   const hasIssue = rows.some((e) => garmentIntakeAction(e.item) === 'issue');

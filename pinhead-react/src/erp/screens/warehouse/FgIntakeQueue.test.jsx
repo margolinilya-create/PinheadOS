@@ -93,7 +93,7 @@ describe('Приёмка готового изделия — окно резул
     useErpStore.setState({ setStageStatus, submitStageReport, loadMaterialReceipts: async () => [] });
     renderQueue();
 
-    fireEvent.click(screen.getByRole('button', { name: /Принять изделие/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Принять издели[ея]/ }));
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     // Ни один этап не закрыт одним нажатием — это и была жалоба документа
@@ -104,7 +104,7 @@ describe('Приёмка готового изделия — окно резул
   it('в окно подтянут тираж из заказа', async () => {
     useErpStore.setState({ loadMaterialReceipts: async () => [] });
     renderQueue();
-    fireEvent.click(screen.getByRole('button', { name: /Принять изделие/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Принять издели[ея]/ }));
 
     const field = await screen.findByRole('spinbutton', { name: /Принято/ });
     expect(field).toHaveValue(100);
@@ -122,7 +122,7 @@ describe('Приёмка готового изделия — окно резул
       }],
     });
     renderQueue();
-    fireEvent.click(screen.getByRole('button', { name: /Принять изделие/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Принять издели[ея]/ }));
 
     await screen.findByRole('dialog');
     const fields = screen.getAllByRole('spinbutton', { name: /Принято/ });
@@ -138,7 +138,7 @@ describe('Приёмка готового изделия — окно резул
       loadMaterialReceipts: async () => [],
     });
     renderQueue();
-    fireEvent.click(screen.getByRole('button', { name: /Принять изделие/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Принять издели[ея]/ }));
 
     const field = await screen.findByRole('spinbutton', { name: /Принято/ });
     fireEvent.change(field, { target: { value: '' } });
@@ -157,7 +157,7 @@ describe('Приёмка готового изделия — окно резул
     const submitStageReport = vi.fn(async () => true);
     useErpStore.setState({ submitStageReport, loadMaterialReceipts: async () => [] });
     renderQueue();
-    fireEvent.click(screen.getByRole('button', { name: /Принять изделие/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Принять издели[ея]/ }));
 
     const field = await screen.findByRole('spinbutton', { name: /Принято/ });
     fireEvent.change(field, { target: { value: '' } });

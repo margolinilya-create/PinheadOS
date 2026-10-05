@@ -36,6 +36,16 @@
   gap: var(--space-sm);
 }
 
+/* Группа полей формы с подписью (правка 05.10, п. 6: «поля группами»).
+   Рамку `fieldset` гасим: группу отделяет подпись и отступ, а не коробка
+   внутри коробки модалки */
+.formGroup { border: 0; margin: 0 0 var(--space-lg); padding: 0; min-width: 0; }
+.formGroupTitle {
+  padding: 0; margin-bottom: var(--space-sm);
+  font-family: var(--font-display); font-size: var(--type-body); font-weight: 600;
+  color: var(--text);
+}
+
 /* Жёсткие 7 колонок ломались на подряде: та же grid-строка получала 9-12 детей
    (фрагменты DOM-узла не создают), и свободный ввод «Операция подрядчика» сжимался
    до 32px — колонки кнопки ✕, которая при этом уезжала во второй ряд.
@@ -688,12 +698,50 @@ a.cellTitle:hover { color: var(--accent); }
   .fileBtn { min-height: 44px; }
   .gridDetails summary { min-height: 44px; }
   .supplierCell { min-height: 44px; }
+  .expandBtn { min-width: 44px; min-height: 44px; }
   /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
      бригадир таскает задания на планшете */
   .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;
                 align-items: center; justify-content: center; }
 }
 
+
+/* ─── Таблица материалов закупки без горизонтали (правка 05.10, п. 6) ───
+   Таблица обязана помещаться в широкую панель: `table-layout: fixed`
+   и перенос внутри ячеек вместо `overflow-x`. Колонки с полями ввода
+   получают ширину, остальные делят остаток */
+.purchaseTableWrap {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.purchaseTable { width: 100%; table-layout: fixed; }
+.purchaseTable td { overflow-wrap: anywhere; vertical-align: top; }
+.purchaseTable th:nth-child(1) { width: 48px; }
+.purchaseTable th:nth-child(4) { width: 190px; }
+.purchaseTable th:nth-child(5) { width: 112px; }
+.purchaseTable th:nth-child(6) { width: 150px; }
+.purchaseTable th:nth-child(8) { width: 180px; }
+.purchaseTable :global(input) { max-width: 100%; }
+.expandBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--control-h-sm); min-height: var(--control-h-sm);
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--text-dim); cursor: pointer;
+}
+.expandBtn:hover { border-color: var(--border-mid); background: var(--surface); }
+.expandBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.purchaseDetailsRow > td { background: var(--surface); }
+.purchaseDetails { display: flex; flex-direction: column; gap: var(--space-md); }
+.purchaseActions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-xs); }
+.receiptAction { display: inline-flex; flex-direction: column; gap: var(--space-xs); }
+.receiptList { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); }
+.qtyTriple { display: flex; flex-direction: column; gap: var(--space-xs); }
+.qtyTripleRow { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: var(--space-xs); }
+/* «← К закупке» в панели приёмки, открытой из закупки (правка 05.10, п. 7) */
+.drawerBackRow { margin-bottom: var(--space-md); }
+/* Сводка закупки строкой вместо шести плиток */
+.summaryLine { margin: 0 0 var(--space-md); color: var(--text); font-size: var(--type-body-sm); }
 
 /* Ячейка поставщика в закупке: открывает сравнение вариантов (правка 10) */
 .supplierCell {

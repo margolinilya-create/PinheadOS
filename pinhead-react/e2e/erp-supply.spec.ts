@@ -239,9 +239,9 @@ test.describe('Очередь закупки (правка 12.08)', () => {
       .or(page.locator('main'));
     await expect(card.getByText('Недостача').first()).toBeVisible();
     await expect(card.getByText(/привезли 45 из 60/).first()).toBeVisible();
-    // Плитка «Проблемы» — та же величина, что и вердикт: считает `supplyMaterialSummary`
-    const tile = page.getByText('Проблемы', { exact: true }).locator('..');
-    await expect(tile).toContainText('1');
+    // Сводка строкой (правка 05.10, п. 6) — та же величина, что и вердикт:
+    // считает `supplyMaterialSummary`
+    await expect(page.getByText(/проблемы 1/)).toBeVisible();
   });
 
   /**
@@ -259,19 +259,31 @@ test.describe('Очередь закупки (правка 12.08)', () => {
     await expect(row.getByRole('button', OPEN)).toBeVisible();
   });
 
-  /** Сводка статусов видна сразу, без прокрутки к таблице (п. 1.3) */
-  test('карточка закупки открывается со сводкой статусов', async ({ page }) => {
+  /**
+   * Сводка статусов видна сразу (п. 1.3) — с правки 05.10 (п. 6) одной
+   * строкой в ШИРОКОЙ ПАНЕЛИ, а не плитками в блоке под списком.
+   */
+  test('карточка закупки открывается панелью со сводкой строкой', async ({ page }) => {
     await page.goto('/purchasing?studio=0');
     await supplyRow(page, 'Платки тест закупка')
       .getByRole('button', OPEN).click();
     // Выбор живёт в адресе — ссылкой на закупку можно поделиться
     await expect(page).toHaveURL(/supply=/);
-    // Ищем именно ПЛИТКИ сводки: «Пришло» и «В пути» есть ещё и среди
-    // чипов-фильтров таблицы, которая лежит в той же карточке
-    const tiles = page.locator('[class*="kpiCardLabel"]');
-    for (const label of ['Всего материалов', 'Не заказано', 'Заказано', 'В пути', 'Пришло', 'Проблемы']) {
-      await expect(tiles.filter({ hasText: new RegExp(`^${label}$`) })).toBeVisible();
-    }
+    const panel = page.getByRole('dialog', { name: 'Карточка закупки' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/^Материалов 0/)).toBeVisible();
+    await expect(page.locator('[class*="kpiCardLabel"]')).toHaveCount(0);
+  });
+
+  /** Таблица материалов помещается в панель: статус и действие без прокрутки вбок */
+  test('таблица материалов без горизонтальной прокрутки', async ({ page }) => {
+    await page.goto('/purchasing?studio=0&supply=ord-f');
+    const panel = page.getByRole('dialog', { name: 'Карточка закупки' });
+    // На любой ширине: таблица на десктопе, карточки на планшете и телефоне
+    await expect(panel.getByLabel('Статус Бирки картонные')).toBeVisible();
+    const body = panel.locator('[class*="drawerBody"]');
+    const overflow = await body.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 
   test('досрочное закрытие требует причины — иначе этап закрыт молча', async ({ page }) => {
@@ -280,8 +292,10 @@ test.describe('Очередь закупки (правка 12.08)', () => {
       .getByRole('button', OPEN).click();
     await page.getByRole('button', { name: 'Завершить закупку' }).click();
 
-    // У заказа нет ни одного материала → закрытие досрочное и с объяснением
-    const dialog = page.getByRole('dialog');
+    // У заказа нет ни одного материала → закрытие досрочное и с объяснением.
+    // Диалог подтверждения — ПОВЕРХ панели закупки (правка 05.10, п. 6),
+    // поэтому берём его по тексту, а не единственным `dialog` на странице
+    const dialog = page.getByRole('dialog').filter({ hasText: 'Завершить закупку досрочно' });
     await expect(dialog).toContainText('не заведено ни одного материала');
     const input = dialog.getByLabel('Почему закупка завершена');
     await expect(input).toBeVisible();
@@ -339,34 +353,28 @@ test.describe('Очередь закупки (правка 12.08)', () => {
   });
 
   /**
-   * ПОЛЕ КОЛИЧЕСТВА В ФОРМЕ ОДНО (правка заказчика 30.08, п. 8): «убрать поле
-   * „Нужное количество" из формы создания закупки. Оставить только поле
-   * „Количество к заказу"».
-   *
-   * Прежняя пара полей отвечала на один вопрос: строку заводит сам закупщик,
-   * и планировать себе же ему нечего — второе поле ехало за первым
-   * подстановкой и правилось хорошо если раз на сотню строк.
-   *
-   * ВЕЛИЧИНА `qty_expected` ПРИ ЭТОМ ПИШЕТСЯ (см. `submit` в
-   * `FabricPurchasing`): это знаменатель приёмки на складе и условие
-   * автозакрытия закупки, и строка без него не закроется автоматически
-   * НИКОГДА. Убрано ПОЛЕ, а не величина.
+   * ТРИ КОЛИЧЕСТВА (правка 05.10, п. 6): «при создании есть „фактическое
+   * количество", хотя приёмки ещё не было». В форме — «Нужно по заказу»
+   * и необязательное «Заказано поставщику»; принятое ведёт только склад.
+   * Заказ уже выбран: форма открыта из закупки заказа.
    */
-  test('в форме одно поле количества — «Количество к заказу»',
+  test('в форме «Нужно по заказу» и «Заказано поставщику», заказ выбран',
     async ({ page }) => {
       await page.goto('/purchasing?studio=0');
-      // Форма живёт в карточке ВЫБРАННОГО заказа (мастер-деталь с правки 23.08):
-      // строку заводят конкретному заказу, а не в общий реестр
       await supplyRow(page, 'Худи корпоратив')
         .getByRole('button', OPEN).click();
       await page.getByRole('button', { name: '+ Материал' }).click();
 
       const modal = page.getByRole('dialog', { name: 'Новая закупка' });
-      await expect(modal.getByLabel('Количество к заказу')).toBeVisible();
-      await expect(modal.getByLabel('Нужно количество')).toHaveCount(0);
+      await expect(modal.getByLabel('Заказ', { exact: true })).toHaveValue('ord-f');
+      await expect(modal.getByLabel('Нужно по заказу')).toBeVisible();
+      await expect(modal.getByLabel('Заказано поставщику')).toBeVisible();
+      await expect(modal.getByLabel(/Фактическое/)).toHaveCount(0);
 
-      await modal.getByLabel('Количество к заказу').fill('110');
-      await expect(modal.getByLabel('Количество к заказу')).toHaveValue('110');
+      await modal.getByLabel('Нужно по заказу').fill('100');
+      await modal.getByLabel('Заказано поставщику').fill('110');
+      await expect(modal.getByLabel('Нужно по заказу')).toHaveValue('100');
+      await expect(modal.getByLabel('Заказано поставщику')).toHaveValue('110');
     });
 
   /**

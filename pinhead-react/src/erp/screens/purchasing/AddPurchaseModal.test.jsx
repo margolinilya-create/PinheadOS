@@ -72,7 +72,7 @@ describe('AddPurchaseModal — подсветка обязательных по�
 
     const order = screen.getByLabelText('Заказ');
     const name = screen.getByLabelText('Материал');
-    const qty = screen.getByLabelText('Количество к заказу');
+    const qty = screen.getByLabelText('Нужно по заказу');
     const price = screen.getByLabelText(/^Цена за/);
     for (const el of [order, name, qty, price]) {
       expect(el).toHaveAttribute('aria-invalid', 'true');
@@ -80,7 +80,7 @@ describe('AddPurchaseModal — подсветка обязательных по�
     }
     expect(screen.getByText('Выберите заказ')).toBeInTheDocument();
     expect(screen.getByText('Укажите материал')).toBeInTheDocument();
-    expect(screen.getByText('Укажите «Количество к заказу»')).toBeInTheDocument();
+    expect(screen.getByText('Укажите «Нужно по заказу»')).toBeInTheDocument();
     expect(screen.getByText(/Укажите «Цена за/)).toBeInTheDocument();
     // Ошибка связана с полем и для скринридера
     expect(order).toHaveAttribute('aria-describedby', 'err-purchase-order');
@@ -113,15 +113,93 @@ describe('AddPurchaseModal — подсветка обязательных по�
   it('заполненная форма заводит строку и закрывает окно', async () => {
     const { onAdd, onClose } = setup({ orderId: 'o-1' });
     fireEvent.change(screen.getByLabelText('Материал'), { target: { value: 'Кулирка 230' } });
-    fireEvent.change(screen.getByLabelText('Количество к заказу'), { target: { value: '40' } });
+    fireEvent.change(screen.getByLabelText('Нужно по заказу'), { target: { value: '40' } });
     fireEvent.change(screen.getByLabelText(/^Цена за/), { target: { value: '950' } });
     fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
 
     await waitFor(() => expect(onAdd).toHaveBeenCalled());
     expect(onAdd.mock.calls[0][0]).toBe('o-1');
     expect(onAdd.mock.calls[0][1]).toMatchObject({
-      name: 'Кулирка 230', qty_expected: 40, qty_ordered: 40, price_per_unit: 950, status: 'pending',
+      name: 'Кулирка 230', qty_expected: 40, price_per_unit: 950, status: 'pending',
     });
+    // «Заказано поставщику» не подставляется из потребности (правка 05.10, п. 6)
+    expect(onAdd.mock.calls[0][1].qty_ordered).toBeNull();
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+/**
+ * ПРАВКА 05.10, П. 6. «При создании есть „фактическое количество", хотя
+ * приёмки ещё не было… Поля группами… Ткань — ширина и плотность; готовое
+ * изделие — размерная сетка; поля другого типа скрывать». Проверки
+ * постановки: «нужно 100 кг, заказали 110 → до приёмки 100/110/0;
+ * добавление из заказа — заказ выбран; ткань→готовое изделие — поля ткани
+ * скрываются, появляется сетка».
+ */
+describe('AddPurchaseModal — правка 05.10', () => {
+  const GARMENT_ORDER = {
+    id: 'o-2', bitrix_id: '61001', title: 'Футболки', status: 'active',
+    items: [{
+      id: 'i-1', product_type: 'Футболка', variant: 'белая', qty: 30,
+      production_type: 'ready_garment', garment_source: 'purchased',
+      size_grid: [{ color: 'белый', sizes: { S: 10, M: 20 } }],
+    }],
+  };
+
+  it('«фактического количества» нет; заказ из закупки уже выбран', () => {
+    setup({ orderId: 'o-1' });
+    expect(screen.queryByLabelText(/Фактическое/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Заказано поставщику')).toBeInTheDocument();
+    expect(screen.getByLabelText('Заказ')).toHaveValue('o-1');
+  });
+
+  it('поля разложены по группам', () => {
+    setup();
+    for (const name of ['Материал и поставщик', 'Количество и цена', 'Даты', 'Параметры ткани']) {
+      expect(screen.getByRole('group', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('подписи количества и цены несут выбранную единицу', () => {
+    setup();
+    fireEvent.change(screen.getByLabelText('Единица измерения'), { target: { value: 'кг' } });
+    expect(screen.getByText(/^Нужно по заказу, кг/)).toBeInTheDocument();
+    expect(screen.getByText('Заказано поставщику, кг')).toBeInTheDocument();
+    expect(screen.getByText(/^Цена за кг, ₽/)).toBeInTheDocument();
+  });
+
+  it('нужно 100, заказали 110 — уходят обе величины, принятого форма не пишет', async () => {
+    const { onAdd } = setup({ orderId: 'o-1' });
+    fireEvent.change(screen.getByLabelText('Материал'), { target: { value: 'Кулирка' } });
+    fireEvent.change(screen.getByLabelText('Нужно по заказу'), { target: { value: '100' } });
+    fireEvent.change(screen.getByLabelText('Заказано поставщику'), { target: { value: '110' } });
+    fireEvent.change(screen.getByLabelText(/^Цена за/), { target: { value: '900' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(onAdd).toHaveBeenCalled());
+    const row = onAdd.mock.calls[0][1];
+    expect(row).toMatchObject({ qty_expected: 100, qty_ordered: 110 });
+    expect(row).not.toHaveProperty('qty_received');
+  });
+
+  it('ткань → готовое изделие: поля ткани скрываются, появляется сетка', () => {
+    setup({ orders: [GARMENT_ORDER], orderId: 'o-2' });
+    expect(screen.getByLabelText('Ширина полотна, см')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Готовое изделие из позиции заказа')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Тип материала'), { target: { value: 'finished_good' } });
+    expect(screen.queryByLabelText('Ширина полотна, см')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Плотность, г/м²')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Размерная сетка' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Готовое изделие из позиции заказа'), { target: { value: 'i-1' } });
+    expect(screen.getByLabelText(/^S.*Заказано поставщику/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^M.*Заказано поставщику/)).toBeInTheDocument();
+  });
+
+  it('у фурнитуры нет ни параметров ткани, ни сетки', () => {
+    setup();
+    fireEvent.change(screen.getByLabelText('Тип материала'), { target: { value: 'hardware' } });
+    expect(screen.queryByRole('group', { name: 'Параметры ткани' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Размерная сетка' })).not.toBeInTheDocument();
   });
 });
