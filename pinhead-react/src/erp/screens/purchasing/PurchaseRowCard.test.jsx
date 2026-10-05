@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PurchaseRowCard } from './PurchaseRowCard';
+import { useErpStore } from '../../store/useErpStore';
 import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, pricePerUnitLabel } from './purchaseLabels';
 
 /**
@@ -41,17 +42,28 @@ const onOpenOptions = vi.fn();
 const onConfirmStock = vi.fn();
 const onSetStatus = vi.fn();
 
-const renderCard = (m = MATERIAL) => render(
+const renderCard = (m = MATERIAL, order = ORDER) => render(
   <MemoryRouter>
     <PurchaseRowCard
-      order={ORDER} m={m}
+      order={order} m={m}
       onUpdate={onUpdate} onOpenOptions={onOpenOptions}
       onConfirmStock={onConfirmStock} onSetStatus={onSetStatus}
     />
   </MemoryRouter>,
 );
 
+const loadMaterialReceipts = vi.fn(async () => []);
+
+/** Раскрыть «Подробности»: jsdom не переключает `details` кликом по summary */
+function openDetails(container) {
+  const details = container.querySelector('details');
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+}
+
 beforeEach(() => {
+  useErpStore.setState({ loadMaterialReceipts, dictionaries: [], dictionariesLoaded: true });
+  loadMaterialReceipts.mockClear();
   onUpdate.mockClear(); onOpenOptions.mockClear();
   onConfirmStock.mockClear(); onSetStatus.mockClear();
 });
@@ -73,8 +85,9 @@ describe('строка закупки карточкой (планшет)', () =
     });
     expect(screen.getByText('Недостача')).toBeInTheDocument();
     expect(screen.getByText(/пришло на две трети/)).toBeInTheDocument();
-    // Принято — против плана: одно «40» не отвечает, довезли или нет
-    expect(screen.getByText('40 из 100 м')).toBeInTheDocument();
+    // Принято — с остатком к приёмке: одно «40» не отвечает, довезли или нет
+    expect(screen.getByText('40 м')).toBeInTheDocument();
+    expect(screen.getByText(/осталось 60 м/)).toBeInTheDocument();
   });
 
   it('пересорт называет, что привезли на самом деле', () => {
@@ -101,48 +114,60 @@ describe('строка закупки карточкой (планшет)', () =
     expect(screen.getByText(PURCHASE_GROUPS[1].label)).toBeInTheDocument();
   });
 
-  it('несёт все поля таблицы, и каждое подписано', () => {
+  it('несёт поля строки таблицы, и каждое подписано', () => {
     /**
      * Вместе с шапкой таблицы исчезают названия колонок: «110» без подписи
-     * ничего не значит. Подписи ставятся явно — и БЕРУТСЯ ИЗ ОБЩЕГО МОДУЛЯ
-     * (правка 24.08, п. 1): вписанные сюда словами, они молча разошлись бы
-     * с таблицей при первом же переименовании.
+     * ничего не значит. Подписи БЕРУТСЯ ИЗ ОБЩЕГО МОДУЛЯ (правка 24.08, п. 1).
+     * С 05.10 (п. 6) в карточке ровно то, что в строке таблицы, остальное —
+     * в «Подробностях».
      */
     const { container } = renderCard();
-    /**
-     * Читаем именно подписи полей карточки, а не любой текст: «Приход»
-     * встречается ещё и среди значений селекта статуса, и поиск по тексту
-     * нашёл бы два совпадения, ничего не проверив.
-     */
     const labels = [...container.querySelectorAll('[class*="dataCardFieldLabel"]')]
       .map((el) => el.textContent);
     expect(labels).toEqual([
-      'Материал', PURCHASE_FIELD_LABELS.qtyExpected, 'Комментарий менеджера',
-      // Подпись цены — тоже из общего модуля: литерал здесь и был тем самым
-      // «молча разошлись бы с таблицей», от которого сторожит этот тест
-      'Поставщик', 'Артикул', PURCHASE_FIELD_LABELS.qtyOrdered,
-      pricePerUnitLabel(MATERIAL.unit, []), 'Стоимость',
-      'Дата заказа', 'План прихода', 'Приход', 'Ответственный',
+      PURCHASE_FIELD_LABELS.qtyExpected,
+      'Поставщик', PURCHASE_FIELD_LABELS.qtyOrdered, PURCHASE_FIELD_LABELS.qtyReceived,
+      pricePerUnitLabel(MATERIAL.unit, []), 'Срок прихода',
     ]);
   });
 
   /**
-   * «Заказано» — про НАМЕРЕНИЕ, а не про свершившееся (правка заказчика
-   * 24.08, п. 1). Слово стояло вплотную к статусу «Заказано», который
-   * означает уже оформленный заказ, и различить их было нечем.
+   * ТРИ КОЛИЧЕСТВА (правка 05.10, п. 6): «нужно 100 кг, заказали 110 →
+   * до приёмки 100/110/0; приняли 40 → 100/110/40». Принятое — только
+   * чтение: его ведёт журнал приёмок.
    */
-  it('количество к заказу подписано намерением, а не фактом', () => {
+  it('до приёмки: нужно 100, заказано 110, принято 0 — и принятое не вводится', () => {
+    renderCard({ ...MATERIAL, unit: 'кг' });
+    expect(screen.getByLabelText(`${PURCHASE_FIELD_LABELS.qtyExpected}: Футер 3-нитка`)).toHaveValue(100);
+    expect(screen.getByLabelText(`${PURCHASE_FIELD_LABELS.qtyOrdered}: Футер 3-нитка`)).toHaveValue(110);
+    expect(screen.getByText('0 кг')).toBeInTheDocument();
+    expect(screen.queryByLabelText(new RegExp(PURCHASE_FIELD_LABELS.qtyReceived))).not.toBeInTheDocument();
+  });
+
+  it('приняли 40: 100 / 110 / 40 и осталось 60', () => {
+    renderCard({ ...MATERIAL, unit: 'кг', qty_received: 40, status: 'partial' });
+    expect(screen.getByLabelText(`${PURCHASE_FIELD_LABELS.qtyExpected}: Футер 3-нитка`)).toHaveValue(100);
+    expect(screen.getByLabelText(`${PURCHASE_FIELD_LABELS.qtyOrdered}: Футер 3-нитка`)).toHaveValue(110);
+    expect(screen.getByText('40 кг')).toBeInTheDocument();
+    expect(screen.getByText(/осталось 60 кг/)).toBeInTheDocument();
+  });
+
+  it('«нужно по заказу» подписано потребностью, а не «Заказано»', () => {
     const { container } = renderCard();
     const labels = [...container.querySelectorAll('[class*="dataCardFieldLabel"]')]
       .map((el) => el.textContent);
-    expect(labels).toContain('Количество к заказу');
+    expect(labels).toContain('Нужно по заказу');
     expect(labels).not.toContain('Заказано');
   });
 
-  it('стоимость СЧИТАЕТСЯ, а не вводится', () => {
+  it('стоимость СЧИТАЕТСЯ, а не вводится — и живёт в подробностях', async () => {
     // Производная от количества и цены рядом с ними — это второй писатель
-    renderCard();
-    expect(screen.getByText('55 000')).toBeInTheDocument();
+    const { container } = renderCard();
+    expect(screen.queryByText('55 000')).not.toBeInTheDocument();
+    openDetails(container);
+    expect(await screen.findByText('55 000')).toBeInTheDocument();
+    // Журнал поставок читается только раскрытой строкой
+    await waitFor(() => expect(loadMaterialReceipts).toHaveBeenCalledWith(['m1']));
   });
 
   it('правка уходит наверх только при изменившемся значении', () => {
@@ -157,8 +182,9 @@ describe('строка закупки карточкой (планшет)', () =
     expect(onUpdate).toHaveBeenCalledWith('m1', { qty_expected: 120 });
   });
 
-  it('комментарий менеджера — на чтение: это исходное задание', () => {
-    renderCard();
+  it('комментарий менеджера — в подробностях и на чтение: это исходное задание', () => {
+    const { container } = renderCard();
+    openDetails(container);
     const note = screen.getByText('та же партия, что в прошлый раз');
     expect(note.tagName).toBe('SPAN');
     expect(screen.queryByLabelText(/Комментарий менеджера/)).not.toBeInTheDocument();
@@ -247,5 +273,38 @@ describe('строка закупки карточкой (планшет)', () =
   it('у фурнитуры без цены пометки нет — там цена не обязательна', () => {
     renderCard({ ...MATERIAL, kind: 'hardware', price_per_unit: null });
     expect(screen.queryByText('Цена не указана')).not.toBeInTheDocument();
+  });
+
+  /**
+   * ПЕРЕХОД К ПРИЁМКЕ (правка 05.10, п. 7): «для ожидаемой поставки
+   * „Принять поставку", для принятой „Открыть приёмку"… Если приёмка уже
+   * есть — открывать её, а не создавать ещё одну».
+   */
+  it('задачи приёмки ещё нет — кнопка погашена и объясняет почему', () => {
+    renderCard();
+    expect(screen.getByRole('button', { name: 'Принять поставку' })).toBeDisabled();
+    expect(screen.getByText('Задача приёмки появится, когда поставка будет в пути')).toBeInTheDocument();
+  });
+
+  it('поставка в пути — «Принять поставку» ведёт в задачу этой позиции на складе', () => {
+    renderCard({ ...MATERIAL, status: 'in_transit' }, {
+      ...ORDER,
+      warehouse_tasks: [{ id: 'wt-9', task_type: 'material_receipt', material_id: 'm1', status: 'awaiting' }],
+    });
+    const link = screen.getByRole('link', { name: 'Принять поставку: Футер 3-нитка' });
+    const href = new URL(link.getAttribute('href'), 'http://x');
+    expect(href.pathname).toBe('/warehouse');
+    expect(href.searchParams.get('task')).toBe('wt-9');
+    expect(href.searchParams.get('from')).toBe('purchasing');
+    expect(href.searchParams.get('supply')).toBe('o1');
+  });
+
+  it('принятая поставка — «Открыть приёмку» той же задачи', () => {
+    renderCard({ ...MATERIAL, status: 'received', qty_received: 100 }, {
+      ...ORDER,
+      warehouse_tasks: [{ id: 'wt-9', task_type: 'material_receipt', material_id: 'm1', status: 'accepted' }],
+    });
+    const link = screen.getByRole('link', { name: 'Открыть приёмку: Футер 3-нитка' });
+    expect(link.getAttribute('href')).toContain('task=wt-9');
   });
 });

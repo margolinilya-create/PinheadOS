@@ -21,10 +21,12 @@ function renderCard(patch = {}) {
         orderId="o1"
         orderNo="4821"
         orderTitle="Худи «Ромашка»"
-        summary="Футер"
         statusLabel="Ожидает"
         statusVariant="neutral"
-        deadline="30.08"
+        fields={[
+          { label: 'Содержимое', value: 'Футер' },
+          { label: 'Срок', value: '30.08' },
+        ]}
         onOpen={onOpen}
         {...patch}
       />
@@ -50,5 +52,21 @@ describe('карточка задачи склада', () => {
     const { onOpen } = renderCard();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Правка 05.10, п. 8: «везде одинаковое „Открыть"». Кнопка называет
+   * операцию и открывает форму — сама операция не проводится.
+   */
+  it('кнопка называет операцию задачи', () => {
+    const { onOpen } = renderCard({ actionLabel: 'Принять ткань' });
+    fireEvent.click(screen.getByRole('button', { name: 'Принять ткань' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('поле может нести пояснение — срок заказа рядом со сроком поставки', () => {
+    renderCard({ fields: [{ label: 'Срок поставки', value: 'не задан', note: 'срок заказа 20.10.2026' }] });
+    expect(screen.getByText('не задан')).toBeInTheDocument();
+    expect(screen.getByText('срок заказа 20.10.2026')).toBeInTheDocument();
   });
 });

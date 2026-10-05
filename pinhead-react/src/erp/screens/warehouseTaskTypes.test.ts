@@ -1,7 +1,9 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WAREHOUSE_TASK_TYPE_LABELS } from '../types';
+import { TABS } from './warehouse/warehouseTasks';
 import { latestMatching, withoutComments } from '../utils/migrations.testutil';
 
 /**
@@ -24,8 +26,14 @@ import { latestMatching, withoutComments } from '../utils/migrations.testutil';
  * не сторожит ничего.
  */
 
+/**
+ * С 05.10 (правка п. 8) таблицы типов живут в `warehouse/warehouseTasks.js`,
+ * а ветки формы — в `warehouse/WarehouseTaskDrawer.jsx`: экран стоял
+ * на потолке ратчета размера. Сторож читает их по новым адресам.
+ */
 const SOURCES: Record<string, string> = {
-  screen: readFileSync(join(process.cwd(), 'src/erp/screens/Warehouse.jsx'), 'utf8'),
+  screen: readFileSync(join(process.cwd(), 'src/erp/screens/warehouse/warehouseTasks.js'), 'utf8'),
+  drawer: readFileSync(join(process.cwd(), 'src/erp/screens/warehouse/WarehouseTaskDrawer.jsx'), 'utf8'),
   helpers: readFileSync(join(process.cwd(), 'src/erp/store/orderHelpers.ts'), 'utf8'),
 };
 
@@ -33,7 +41,7 @@ const SOURCES: Record<string, string> = {
 function keysOf(constName: string, where: keyof typeof SOURCES = 'screen'): string[] {
   const src = SOURCES[where];
   // `const X = {` и `const X: Record<string, string> = {` — оба вида объявления
-  const decl = new RegExp(`const ${constName}(?::[^=]+)? = \\{`);
+  const decl = new RegExp(`(?:export )?const ${constName}(?::[^=]+)? = \\{`);
   const start = src.search(decl);
   if (start < 0) throw new Error(`в ${where} нет ${constName}`);
   const end = src.indexOf('};', start);
@@ -69,14 +77,18 @@ describe('типы складских задач заведены целиком
       .toEqual([...keysOf('WAREHOUSE_TERMINAL', 'helpers')].sort());
   });
 
-  it('у каждого типа есть своя вкладка', () => {
-    const tabs = SOURCES.screen.slice(SOURCES.screen.indexOf('const TABS = ['), SOURCES.screen.indexOf('];', SOURCES.screen.indexOf('const TABS = [')));
-    const missing = TYPES.filter((t) => !tabs.includes(`'${t}'`));
-    expect(missing, `нет вкладки: ${missing.join(', ')}`).toEqual([]);
+  /**
+   * Вкладки — операции склада (правка 05.10, п. 8), и тип обязан попасть
+   * РОВНО в одну: без вкладки задача видна только во «Все», в двух —
+   * дублируется и считается дважды.
+   */
+  it('каждый тип — ровно в одной рабочей вкладке', () => {
+    const wrong = TYPES.filter((t) => TABS.filter((tab) => tab.types?.includes(t)).length !== 1);
+    expect(wrong, `тип не в одной вкладке: ${wrong.join(', ')}`).toEqual([]);
   });
 
   it('у каждого типа есть ветка в Drawer — иначе карточка откроется пустой', () => {
-    const missing = TYPES.filter((t) => !SOURCES.screen.includes(`open.task.task_type === '${t}'`));
+    const missing = TYPES.filter((t) => !SOURCES.drawer.includes(`open.task.task_type === '${t}'`));
     expect(missing, `нет ветки Drawer: ${missing.join(', ')}`).toEqual([]);
   });
 

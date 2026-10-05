@@ -1,249 +1,97 @@
 import { useEffect, useMemo, useState } from 'react';
-import { orderQty } from '../utils/shipment';
+import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { FgIntakeQueue } from './warehouse/FgIntakeQueue';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
-import { Badge } from '../components/Badge';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
-import { Drawer } from '../components/Drawer';
-import { SortableTh } from '../components/SortableTh';
-import { Icon } from '../components/Icon';
 import { useErpStore } from '../store/useErpStore';
-import { matchesOrderQuery } from '../utils/orderSearch';
 import { sortRows, useTableSort } from '../utils/tableSort';
-import { formatDateShort } from '../utils/time';
-import {
-  WAREHOUSE_TASK_TYPE_LABELS, MARKING_STATUS_LABELS, PACK_SHIP_STATUS_LABELS,
-  FG_RECEIPT_STATUS_LABELS,
-  SUBCONTRACT_RECEIPT_STATUS_LABELS,
-  SUBCONTRACT_SEND_STATUS_LABELS,
-  SHIPPED_STATUS_LABELS,
-} from '../types';
+import { purchasingReturnHref } from '../utils/receiptLink';
 import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
-import { MaterialReceiptCard } from './warehouse/MaterialReceiptCard';
-import { FgReceiptCard } from './warehouse/FgReceiptCard';
-import { MarkingCard } from './warehouse/MarkingCard';
-import { PackShipCard } from './warehouse/PackShipCard';
-import { SubcontractReceiptCard } from './warehouse/SubcontractReceiptCard';
-import { SendToContractorCard } from './warehouse/SendToContractorCard';
-import { WarehouseTaskCard } from './warehouse/WarehouseTaskCard';
-import { ScrollHintBox } from '../components/ScrollHintBox';
-import { Button } from '../components/Button';
-import { ReadOnlyFieldset } from '../components/ReadOnlyFieldset';
+import { WarehouseTaskTable } from './warehouse/WarehouseTaskTable';
+import { WarehouseTaskDrawer } from './warehouse/WarehouseTaskDrawer';
+import {
+  DUE_FILTERS, TABS, TYPE_ORDER, isTaskInTab, isTaskOpen, matchesDue, matchesTaskQuery,
+  tabOf, warehouseSortValue,
+} from './warehouse/warehouseTasks';
 import { useErpAccess } from '../store/useErpAccess';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
+import { useListParams } from '../hooks/useListParams';
+import { factoryToday } from '../../utils/date';
 
 /**
- * Склад (редизайн): таблица задач (KPI + вкладки по типу + пагинация); детали и действия
- * задачи открываются в правом Drawer (переиспользуются карточки приёмки/маркировки/упаковки).
- * Бизнес-логика (acceptMaterial/advanceWarehouseTask, гейты, отгрузка) не менялась.
- */
-
-const TYPE_ICON = {
-  material_receipt: 'inbox', subcontract_send: 'externalLink',
-  subcontract_receipt: 'truck', marking: 'tag',
-  fg_receipt: 'checkCircle', pack_ship: 'box',
-};
-/**
- * Терминальный статус каждого типа задачи. ПРОПУЩЕННЫЙ здесь тип даёт вечный
- * бейдж на пункте меню: задача закрыта, `taskVariant` не считает её готовой,
- * счётчик «только открытые» продолжает её считать — и никто не понимает,
- * что именно горит. Соответствие сторожит `warehouseTaskTypes.test.ts`.
- */
-const TERMINAL = {
-  material_receipt: 'accepted', subcontract_send: 'sent',
-  subcontract_receipt: 'accepted', marking: 'issued',
-  fg_receipt: 'accepted', pack_ship: 'shipped',
-};
-// Порядок в списке повторяет ход заказа: материалы → передача подрядчику →
-// приёмка подряда → маркировка → приёмка готовой продукции → упаковка.
-// Передача стоит ПЕРЕД приёмкой: сначала отдаём, потом забираем (п. 3)
-const TYPE_ORDER = {
-  material_receipt: 0, subcontract_send: 1, subcontract_receipt: 2,
-  marking: 3, fg_receipt: 4, pack_ship: 5,
-};
-const RECEIPT_LABELS = { awaiting: 'Ожидает приёмки', accepted: 'Принято', awaiting_receipt: 'Ожидает приёмки' };
-
-const TABS = [
-  { key: 'all', label: 'Все' },
-  { key: 'material_receipt', label: 'Приёмка материалов' },
-  { key: 'subcontract_send', label: 'Передача подрядчику' },
-  { key: 'subcontract_receipt', label: 'Приёмка подряда' },
-  { key: 'marking', label: 'Маркировка' },
-  { key: 'fg_receipt', label: 'Приёмка ГП' },
-  { key: 'pack_ship', label: 'Упаковка/отгрузка' },
-];
-
-function taskStatusLabel(task, order) {
-  switch (task.task_type) {
-    case 'marking': return MARKING_STATUS_LABELS[task.status] ?? task.status;
-    /**
-     * Частичная отгрузка называется в СТРОКЕ СПИСКА тоже (правка 30.08, п. 6):
-     * статус задачи о ней не знает (она остаётся `ready_to_ship`), а склад
-     * ищет заказ именно здесь. Подпись берётся у заказа — её ведёт триггер.
-     */
-    case 'pack_ship':
-      return order?.shipped_status === 'partial' && task.status !== 'shipped'
-        ? SHIPPED_STATUS_LABELS.partial
-        : (PACK_SHIP_STATUS_LABELS[task.status] ?? task.status);
-    case 'subcontract_send': return SUBCONTRACT_SEND_STATUS_LABELS[task.status] ?? task.status;
-    case 'subcontract_receipt': return SUBCONTRACT_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
-    case 'fg_receipt': return FG_RECEIPT_STATUS_LABELS[task.status] ?? task.status;
-    default: return RECEIPT_LABELS[task.status] ?? task.status;
-  }
-}
-function taskVariant(task) {
-  if (task.status === TERMINAL[task.task_type]) return 'ready';
-  if (task.status === 'awaiting' || task.status === 'awaiting_receipt' || task.status === 'new') return 'waiting';
-  return 'progress';
-}
-/** Краткое «содержимое» задачи для колонки таблицы */
-function taskSummary(order, task) {
-  if (task.task_type === 'subcontract_receipt') {
-    /**
-     * Подрядных приёмок у заказа может быть НЕСКОЛЬКО (сублимация и варка
-     * у одной позиции — прямой пример документа), и подпись «Готовое изделие»
-     * не различала их вовсе. Называем операцию и изделие: склад по этой
-     * строке решает, что именно принимает.
-     */
-    for (const it of order.items ?? []) {
-      const st = (it.stages ?? []).find((s) => s.id === task.stage_id);
-      if (st) {
-        const op = st.operation?.trim() || 'Подряд';
-        return `${op} · ${it.product_type}${it.variant ? ` (${it.variant})` : ''}`;
-      }
-    }
-    return 'Готовое изделие';
-  }
-  if (task.task_type === 'material_receipt') {
-    /**
-     * ЗАДАЧА НАЗЫВАЕТ СВОЙ МАТЕРИАЛ (правка 12.09, вторая порция, баг 01).
-     * Приёмка принадлежит ПОЗИЦИИ закупки, и «3 материала» в строке не
-     * отвечало бы на вопрос, ради которого склад на этот экран приходит:
-     * что именно приехало. Число едущих позиций тоже теряет смысл — строка
-     * теперь одна на позицию.
-     */
-    if (task.material_id) {
-      const m = order.materials.find((x) => x.id === task.material_id);
-      if (!m) return 'Позиция закупки удалена';
-      const qty = m.qty_expected ?? m.qty_ordered;
-      return [m.name || 'Материал', m.color, qty ? `${qty} ${m.unit || ''}`.trim() : null]
-        .filter(Boolean).join(' · ');
-    }
-    /* Приёмки, закрытые до правки, относятся к заказу целиком */
-    const n = order.materials.length;
-    return `${n} ${n === 1 ? 'материал' : 'материалов'}`;
-  }
-  if (task.task_type === 'marking') return task.marking_type || 'Маркировка';
-  if (task.task_type === 'fg_receipt') {
-    const qty = orderQty(order);
-    return `${qty} шт с производства`;
-  }
-  return 'Упаковка и отгрузка';
-}
-
-/**
- * СРОК ЗАДАЧИ — СВОЙ ЛИБО СРОК ЗАКАЗА (§3.4 обхода 04.09).
+ * Склад — РАБОЧИЙ ЭКРАН ПО ОПЕРАЦИЯМ (правка заказчика 05.10, п. 8).
  *
- * Колонка «Срок» читала только `erp_warehouse_tasks.deadline`, а его не ставит
- * никто: на боевой базе он пуст у ВСЕХ 84 задач, включая маркировку, где поле
- * ввода есть. Колонка стояла прочерками, а величина, по которой склад
- * действительно расставляет приоритет, — срок сдачи ЗАКАЗА — не показывалась
- * нигде. Собственный срок сильнее: он для того и заводится, чтобы отличаться
- * от заказного; `own` отвечает, чей срок показан, — иначе две разные величины
- * в одной колонке неразличимы.
+ * «В общем списке смешаны материалы, подряд, готовые изделия и отгрузки.
+ * Везде одинаковое „Открыть". Приёмку приходится искать по страницам».
+ * Теперь вкладки — операции склада (приёмка материалов, готовые изделия,
+ * подряд, отгрузка; «Все» отдельно), кнопка называет операцию задачи
+ * и открывает её форму, поиск идёт по ВСЕМ записям (с названием материала
+ * задачи), а по умолчанию видны открытые задачи с фильтром по срокам.
+ *
+ * ВЕСЬ КОНТЕКСТ — В АДРЕСЕ (`useListParams`): вкладка, поиск, «только
+ * открытые», срок, страница и открытая задача. После сохранения формы
+ * человек остаётся там же, где был, а закрытая задача уходит из открытых.
+ * Задачу по ссылке (`?task=`) открывает и переход из закупки (п. 7) —
+ * тогда в панели есть «← К закупке», и закрытие возвращает туда же.
+ *
+ * Правила (вкладки, подписи, срок, поиск) — `warehouse/warehouseTasks`,
+ * таблица и карточки — `WarehouseTaskTable`, форма — `WarehouseTaskDrawer`.
+ * Бизнес-логика (acceptMaterial/advanceWarehouseTask, гейты, отгрузка)
+ * не менялась.
  */
-function taskDeadline(order, task) {
-  if (task.deadline) return { date: task.deadline, own: true };
-  return { date: order.due_date ?? null, own: false };
-}
 
-/**
- * Подпись срока: чужой срок обязан назвать себя. Одна на обе раскладки —
- * вторая копия разошлась бы молча, а «28.07» без пояснения читается как
- * срок самой задачи.
- */
-function deadlineLabel(order, task) {
-  const { date, own } = taskDeadline(order, task);
-  if (!date) return '';
-  const text = formatDateShort(date);
-  return own ? text : `${text} · срок заказа`;
-}
-
-/**
- * Значение колонки для сортировки — то же, что видно в ячейке.
- * Срок сортируется по ISO-строке даты: она уже лексикографически монотонна.
- */
-function warehouseSortValue({ order, task }, key) {
-  switch (key) {
-    case 'type': return WAREHOUSE_TASK_TYPE_LABELS[task.task_type];
-    case 'order': return order.bitrix_id || order.title;
-    case 'summary': return taskSummary(order, task);
-    case 'status': return taskStatusLabel(task, order);
-    case 'deadline': return taskDeadline(order, task).date;
-    default: return null;
-  }
-}
+/** Умолчания адреса — константой модуля: от неё зависят колбэки хука */
+const LIST_DEFAULTS = { tab: 'all', open: '1' };
 
 export default function Warehouse() {
   const {
-    orders, loaded, loadError, loadAll, acceptMaterial, setRollWeights, setRollParams, addMaterialRolls,
-    advanceWarehouseTask, shipOrder,
-    submitWarehouseReport, subcontractingLoaded, loadSubcontracting,
+    orders, loaded, loadError, loadAll, subcontractingLoaded, loadSubcontracting,
   } = useErpStore(
     useShallow((s) => ({
       orders: s.orders, loaded: s.loaded, loadError: s.loadError, loadAll: s.loadAll,
-      acceptMaterial: s.acceptMaterial, setRollWeights: s.setRollWeights, setRollParams: s.setRollParams,
-      addMaterialRolls: s.addMaterialRolls, advanceWarehouseTask: s.advanceWarehouseTask, shipOrder: s.shipOrder,
-      submitWarehouseReport: s.submitWarehouseReport,
       subcontractingLoaded: s.subcontractingLoaded,
       loadSubcontracting: s.loadSubcontracting,
     })),
   );
   /**
    * Движение складских задач — под `warehouse.manage` (решение заказчика 10.08).
-   * Прежде задачи склада принимали запись от любого участника ERP: швея могла
-   * отметить продукцию принятой — а это открывает упаковку — и отгрузить её.
    * Гейт стоит и на сервере (RLS `erp_warehouse_tasks`), и здесь: одно без
    * другого даёт либо дыру, либо «кнопка есть, действие падает».
    */
   const canManageWarehouse = useErpAccess().can('warehouse.manage');
-  const [query, setQuery] = useState('');
-  const [tab, setTab] = useState('all');
-  const [onlyOpen, setOnlyOpen] = useState(true);
-  const [page, setPage] = useState(1);
+  const navigate = useNavigate();
+  const list = useListParams(LIST_DEFAULTS);
+  const tab = tabOf(list.get('tab')).key;
+  const query = list.get('q');
+  const onlyOpen = list.get('open') !== '0';
+  const due = DUE_FILTERS.some((d) => d.key === list.get('due')) ? list.get('due') : '';
+  const openId = list.get('task') || null;
   const [pageSize, setPageSize] = useState(10);
-  const [openId, setOpenId] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
   /**
-   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы.
-   * Тот же приём и тот же порог, что у очереди цеха и списка заказов:
+   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы:
    * шесть колонок на планшете уезжали за край вместе с колонкой «Действие».
    */
   const isCompact = useCompactLayout();
+  const today = factoryToday();
 
   // Смена сортировки возвращает на первую страницу
-  const sortBy = (key) => { toggleSort(key); setPage(1); };
+  const sortBy = (key) => { toggleSort(key); list.setPage(1); };
 
   /**
    * Сброс подбора для «ничего не найдено». Снимает и «Только открытые»:
    * чаще всего задача не пропала, а закрылась, и именно эта галочка её прячет.
    */
-  const resetFilters = () => {
-    setQuery(''); setTab('all'); setOnlyOpen(false); setPage(1);
-  };
+  const resetFilters = () => list.patch({ q: '', tab: '', due: '', open: '0' });
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
-  /**
-   * Позиция прокрутки при возврате из карточки (правка 03.09). Приём был
-   * у списка заказов, доски и очереди цеха и НЕ доехал сюда: человек уходил
-   * в заказ из середины длинного списка и возвращался в его начало.
-   */
+  /** Позиция прокрутки при возврате из карточки заказа (правка 03.09) */
   useScrollRestore(loaded);
   /**
    * Карточки подрядчика нужны приёмке подряда: сколько передано, сколько
@@ -255,59 +103,46 @@ export default function Warehouse() {
   }, [subcontractingLoaded, loadSubcontracting]);
 
   const allRows = useMemo(() => {
-    const list = [];
+    const rows = [];
     for (const o of orders) {
       if (o.status !== 'active') continue;
-      for (const t of (o.warehouse_tasks ?? [])) list.push({ order: o, task: t });
+      for (const t of (o.warehouse_tasks ?? [])) rows.push({ order: o, task: t });
     }
-    return list.sort((a, b) => {
+    return rows.sort((a, b) => {
       const byType = (TYPE_ORDER[a.task.task_type] ?? 9) - (TYPE_ORDER[b.task.task_type] ?? 9);
       return byType || (a.task.created_at || '').localeCompare(b.task.created_at || '');
     });
   }, [orders]);
 
   /**
-   * Счётчики считаются по тому же набору, что виден в списке. Раньше они брались
-   * из allRows (со всеми закрытыми задачами), а список по умолчанию фильтрует
-   * onlyOpen — над таблицей из трёх строк висела плитка «Упаковка/отгрузка 14».
+   * Подбор БЕЗ вкладки: по нему считаются счётчики вкладок — они показывают
+   * то же, что человек увидит, нажав на вкладку (обход 04.09: плитка
+   * «Упаковка 14» над таблицей из трёх строк).
    */
-  const counts = useMemo(() => {
-    /**
-     * Начальные нули берутся ИЗ `TERMINAL`, а не перечисляются руками.
-     * Перечисленные руками, они пропустили `fg_receipt`: `undefined + 1` даёт
-     * `NaN`, проверка `counts[key] > 0` всегда ложна — и вкладка «Приёмка ГП»
-     * не показывала число открытых задач НИКОГДА. Ошибка тихая: экран
-     * выглядит рабочим, просто одна цифра всегда пуста.
-     */
-    const c = { all: 0 };
-    for (const type of Object.keys(TERMINAL)) c[type] = 0;
-    for (const { task } of allRows) {
-      if (onlyOpen && task.status === TERMINAL[task.task_type]) continue;
-      c.all += 1;
-      c[task.task_type] += 1;
-    }
-    return c;
-  }, [allRows, onlyOpen]);
-
-  const filtered = useMemo(() => {
+  const matched = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allRows.filter(({ order, task }) => {
-      if (tab !== 'all' && task.task_type !== tab) return false;
-      if (onlyOpen && task.status === TERMINAL[task.task_type]) return false;
-      if (q && !matchesOrderQuery(order, q)) return false;
-      return true;
+      if (onlyOpen && !isTaskOpen(task)) return false;
+      if (!matchesDue(order, task, due, today)) return false;
+      return matchesTaskQuery(order, task, q);
     });
-  }, [allRows, tab, onlyOpen, query]);
+  }, [allRows, onlyOpen, due, query, today]);
+
+  const counts = useMemo(() => Object.fromEntries(TABS.map((t) => [
+    t.key, matched.filter(({ task }) => isTaskInTab(task, t.key)).length,
+  ])), [matched]);
+
+  const filtered = useMemo(
+    () => matched.filter(({ task }) => isTaskInTab(task, tab)), [matched, tab]);
 
   // Сортировка до пагинации: иначе переупорядочилась бы только текущая страница
   const sorted = useMemo(() => sortRows(filtered, sort, warehouseSortValue), [filtered, sort]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount);
+  const safePage = Math.min(list.page, pageCount);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Открытая в Drawer задача — берём свежую из стора (после действий обновляется).
-  // Дешёвый поиск, без useMemo (ранние return в memo не сохраняются React-компилятором).
+  // Открытая задача — свежая из стора (после действий обновляется)
   let open = null;
   if (openId) {
     for (const o of orders) {
@@ -316,56 +151,60 @@ export default function Warehouse() {
     }
   }
 
+  /** Пришли из закупки — возврат туда же, с её фильтрами (правка 05.10, п. 7) */
+  const fromPurchasing = list.get('from') === 'purchasing';
+  const returnHref = fromPurchasing ? purchasingReturnHref(list.get('back'), list.get('supply')) : null;
+  const closeTask = () => {
+    if (returnHref) navigate(returnHref);
+    else list.patchKeep({ task: '' });
+  };
+  const openTask = (id) => list.patchKeep({ task: id, from: '', back: '', supply: '' });
+
   return (
     <>
-      <PageHead title="Склад" sub="Приёмка материалов, приёмка подряда, маркировка, упаковка и отгрузка." />
-
-      {/*
-        ПЛИТКИ-ПОКАЗАТЕЛИ СНЯТЫ (обход 04.09). Тот же фильтр был нарисован
-        дважды: шесть плиток и под ними те же шесть чипов с теми же ключами —
-        ровно дубль, снятый в закупке решением заказчика 23.08. Он и разошёлся
-        сам с собой: тип «Передача подрядчику» у чипов был, у плиток — нет,
-        то есть один и тот же фильтр предлагал разные наборы. Счётчики
-        остались при чипах, где им и место.
-      */}
-      {/*
-        ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 9) — ЭТАПЫ маршрута, а не
-        складские задачи, поэтому свой блок НАД списком: он про работу,
-        которая держит цех нанесения, и откладывать её нельзя.
-        Блок сам себя прячет, когда принимать нечего.
-      */}
-      <FgIntakeQueue />
+      <PageHead title="Склад" sub="Приёмка материалов, готовые изделия, подряд и отгрузка." />
 
       <FilterBar
-        search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
-        searchPlaceholder="Поиск: заказ, № сделки, изделие, материал" searchLabel="Поиск задач склада"
+        search={query} onSearch={(v) => list.patch({ q: v })}
+        searchPlaceholder="Поиск: заказ, № сделки, материал, поставщик" searchLabel="Поиск задач склада"
         right={(
           <label className={styles.checkRow}>
-            <input type="checkbox" checked={onlyOpen} onChange={(e) => { setOnlyOpen(e.target.checked); setPage(1); }} />
+            <input
+              type="checkbox" checked={onlyOpen}
+              onChange={(e) => list.patch({ open: e.target.checked ? '1' : '0' })}
+            />
             <span className={styles.subText}>Только открытые</span>
           </label>
         )}
       >
         {TABS.map((f) => (
-          <FilterChip
-            key={f.key} active={tab === f.key}
-            onClick={() => { setTab(f.key); setPage(1); }}
-          >
+          <FilterChip key={f.key} active={tab === f.key} onClick={() => list.patch({ tab: f.key })}>
             {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
           </FilterChip>
         ))}
       </FilterBar>
+      <div className={styles.toolbar} role="group" aria-label="Срок">
+        <span className={styles.subText}>Срок:</span>
+        {DUE_FILTERS.map((d) => (
+          <FilterChip key={d.key} active={due === d.key} onClick={() => list.patch({ due: due === d.key ? '' : d.key })}>
+            {d.label}
+          </FilterChip>
+        ))}
+      </div>
+
+      {/*
+        ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ (правки 07.09, п. 9) — ЭТАПЫ маршрута, а не
+        складские задачи, поэтому свой блок над списком. С 05.10 (п. 8) он
+        живёт во вкладке готовых изделий и в «Все»: во вкладке материалов
+        приёмок готовых изделий быть не должно.
+      */}
+      {(tab === 'all' || tab === 'goods') && <FgIntakeQueue />}
 
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="задачи склада" />}
-      {/* Скелетон висит на `!loaded && !loadError`, а не на `loading`: при сбое
-          `loading` уже false, и экран замирал бы навсегда (правило UX-2).
-          До этой правки при загрузке здесь не было НИЧЕГО — пустая страница,
-          неотличимая от «задач нет». */}
+      {/* Скелетон — на `!loaded && !loadError`, а не на `loading` (правило UX-2) */}
       {!loaded && !loadError && <TableSkeleton rows={6} label="Загрузка задач склада" />}
 
-      {/* «Работы нет» и «под фильтры ничего не попало» — разные ответы, и
-          человеку нужен разный следующий шаг. Прежде оба показывались одной
-          серой строкой, различавшей только галочку «Только открытые». */}
+      {/* «Работы нет» и «под фильтры ничего не попало» — разные ответы */}
       {loaded && filtered.length === 0 && allRows.length === 0 && (
         <EmptyState
           icon="box"
@@ -383,127 +222,32 @@ export default function Warehouse() {
         </EmptyResult>
       )}
 
-      {loaded && filtered.length > 0 && isCompact && (
-        <div className={styles.dataCardList}>
-          {pageRows.map(({ order, task }) => (
-            <WarehouseTaskCard
-              key={task.id}
-              typeLabel={WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
-              typeIcon={TYPE_ICON[task.task_type]}
-              orderId={order.id}
-              orderNo={order.bitrix_id}
-              orderTitle={order.title}
-              summary={taskSummary(order, task)}
-              statusLabel={taskStatusLabel(task, order)}
-              statusVariant={taskVariant(task)}
-              deadline={deadlineLabel(order, task)}
-              onOpen={() => setOpenId(task.id)}
-            />
-          ))}
-        </div>
+      {loaded && filtered.length > 0 && (
+        <WarehouseTaskTable
+          rows={pageRows}
+          materials={tab === 'materials'}
+          compact={isCompact}
+          sort={sort}
+          onSort={sortBy}
+          onOpen={openTask}
+        />
       )}
 
-      {loaded && filtered.length > 0 && !isCompact && (
-        <ScrollHintBox className={styles.tableWrap} label="Задачи склада">
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <SortableTh sortKey="type" sort={sort} onSort={sortBy}>Тип задачи</SortableTh>
-                  <SortableTh sortKey="order" sort={sort} onSort={sortBy}>Заказ</SortableTh>
-                  <SortableTh sortKey="summary" sort={sort} onSort={sortBy}>Содержимое</SortableTh>
-                  <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
-                  <SortableTh sortKey="deadline" sort={sort} onSort={sortBy}>Срок</SortableTh>
-                  <th>Действие</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map(({ order, task }) => (
-                  <tr key={task.id} className={styles.rowClickable} onClick={() => setOpenId(task.id)}>
-                    <td>
-                      <span className={styles.cellWithIcon}>
-                        <Icon name={TYPE_ICON[task.task_type]} size={15} />
-                        {WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
-                      </span>
-                    </td>
-                    <td>№{order.bitrix_id || '—'}<div className={styles.cellSub} title={order.title}>{order.title}</div></td>
-                    <td>{taskSummary(order, task)}</td>
-                    <td><Badge variant={taskVariant(task)}>{taskStatusLabel(task, order)}</Badge></td>
-                    <td>{deadlineLabel(order, task) || '—'}</td>
-                    <td>
-                      <Button
-                        variant="secondary"
-                        onClick={(e) => { e.stopPropagation(); setOpenId(task.id); }}>
-                        Открыть
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollHintBox>
-      )}
-
-      {/* Пагинация одна на обе раскладки: страница и её размер — свойство
-          подбора, а не таблицы */}
+      {/* Пагинация одна на обе раскладки: страница — свойство подбора */}
       {loaded && filtered.length > 0 && (
         <Pagination
           page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
-          onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
+          onPage={list.setPage} onPageSize={(n) => { setPageSize(n); list.setPage(1); }}
         />
       )}
 
       {open && (
-        <Drawer
-          onClose={() => setOpenId(null)}
-          title={`${WAREHOUSE_TASK_TYPE_LABELS[open.task.task_type]}`}
-          subtitle={`№${open.order.bitrix_id || '—'} · ${open.order.title}`}
-          badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task, open.order)}</Badge>}
-        >
-          <ReadOnlyFieldset
-            canManage={canManageWarehouse}
-            note="Только просмотр: движение складских задач ведёт кладовщик."
-          >
-            {open.task.task_type === 'material_receipt' && (
-              <MaterialReceiptCard
-                order={open.order}
-                task={open.task}
-                onAccept={acceptMaterial}
-                onSetRollWeights={setRollWeights} onSetRollParams={setRollParams} onAddRolls={addMaterialRolls}
-              />
-            )}
-            {open.task.task_type === 'subcontract_send' && (
-              <SendToContractorCard
-                order={open.order}
-                task={open.task}
-                onAdvance={advanceWarehouseTask}
-              />
-            )}
-            {open.task.task_type === 'subcontract_receipt' && (
-              <SubcontractReceiptCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
-            )}
-            {open.task.task_type === 'fg_receipt' && (
-              <FgReceiptCard
-                order={open.order}
-                task={open.task}
-                onSubmit={submitWarehouseReport}
-              />
-            )}
-            {open.task.task_type === 'marking' && (
-              <MarkingCard order={open.order} task={open.task} onAdvance={advanceWarehouseTask} />
-            )}
-            {open.task.task_type === 'pack_ship' && (
-              <PackShipCard
-                order={open.order}
-                task={open.task}
-                onAdvance={advanceWarehouseTask}
-                /* Отгрузка идёт своим путём (правка 30.08, п. 6): она пишет
-                   журнал по позициям и сама закрывает задачу при полной
-                   передаче — `advanceWarehouseTask` для неё слишком груб */
-                onShip={shipOrder}
-              />
-            )}
-          </ReadOnlyFieldset>
-        </Drawer>
+        <WarehouseTaskDrawer
+          open={open}
+          onClose={closeTask}
+          canManage={canManageWarehouse}
+          returnHref={returnHref}
+        />
       )}
     </>
   );

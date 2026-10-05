@@ -9,13 +9,13 @@ import { PurchaseSizeTable } from './PurchaseSizeTable';
  * выбор позиции заказа с названием, цветом и общим количеством, но размерной
  * разбивки на скриншоте нет».
  */
-describe('таблица «Размер / Количество к заказу / Фактическое количество»', () => {
+describe('таблица «Размер / Нужно по заказу / Заказано поставщику»', () => {
   const PLANNED = [{ color: '—', sizes: { S: 2, M: 3, L: 3 } }];
 
   it('потребность из заказа показана и не правится руками', () => {
     render(<PurchaseSizeTable plannedGrid={PLANNED} orderedGrid={null} onChange={vi.fn()} />);
 
-    expect(screen.getByText('Количество к заказу')).toBeInTheDocument();
+    expect(screen.getByText('Нужно по заказу')).toBeInTheDocument();
     // Итог по колонке потребности — сумма размеров
     expect(screen.getByText('8')).toBeInTheDocument();
     // Ввод ровно один на строку — фактическое количество
@@ -26,7 +26,7 @@ describe('таблица «Размер / Количество к заказу /
     const onChange = vi.fn();
     render(<PurchaseSizeTable plannedGrid={PLANNED} orderedGrid={null} onChange={onChange} />);
 
-    fireEvent.change(screen.getByLabelText('M, Фактическое количество'), {
+    fireEvent.change(screen.getByLabelText('M, Заказано поставщику'), {
       target: { value: '5' },
     });
 
@@ -41,9 +41,9 @@ describe('таблица «Размер / Количество к заказу /
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByLabelText('S, Фактическое количество')).toHaveValue(2);
-    expect(screen.getByLabelText('M, Фактическое количество')).toHaveValue(4);
-    expect(screen.getByLabelText('L, Фактическое количество')).toHaveValue(null);
+    expect(screen.getByLabelText('S, Заказано поставщику')).toHaveValue(2);
+    expect(screen.getByLabelText('M, Заказано поставщику')).toHaveValue(4);
+    expect(screen.getByLabelText('L, Заказано поставщику')).toHaveValue(null);
   });
 
   it('правка одной строки НЕ стирает соседние', () => {
@@ -55,7 +55,7 @@ describe('таблица «Размер / Количество к заказу /
         onChange={onChange}
       />,
     );
-    fireEvent.change(screen.getByLabelText('L, Фактическое количество'), {
+    fireEvent.change(screen.getByLabelText('L, Заказано поставщику'), {
       target: { value: '3' },
     });
     expect(onChange).toHaveBeenCalledWith([{ color: '—', sizes: { S: 2, L: 3 } }]);
@@ -109,7 +109,7 @@ describe('таблица «Размер / Количество к заказу /
     const { rerender } = render(
       <PurchaseSizeTable plannedGrid={DUP} orderedGrid={null} onChange={onChange} />,
     );
-    const field = () => screen.getByLabelText('3XS, Фактическое количество');
+    const field = () => screen.getByLabelText('3XS, Заказано поставщику');
 
     fireEvent.change(field(), { target: { value: '1' } });
     expect(onChange).toHaveBeenLastCalledWith([{ color: '—', sizes: { '3XS': 1 } }]);
@@ -140,7 +140,7 @@ describe('таблица «Размер / Количество к заказу /
         onChange={vi.fn()}
       />,
     );
-    expect(screen.getByLabelText('M · чёрный, Фактическое количество')).toBeInTheDocument();
-    expect(screen.getByLabelText('M · белый, Фактическое количество')).toBeInTheDocument();
+    expect(screen.getByLabelText('M · чёрный, Заказано поставщику')).toBeInTheDocument();
+    expect(screen.getByLabelText('M · белый, Заказано поставщику')).toBeInTheDocument();
   });
 });

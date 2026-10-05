@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { PurchaseCard } from './PurchaseCard';
 import { useConfirmStore } from '../../../store/useConfirmStore';
@@ -58,17 +58,19 @@ beforeEach(() => {
 
 describe('карточка закупки — сводка', () => {
   /**
-   * Сводка видна БЕЗ ПРОКРУТКИ и стоит сразу под шапкой (п. 1.3). Перечень
-   * плиток берётся из документа дословно; на скриншоте-референсе их четыре,
-   * но требование — текст, и он называет шесть.
+   * Сводка видна БЕЗ ПРОКРУТКИ и стоит сразу под шапкой (п. 1.3). С правки
+   * 05.10 (п. 6) — одной строкой: «вместо больших счётчиков — короткая
+   * строка». Плиток быть не должно — их место отнимало таблицу материалов.
    */
-  it('шесть плиток документа, в его порядке', () => {
-    renderCard();
-    for (const label of [
-      'Всего материалов', 'Не заказано', 'Заказано', 'В пути', 'Пришло', 'Проблемы',
-    ]) {
-      expect(screen.getByText(label), label).toBeInTheDocument();
-    }
+  it('сводка — одна строка, а не плитки', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PurchaseCard order={order()} supplyDept={SUPPLY} perms={{}} today="2026-08-23"
+          onTake={vi.fn()} onClose={vi.fn()} onAddMaterial={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Материалов 0')).toBeInTheDocument();
+    expect(container.querySelector('[class*="kpiCard"]')).toBeNull();
   });
 
   it('считает, что оформлено, что в пути и что пришло', () => {
@@ -78,12 +80,8 @@ describe('карточка закупки — сводка', () => {
       { id: 'm2', name: 'Бирки', source: 'purchase', status: 'in_transit', qty_expected: 5, qty_ordered: 5 },
       { id: 'm3', name: 'Молния', source: 'purchase', status: 'pending', qty_expected: 7 },
     ] }));
-    // Подпись и значение — соседи внутри `.kpiBody`: берём общего родителя
-    const tile = (label) => screen.getByText(label).parentElement;
-    expect(within(tile('Всего материалов')).getByText('3')).toBeInTheDocument();
-    expect(within(tile('Заказано')).getByText('2')).toBeInTheDocument();
-    expect(within(tile('Не заказано')).getByText('1')).toBeInTheDocument();
-    expect(within(tile('Пришло')).getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('Материалов 3 · не заказано 1 · заказано 2 · в пути 1 · пришло 1'))
+      .toBeInTheDocument();
   });
 
   /**

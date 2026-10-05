@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { SizeResultTable } from '../../components/SizeResultTable';
 import { gridCells, cellsToGrid, NO_COLOR } from '../../utils/sizeGrid';
+import { PURCHASE_FIELD_LABELS } from './purchaseLabels';
 import styles from '../../styles';
 
 /**
@@ -71,10 +72,10 @@ export function PurchaseSizeTable({
     <div className={styles.fieldWide}>
       <SizeResultTable
         rows={rows}
-        columns={[{ code: 'ordered', label: 'Фактическое количество' }]}
+        columns={[{ code: 'ordered', label: PURCHASE_FIELD_LABELS.qtyOrdered }]}
         values={values}
         onChange={(key, _code, value) => emit(key, value)}
-        expectedLabel="Количество к заказу"
+        expectedLabel={PURCHASE_FIELD_LABELS.qtyExpected}
         caption={caption}
         disabled={disabled}
       />

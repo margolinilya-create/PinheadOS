@@ -41,7 +41,6 @@ const EXEMPT: Record<string, string> = {
 const CEILINGS: Record<string, number> = {
   'erp/screens/orders/CreateOrderModal.jsx': 1563,
   'erp/store/slices/stagesSlice.ts': 890,
-  'erp/screens/FabricPurchasing.jsx': 646,
   'erp/screens/orders/create/ItemBlock.jsx': 934,
   'erp/utils/orderForm.ts': 782,
   'erp/utils/experimentalBoard.ts': 821,
@@ -60,7 +59,6 @@ const CEILINGS: Record<string, number> = {
   'erp/screens/ErpDashboard.jsx': 560,
   'erp/screens/queue/StageActionsPanel.jsx': 532,
   'components/analytics/Dashboard.jsx': 521,
-  'erp/screens/Warehouse.jsx': 510,
 };
 
 const SRC = join(process.cwd(), 'src');

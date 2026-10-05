@@ -194,9 +194,9 @@ test.describe('Склад на планшете', () => {
     await expectNoHorizontalScroll(page);
   });
 
-  test('кнопка «Открыть» видна целиком и не мельче 44px', async ({ page }) => {
+  test('кнопка операции («Принять материал») видна целиком и не мельче 44px', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
-    const open = page.getByRole('button', { name: 'Открыть' }).first();
+    const open = page.getByRole('button', { name: 'Принять материал' }).first();
     await expect(open).toBeVisible();
     const viewport = page.viewportSize()!;
     const box = await open.boundingBox();
@@ -213,7 +213,7 @@ test.describe('Склад на планшете', () => {
      * в неё стоя было нечем.
      */
     await page.goto('/warehouse?studio=0');
-    await page.getByRole('button', { name: 'Открыть' }).first().click();
+    await page.getByRole('button', { name: 'Принять материал' }).first().click();
 
     const fact = page.getByRole('textbox', { name: /Факт материал/ });
     await expect(fact).toBeVisible();

@@ -1,6 +1,7 @@
+import { useEffect } from 'react';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Warehouse from './Warehouse';
 import { useErpStore } from '../store/useErpStore';
 import { attachDomainSlices } from '../store/domainSlices';
@@ -145,7 +146,7 @@ describe('«Склад»: раскладка планшета', () => {
     expect(container.querySelector('table')).not.toBeNull();
   });
 
-  it('на планшете — карточки, и кнопка «Открыть» у каждой', () => {
+  it('на планшете — карточки, и кнопка с операцией у каждой', () => {
     mockCompact(true);
     setStore({ orders: [ORDER] });
     const { container } = renderScreen();
@@ -156,7 +157,8 @@ describe('«Склад»: раскладка планшета', () => {
     const cards = screen.getAllByRole('article');
     expect(cards).toHaveLength(1); // по умолчанию видны только открытые
     expect(cards[0]).toHaveAccessibleName(/Приёмка материалов — заказ Худи/);
-    expect(screen.getByRole('button', { name: 'Открыть' })).toBeInTheDocument();
+    // Действие называет операцию (правка 05.10, п. 8), а не «Открыть» у всех
+    expect(screen.getByRole('button', { name: 'Принять материал' })).toBeInTheDocument();
   });
 
   it('карточка подписывает поля — вместе с шапкой таблицы исчезают названия колонок', () => {
@@ -198,5 +200,144 @@ describe('Склад — срок задачи', () => {
     setStore({ orders: [{ ...withoutOwn, warehouse_tasks: [ORDER.warehouse_tasks[0]] }] });
     renderScreen();
     expect(screen.queryByText(/срок заказа/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * РАБОЧИЙ ЭКРАН СКЛАДА (правка заказчика 05.10, п. 8) и переход из закупки
+ * (п. 7). Проверки постановки: «в списке несколько страниц, найти „Тест
+ * новый" без перебора страниц; во вкладке материалов нет отгрузок
+ * и приёмок готовых изделий; принять поставку — поиск и вкладка
+ * сохраняются, закрытая задача исчезает из открытых; без даты поставки
+ * „не задан", срок заказа отдельно; в отгрузке кнопка „Отгрузить"».
+ */
+describe('Склад — вкладки, поиск, адрес', () => {
+  const mat = (i, patch = {}) => ({
+    id: `m${i}`, name: `Кулирка ${i}`, kind: 'fabric', unit: 'кг', color: 'чёрный',
+    supplier: 'Астра', qty_expected: 100, qty_received: null, eta_date: null, ...patch,
+  });
+  const receipt = (i, patch = {}) => ({
+    id: `r${i}`, order_id: 'o9', task_type: 'material_receipt', material_id: `m${i}`,
+    status: 'awaiting', deadline: null, created_at: `2026-10-01T09:${String(i).padStart(2, '0')}:00Z`,
+    ...patch,
+  });
+  const MATS = Array.from({ length: 14 }, (_, i) => mat(i + 1));
+  MATS[13] = mat(14, { name: 'Тест новый', eta_date: '2026-10-09' });
+  const BIG = {
+    id: 'o9', bitrix_id: '9001', title: 'Большой заказ', status: 'active', due_date: '2026-10-20',
+    materials: MATS, items: [{ id: 'i9', product_type: 'Худи', qty: 50, stages: [] }],
+    warehouse_tasks: [
+      ...MATS.map((_, i) => receipt(i + 1)),
+      { id: 'ship', order_id: 'o9', task_type: 'pack_ship', status: 'ready_to_ship', created_at: '2026-10-02T09:00:00Z' },
+      { id: 'fg', order_id: 'o9', task_type: 'fg_receipt', status: 'awaiting', created_at: '2026-10-02T09:00:00Z' },
+    ],
+  };
+
+  /** Текущий адрес — его пишет эффект, а не рендер (правило react-hooks) */
+  const where = { loc: null };
+  function Spy() {
+    const l = useLocation();
+    useEffect(() => { where.loc = l; });
+    return null;
+  }
+  const renderAt = (url) => render(
+    <MemoryRouter initialEntries={[url]}>
+      <Routes>
+        <Route path="/warehouse" element={<><Warehouse /><Spy /></>} />
+        <Route path="/purchasing" element={<Spy />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  const sp = () => new URLSearchParams(where.loc.search);
+
+  beforeEach(() => {
+    mockCompact(false);
+    setStore({ orders: [BIG] });
+  });
+
+  it('рабочие вкладки — операции склада, «Все» отдельно', () => {
+    renderAt('/warehouse');
+    for (const name of ['Все', 'Приёмка материалов', 'Готовые изделия', 'Подряд', 'Отгрузка']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
+    }
+  });
+
+  it('во вкладке материалов нет отгрузок и приёмок готовых изделий', () => {
+    renderAt('/warehouse?tab=materials');
+    expect(screen.queryByRole('button', { name: 'Отгрузить' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Принять изделия' })).toBeNull();
+    // Колонки вкладки — про поставку
+    const heads = screen.getAllByRole('columnheader').map((th) => th.textContent);
+    expect(heads.join('|')).toMatch(/Материал и цвет.*К приёмке.*Срок поставки/);
+  });
+
+  it('«Тест новый» на последней странице находится поиском без перебора', () => {
+    renderAt('/warehouse?tab=materials');
+    expect(screen.queryByText('Тест новый')).toBeNull(); // не на первой странице
+    fireEvent.change(screen.getByLabelText('Поиск задач склада'), { target: { value: 'Тест новый' } });
+    expect(screen.getByText('Тест новый')).toBeInTheDocument();
+    expect(sp().get('q')).toBe('Тест новый');
+    expect(sp().get('tab')).toBe('materials');
+  });
+
+  it('смена поиска возвращает на первую страницу', () => {
+    renderAt('/warehouse?tab=materials&page=2');
+    fireEvent.change(screen.getByLabelText('Поиск задач склада'), { target: { value: 'кул' } });
+    expect(sp().has('page')).toBe(false);
+  });
+
+  it('без даты поставки — «не задан», срок заказа отдельной подписью', () => {
+    renderAt('/warehouse?tab=materials');
+    const row = screen.getAllByRole('row').find((r) => r.textContent.includes('Кулирка 1 '));
+    expect(within(row).getByText('не задан')).toBeInTheDocument();
+    expect(within(row).getByText('срок заказа 20.10.2026')).toBeInTheDocument();
+    expect(within(row).getByText('100 кг')).toBeInTheDocument();
+    expect(within(row).getByText(/поставщик: Астра/)).toBeInTheDocument();
+  });
+
+  it('фильтр по сроку оставляет задачи с ближайшей поставкой', () => {
+    renderAt('/warehouse?tab=materials&due=week');
+    expect(screen.getByText('Тест новый')).toBeInTheDocument();
+    expect(screen.queryByText(/Кулирка 1\b/)).toBeNull();
+  });
+
+  it('в отгрузке кнопка «Отгрузить»; кнопка открывает форму, а не проводит операцию', () => {
+    renderAt('/warehouse?tab=shipping');
+    fireEvent.click(screen.getByRole('button', { name: 'Отгрузить' }));
+    expect(sp().get('task')).toBe('ship');
+    expect(screen.getByRole('dialog', { name: 'Упаковка и отгрузка' })).toBeInTheDocument();
+  });
+
+  it('открытая задача в адресе; закрытие оставляет вкладку, поиск и страницу', () => {
+    renderAt('/warehouse?tab=materials&q=кул&page=2&task=r3');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    expect(sp().get('task')).toBeNull();
+    expect(sp().get('tab')).toBe('materials');
+    expect(sp().get('q')).toBe('кул');
+    expect(sp().get('page')).toBe('2');
+  });
+
+  it('принятая задача уходит из открытых, вкладка и поиск остаются', () => {
+    renderAt('/warehouse?tab=materials&q=Тест');
+    expect(screen.getByText('Тест новый')).toBeInTheDocument();
+    // Приёмка сохранена: стор перечитал заказ, задача закрыта
+    act(() => {
+      setStore({ orders: [{ ...BIG, warehouse_tasks: BIG.warehouse_tasks.map((t) => (t.id === 'r14' ? { ...t, status: 'accepted' } : t)) }] });
+    });
+    expect(screen.queryByRole('button', { name: 'Принять ткань' })).toBeNull();
+    expect(sp().get('q')).toBe('Тест');
+  });
+
+  it('из закупки: приёмка открыта сразу, «← К закупке» и закрытие ведут обратно', () => {
+    const back = encodeURIComponent('supply=o9&q=кул&page=2');
+    renderAt(`/warehouse?task=r14&from=purchasing&supply=o9&back=${back}`);
+    const dialog = screen.getByRole('dialog', { name: 'Приёмка материалов' });
+    expect(dialog.className).toMatch(/drawerPanelWide/);
+    expect(within(dialog).getByRole('link', { name: /К закупке/ }))
+      .toHaveAttribute('href', '/purchasing?supply=o9&q=кул&page=2');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }));
+    expect(where.loc.pathname).toBe('/purchasing');
+    expect(where.loc.search).toBe('?supply=o9&q=кул&page=2');
   });
 });

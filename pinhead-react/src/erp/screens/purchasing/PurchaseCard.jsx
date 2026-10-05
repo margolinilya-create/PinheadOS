@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Badge } from '../../components/Badge';
 import { Button, ButtonLink } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { OrderLink } from '../../components/OrderLink';
 import { confirm, confirmWithInput } from '../../../store/useConfirmStore';
 import { supabase } from '../../../lib/supabase';
@@ -15,6 +14,7 @@ import {
   supplyMaterialSummary,
   supplyState,
 } from '../../utils/supply';
+import { purchaseSummaryLine } from './purchaseLabels';
 import styles from '../../styles';
 
 /**
@@ -32,17 +32,13 @@ import styles from '../../styles';
  * ДЕЙСТВИЯ ПЕРЕЕХАЛИ СЮДА ЦЕЛИКОМ, вместе со своими подтверждениями: копия
  * рядом со списком означала бы два места, где «Завершить закупку» спрашивает
  * разное. Список о них больше не знает вовсе.
+ *
+ * ШИРОКАЯ ПАНЕЛЬ ВМЕСТО БЛОКА ПОД СПИСКОМ (правка 05.10, п. 6): «карточка
+ * закупки открывается под общим списком заказов, до неё приходится
+ * скроллить. Крупные счётчики занимают много места». Карточку открывает
+ * экран в `Drawer wide`, а шесть плиток сводки свернулись в одну строку
+ * (`purchaseSummaryLine`) — материалы и действия видны сразу.
  */
-
-/** Плитки сводки: перечень и порядок — из п. 1.3 документа */
-const TILES = [
-  { key: 'total', label: 'Всего материалов', icon: 'box', cls: '' },
-  { key: 'notOrdered', label: 'Не заказано', icon: 'alert', cls: '' },
-  { key: 'ordered', label: 'Заказано', icon: 'check', cls: '' },
-  { key: 'inTransit', label: 'В пути', icon: 'truck', cls: '' },
-  { key: 'arrived', label: 'Пришло', icon: 'checkCircle', cls: 'kpiIconOk' },
-  { key: 'problems', label: 'Проблемы', icon: 'alert', cls: 'kpiIconDanger' },
-];
 
 export function PurchaseCard({
   order, supplyDept, perms, today,
@@ -55,7 +51,6 @@ export function PurchaseCard({
     () => supplyMaterialSummary(order.materials, today), [order.materials, today]);
   const listFile = purchaseListFile(order);
   const state = supplyState(stages);
-  const values = { ...summary, problems: summary.problems.length };
 
   const run = async (fn) => {
     setBusy(true);
@@ -127,7 +122,7 @@ export function PurchaseCard({
   });
 
   return (
-    <section className={styles.matSection}>
+    <section aria-label={`Закупка по заказу №${order.bitrix_id || '—'}`}>
       <div className={styles.matSectionHead}>
         <div>
           <span className={styles.subText}>Карточка закупки</span>
@@ -204,22 +199,10 @@ export function PurchaseCard({
       )}
 
       {/*
-        Сводка стоит СРАЗУ под шапкой и видна без прокрутки (п. 1.3). Раньше
-        общий статус материалов лежал ниже по экрану, за таблицей всех заказов.
+        Сводка — СРАЗУ под шапкой и ОДНОЙ СТРОКОЙ (п. 1.3 правки 23.08;
+        правка 05.10, п. 6: «вместо больших счётчиков — короткая строка»).
       */}
-      <div className={styles.dashKpis}>
-        {TILES.map((t) => (
-          <div key={t.key} className={styles.kpiCard}>
-            <span className={`${styles.kpiIcon} ${t.cls ? styles[t.cls] : ''}`}>
-              <Icon name={t.icon} size={20} />
-            </span>
-            <span className={styles.kpiBody}>
-              <span className={styles.kpiCardLabel}>{t.label}</span>
-              <span className={styles.kpiCardValue}>{values[t.key]}</span>
-            </span>
-          </div>
-        ))}
-      </div>
+      <p className={styles.summaryLine}>{purchaseSummaryLine(summary)}</p>
 
       {summary.problems.length > 0 && (
         <div className={styles.subText}>
@@ -233,21 +216,6 @@ export function PurchaseCard({
         живут в `PurchaseFields`, одном модуле на таблицу и карточку планшета.
       */}
       {children}
-    </section>
-  );
-}
-
-/** Пустая карточка: заказ не выбран — говорим, что делать */
-export function PurchaseCardEmpty() {
-  return (
-    <section className={styles.matSection}>
-      <ScrollHintBox className={styles.toolbar} label="Подсказка">
-        <span className={`${styles.subText} ${styles.cellWithIcon}`}>
-          <Icon name="box" size={14} />
-          Выберите заказ в списке выше — откроется его карточка закупки
-          со сводкой и материалами.
-        </span>
-      </ScrollHintBox>
     </section>
   );
 }

@@ -10,13 +10,14 @@ import { MATERIAL_STATUS_LABELS } from '../../types';
 import { isPurchaserChoosableStatus } from '../../utils/materialStatus';
 import { ACCEPTANCE_ISSUE_LABELS, materialAcceptanceIssue } from '../../utils/supply';
 import {
-  KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS, STATUS_VARIANT,
+  KIND_LABELS, PURCHASE_FIELD_LABELS, STATUS_VARIANT,
   pricePerUnitLabel, priceRequiredFor,
 } from './purchaseLabels';
 import styles from '../../styles';
 import { PurchaseSizeTable } from './PurchaseSizeTable';
 import { gridCells } from '../../utils/sizeGrid';
 import { useDictionary } from '../../store/useDictionary';
+import { qtyLeftToAccept } from '../../utils/receiptLink';
 
 /**
  * Содержимое колонок закупочной строки — ПО ОДНОЙ реализации на элемент.
@@ -43,53 +44,100 @@ export function OrderCell({ order }) {
   );
 }
 
-/** Материал: название и его вид/цвет/источник */
-export function MaterialCell({ m, onUpdate }) {
-  /**
-   * РАЗБИВКА ГОТОВОГО ИЗДЕЛИЯ ВИДНА ПРЯМО В СТРОКЕ (правка 16.09, п. 2).
-   *
-   * Документ просит ОДНУ закупку «на 100 футболок с разбивкой внутри»
-   * вместо строки на каждый размер. Значит строка обязана эту разбивку
-   * показывать — иначе закупщик видит «100 шт» и не знает, каких именно,
-   * а ради ответа открывает заказ.
-   */
-  const cells = gridCells(m.size_grid);
-  const ordered = gridCells(m.size_grid_ordered);
+/**
+ * Материал: название, вид и цвет.
+ *
+ * ИСТОЧНИК, ПАРАМЕТРЫ ТКАНИ И РАЗБИВКА УЕХАЛИ В ПОДРОБНОСТИ СТРОКИ (правка
+ * 05.10, п. 6): «артикул, источник, параметры ткани, документы, сумму
+ * и историю — в деталях строки». Ячейка с двумя полями ввода и раскрывашкой
+ * сетки распирала строку, и до статуса приходилось двигать таблицу вбок.
+ */
+export function MaterialCell({ m }) {
   return (
     <>
       <strong>{m.name}</strong>
       <div className={styles.subText}>
         {KIND_LABELS[m.kind]}
         {m.color ? ` · ${m.color}` : ''}
-        {m.source !== 'purchase' ? ` · ${SOURCE_LABELS[m.source]}` : ''}
       </div>
-      {m.kind === 'fabric' && <FabricParamsFields m={m} onUpdate={onUpdate} />}
-      {cells.length > 0 && (
-        /*
-          ФАКТ ПО РАЗМЕРАМ ПРАВИТСЯ ЗДЕСЬ ЖЕ (правка 20.09, п. 2). Сводка
-          строкой остаётся на виду, а таблица разворачивается по требованию:
-          в таблице закупки четырнадцать колонок, и развёрнутая матрица
-          «цвет × размер» в каждой строке сделала бы экран нечитаемым.
+    </>
+  );
+}
 
-          Без `onUpdate` (печатный лист, чтение) таблица не рисуется вовсе —
-          поля ввода на печати бессмысленны.
-        */
-        <details className={styles.purchaseSizes}>
-          <summary className={styles.subText}>
-            {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
-            {ordered.length > 0 ? ' · заказано по размерам' : ''}
-          </summary>
-          {onUpdate ? (
-            <PurchaseSizeTable
-              plannedGrid={m.size_grid}
-              orderedGrid={m.size_grid_ordered}
-              onChange={(grid) => onUpdate(m.id, { size_grid_ordered: grid })}
-              caption={`Размеры закупки: ${m.name}`}
-            />
-          ) : null}
-        </details>
+/**
+ * РАЗБИВКА ГОТОВОГО ИЗДЕЛИЯ (правка 16.09, п. 2): «одна закупка на 100
+ * футболок с разбивкой внутри» — значит, разбивку видно у строки,
+ * иначе закупщик видит «100 шт» и не знает, каких именно.
+ *
+ * ФАКТ ПО РАЗМЕРАМ ПРАВИТСЯ ЗДЕСЬ ЖЕ (правка 20.09, п. 2): сводка строкой
+ * на виду, таблица разворачивается по требованию. Без `onUpdate` (чтение)
+ * таблица не рисуется — поля ввода там бессмысленны.
+ *
+ * С 05.10 живёт в подробностях строки, а не в ячейке материала.
+ */
+export function MaterialSizes({ m, onUpdate }) {
+  const cells = gridCells(m.size_grid);
+  const ordered = gridCells(m.size_grid_ordered);
+  if (cells.length === 0) return null;
+  return (
+    <details className={styles.purchaseSizes}>
+      <summary className={styles.subText}>
+        {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
+        {ordered.length > 0 ? ' · заказано по размерам' : ''}
+      </summary>
+      {onUpdate ? (
+        <PurchaseSizeTable
+          plannedGrid={m.size_grid}
+          orderedGrid={m.size_grid_ordered}
+          onChange={(grid) => onUpdate(m.id, { size_grid_ordered: grid })}
+          caption={`Размеры закупки: ${m.name}`}
+        />
+      ) : null}
+    </details>
+  );
+}
+
+/**
+ * ПРИНЯТО СКЛАДОМ — ТОЛЬКО ЧТЕНИЕ (правка 05.10, п. 6): «принятое только
+ * из приёмок, вручную не вводится». Сумму журнала приходов ведёт триггер;
+ * поле ввода рядом было бы вторым писателем того же числа.
+ *
+ * Ноль показывается нулём, а не прочерком: «100 / 110 / 0» — ровно то,
+ * что постановка ждёт увидеть до приёмки. Ниже — остаток к приёмке,
+ * пока он есть.
+ */
+export function ReceivedQty({ m }) {
+  const unit = m.unit ? ` ${m.unit}` : '';
+  const left = qtyLeftToAccept(m);
+  return (
+    <>
+      <span>{`${m.qty_received ?? 0}${unit}`}</span>
+      {left != null && left > 0 && Number(m.qty_received ?? 0) > 0 && (
+        <span className={styles.subText}>{` · осталось ${left}${unit}`}</span>
       )}
     </>
+  );
+}
+
+/**
+ * ТРИ КОЛИЧЕСТВА ОДНИМ БЛОКОМ (правка 05.10, п. 6): «нужно по заказу,
+ * заказано поставщику, принято складом». Подписи видимые и короткие —
+ * в узкой ячейке «100 / 110 / 0» без слов не читается; полное имя
+ * величины несёт `aria-label` поля.
+ */
+export function QtyTriple({ m, onUpdate }) {
+  const row = (label, content) => (
+    <span className={styles.qtyTripleRow}>
+      <span className={styles.subText}>{label}</span>
+      {content}
+    </span>
+  );
+  return (
+    <span className={styles.qtyTriple}>
+      {row('нужно', <PlanField m={m} onUpdate={onUpdate} />)}
+      {row('заказано', <QtyOrderedField m={m} onUpdate={onUpdate} />)}
+      {row('принято', <span><ReceivedQty m={m} /></span>)}
+    </span>
   );
 }
 
@@ -100,9 +148,9 @@ export function MaterialCell({ m, onUpdate }) {
  * без них расход в метрах не записать, поэтому пустые подсвечены как
  * недостающие (не блок: черновик закупки заводится и без них).
  *
- * Внутри `MaterialCell`, а не отдельной колонкой: в таблице закупки их
- * четырнадцать, и пятнадцатая с двумя числами сделала бы ряд нечитаемым.
- * Без `onUpdate` (печатный лист) показываются подписью.
+ * С 05.10 (п. 6) — в подробностях строки, а не отдельной колонкой:
+ * параметры ткани нужны складу и закрою, а не каждому взгляду на список.
+ * Без `onUpdate` (чтение) показываются подписью.
  */
 export function FabricParamsFields({ m, onUpdate }) {
   const width = m.width_cm ?? null;

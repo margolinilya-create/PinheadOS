@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
@@ -7,57 +6,46 @@ import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
 import { TableSkeleton } from '../components/ErpSkeletons';
 import { useCompactLayout } from '../layout/useCompactLayout';
 import { PurchaseRowCard } from './purchasing/PurchaseRowCard';
-import { PurchaseSizeTable } from './purchasing/PurchaseSizeTable';
-import {
-  ArticleField, CostValue, EtaField, ManagerNote, MaterialCell, OrderCell,
-  OrderedOnField, PlanField, PriceField, QtyOrderedField, ReceivedValue,
-  ResponsibleField, StatusCell, StatusControl, SupplierCell,
-} from './purchasing/PurchaseFields';
-import {
-  KIND_LABELS, PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, SOURCE_LABELS,
-} from './purchasing/purchaseLabels';
-import { Badge } from '../components/Badge';
+import { PurchaseMaterialsTable } from './purchasing/PurchaseMaterialsTable';
+import { ProcurementTasksTable } from './purchasing/ProcurementTasksTable';
 import { DictionaryDatalist } from '../components/DictionaryDatalist';
+import { Drawer } from '../components/Drawer';
 import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
-import { SortableTh } from '../components/SortableTh';
-import { DateField } from '../components/DateField';
-import { Icon } from '../components/Icon';
 import { sortRows, useTableSort } from '../utils/tableSort';
 import { useErpStore } from '../store/useErpStore';
-import { OrderLink } from '../components/OrderLink';
 import { SupplierOptionsModal } from './purchasing/SupplierOptionsModal';
 import { useStagePermissions } from '../store/useStagePermissions';
 import { SupplyQueue } from './purchasing/SupplyQueue';
-import { PurchaseCard, PurchaseCardEmpty } from './purchasing/PurchaseCard';
+import { PurchaseCard } from './purchasing/PurchaseCard';
 import { AddPurchaseModal } from './purchasing/AddPurchaseModal';
 import { findSupplyDept, ordersAwaitingSupply } from '../utils/supply';
-import {
-  MATERIAL_STATUS_LABELS,
-  PROCUREMENT_CAUSE_LABELS,
-  PROCUREMENT_KIND_LABELS,
-  PROCUREMENT_STATUS_LABELS,
-} from '../types';
-import { Modal } from '../components/Modal';
+import { MATERIAL_STATUS_LABELS } from '../types';
 import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
-import { ScrollHintBox } from '../components/ScrollHintBox';
 import { Button } from '../components/Button';
 import { factoryToday } from '../../utils/date';
 import { useScrollRestore } from '../../hooks/useScrollRestore';
+import { useListParams } from '../hooks/useListParams';
 
 /**
- * Закупка (редизайн): плоская таблица закупочных строк по всем активным заказам
- * (KPI-плитки + фильтр по статусу + пагинация), инлайн-правки план/цвет/артикул/статус,
- * «+ Материал» в карточке выбранного заказа — модалка добавления материала
- * (второй, глобальный вход снят 04.09: заказ уже выбран в мастер-детали).
- * Дозакупки/замены — секцией ниже.
- * Бизнес-логика (addMaterial/updateMaterial/confirmStockMaterial/procurement) не менялась.
+ * Закупка: очередь заказов, ждущих закупки, и карточка закупки выбранного
+ * заказа — в ШИРОКОЙ ПАНЕЛИ поверх списка (правка 05.10, п. 6).
+ *
+ * «Карточка закупки открывается под общим списком заказов, до неё
+ * приходится скроллить… Открывать закупку отдельной карточкой или в широкой
+ * области. Материалы и действия видны сразу. При возврате сохранять поиск,
+ * фильтры и место в списке». До правки карточка рисовалась блоком под
+ * списком: на длинной очереди до неё прокручивали, а после неё — обратно.
+ * Теперь список остаётся на месте (и с ним прокрутка), а карточка выезжает
+ * панелью; закрыли — человек там же, где был.
+ *
+ * Весь контекст — в адресе (`useListParams`): заказ (`supply`), поиск (`q`),
+ * фильтр статуса (`status`) и страница (`page`). Его же уносит с собой
+ * переход к приёмке на складе (п. 7) и возвращает ссылка «← К закупке».
+ * Бизнес-логика (addMaterial/updateMaterial/confirmStockMaterial/procurement)
+ * не менялась.
  */
-
-/* Подписи (KIND_LABELS, SOURCE_LABELS, STATUS_VARIANT, PURCHASE_GROUPS) переехали
-   в `purchasing/purchaseLabels`, содержимое колонок — в `purchasing/PurchaseFields`:
-   и то и другое читают обе раскладки строки закупки — таблица и карточка. */
 
 /**
  * Значение колонки для сортировки. Берём ровно то, что видно в ячейке
@@ -76,20 +64,8 @@ function purchaseSortValue({ order, m }, key) {
   }
 }
 
-function procurementSortValue({ order, t }, key) {
-  switch (key) {
-    case 'order': return order.bitrix_id || order.title;
-    case 'material': return t.material_name;
-    case 'kind': return PROCUREMENT_KIND_LABELS[t.kind];
-    case 'cause': return PROCUREMENT_CAUSE_LABELS[t.cause_type];
-    case 'supplier': return t.supplier;
-    case 'status': return PROCUREMENT_STATUS_LABELS[t.status];
-    default: return null;
-  }
-}
-
 /**
- * Группа статуса для KPI-плиток и фильтр-вкладок.
+ * Группа статуса для фильтр-вкладок.
  * Статус приоритетнее даты: как только материал заказан/в пути/пришёл, он выходит из «Просрочено»
  * (иначе строка с прошедшим eta зависала в «Просрочено» после смены статуса — ERP-01/ERP-02).
  * «Просрочено» = только ещё не заказанная закупка с истёкшим eta.
@@ -109,11 +85,8 @@ const TABS = [
   { key: 'overdue', label: 'Просрочено' },
 ];
 
-/**
- * Верхние показатели (правка 14) — не только статистика, но и быстрый переход:
- * клик по всей плитке фильтрует список по её статусу, а если позиция одна —
- * сразу открывает карточку её заказа.
- */
+/** Умолчания адреса — константой модуля: от неё зависят колбэки хука */
+const LIST_DEFAULTS = { status: 'all' };
 
 export default function FabricPurchasing() {
   const {
@@ -133,36 +106,31 @@ export default function FabricPurchasing() {
       deleteSupplierOption: s.deleteSupplierOption,
     })),
   );
-  const [query, setQuery] = useState('');
-  const [tab, setTab] = useState('all');
-  const [page, setPage] = useState(1);
+  const list = useListParams(LIST_DEFAULTS);
+  const query = list.get('q');
+  const tab = TABS.some((t) => t.key === list.get('status')) ? list.get('status') : 'all';
   const [pageSize, setPageSize] = useState(10);
-  /** Модалка «Новая закупка»: false | { orderId } — заказ предвыбран из очереди */
+  /** Модалка «Новая закупка»: false | { orderId } — заказ предвыбран из карточки */
   const [adding, setAdding] = useState(false);
   /** Открытая модалка сравнения вариантов поставщика: { material, order } */
   const [optionsFor, setOptionsFor] = useState(null);
   const { sort, toggle: toggleSort } = useTableSort();
-  const { sort: procSort, toggle: toggleProcSort } = useTableSort();
   /**
-   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы.
-   * У закупки колонок ЧЕТЫРНАДЦАТЬ: на планшете это прокрутка на три экрана,
-   * а «Закупка» входит в пилот наравне со «Складом».
+   * Ниже 1024px (и на любом тач-устройстве) — карточки вместо таблицы:
+   * «Закупка» входит в пилот наравне со «Складом», с планшета с ней и работают.
    */
   const isCompact = useCompactLayout();
   const today = factoryToday();
-  // Контекст экрана — в адресе: выбранный заказ (`?supply=`) переживает возврат
-  // из карточки заказа, и ссылкой на конкретную закупку можно поделиться
-  const [params, setParams] = useSearchParams();
 
   // Смена сортировки возвращает на первую страницу: иначе человек нажимает
   // «по сроку» и остаётся на пятой странице уже другого списка
-  const sortBy = (key) => { toggleSort(key); setPage(1); };
+  const sortBy = (key) => { toggleSort(key); list.setPage(1); };
 
   useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
   /**
-   * Позиция прокрутки при возврате из карточки (правка 03.09). Приём был
-   * у списка заказов, доски и очереди цеха и НЕ доехал сюда: человек уходил
-   * в заказ из середины длинного списка и возвращался в его начало.
+   * Позиция прокрутки при возврате из карточки заказа (правка 03.09).
+   * С 05.10 карточка закупки — панель поверх списка, и её открытие
+   * прокрутку не трогает вовсе.
    */
   useScrollRestore(loaded);
 
@@ -184,16 +152,9 @@ export default function FabricPurchasing() {
   const supplyPerms = useStagePermissions(supplyDept?.id ?? null);
 
   /**
-   * ЗАВЕРШЁННЫЕ ЗАКУПКИ (п. 1.5–1.6). Активная очередь показывает только
-   * незакрытое — «после действия „Завершить закупку" заказ автоматически
-   * скрывается из основной рабочей очереди». Но данные не удаляются:
-   * «сохраняются материалы, поставщики, артикулы, количества, цены, даты,
-   * документы, комментарии и история действий».
-   *
-   * Отсюда второй список, СВЁРНУТЫЙ по умолчанию («архив по умолчанию
-   * скрыт»): заказы с заведёнными материалами, у которых открытых этапов
-   * закупки уже нет. Без него материалы закрытых заказов стали бы
-   * недостижимы вовсе — их таблица раньше показывала общим списком.
+   * ЗАВЕРШЁННЫЕ ЗАКУПКИ (п. 1.5–1.6): заказы с заведёнными материалами,
+   * у которых открытых этапов закупки уже нет. Свёрнутый архив внизу
+   * страницы — данные не удаляются, просто уходят из рабочей очереди.
    */
   const doneOrders = useMemo(() => {
     const openIds = new Set(supplyOrders.map((o) => o.id));
@@ -202,158 +163,97 @@ export default function FabricPurchasing() {
   const selectableOrders = useMemo(
     () => [...supplyOrders, ...doneOrders], [supplyOrders, doneOrders]);
 
-  /** Плоские закупочные строки {order, material, group} по активным заказам */
-  const allRows = useMemo(() => {
-    const rows = [];
-    for (const o of activeOrders) {
-      for (const m of o.materials) rows.push({ order: o, m, group: statusGroup(m, today) });
-    }
-    return rows;
-  }, [activeOrders, today]);
-
   /**
-   * Счётчики чипов считают ТО ЖЕ, что показывает таблица под ними (обход 04.09).
-   * Они считались по строкам ВСЕХ заказов, а таблица с 23.08 показывает
-   * материалы одного выбранного: человек видел «Ожидают 7», нажимал и получал
-   * две строки. Объявление и `countRows` стоят ниже выбора заказа — иначе
-   * счётчик снова считал бы не то, что видно.
+   * ВЫБРАННЫЙ ЗАКАЗ ЖИВЁТ В АДРЕСЕ (`?supply=`), правка 23.08, п. 1: ссылку
+   * на конкретную закупку можно переслать, а возврат из карточки заказа или
+   * со склада открывает её снова. Пропавший из очереди и архива заказ выбор
+   * снимает сам.
    */
-
-  /**
-   * ВЫБРАННЫЙ ЗАКАЗ ЖИВЁТ В АДРЕСЕ (`?supply=`), правка 23.08, п. 1.
-   *
-   * Экран стал мастер-деталью: сверху список-навигация, ниже карточка закупки
-   * выбранного заказа. Состояние такого выбора — контекст списка, а контекст
-   * в проекте живёт в URL: иначе ссылку на конкретную закупку нельзя переслать,
-   * а возврат из карточки заказа открывал бы пустой экран.
-   *
-   * Пропавший из активной очереди заказ (закупку завершили) выбор снимает сам:
-   * карточка закрытой закупки в активном разделе — ровно тот шум, от которого
-   * уходит п. 1.5.
-   */
-  const requestedId = params.get('supply');
+  const requestedId = list.get('supply');
   const selectedOrder = useMemo(
     () => selectableOrders.find((o) => o.id === requestedId) ?? null,
     [selectableOrders, requestedId],
   );
+
   /**
-   * ЕДИНСТВЕННЫЙ ЗАКАЗ В ОЧЕРЕДИ ОТКРЫВАЕТСЯ САМ (обход 04.09). Экран
-   * встречал закупщика двумя строками и подсказкой «Выберите заказ в списке
-   * выше», хотя выбирать было не из чего: первый экран не показывал работу,
-   * а требовал лишнего действия перед ней. Выбор пишется в адрес тем же
-   * `replace`, что и ручной, — ссылку по-прежнему можно переслать, а история
-   * не засоряется.
-   *
-   * Только при ОДНОМ заказе: при двух и более выбор — это решение человека,
-   * и открывать за него первый попавшийся значит показывать чужую работу.
+   * ЕДИНСТВЕННЫЙ ЗАКАЗ В ОЧЕРЕДИ ОТКРЫВАЕТСЯ САМ (обход 04.09) — и только
+   * при первой загрузке экрана. С 05.10 карточка — панель, которую можно
+   * закрыть: эффект без этой отметки открывал бы её снова сразу после
+   * закрытия, и до списка было бы не добраться.
    */
+  const autoOpened = useRef(false);
   useEffect(() => {
-    if (!loaded || requestedId || supplyOrders.length !== 1) return;
-    setParams((prev) => {
-      const out = new URLSearchParams(prev);
-      out.set('supply', supplyOrders[0].id);
-      return out;
-    }, { replace: true });
-  }, [loaded, requestedId, supplyOrders, setParams]);
+    if (!loaded || autoOpened.current) return;
+    autoOpened.current = true;
+    if (!requestedId && supplyOrders.length === 1) list.patchKeep({ supply: supplyOrders[0].id });
+  }, [loaded, requestedId, supplyOrders, list]);
 
-  const selectOrder = (id) => {
-    setParams((prev) => {
-      const out = new URLSearchParams(prev);
-      if (!id || id === out.get('supply')) out.delete('supply'); else out.set('supply', id);
-      return out;
-    }, { replace: true });
-    setPage(1);
-  };
+  /** Открыть закупку заказа: подбор карточки начинается заново */
+  const selectOrder = (id) => list.patch({ supply: id, q: '', status: '' });
+  const closeCard = () => list.patch({ supply: '', q: '', status: '' });
 
+  /** Строки материалов выбранного заказа {order, m, group} */
+  const allRows = useMemo(() => (selectedOrder
+    ? selectedOrder.materials.map((m) => ({ order: selectedOrder, m, group: statusGroup(m, today) }))
+    : []), [selectedOrder, today]);
+
+  /** Счётчики чипов считают ТО ЖЕ, что показывает таблица под ними (обход 04.09) */
   const counts = useMemo(() => {
-    const rows = selectedOrder ? allRows.filter((r) => r.order.id === selectedOrder.id) : allRows;
-    const c = { all: rows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
-    for (const r of rows) c[r.group] += 1;
+    const c = { all: allRows.length, awaiting: 0, transit: 0, arrived: 0, overdue: 0 };
+    for (const r of allRows) c[r.group] += 1;
     return c;
-  }, [allRows, selectedOrder]);
+  }, [allRows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allRows.filter((r) => {
-      // Карточка показывает материалы ТОЛЬКО своего заказа (п. 1.4): общая
-      // таблица всех заказов и была второй рабочей зоной, на которую жалоба
-      if (selectedOrder && r.order.id !== selectedOrder.id) return false;
       if (tab !== 'all' && r.group !== tab) return false;
       if (!q) return true;
-      return r.order.title.toLowerCase().includes(q)
-        || (r.order.bitrix_id || '').includes(q)
-        || r.m.name.toLowerCase().includes(q)
+      return r.m.name.toLowerCase().includes(q)
+        || (r.m.color || '').toLowerCase().includes(q)
         || (r.m.article || '').toLowerCase().includes(q)
         || (r.m.supplier || '').toLowerCase().includes(q);
     });
-  }, [allRows, tab, query, selectedOrder]);
+  }, [allRows, tab, query]);
 
   // Сортировка идёт ДО пагинации: иначе отсортировалась бы только текущая страница
-  const sorted = useMemo(
-    () => sortRows(filtered, sort, purchaseSortValue),
-    [filtered, sort],
-  );
+  const sorted = useMemo(() => sortRows(filtered, sort, purchaseSortValue), [filtered, sort]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const safePage = Math.min(page, pageCount);
+  const safePage = Math.min(list.page, pageCount);
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const procurementRows = useMemo(
-    () => activeOrders.flatMap((o) => (o.procurement_tasks ?? []).map((t) => ({ order: o, t }))),
-    [activeOrders],
-  );
-  const sortedProcurement = useMemo(
-    () => sortRows(procurementRows, procSort, procurementSortValue),
-    [procurementRows, procSort],
-  );
-
   /**
-   * Смена статуса закупщиком (правка 12.09, п. 8).
-   *
-   * Ветки `received` здесь БОЛЬШЕ НЕТ. Она проставляла дату прихода вместе
-   * со статусом — и была единственным путём, которым на бое появлялись
-   * позиции «пришло» БЕЗ приёмки: склад ничего не пересчитывал, `qty_received`
-   * оставался пустым, а материальный гейт цеха при этом уже открывался.
-   * Приход теперь пишет только `erp_material_accept` — одной транзакцией
-   * с журналом. Селект такой пункт и не предлагает (`StatusControl`), так что
-   * запрет выражен с обеих сторон, а не только видом.
+   * Смена статуса закупщиком (правка 12.09, п. 8). Ветки `received` здесь
+   * НЕТ: приход пишет только `erp_material_accept` одной транзакцией
+   * с журналом, а селект такой пункт и не предлагает (`StatusControl`).
+   * Отметка закупщика о прибытии остаток не увеличивает (правка 05.10, п. 7).
    */
   const setStatus = async (m, status) => {
     await updateMaterial(m.id, { status });
   };
 
   /** Сброс подбора для «ничего не найдено» — и поиск, и вкладка сразу */
-  const resetFilters = () => { setQuery(''); setTab('all'); setPage(1); };
+  const resetFilters = () => list.patch({ q: '', status: '' });
 
-
+  const handlers = {
+    onUpdate: updateMaterial,
+    onOpenOptions: setOptionsFor,
+    onConfirmStock: confirmStockMaterial,
+    onSetStatus: setStatus,
+  };
 
   return (
     <>
       <PageHead title="Закупка" sub="Работа с материалами и поставщиками." />
       <DictionaryDatalist kind="supplier" id="erp-suppliers-table" />
 
-      {/*
-        ОШИБКА И СКЕЛЕТОН — НА ВЕРХНЕМ УРОВНЕ ЭКРАНА (правка 03.09).
-        Раньше обе строки стояли ВНУТРИ `<PurchaseCard>`, то есть под условием
-        `loaded && selectedOrder`. Отступ у них был сброшен к левому краю,
-        и выглядели они верхнеуровневыми; комментарий рядом уверял, что
-        правило UX-2 соблюдено. Оно и было соблюдено — в тексте, но не
-        в дереве: `loadError && !loaded` внутри блока, требующего `loaded`,
-        недостижимо по построению.
-        Цена: закупщик по цеховому Wi-Fi видел один заголовок «Закупка» —
-        и навсегда, потому что `if (!loaded) loadAll()` второй раз
-        не срабатывает, а кнопки «Повторить» на экране не существовало.
-        Заодно была недостижима кнопка «+ Новая закупка».
-      */}
+      {/* Ошибка и скелетон — на верхнем уровне экрана (правка 03.09): внутри
+          карточки, требующей `loaded`, они недостижимы по построению */}
       {loadError && !loaded && <LoadFailed onRetry={loadAll} what="закупку" />}
-      {/* Скелетон — на `!loaded && !loadError`, а не на `loading`: при сбое
-          `loading` уже false, и экран замирал бы навсегда (правило UX-2) */}
       {!loadError && !loaded && <TableSkeleton rows={8} label="Загрузка закупки" />}
 
-      {/* Очередь участка идёт ПЕРВОЙ: это ответ на вопрос «что делать сейчас».
-          Таблица закупочных строк ниже — справочник состояний, и до 12.08
-          она была единственным содержимым экрана, из-за чего заказ без
-          заведённых материалов не показывался вовсе */}
+      {/* Очередь участка идёт ПЕРВОЙ: это ответ на вопрос «что делать сейчас» */}
       {loaded && (
         <SupplyQueue
           orders={supplyOrders}
@@ -364,251 +264,12 @@ export default function FabricPurchasing() {
         />
       )}
 
-      {/* Предварительная закупка (п. 17): исключение при сжатых сроках,
-          поэтому блок свёрнут и стоит ПОСЛЕ очереди участка — она отвечает
-          на вопрос «что делать сейчас» */}
+      {/* Предварительная закупка (п. 17): исключение при сжатых сроках, свёрнута */}
       {loaded && <PreliminarySection orders={orders} />}
 
-      {/*
-        КАРТОЧКА ЗАКУПКИ выбранного заказа (п. 1). Пока заказ не выбран —
-        подсказка, что делать: пустой экран под списком читался бы как поломка.
-      */}
-      {loaded && !selectedOrder && supplyOrders.length > 0 && <PurchaseCardEmpty />}
+      <ProcurementTasksTable orders={activeOrders} onUpdate={updateProcurementTask} />
 
-      {/*
-        ПЛИТКИ-ПОКАЗАТЕЛИ ЭКРАНА СНЯТЫ (правка 23.08, п. 1.3). Они были вторым
-        видом ТОГО ЖЕ фильтра, что чипы в панели ниже (ключи совпадали
-        до одного), и заодно тем самым «общим статусом материалов ниже
-        по экрану», на который жалуется документ. Статус теперь показывает
-        сводка КАРТОЧКИ выбранного заказа — сразу под шапкой, без прокрутки.
-      */}
-      {loaded && selectedOrder && (
-        <PurchaseCard
-          order={selectedOrder}
-          supplyDept={supplyDept}
-          perms={supplyPerms}
-          today={today}
-          onTake={takeSupply}
-          onClose={closeSupply}
-          onAddMaterial={(orderId) => setAdding({ orderId })}
-        >
-        {tab !== 'all' && (
-          <div className={`${styles.toolbar} ${styles.toolbarUnderHead}`}>
-            <span className={`${styles.chip} ${styles.chipProgress}`}>
-              Фильтр: {TABS.find((t) => t.key === tab)?.label}
-            </span>
-            <Button variant="ghost" onClick={() => setTab('all')}>
-              Сбросить фильтр
-            </Button>
-          </div>
-        )}
-
-        <FilterBar
-          search={query} onSearch={(v) => { setQuery(v); setPage(1); }}
-          searchPlaceholder="Поиск: заказ, № сделки, материал, артикул, поставщик"
-          searchLabel="Поиск по закупке"
-          /*
-            «+ НОВАЯ ЗАКУПКА» СНЯТА (§3.3 обхода 04.09): два входа в одну
-            модалку. Глобальная кнопка спрашивала заказ селектом из полусотни,
-            хотя заказ уже выбран в мастер-детали — с 23.08 экран устроен так,
-            что закупщик сначала открывает заказ, а потом работает по нему.
-            Остался вход В КАРТОЧКЕ («+ Материал»), где заказ известен и его
-            не надо называть второй раз.
-          */
-        >
-          {TABS.map((f) => (
-            <FilterChip
-            key={f.key} active={tab === f.key}
-            onClick={() => { setTab(f.key); setPage(1); }}
-          >
-              {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
-          </FilterChip>
-          ))}
-        </FilterBar>
-
-        {/* «Закупать нечего» и «подбор всё отсеял» — разные ответы: в первом
-            случае человеку нечего сбрасывать, во втором сброс и есть выход */}
-        {loaded && filtered.length === 0 && allRows.length === 0 && (
-          <EmptyState
-            icon="inbox"
-            title="Закупочных строк нет"
-            text="Лист закупки задаёт менеджер при создании заказа. Отдельную позицию можно завести кнопкой «Новая закупка»."
-          />
-        )}
-        {loaded && filtered.length === 0 && allRows.length > 0 && (
-          <EmptyResult query={query.trim()} onReset={resetFilters} resetLabel="Сбросить всё" />
-        )}
-
-        {loaded && filtered.length > 0 && isCompact && (
-          <div className={styles.dataCardList}>
-            {pageRows.map(({ order, m }) => (
-              <PurchaseRowCard
-                key={m.id}
-                order={order}
-                m={m}
-                onUpdate={updateMaterial}
-                onOpenOptions={setOptionsFor}
-                onConfirmStock={confirmStockMaterial}
-                onSetStatus={setStatus}
-              />
-            ))}
-          </div>
-        )}
-
-        {loaded && filtered.length > 0 && !isCompact && (
-          <>
-            <ScrollHintBox className={styles.tableWrap} label="Закупка материалов">
-              <table className={styles.table}>
-                <thead>
-                  {/*
-                    Две группы колонок — прямое требование документа (п. 12):
-                    «в интерфейсе закупки необходимо визуально разделить исходный
-                    запрос и данные закупщика». Слева то, что задал менеджер при
-                    создании заказа, справа то, что закупщик выясняет и вносит сам.
-                    Пока группы не были названы, обе роли писали в общую строку,
-                    и «нужно было 100 м → закупили 110» показать было нечем.
-                  */}
-                  {/* colSpan считаются по колонкам ниже: 4 + 11 = 15. Стояло
-                      4 + 10 — группа «Факт» была на колонку короче строки,
-                      и её разделитель не доходил до «Действия» */}
-                  <tr className={styles.groupHeadRow}>
-                    <th className={styles.groupHead} colSpan={4}>{PURCHASE_GROUPS[0].label}</th>
-                    <th className={styles.groupHead} colSpan={11}>{PURCHASE_GROUPS[1].label}</th>
-                  </tr>
-                  <tr>
-                    <SortableTh sortKey="order" sort={sort} onSort={sortBy}>№ заказа</SortableTh>
-                    <SortableTh sortKey="material" sort={sort} onSort={sortBy}>Материал</SortableTh>
-                    <SortableTh
-                      sortKey="plan" sort={sort} onSort={sortBy}
-                      label={PURCHASE_FIELD_LABELS.qtyExpected}
-                    >
-                      {PURCHASE_FIELD_LABELS.qtyExpected}
-                    </SortableTh>
-                    <th>Комментарий менеджера</th>
-                    <SortableTh sortKey="supplier" sort={sort} onSort={sortBy}>Поставщик</SortableTh>
-                    <SortableTh sortKey="article" sort={sort} onSort={sortBy}>Артикул</SortableTh>
-                    {/* Факт закупщика (документ 20.08, п. 4): «сколько фактически
-                        заказано · цена за единицу · фактическая стоимость закупки ·
-                        дата заказа · плановая дата прихода». Колонки в БД были
-                        с 16.08, но не выведены НИ В ОДИН экран */}
-                    <th>{PURCHASE_FIELD_LABELS.qtyOrdered}</th>
-                    <th>Цена за ед., ₽</th>
-                    <th>Стоимость</th>
-                    <th>Дата заказа</th>
-                    <th>План прихода</th>
-                    <SortableTh sortKey="received" sort={sort} onSort={sortBy}>Приход</SortableTh>
-                    <th>Ответственный</th>
-                    <SortableTh sortKey="status" sort={sort} onSort={sortBy}>Статус</SortableTh>
-                    <th>Действие</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Содержимое ячеек — из PurchaseFields, теми же элементами,
-                      что рисует карточка планшета. Две реализации инлайн-правки
-                      разошлись бы молча: обе «работают», просто пишут по-разному */}
-                  {pageRows.map(({ order, m }) => (
-                    <tr key={m.id}>
-                      <td><OrderCell order={order} /></td>
-                      <td><MaterialCell m={m} onUpdate={updateMaterial} /></td>
-                      <td><PlanField m={m} onUpdate={updateMaterial} /></td>
-                      <td><ManagerNote m={m} /></td>
-                      <td><SupplierCell m={m} order={order} onOpenOptions={setOptionsFor} /></td>
-                      <td><ArticleField m={m} onUpdate={updateMaterial} /></td>
-                      <td><QtyOrderedField m={m} onUpdate={updateMaterial} /></td>
-                      <td><PriceField m={m} onUpdate={updateMaterial} /></td>
-                      <td className={styles.progressCell}><CostValue m={m} /></td>
-                      <td><OrderedOnField m={m} onUpdate={updateMaterial} /></td>
-                      <td><EtaField m={m} onUpdate={updateMaterial} /></td>
-                      <td><ReceivedValue m={m} /></td>
-                      <td><ResponsibleField m={m} onUpdate={updateMaterial} /></td>
-                      <td><StatusCell m={m} /></td>
-                      <td>
-                        <StatusControl
-                          m={m}
-                          onConfirmStock={confirmStockMaterial}
-                          onSetStatus={setStatus}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ScrollHintBox>
-          </>
-        )}
-
-        {/* Пагинация одна на обе раскладки: страница и её размер — свойство
-            подбора, а не таблицы */}
-        {loaded && filtered.length > 0 && (
-          <Pagination
-            page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
-            onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }}
-          />
-        )}
-        </PurchaseCard>
-      )}
-
-      {procurementRows.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <div className={styles.fieldLabel}>Дозакупки / замены ({procurementRows.length})</div>
-          <ScrollHintBox className={styles.tableWrap} label="Дозакупки и замены">
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <SortableTh sortKey="order" sort={procSort} onSort={toggleProcSort} label="№ заказа">№</SortableTh>
-                  <SortableTh sortKey="material" sort={procSort} onSort={toggleProcSort}>Материал</SortableTh>
-                  <SortableTh sortKey="kind" sort={procSort} onSort={toggleProcSort}>Тип</SortableTh>
-                  <SortableTh sortKey="cause" sort={procSort} onSort={toggleProcSort}>Причина</SortableTh>
-                  <SortableTh sortKey="supplier" sort={procSort} onSort={toggleProcSort}>Поставщик</SortableTh>
-                  <SortableTh sortKey="status" sort={procSort} onSort={toggleProcSort}>Статус</SortableTh>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedProcurement.map(({ order, t }) => (
-                  <tr key={t.id}>
-                    <td>
-                      <OrderLink
-                        orderId={order.id}
-                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
-                      >
-                        №{order.bitrix_id || '—'}
-                      </OrderLink>
-                    </td>
-                    <td>{t.material_name}</td>
-                    <td>{PROCUREMENT_KIND_LABELS[t.kind]}{!t.counts_as_purchase && <div className={styles.subText}>не закупка компании</div>}</td>
-                    <td>{PROCUREMENT_CAUSE_LABELS[t.cause_type]}</td>
-                    <td>{t.supplier || '—'}</td>
-                    <td>
-                      <select className={styles.select} value={t.status} onChange={(e) => updateProcurementTask(t.id, { status: e.target.value })} aria-label={`Статус задачи ${t.material_name}`}>
-                        {Object.entries(PROCUREMENT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollHintBox>
-        </div>
-      )}
-
-      {adding && (
-        <AddPurchaseModal
-          orders={activeOrders}
-          orderId={adding.orderId ?? ''}
-          onAdd={addMaterial}
-          onClose={() => setAdding(false)}
-        />
-      )}
-
-      {/*
-        ЗАВЕРШЁННЫЕ ЗАКУПКИ — ВНИЗУ СТРАНИЦЫ И СВЁРНУТЫ (правка 24.08, п. 2:
-        «внизу страницы оставить компактный блок „Завершённые закупки (N)"
-        с кнопкой „Показать"»). Прежде блок стоял сразу под активной очередью,
-        то есть между ней и рабочей карточкой закупки.
-
-        Заголовок вложенному списку НЕ передаётся: свой у него дублировал бы
-        «Заказы в закупке» внутри архива — ровно то, на что жалоба.
-      */}
+      {/* Завершённые закупки — внизу страницы и свёрнуты (правка 24.08, п. 2) */}
       {loaded && doneOrders.length > 0 && (
         <details className={styles.matSection}>
           <summary>Завершённые закупки ({doneOrders.length})</summary>
@@ -623,6 +284,87 @@ export default function FabricPurchasing() {
             emptyText="Завершённых закупок нет."
           />
         </details>
+      )}
+
+      {loaded && selectedOrder && (
+        <Drawer
+          wide
+          onClose={closeCard}
+          title="Карточка закупки"
+          subtitle={`№${selectedOrder.bitrix_id || '—'} · ${selectedOrder.title}`}
+        >
+          <PurchaseCard
+            order={selectedOrder}
+            supplyDept={supplyDept}
+            perms={supplyPerms}
+            today={today}
+            onTake={takeSupply}
+            onClose={closeSupply}
+            onAddMaterial={(orderId) => setAdding({ orderId })}
+          >
+            {tab !== 'all' && (
+              <div className={`${styles.toolbar} ${styles.toolbarUnderHead}`}>
+                <span className={`${styles.chip} ${styles.chipProgress}`}>
+                  Фильтр: {TABS.find((t) => t.key === tab)?.label}
+                </span>
+                <Button variant="ghost" onClick={() => list.patch({ status: '' })}>
+                  Сбросить фильтр
+                </Button>
+              </div>
+            )}
+
+            <FilterBar
+              search={query} onSearch={(v) => list.patch({ q: v })}
+              searchPlaceholder="Поиск: материал, цвет, артикул, поставщик"
+              searchLabel="Поиск по закупке"
+            >
+              {TABS.map((f) => (
+                <FilterChip key={f.key} active={tab === f.key} onClick={() => list.patch({ status: f.key })}>
+                  {f.label} {counts[f.key] > 0 && <b>{counts[f.key]}</b>}
+                </FilterChip>
+              ))}
+            </FilterBar>
+
+            {/* «Закупать нечего» и «подбор всё отсеял» — разные ответы */}
+            {filtered.length === 0 && allRows.length === 0 && (
+              <EmptyState
+                icon="inbox"
+                title="Закупочных строк нет"
+                text="Лист закупки задаёт менеджер при создании заказа. Отдельную позицию можно завести кнопкой «+ Материал»."
+              />
+            )}
+            {filtered.length === 0 && allRows.length > 0 && (
+              <EmptyResult query={query.trim()} onReset={resetFilters} resetLabel="Сбросить всё" />
+            )}
+
+            {filtered.length > 0 && isCompact && (
+              <div className={styles.dataCardList}>
+                {pageRows.map(({ order, m }) => (
+                  <PurchaseRowCard key={m.id} order={order} m={m} {...handlers} />
+                ))}
+              </div>
+            )}
+            {filtered.length > 0 && !isCompact && (
+              <PurchaseMaterialsTable rows={pageRows} sort={sort} onSort={sortBy} {...handlers} />
+            )}
+
+            {filtered.length > 0 && (
+              <Pagination
+                page={safePage} pageCount={pageCount} total={filtered.length} pageSize={pageSize}
+                onPage={list.setPage} onPageSize={(n) => { setPageSize(n); list.setPage(1); }}
+              />
+            )}
+          </PurchaseCard>
+        </Drawer>
+      )}
+
+      {adding && (
+        <AddPurchaseModal
+          orders={activeOrders}
+          orderId={adding.orderId ?? ''}
+          onAdd={addMaterial}
+          onClose={() => setAdding(false)}
+        />
       )}
 
       {optionsFor && (() => {

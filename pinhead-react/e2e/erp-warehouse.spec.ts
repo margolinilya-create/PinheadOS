@@ -125,35 +125,32 @@ test.describe('Экран склада: задачи доходят до экр�
   });
 
   /**
-   * Счётчик вкладки «Приёмка ГП» давал `NaN`: инициализатор перечислял типы
-   * задач руками и пропускал `fg_receipt`, поэтому `undefined + 1` = NaN,
-   * проверка `> 0` всегда ложна, и число открытых задач не показывалось
-   * НИКОГДА. Ошибка тихая — экран выглядит рабочим, просто одна цифра пуста.
+   * Счётчик вкладки готовой продукции давал `NaN`: инициализатор перечислял
+   * типы задач руками и пропускал `fg_receipt`. С правки 05.10 (п. 8)
+   * вкладки — операции склада, и приёмка ГП живёт в «Готовые изделия».
    */
-  test('«Приёмка ГП» показывает число открытых задач', async ({ page }) => {
+  test('«Готовые изделия» показывают число открытых задач', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
-
-    /*
-     * Точка входа теперь ОДНА (обход 04.09): плитки-показатели сняты — они
-     * были тем же фильтром, нарисованным вторым видом, и успели разойтись
-     * с чипами (тип «Передача подрядчику» был только у чипов). Проверяемое
-     * свойство не изменилось: счётчик показывает число и не показывает NaN.
-     */
-    const chip = page.getByRole('button', { name: /Приёмка ГП/ });
+    const chip = page.getByRole('button', { name: /^Готовые изделия/ });
     await expect(chip).toHaveCount(1);
     await expect(chip).toContainText('1');
     await expect(chip).not.toContainText('NaN');
   });
 
   /**
-   * Второй вид того же фильтра не должен вернуться: плитки и чипы отбирают
-   * одно и то же, а два вида у одной работы однажды разъезжаются — здесь
-   * это уже случилось.
+   * Рабочие вкладки (правка 05.10, п. 8): операции, а не типы задач;
+   * во вкладке материалов нет приёмок готовых изделий.
    */
-  test('фильтр типов задач нарисован ровно одним видом', async ({ page }) => {
+  test('вкладки — операции склада; в материалах нет готовых изделий', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
-    await expect(page.getByRole('button', { name: /Приёмка материалов/ })).toHaveCount(1);
-    await expect(page.getByRole('button', { name: /Упаковка\/отгрузка/ })).toHaveCount(1);
+    for (const name of ['Приёмка материалов', 'Готовые изделия', 'Подряд', 'Отгрузка']) {
+      await expect(page.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(1);
+    }
+    await page.getByRole('button', { name: /^Приёмка материалов/ }).click();
+    await expect(page).toHaveURL(/tab=materials/);
+    const table = page.getByRole('table');
+    await expect(table).toContainText('Свитшоты склад-тест');
+    await expect(table).not.toContainText('Худи приёмка ГП');
   });
 });
 
@@ -161,7 +158,7 @@ test.describe('Приёмка материала: приход обязател�
   test('карточка открывается и показывает план', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await expect(drawer).toContainText('Футер трёхнитка');
@@ -178,7 +175,7 @@ test.describe('Приёмка материала: приход обязател�
   test('«Принять» погашена, пока не указано количество, и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
@@ -197,7 +194,7 @@ test.describe('Приёмка материала: приход обязател�
   test('количество введено, а рулоны — нет: кнопка погашена и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
@@ -218,7 +215,7 @@ test.describe('Приёмка материала: приход обязател�
   test('веса рулонов не заполнены — кнопка погашена и причина названа', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
@@ -231,7 +228,7 @@ test.describe('Приёмка материала: приход обязател�
   test('сумма весов не сходится с приходом — кнопка погашена, расхождение названо', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
@@ -246,7 +243,7 @@ test.describe('Приёмка материала: приход обязател�
   test('количество, рулоны и их веса введены — кнопка открывается', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
@@ -265,7 +262,7 @@ test.describe('Приёмка материала: приход обязател�
   test('форма приёмки одна, отдельной «Записать приход» больше нет', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     const drawer = page.getByRole('dialog');
     await expect(drawer.getByRole('button', { name: 'Записать приход' })).toHaveCount(0);
@@ -276,8 +273,21 @@ test.describe('Приёмка материала: приход обязател�
   test('«Принято всего» показано и равно нулю при пустом журнале', async ({ page }) => {
     await page.goto('/warehouse?studio=0');
     await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
-      .getByRole('button', { name: 'Открыть' }).click();
+      .getByRole('button', { name: 'Принять материал' }).click();
 
     await expect(page.getByRole('dialog')).toContainText('Принято всего');
+  });
+});
+
+test.describe('Склад: контекст в адресе (правка 05.10, п. 8)', () => {
+  test('поиск и вкладка переживают открытие и закрытие формы', async ({ page }) => {
+    await page.goto('/warehouse?studio=0&tab=materials');
+    await page.getByLabel('Поиск задач склада').fill('Свитшоты');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+    await expect(page).toHaveURL(/task=wh-a-t1/);
+    await page.getByRole('dialog').getByRole('button', { name: 'Закрыть' }).click();
+    await expect(page).toHaveURL(/tab=materials/);
+    await expect(page.getByLabel('Поиск задач склада')).toHaveValue('Свитшоты');
   });
 });
