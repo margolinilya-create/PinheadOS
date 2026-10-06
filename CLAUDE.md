@@ -698,6 +698,12 @@ NULL читается как `purchased`) — у давальческого из
 `systematic-debugging`, `root-cause-tracing`, `subagent-driven-development`,
 `changelog-generator`, `zustand-store-ts`, агент `pinhead-qa`.
 Выключить ECC — `"ecc@ecc": false`; только хуки — опция плагина `hooks_enabled`.
+Закрепление — тегом, а не коммитом: маркетплейс клонируется `git clone --branch <ref>`,
+и полный SHA отвечает «Remote branch … not found» (проверено 06.10 в изолированном
+конфиге). Тег автор может передвинуть, поэтому перед обновлением и при подозрении
+сверять: `git ls-remote --tags https://github.com/affaan-m/everything-claude-code v2.2.3`
+→ `c05b2d6614f62f6db0047669aa4eefb223d478f9` (строка `^{}`). Другой SHA — плагин
+выключить и разобраться до следующей сессии.
 
 ## Документация
 
