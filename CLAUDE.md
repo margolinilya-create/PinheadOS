@@ -704,6 +704,15 @@ NULL читается как `purchased`) — у давальческого из
 сверять: `git ls-remote --tags https://github.com/affaan-m/everything-claude-code v2.2.3`
 → `c05b2d6614f62f6db0047669aa4eefb223d478f9` (строка `^{}`). Другой SHA — плагин
 выключить и разобраться до следующей сессии.
+**В облачных сессиях `settings.json` сторонний маркетплейс НЕ ставит** (06.10:
+в контейнере известен только `claude-plugins-official`, `installed_plugins.json`
+пуст; по той же причине там никогда не грузился и `agents-design-experience@buildwithclaude`).
+В облаке ECC ставит **Setup script окружения** (правит владелец: меню окружения →
+Edit → Setup script) — блок со сверкой SHA тега из абзаца выше, затем
+`claude plugin marketplace add affaan-m/everything-claude-code#v2.2.3` и
+`claude plugin install ecc@ecc` (проверено в изолированном конфиге: `ecc@ecc 2.2.3 enabled`).
+Npm-зависимости плагина при этом не ставятся (у него `overrides`) — если хук ECC
+падает на отсутствующем пакете, выключить хуки (`hooks_enabled`), а не чинить пакетами.
 
 ## Документация
 
