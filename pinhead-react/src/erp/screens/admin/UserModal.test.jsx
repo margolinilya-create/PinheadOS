@@ -96,6 +96,22 @@ describe('UserModal — заведение', () => {
     await waitFor(() => expect(actions.createUserAccount).toHaveBeenCalled());
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  /**
+   * Форма ввода закрывается только «Отменой» (правка 01.10, п. 3): Escape,
+   * нажатый по привычке, терял набранные имя, адрес и пароль так же, как
+   * промах мимо панели — тот закрыли ещё 01.10, а Escape остался
+   */
+  it('Escape форму не закрывает — набранное на месте', () => {
+    const onClose = vi.fn();
+    render(<UserModal profile={null} onClose={onClose} />);
+
+    fireEvent.change(screen.getByLabelText(/^Имя/), { target: { value: 'Пётр' } });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/^Имя/)).toHaveValue('Пётр');
+  });
 });
 
 describe('UserModal — правка', () => {
