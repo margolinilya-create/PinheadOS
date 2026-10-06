@@ -49,13 +49,9 @@ strix_runs/
 .claude/commands/
 .claude/skills/*
 !.claude/skills/changelog-generator/
-!.claude/skills/finishing-a-development-branch/
 !.claude/skills/root-cause-tracing/
-!.claude/skills/software-architecture/
 !.claude/skills/subagent-driven-development/
 !.claude/skills/systematic-debugging/
-!.claude/skills/test-driven-development/
-!.claude/skills/using-git-worktrees/
 !.claude/skills/zustand-store-ts/
 .claude/agents/*
 !.claude/agents/pinhead-qa.md
