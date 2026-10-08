@@ -167,3 +167,41 @@ describe('Приёмка готового изделия — окно резул
     expect(submitStageReport).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ОШИБКА С БОЯ 08.10 («Буше», 56548): заказ ещё в закупке, а склад уже видит
+ * «Приёмку готовых изделий» с кнопкой — как будто маршрут пошёл параллельно.
+ * В базе граф верный (склад ждёт закупку), но очередь брала ВСЕ незакрытые
+ * этапы склада, включая ждущие предыдущий этап. В рабочей очереди — только
+ * те, до которых дошёл маршрут.
+ */
+describe('Приёмка готового изделия — только дошедшие этапы', () => {
+  const SUPPLY = {
+    id: 'd-sup', code: 'supply', name: 'Закупка',
+    active: true, is_production: false, sort_order: 1, gate_material_kinds: [],
+  };
+  const withSupply = (supplyStatus) => ({
+    ...ORDER,
+    items: [{
+      ...ORDER.items[0],
+      garment_source: 'purchased',
+      stages: [
+        { ...ORDER.items[0].stages[0], id: 'st-sup', department_id: 'd-sup',
+          status: supplyStatus, sort_order: 5 },
+        { ...ORDER.items[0].stages[0], depends_on: ['st-sup'] },
+      ],
+    }],
+  });
+
+  it('закупка не закрыта — строки приёмки нет', () => {
+    useErpStore.setState({ orders: [withSupply('in_progress')], departments: [SUPPLY, ...DEPTS] });
+    renderQueue();
+    expect(screen.queryByText(/Приёмка готового изделия/)).not.toBeInTheDocument();
+  });
+
+  it('закупка закрыта — приёмка появилась', () => {
+    useErpStore.setState({ orders: [withSupply('done')], departments: [SUPPLY, ...DEPTS] });
+    renderQueue();
+    expect(screen.getByText('Приёмка готового изделия — 1')).toBeInTheDocument();
+  });
+});

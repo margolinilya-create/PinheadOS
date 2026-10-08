@@ -52,11 +52,17 @@ export function FgIntakeQueue() {
    * Только НЕЗАКРЫТЫЕ приёмки: закрытая — это история заказа, и её место
    * в карточке, а не в рабочей очереди склада. `done`/`skipped` отсеиваем
    * здесь, а не фильтром группы: `buildQueueEntries` сам пропускает `skipped`.
+   *
+   * И только ДОШЕДШИЕ (ошибка с боя 08.10, «Буше»): этап, который ещё ждёт
+   * предыдущий — закупку изделия, — в рабочую очередь не попадает. Прежде
+   * он стоял здесь с кнопкой «Принять изделия», пока заказ был в закупке,
+   * и маршрут читался как параллельный. Группы те же, что у очереди цеха.
    */
   const rows = useMemo(() => {
     if (!deptId) return [];
     return buildQueueEntries(orders, departments, { departmentId: deptId, bypasses })
-      .filter((e) => e.stage.status !== 'done');
+      .filter((e) => e.stage.status !== 'done'
+        && e.group !== 'waiting' && e.group !== 'awaiting_materials');
   }, [orders, departments, deptId, bypasses]);
 
   /**
