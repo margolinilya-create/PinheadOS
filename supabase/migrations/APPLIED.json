@@ -2411,6 +2411,13 @@
       "files": [
         "20261008004814_erp_finish_tasks_without_order.sql"
       ]
+    },
+    {
+      "version": "20261008075225",
+      "name": "erp_warehouse_route_gate",
+      "files": [
+        "20261008075225_erp_warehouse_route_gate.sql"
+      ]
     }
   ]
 }

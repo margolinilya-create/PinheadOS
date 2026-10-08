@@ -347,3 +347,35 @@ describe('складские задачи образца ждут закрыти
     );
   });
 });
+
+/**
+ * СКЛАД НЕ ПРИНИМАЕТ ТО, ДО ЧЕГО НЕ ДОШЁЛ МАРШРУТ (ошибка с боя 08.10, «Буше»).
+ * Серверное зеркало клиентского `isStageReady` (ветка зависимостей) для этапа
+ * склада: взять, сдать факт и закрыть — только при закрытых предшественниках.
+ */
+describe('гейт маршрута склада на сервере', () => {
+  const SQL = latestDefining('erp_warehouse_route_gate');
+  const BODY = withoutComments(functionBody(SQL, 'erp_warehouse_route_gate'));
+
+  it('предшественник закрыт — то же множество, что у isStageReady', () => {
+    expect(BODY).toMatch(/p\.id = any\(new\.depends_on\)/);
+    expect(BODY).toMatch(/p\.status not in \('done', 'skipped'\)/);
+    const client = withoutJsComments(readFileSync(resolve(process.cwd(), 'src/erp/utils/routes.ts'), 'utf8'));
+    expect(client).toMatch(/dep\.status === 'done' \|\| dep\.status === 'skipped'/);
+  });
+
+  it('ловит взятие, закрытие и новый факт — и только у склада', () => {
+    expect(BODY).toMatch(/new\.status in \('in_progress', 'done'\)/);
+    expect(BODY).toMatch(/coalesce\(new\.qty_done, 0\) > coalesce\(old\.qty_done, 0\)/);
+    expect(BODY).toMatch(/d\.code = 'warehouse'/);
+    expect(SQL).toMatch(/before update of status, qty_done on public\.erp_item_stages/);
+  });
+
+  it('пропускает service role и служебные пути, закрыта для REST', () => {
+    expect(BODY).toMatch(/\(select auth\.uid\(\)\) is null/);
+    for (const label of ['erp.force_complete', 'erp.moving', 'erp.subcontract_rollup', 'erp.supply_autoclose']) {
+      expect(BODY).toContain(`'${label}'`);
+    }
+    expect(SQL).toMatch(/revoke execute on function public\.erp_warehouse_route_gate\(\) from public, anon, authenticated/);
+  });
+});
