@@ -2,6 +2,7 @@ import { DictionaryDatalist } from '../../../components/DictionaryDatalist';
 import { SizeGridEditor } from './SizeGridEditor';
 import { SkuCardPicker } from './SkuCardPicker';
 import { FieldError } from './FormParts';
+import { PrintSizeFields } from './PrintSizeFields';
 import { Icon } from '../../../components/Icon';
 import {
   emptyLabel, emptyPrint, gridTotal,
@@ -311,20 +312,8 @@ export function ItemBlock({
                 value={p.zone}
                 onChange={(e) => setPrint(i, pi, { zone: e.target.value })}
               />
-              <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
-                <span className={styles.subText}>В, мм</span>
-                <input type="number" min="1"
-                  className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
-                  value={p.height_mm}
-                  onChange={(e) => setPrint(i, pi, { height_mm: e.target.value })} />
-              </label>
-              <label className={`${styles.checkLabel} ${styles.mmLabel}`} style={{ gap: 3 }}>
-                <span className={styles.subText}>Ш, мм</span>
-                <input type="number" min="1"
-                  className={`${styles.input} ${styles.inputSm} ${styles.mmInput}`}
-                  value={p.width_mm}
-                  onChange={(e) => setPrint(i, pi, { width_mm: e.target.value })} />
-              </label>
+              <PrintSizeFields print={p} error={err(`item_${i}_print_${pi}_size`)}
+                errorId={`err-item-${i}-print-${pi}-size`} onChange={(patch) => setPrint(i, pi, patch)} />
             </div>
             {/*
               ПОЛЯ ТЕХНИКИ (правки 07.09, пп. 10–11). Показываются ровно

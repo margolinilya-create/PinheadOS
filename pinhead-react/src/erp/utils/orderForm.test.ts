@@ -304,6 +304,24 @@ describe('validateOrderForm', () => {
    */
   const okForm = { ...emptyOrderForm(today), title: 'Заказ', purchase_required: false };
 
+  it('размер нанесения — целые миллиметры: дробь подсвечивает поле, а не роняет заказ (ошибка с боя 08.10)', () => {
+    const it0 = item({
+      product_type: 'ф', qty: '1', has_branding: true,
+      prints: [{ ...emptyPrint(), width_mm: '160', height_mm: '70' },
+        { ...emptyPrint(), width_mm: '50', height_mm: '1.4' }],
+    });
+    const v = validateOrderForm(okForm, [it0], today);
+    expect(v.errors.item_0_print_0_size).toBeUndefined();
+    expect(v.errors.item_0_print_1_size).toBe('Размер — целое число миллиметров (введено 1.4)');
+    expect(v.invalid).toContain('Размер нанесения №2');
+    // Пустое поле и целое — не ошибка
+    const ok = validateOrderForm(okForm, [item({
+      product_type: 'ф', qty: '1', has_branding: true,
+      prints: [{ ...emptyPrint(), width_mm: '', height_mm: 12 }],
+    })], today);
+    expect(ok.errors.item_0_print_0_size).toBeUndefined();
+  });
+
   it('пустое название — ошибка с привязкой к полю', () => {
     const v = validateOrderForm({ ...okForm, title: '  ' }, [item({ product_type: 'ф', qty: '1' })], today);
     expect(v.errors.title).toBe('Укажите название заказа');
