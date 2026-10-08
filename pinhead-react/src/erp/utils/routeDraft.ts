@@ -1,7 +1,7 @@
 import type { BrandingMethod, BrandingOn, ErpItemStage, ProductionType } from '../types';
-import { WAREHOUSE_DEPT_CODE, buildItemRoute } from './routes';
-import type { RouteStage } from './routes';
+import { WAREHOUSE_DEPT_CODE, buildItemRoute, type RouteStage } from './routes';
 import { OUTSOURCE_DEPT_CODE, executorForDept } from './outsourcing';
+import { withUniqueCycles } from './routeCycles';
 
 /**
  * Экспериментальный цех как УЧАСТОК МАРШРУТА (правка заказчика 24.08, п. 4.1).
@@ -510,7 +510,7 @@ export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
       sort += 10;
     }
   }
-  return out;
+  return withUniqueCycles(out);
 }
 
 /**

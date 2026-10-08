@@ -582,3 +582,40 @@ describe('formItemRoute', () => {
     expect(outsource).not.toContain('supply');
   });
 });
+
+/**
+ * ОШИБКА С БОЯ 07.10: «Не удалось создать заказ: duplicate key value violates
+ * unique constraint erp_item_stages_item_dept_cycle_key». Маршрут образца
+ * собрали руками: Закупка → Склад → Разработка + ДТФ → Склад. Второй «Склад»
+ * шёл с тем же циклом 0, и база отклоняла весь заказ — пять попыток у двух
+ * менеджеров. Повторный проход НАШЕГО этапа через тот же цех — законный
+ * маршрут; номер прохода назначает `linearize`, единый для обоих писателей.
+ */
+describe('linearize — повторный проход цеха получает свой цикл', () => {
+  it('склад дважды в маршруте — циклы 0 и 1', () => {
+    const draft = [[emptyStep('supply')], [emptyStep('warehouse')],
+      [emptyStep('experimental'), emptyStep('dtf')], [emptyStep('warehouse')]];
+    const cycles = linearize(draft).map((l) => `${l.step.departmentCode}#${l.step.cycle}`);
+    expect(cycles).toEqual(['supply#0', 'warehouse#0', 'experimental#0', 'dtf#0', 'warehouse#1']);
+  });
+
+  it('существующий этап держит свой цикл, новый встаёт после занятых', () => {
+    const existing = { ...emptyStep('warehouse'), stageId: 's-old', cycle: 1 };
+    const draft = [[emptyStep('warehouse')], [existing], [emptyStep('warehouse')]];
+    const cycles = linearize(draft).map((l) => l.step.cycle);
+    // 0 свободен — первый новый его берёт; 1 занят существующим; третий — 2
+    expect(cycles).toEqual([0, 1, 2]);
+  });
+
+  it('подрядные этапы в уникальность не входят и не трогаются', () => {
+    const a = { ...emptyStep('outsource'), executor: 'contractor' as const };
+    const b = { ...emptyStep('outsource'), executor: 'contractor' as const };
+    expect(linearize([[a], [b]]).map((l) => l.step.cycle)).toEqual([0, 0]);
+  });
+
+  it('программа вышивки и вышивка с разными циклами не меняются', () => {
+    const program = { ...emptyStep('embroidery'), cycle: 1, standalone: true, resultKind: 'embroidery_program' as const };
+    const draft = [[program], [emptyStep('embroidery')]];
+    expect(linearize(draft).map((l) => l.step.cycle)).toEqual([1, 0]);
+  });
+});

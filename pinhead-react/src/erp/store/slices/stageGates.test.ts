@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { unaccountedBreakdown } from './stageGates';
+import { reportAfterNote, unaccountedBreakdown } from './stageGates';
 
 /**
  * РАЗБИВКА «НЕ УЧТЕНО» ПО РАЗМЕРАМ (правка 28.09). Документ, п. 7:
@@ -36,5 +36,43 @@ describe('unaccountedBreakdown', () => {
   it('всё учтено — null', () => {
     const reports = [report('cut', [{ size: 'M', qty_good: 3 }]), report('sew', [{ size: 'M', qty_good: 3 }])];
     expect(unaccountedBreakdown(sew, [cut, sew], reports as never)).toBeNull();
+  });
+});
+
+/**
+ * Ошибка с боя 07.10: закрывающая партия закроя отклонялась целиком из-за
+ * остатка рулона без судьбы. С правкой сервер её записывает и оставляет
+ * этап открытым — подсказка называет следующий шаг.
+ */
+describe('reportAfterNote — что сказать после сдачи', () => {
+  const cut = { id: 'cut', status: 'in_progress' as const, depends_on: [] as string[], qty_done: 0 };
+  const item = { qty: 100, stages: [cut] };
+
+  it('весь крой сдан, этап открыт из-за остатков — подсказка про «Завершить рулон»', () => {
+    const note = reportAfterNote({
+      row: { ...cut, qty_done: 100, status: 'in_progress' as const }, stage: cut, item, good: 100, credited: 100, byRolls: true,
+    });
+    expect(note).toContain('Завершить рулон');
+    expect(note).toContain('Завершить этап');
+  });
+
+  it('этап закрылся — молчим', () => {
+    expect(reportAfterNote({
+      row: { ...cut, qty_done: 100, status: 'done' as const }, stage: cut, item, good: 100, credited: 100, byRolls: true,
+    })).toBeNull();
+  });
+
+  it('партия не последняя — молчим', () => {
+    expect(reportAfterNote({
+      row: { ...cut, qty_done: 50, status: 'in_progress' as const }, stage: cut, item, good: 50, credited: 50, byRolls: true,
+    })).toBeNull();
+  });
+
+  it('засчитано меньше сданного — предупреждение без «добрал тираж»', () => {
+    const note = reportAfterNote({
+      row: { ...cut, qty_done: 30, status: 'in_progress' as const }, stage: cut, item, good: 40, credited: 30, byRolls: false,
+    });
+    expect(note).toContain('Засчитано 30 шт из 40');
+    expect(note).not.toContain('тираж');
   });
 });

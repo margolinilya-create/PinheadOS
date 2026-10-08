@@ -21,7 +21,7 @@ import {
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
 import { stageCeiling } from '../../utils/stageRemaining';
-import { completionBlockFor, unaccountedBlockFor } from './stageGates';
+import { completionBlockFor, reportAfterNote, unaccountedBlockFor } from './stageGates';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
 import {
   erpError, erpQuery, erpWrite, logStageEvent, withPending,
@@ -368,9 +368,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
     void get().loadOne(order.id); // сдача меняет рулоны и стоимость сборки (05.10, пп. 3, 5)
     const after = row?.qty_done ?? (stage.qty_done ?? 0) + good;
     const credited = Math.max(after - (stage.qty_done ?? 0), 0);
-    if (credited < good) {
-      toast.warning(`Засчитано ${credited} шт из ${good} — этап добрал полный тираж (${item.qty})`);
-    }
+    const note = reportAfterNote({ row, stage, item, good, credited, byRolls: rolls.length > 0 });
+    if (note) toast.warning(note);
     logStageEvent({
       stage_id: stageId,
       order_id: order.id,

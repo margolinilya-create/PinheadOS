@@ -10,8 +10,10 @@ import { embroideryProgramBlock, isFileResultStage, stageResultFileBlock } from 
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
 import {
-  deptAccountsByReports, reportedAccountedBySize, reportedDefect, stageUnaccounted, stageUnaccountedBlock,
+  deptAccountsByReports, reportedAccountedBySize, reportedDefect, stageCeiling, stageUnaccounted,
+  stageUnaccountedBlock,
 } from '../../utils/stageRemaining';
+import type { InputStage } from '../../utils/stageInput';
 import { sizeInputCells, sizeKey, stageAncestors } from '../../utils/stageSizes';
 
 /**
@@ -167,4 +169,34 @@ export async function unaccountedBlockFor(
     breakdown: addedGood > 0
       ? null : unaccountedBreakdown(stage, allStages, reports, stageUnaccounted(base)),
   });
+}
+
+/**
+ * Что сказать после записанной сдачи (правка 05.10, ошибка с боя 07.10).
+ *
+ * Закрывающая партия закроя записывается, даже если у рулонов остался
+ * метраж без решённой судьбы, — но этап при этом остаётся открытым
+ * (`erp_stage_submit_report`). Без подсказки закройщица видит «записано»
+ * и открытый этап и не знает, что делать: путь — «Завершить рулон»,
+ * затем «Завершить этап». Прежнее «этап добрал полный тираж» снято:
+ * факт по тиражу больше не обрезается.
+ */
+export function reportAfterNote(input: {
+  row: (InputStage & { status: string; qty_done?: number | null }) | null;
+  stage: InputStage;
+  item: { qty: number; stages?: InputStage[] | null };
+  good: number;
+  credited: number;
+  byRolls: boolean;
+}): string | null {
+  const { row, stage, item, good, credited, byRolls } = input;
+  if (byRolls && row && row.status !== 'done'
+    && Math.max(row.qty_done ?? 0, 0) >= stageCeiling(stage, item.stages ?? [], item.qty)) {
+    return 'Партия записана, весь крой сдан. Этап закроется, когда решите судьбу остатков: '
+      + '«Завершить рулон» у рулонов с остатком, затем «Завершить этап».';
+  }
+  if (credited < good) {
+    return `Засчитано ${credited} шт из ${good} — результат записал кто-то ещё, проверьте число`;
+  }
+  return null;
 }

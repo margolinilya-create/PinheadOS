@@ -92,7 +92,7 @@ describe('программа вышивки — та же позиция и уч
   it('обе RPC не закрывают этап при незавершённой программе, но факт пишут', () => {
     const submit = withoutComments(functionBody(latestDefining('erp_stage_submit_report'), 'erp_stage_submit_report'));
     const progress = withoutComments(functionBody(latestDefining('erp_stage_report_progress'), 'erp_stage_report_progress'));
-    expect(submit).toMatch(/and public\.erp_stage_program_block\(p_stage_id\) is null\s+then 'done'/);
+    expect(submit).toMatch(/and public\.erp_stage_program_block\(p_stage_id\) is null\s+(?:and not v_fate_pending\s+)?then 'done'/);
     expect(progress).toMatch(/and public\.erp_stage_program_block\(p_stage_id\) is null\s+then 'done'/);
     // Отказа целиком по программе в RPC нет — сдача записывается
     expect(submit).not.toMatch(/erp_stage_program_block[\s\S]{0,80}raise exception/);

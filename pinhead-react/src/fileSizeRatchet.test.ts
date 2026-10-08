@@ -40,7 +40,7 @@ const EXEMPT: Record<string, string> = {
 /** Размеры на 24.09 — только вниз */
 const CEILINGS: Record<string, number> = {
   'erp/screens/orders/CreateOrderModal.jsx': 1563,
-  'erp/store/slices/stagesSlice.ts': 890,
+  'erp/store/slices/stagesSlice.ts': 889,
   'erp/screens/orders/create/ItemBlock.jsx': 934,
   'erp/utils/orderForm.ts': 782,
   'erp/utils/experimentalBoard.ts': 821,

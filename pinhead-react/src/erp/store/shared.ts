@@ -61,6 +61,16 @@ export async function erpQuery<T>(
   }
 }
 
+/**
+ * Блокировка сессии supabase-js отнята соседним запросом (ошибки с боя 05.10
+ * и 07.10, склад и закупка). Клиент держит токен под `navigator.locks`; когда
+ * возврат на вкладку запускает resync, а рядом идёт обновление токена или
+ * вторая вкладка, один захват отбирает блокировку у другого (`steal`),
+ * и проигравший запрос падает `AbortError` — до сервера он не доходил.
+ * Это помеха, а не решение сервера: повтор чтения её снимает.
+ */
+const AUTH_LOCK_STOLEN = /Lock broken by another request/i;
+
 /** Пауза перед повтором чтения, оборвавшегося на сети */
 export const READ_RETRY_MS = 800;
 
@@ -80,8 +90,9 @@ export async function erpRead<T>(
   run: () => PromiseLike<{ data: T; error: { message: string } | null }>,
 ): Promise<ErpResult<T>> {
   const first = await erpQuery(run);
-  const networkFailure = first.error && first.error.message === 'нет связи с сервером';
-  if (!networkFailure) return first;
+  const transient = first.error && (first.error.message === 'нет связи с сервером'
+    || AUTH_LOCK_STOLEN.test(first.error.message));
+  if (!transient) return first;
   await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
   return erpQuery(run);
 }

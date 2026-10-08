@@ -171,7 +171,7 @@ describe('серверное зеркало (миграция 27.09, п. 7)', ()
   });
 
   it('обе RPC закрывают этап по учтённому, а не по тиражу', () => {
-    expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0\s+and public\.erp_stage_program_block\(p_stage_id\) is null\s+then 'done'/);
+    expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0\s+and public\.erp_stage_program_block\(p_stage_id\) is null\s+(?:and not v_fate_pending\s+)?then 'done'/);
     expect(SUBMIT).not.toMatch(/>= v_total\s+then 'done'/);
     expect(PROGRESS).toMatch(/erp_stage_unaccounted\(p_stage_id, p_qty, 0\) <= 0/);
     expect(PROGRESS).not.toMatch(/v_next >= v_total then 'done'/);

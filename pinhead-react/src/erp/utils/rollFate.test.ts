@@ -24,7 +24,11 @@ describe('судьба остатка рулона на сервере (27.09, �
   });
 
   it('закрытие этапа спрашивает судьбу рулонов заказа, оставленных «в работе»', () => {
-    expect(SUBMIT).toMatch(/erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0 then\s+v_block := public\.erp_stage_rolls_fate_block\(p_stage_id\)/);
+    // С 07.10 судьба не отменяет сдачу партии: партия пишется, этап остаётся
+    // открытым до «Завершить рулон» → «Завершить этап»
+    expect(SUBMIT).toMatch(/v_fate_pending := public\.erp_stage_unaccounted\(p_stage_id, v_good, 0\) <= 0\s+and public\.erp_stage_rolls_fate_block\(p_stage_id\) is not null/);
+    expect(SUBMIT).toMatch(/and not v_fate_pending\s+then 'done'/);
+    expect(SUBMIT).not.toMatch(/erp_stage_rolls_fate_block[\s\S]{0,120}raise exception/);
     expect(FATE).toMatch(/r\.status = 'in_use'/);
     // Остаток — в метрах, а у рулона без метража (принят до 27.09 п. 4) — в кг
     expect(FATE).toMatch(/coalesce\(r\.length_left_m, r\.qty_left, 0\) > 0/);

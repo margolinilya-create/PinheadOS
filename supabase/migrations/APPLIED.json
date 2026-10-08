@@ -2397,6 +2397,20 @@
       "files": [
         "20261005094126_erp_input_same_item.sql"
       ]
+    },
+    {
+      "version": "20261008003410",
+      "name": "erp_cut_batch_without_fate",
+      "files": [
+        "20261008003410_erp_cut_batch_without_fate.sql"
+      ]
+    },
+    {
+      "version": "20261008004814",
+      "name": "erp_finish_tasks_without_order",
+      "files": [
+        "20261008004814_erp_finish_tasks_without_order.sql"
+      ]
     }
   ]
 }

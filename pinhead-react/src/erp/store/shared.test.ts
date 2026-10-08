@@ -101,6 +101,19 @@ describe('erpRead — повтор только сети и только чте�
     expect(res.error?.message).toMatch(/permission denied/);
   });
 
+  it('отнятая блокировка сессии повторяется — запрос до сервера не дошёл', async () => {
+    let calls = 0;
+    const res = await erpRead<number[]>(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new DOMException("Lock broken by another request with the 'steal' option.", 'AbortError');
+      }
+      return { data: [7], error: null };
+    });
+    expect(calls).toBe(2);
+    expect(res.data).toEqual([7]);
+  });
+
   it('если сеть не вернулась, ошибка доходит до вызывающего', async () => {
     let calls = 0;
     const res = await erpRead<number[]>(async () => {
