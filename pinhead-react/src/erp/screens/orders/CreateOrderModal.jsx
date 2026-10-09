@@ -693,8 +693,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
             inputCls={inputCls}
             route={itemRoutes[i]}
             // В правке пикеров нет — сироты в бакете (п. 6, 01.10; см. ItemFilePicker)
-            attach={isEdit ? null : attach}
-            isEdit={isEdit}
+            attach={isEdit ? null : attach} isEdit={isEdit}
             setItem={setItem}
             setBranding={setBranding}
             setPrint={setPrint}
