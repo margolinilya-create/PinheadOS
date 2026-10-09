@@ -756,7 +756,7 @@ describe('цвет / поставщик доходит от формы до це
   });
 
   it('форма собирает значение в payload заказа', () => {
-    expect(read('erp/screens/orders/CreateOrderModal.jsx'))
+    expect(read('erp/screens/orders/create/orderPayload.ts'))
       .toMatch(/color_supplier: it\.color_supplier/);
     expect(read('erp/store/slices/orderWriteSlice.ts'))
       .toMatch(/color_supplier: it\.color_supplier \|\| null/);

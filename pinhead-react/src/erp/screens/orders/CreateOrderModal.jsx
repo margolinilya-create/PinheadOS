@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
 import { DictionaryDatalist } from '../../components/DictionaryDatalist';
@@ -6,7 +6,6 @@ import {deptShortName} from '../../data/departments';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { formatDateShort } from '../../utils/time';
 import { confirm } from '../../../store/useConfirmStore';
-import { toast } from '../../../store/useToastStore';
 import { pluralize } from '../../../utils/i18n';
 import {
   newDraftItem,
@@ -14,27 +13,19 @@ import {
   effectiveQty,
   emptyPrint,
   emptyOrderForm,
-  gridToPayload,
   draftFromOrder,
-  isDraftEmpty,
   isItemEmpty,
-  loadOrderDraft,
-  normalizeDraft,
-  fileNameFromPath,
   orderNeedsPurchase,
   validateOrderForm,
 } from '../../utils/orderForm';
 import { managerOptions } from '../../utils/managers';
-import { garmentSourceOf } from '../../utils/garmentSource';
 import { factoryToday } from '../../../utils/date';
 import { formItemRoute } from '../../utils/routeDraft';
 import { DateField } from '../../components/DateField';
 import { DraftPicker } from './create/DraftPicker';
 import { Icon } from '../../components/Icon';
 import { deptNeedsTz, validateTzDocs } from '../../utils/tz';
-import { currentActor } from '../../store/shared';
 import {
-  TZ_MIME,
   PACKAGING_LABELS,
   STICKERS_LABELS,
 } from '../../types';
@@ -51,7 +42,8 @@ import { NotesSection } from './create/NotesSection';
 import { useAttachmentUploads } from '../../hooks/useAttachmentUploads';
 import { ItemBlock } from './create/ItemBlock';
 import { Button } from '../../components/Button';
-import { scrollIntoViewSafely } from '../../utils/scrollIntoViewSafely';
+import { pickRestoredDraft, useOrderDraft } from './create/useOrderDraft';
+import { useOrderSubmit } from './create/useOrderSubmit';
 
 /**
  * Позиции с их производственными этапами — те, кому нужно ТЗ, и цеха, которые
@@ -75,19 +67,11 @@ function buildTzItems(items, routes, deptByCode) {
 }
 
 
-/**
- * НЕСКОЛЬКО НЕЗАВИСИМЫХ ЧЕРНОВИКОВ (правка заказчика 22.08, п. 5.5).
- *
- * Раньше черновик был ОДИН, в localStorage, и «Новый заказ» при наличии
- * незапущенного заказа восстанавливал предыдущий — параллельно подготовить
- * два заказа было нельзя. Теперь черновики живут в базе, у каждого свой id,
- * и форма правит РОВНО ТОТ, с которым её открыли: `draftId = null` — чистая
- * форма, строка заводится при первом автосохранении.
- *
- * Локальный черновик прежней версии переносится в базу один раз, при первом
- * открытии чистой формы: человек мог начать заказ вчера, и терять его работу
- * ради чистоты нельзя.
- */
+/*
+  Черновики формы (выбор, автосохранение, «Сохранить в черновики») —
+  `create/useOrderDraft`, сборка и отправка заказа — `create/useOrderSubmit`
+  и чистые сборщики payload `create/orderPayload` (резка 26.09).
+*/
 /**
  * ОДНА ФОРМА НА СОЗДАНИЕ И ПРАВКУ (правка 12.09, п. 7).
  *
@@ -107,8 +91,6 @@ function buildTzItems(items, routes, deptByCode) {
  */
 export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const isEdit = Boolean(order);
-  const createOrder = useErpStore((s) => s.createOrder);
-  const saveOrderEdits = useErpStore((s) => s.saveOrderEdits);
   const findOrdersByBitrixId = useErpStore((s) => s.findOrdersByBitrixId);
   const departments = useErpStore((s) => s.departments);
   const [saving, setSaving] = useState(false);
@@ -135,12 +117,9 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   // Дата запуска по умолчанию — сегодня; черновик восстанавливается из localStorage
   const initialLaunch = useMemo(() => factoryToday(), []);
   const {
-    drafts, saveDraftRow, deleteDraftRow,
-    employees, profilesList, employeesLoaded, loadEmployees,
+    drafts, employees, profilesList, employeesLoaded, loadEmployees,
   } = useErpStore(useShallow((s) => ({
     drafts: s.orderDrafts,
-    saveDraftRow: s.saveOrderDraft,
-    deleteDraftRow: s.deleteOrderDraft,
     employees: s.employees,
     profilesList: s.profilesList,
     employeesLoaded: s.employeesLoaded,
@@ -161,22 +140,8 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
     () => managerOptions(employees, profilesList),
     [employees, profilesList],
   );
-  /**
-   * Открытый черновик берётся ОДИН РАЗ, при монтировании: дальше форма — сама
-   * себе источник правды, и перечитывание строки из стора после каждого
-   * автосохранения затирало бы то, что человек печатает прямо сейчас.
-   */
-  const [restoredDraft] = useState(() => {
-    // В режиме правки черновики не при чём: они про НЕсозданный заказ
-    if (isEdit) return null;
-    if (draftId) {
-      const row = drafts.find((d) => d.id === draftId);
-      return row?.payload ? normalizeDraft(row.payload) : null;
-    }
-    // Разовый перенос локального черновика прежней версии
-    return loadOrderDraft();
-  });
-  const [rowId, setRowId] = useState(draftId);
+  // Открытый черновик — один раз, при монтировании (см. `pickRestoredDraft`)
+  const [restoredDraft] = useState(() => pickRestoredDraft(isEdit, draftId, drafts));
   /**
    * Начальное состояние: в правке — из заказа, иначе — черновик или пустая
    * форма. Обратное преобразование живёт в `utils/orderForm.draftFromOrder`
@@ -414,241 +379,11 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
   const err = (key) => fieldErrors[key];
   const inputCls = (key) => (err(key) ? `${styles.input} ${styles.inputError}` : styles.input);
 
-  /**
-   * Автосейв черновика (debounce 500 мс) — теперь В БАЗУ.
-   *
-   * Пустая форма строки не заводит вовсе: иначе каждое открытие «Нового
-   * заказа» оставляло бы пустой черновик, и список превратился бы в мусор.
-   * Уже заведённый черновик, который вычистили до пустого, удаляется —
-   * это и есть отказ от него.
-   *
-   * `rowId` держим в ref рядом с состоянием: два автосохранения подряд
-   * с `null` завели бы ДВА черновика на один заказ.
-   *
-   * ТЕЛО ЦЕЛИКОМ В `try/catch`: это async-функция внутри `setTimeout`, то есть
-   * её отказ никто не ждёт и он всплывает необработанным. Сообщать не о чем —
-   * слайс уже показал причину через `erpError`, а вторая полоса каждые 500 мс
-   * на потерянной связи превратила бы форму в мигалку. Молчит здесь ТОЛЬКО
-   * фоновое сохранение: сам заказ создаётся кнопкой и об ошибках говорит.
-   */
-  /**
-   * СНИМОК ФОРМЫ ДЛЯ ЧЕРНОВИКА — ОДИН на автосохранение и на кнопку
-   * «Сохранить в черновики». Два сборщика рядом означали бы, что по кнопке
-   * сохраняется не то же самое, что в фоне, и расходились бы они молча.
-   *
-   * Файлы (правка 20.09, п. 6) уезжают путями уже загруженных объектов:
-   * `File` в JSON превращается в `{}`, а объект в бакете к этому моменту
-   * уже есть — он кладётся туда при выборе.
-   */
-  /**
-   * СНИМОК ФОРМЫ ДЛЯ ЧЕРНОВИКА — в `useCallback`, и это не про
-   * производительность.
-   *
-   * Функция стоит в зависимостях эффекта автосохранения. Пересоздаваясь
-   * каждый рендер, она либо заставляла бы эффект перезапускаться постоянно,
-   * либо (если её из зависимостей убрать) оставляла бы автосохранение
-   * СЛЕПЫМ К ФАЙЛАМ: добавление вложения или ТЗ меняет `attach`/`tzDocs`,
-   * а не `form`, и черновик бы их не заметил.
-   */
-  const attachSnapshot = attach.draftSnapshot;
-  const tzSnapshot = tz.draftSnapshot;
-  const draftPayload = useCallback(() => ({
-    form,
-    items,
-    notes,
-    attachments: attachSnapshot(),
-    tzDocs: tzSnapshot(),
-  }), [form, items, notes, attachSnapshot, tzSnapshot]);
-
-  const rowIdRef = useRef(draftId);
-  useEffect(() => { rowIdRef.current = rowId; }, [rowId]);
-  useEffect(() => {
-    /**
-     * В РЕЖИМЕ ПРАВКИ ЧЕРНОВИК НЕ ПИШЕТСЯ (правка 12.09, п. 7).
-     *
-     * `erp_order_drafts` — про НЕсозданный заказ: «+ Новый заказ» открывает
-     * самый свежий черновик. Пиши мы туда правку существующего, следующее
-     * создание открылось бы чужими данными, а сам черновик создания оказался
-     * бы затёрт. Несохранённая правка теряется при закрытии — и об этом
-     * спрашивает `confirm`, ровно как при удалении заполненного блока.
-     */
-    if (isEdit) return undefined;
-    /**
-     * АВТОСОХРАНЕНИЕ РАБОТАЕТ ТОЛЬКО У ОТКРЫТОГО ЧЕРНОВИКА (правка 21.09, п. 6).
-     *
-     * Документ: «сохранение в черновики должно происходить только по явному
-     * действию пользователя „Сохранить в черновики". Если пользователь выходит
-     * без нажатия этой кнопки, форма просто закрывается без дополнительного
-     * подтверждения». Пока фон заводил строку сам, «выйти без сохранения»
-     * было неправдой — сохранённое уже лежало в базе, и окно при выходе
-     * существовало ровно затем, чтобы это как-то объяснить.
-     *
-     * Черновик, который УЖЕ открыт (выбран из списка или сохранён кнопкой),
-     * автосейв продолжает обновлять: «кнопка „Сохранить в черновики"
-     * продолжает обновлять именно этот черновик, а не создавать новый
-     * при каждом сохранении». Правка открытого черновика без сохранения
-     * потерялась бы молча — это не «не сохранять», а «потерять».
-     */
-    if (!rowIdRef.current) return undefined;
-    const t = setTimeout(async () => {
-      try {
-        if (isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
-          if (rowIdRef.current) {
-            const id = rowIdRef.current;
-            rowIdRef.current = null;
-            setRowId(null);
-            await deleteDraftRow(id);
-          }
-          // Локальный черновик прежней версии убираем вместе с переносом
-          clearOrderDraft();
-          return;
-        }
-        const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
-        const row = await saveDraftRow(
-          rowIdRef.current, title, draftPayload());
-        if (row && !rowIdRef.current) {
-          rowIdRef.current = row.id;
-          setRowId(row.id);
-        }
-        if (row) clearOrderDraft();
-      } catch {
-        // см. комментарий выше: черновик — фон, форма продолжает работать
-      }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [isEdit, form, items, notes, initialLaunch, saveDraftRow, deleteDraftRow, draftPayload, attach.files.length, tzDocs.length]);
-
-  /**
-   * ЗАГРУЗИТЬ В ФОРМУ ВЫБРАННЫЙ ЧЕРНОВИК (правка 21.09, п. 6).
-   *
-   * «По нажатию на строку загружать выбранный черновик в текущую форму
-   * со всеми сохранёнными позициями, размерной сеткой, ТЗ, техническими
-   * полями, файлами и остальными данными. Если в форме уже открыт другой
-   * черновик, выбор нового должен ЗАМЕНИТЬ данные формы… Не создавать копию
-   * и не объединять два черновика».
-   *
-   * Замена непустой формы спрашивает подтверждение: набранное исчезает
-   * безвозвратно, и это не то же самое, что закрыть форму — там терять
-   * нечего, потому что фон ничего не сохранял.
-   */
-  const applyDraft = async (row) => {
-    if (!row) return;
-    if (row.id === rowId) return;
-    if (!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
-      const ok = await confirm({
-        title: 'Заменить содержимое формы?',
-        message: `Набранное сейчас не сохранено и будет потеряно. Вместо него `
-          + `откроется черновик «${row.title || 'Без названия'}».`,
-        confirmLabel: 'Открыть черновик',
-        variant: 'danger',
-      });
-      if (!ok) return;
-    }
-    const draft = normalizeDraft(row.payload);
-    if (!draft) {
-      toast.error('Черновик не читается — возможно, он сохранён старой версией формы');
-      return;
-    }
-    setForm({ ...emptyOrderForm(initialLaunch), ...draft.form });
-    setItems(draft.items.length > 0 ? draft.items : [newDraftItem()]);
-    setNotes(draft.notes ?? []);
-    attach.replaceAll(draft.attachments ?? []);
-    tz.replaceAll(draft.tzDocs ?? []);
-    rowIdRef.current = row.id;
-    setRowId(row.id);
-    setSubmitted(false);
-  };
-
-  /**
-   * «Создать новый черновик» / пустая форма (правка 21.09, п. 6): «в списке
-   * предусмотреть действие „Создать новый черновик"… чтобы быстро перейти
-   * от существующего черновика к новому заказу».
-   *
-   * Открытый черновик при этом НЕ удаляется — он остаётся в списке. Прежняя
-   * «Очистить» его сносила, но там это было единственным способом отказаться
-   * от заведённого фоном; теперь фон ничего не заводит, и удаление стало бы
-   * неожиданной потерей чужой работы.
-   */
-  const startFreshDraft = async () => {
-    if (!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
-      const ok = await confirm({
-        title: 'Начать новый заказ?',
-        message: rowId
-          ? 'Форма очистится. Открытый черновик останется в списке — набранное после '
-            + 'последнего сохранения будет потеряно.'
-          : 'Форма очистится, набранное не сохранено и будет потеряно.',
-        confirmLabel: 'Очистить форму',
-        variant: 'danger',
-      });
-      if (!ok) return;
-    }
-    clearOrderDraft();
-    rowIdRef.current = null;
-    setRowId(null);
-    setForm(emptyOrderForm(initialLaunch));
-    setItems([newDraftItem()]);
-    setNotes([]);
-    attach.replaceAll([]);
-    tz.clear();
-    setSubmitted(false);
-  };
-
-  /** Удаление черновика из списка — не optimistic (правило проекта) */
-  const removeDraft = async (row) => {
-    const ok = await confirm({
-      title: 'Удалить черновик?',
-      message: `«${row.title || 'Без названия'}» будет удалён. Заказ не создан, `
-        + 'поэтому на производство это не влияет.',
-      confirmLabel: 'Удалить',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    if (!await deleteDraftRow(row.id)) return;
-    toast.success('Черновик удалён');
-    // Удалили тот, что открыт — форма остаётся заполненной, но больше
-    // ничего не обновляет: строки, в которую писать, уже нет
-    if (row.id === rowId) {
-      rowIdRef.current = null;
-      setRowId(null);
-    }
-  };
-
-  /**
-   * ЯВНОЕ СОХРАНЕНИЕ В ЧЕРНОВИКИ (правка заказчика 20.09, п. 6).
-   *
-   * Автосохранение работало и раньше, но молча — «раньше заказ можно было
-   * сохранить в черновики, открыть позже и продолжить заполнение. Сейчас эта
-   * возможность пропала» ровно об этом: механизм был, СКАЗАТЬ ЕМУ «сохрани»
-   * было нечем, а увидеть результат — негде.
-   *
-   * Обязательные поля не проверяются намеренно: «сохранять частично
-   * заполненную форму без обязательного заполнения всех полей, нужных
-   * для запуска заказа».
-   */
-  const [savingDraft, setSavingDraft] = useState(false);
-  const saveDraftNow = async () => {
-    if (savingDraft || saving) return false;
-    if (isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)) {
-      toast.error('Черновик пустой — заполните хотя бы одно поле');
-      return false;
-    }
-    setSavingDraft(true);
-    const title = form.title.trim() || (form.bitrix_id.trim() ? `№${form.bitrix_id.trim()}` : null);
-    const row = await saveDraftRow(rowIdRef.current, title, draftPayload());
-    setSavingDraft(false);
-    if (!row) {
-      // Молчать нельзя: человек нажал кнопку и ждёт ответа — в отличие
-      // от фонового автосохранения, которое об отказах не сообщает
-      toast.error('Черновик не сохранён — проверьте связь и повторите');
-      return false;
-    }
-    if (!rowIdRef.current) {
-      rowIdRef.current = row.id;
-      setRowId(row.id);
-    }
-    toast.success(title ? `Черновик «${title}» сохранён` : 'Черновик сохранён');
-    return true;
-  };
+  const draft = useOrderDraft({
+    isEdit, draftId, initialLaunch, saving,
+    form, items, notes, setForm, setItems, setNotes,
+    attach, tz, onReset: () => setSubmitted(false),
+  });
 
   /**
    * ЗАКРЫТИЕ БЕЗ ВОПРОСОВ (правка заказчика 21.09, п. 6).
@@ -662,7 +397,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * изменениями — ТРИ исхода, а не два». Оно было верным, пока форма писала
    * черновик сама: тогда «выйти без сохранения» требовало ещё и удалить
    * заведённую фоном строку, и умолчать об этом было нельзя. Теперь фон
-   * ничего не заводит (см. автосохранение выше), терять нечего, и окно
+   * ничего не заводит (см. автосохранение в `create/useOrderDraft`), терять нечего, и окно
    * спрашивало бы о том, чего не происходит.
    */
   const closingRef = useRef(false);
@@ -707,356 +442,13 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         ? { ...it, prints: it.prints.map((p, j) => (j === pi ? { ...p, ...patch } : p)) }
         : it));
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setSubmitted(true);
-    const { errors } = validateOrderForm(form, items, undefined, hasPurchaseList);
-    if (Object.keys(errors).length > 0) {
-      // раскрыть секции с ошибками и проскроллить к первому ошибочному полю
-      const inMain = Boolean(errors.title || errors.launch_date || errors.due_date);
-      const inItems = Object.keys(errors).some((k) => k.startsWith('item_'));
-      const inPurchase = Boolean(errors.purchase_list);
-      setOpen((o) => ({
-        ...o,
-        main: o.main || inMain,
-        items: o.items || inItems,
-        purchase: o.purchase || inPurchase,
-      }));
-      requestAnimationFrame(() => {
-        const el = document.querySelector('[data-invalid="true"]');
-        scrollIntoViewSafely(el, { block: 'center' });
-        if (typeof el?.focus === 'function') el.focus({ preventScroll: true });
-      });
-      return;
-    }
-    const validItems = items.filter((it) => it.product_type.trim() && effectiveQty(it) > 0);
-    // Гейт ТЗ (решение заказчика): у позиции с производственным маршрутом должно быть
-    // ТЗ — своё или общее на заказ. Кнопка уже заблокирована, это страховка от Enter.
-    if (tzValidation.missing.length > 0) {
-      setOpen((o) => ({ ...o, tz: true }));
-      toast.error(tzValidation.message);
-      return;
-    }
-    if (tzUploading || tzFailed) {
-      setOpen((o) => ({ ...o, tz: true }));
-      toast.error(tzUploading
-        ? 'ТЗ ещё загружается — дождитесь окончания'
-        : 'ТЗ не загрузилось — повторите загрузку файла или уберите его');
-      return;
-    }
-    /**
-     * То же правило, что у ТЗ: заказ не создаётся, пока есть незавершённые
-     * загрузки. Иначе форма покажет файл приложенным, а в Storage его не будет —
-     * и обнаружит это цех, когда откроет пустое вложение.
-     */
-    if (filesPending > 0) {
-      toast.error('Файлы заказа ещё сохраняются — дождитесь окончания');
-      return;
-    }
-    if (attach.uploading || attach.failed) {
-      toast.error(attach.uploading
-        ? 'Файлы ещё загружаются — дождитесь окончания'
-        : 'Файл не загрузился — повторите загрузку или уберите его');
-      return;
-    }
+  const submit = useOrderSubmit({
+    isEdit, order, form, items, notes, attach, hasPurchaseList,
+    tzDocs, tzValidation, tzUploading, tzFailed, filesPending,
+    setSaving, setSubmitted, setOpen, onClose,
+    onCreated: draft.discardAfterCreate,
+  });
 
-    setSaving(true);
-
-    /**
-     * РЕЖИМ ПРАВКИ (правка 12.09, п. 7): обновляем ТОТ ЖЕ заказ и выходим.
-     *
-     * Ветка стоит ДО сборки payload создания, потому что создание собирает
-     * то, чего у правки нет и быть не должно: маршрут (он правится
-     * конструктором в карточке — иначе правка срока стёрла бы факт цеха),
-     * секцию ТЗ и привязку вложений по индексам новых строк. Сервер
-     * сопоставляет позиции по `id`, а не по порядку: индекс сдвинулся бы,
-     * и техблок уехал бы к чужому изделию.
-     */
-    if (isEdit) {
-      const ok = await saveOrderEdits(order.id, {
-        order: {
-          bitrix_id: form.bitrix_id.trim() || null,
-          title: form.title.trim(),
-          customer: form.customer.trim() || null,
-          manager: form.manager.trim() || null,
-          launch_date: form.launch_date || null,
-          due_date: form.due_date || null,
-          packaging: form.packaging,
-          packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || null : null,
-          packaging_width_mm: form.packaging_width_mm || null,
-          packaging_height_mm: form.packaging_height_mm || null,
-          stickers: form.stickers,
-          stickers_note: form.stickers_note.trim() || null,
-          no_chestny_znak: form.no_chestny_znak,
-          purchase_required: form.purchase_required,
-        },
-        // Позиции без `id` — новые, и добавление позиций вне этой правки:
-        // оно заводит этапы, а это отдельный разговор. Сервер их пропускает,
-        // здесь отбор стоит ради честности payload
-        items: validItems.filter((it) => it.id).map((it) => ({
-          id: it.id,
-          product_type: it.product_type.trim(),
-          variant: it.variant.trim() || null,
-          qty: effectiveQty(it),
-          production_type: it.production_type,
-          branding_on: it.branding_on,
-          garment_source: it.garment_source,
-          /**
-           * Связь с моделью каталога (правка 14.09, п. 6). Ключ шлём ВСЕГДА,
-           * в том числе пустым: сервер отличает «ключа нет» (не трогать —
-           * так ведёт себя открытая старая вкладка) от «прислали пустое»
-           * (отвязать модель). Без ключа снять ошибочно выбранную модель
-           * было бы нечем.
-           */
-          sku_card_id: it.sku_card_id?.trim() || '',
-          notes: it.notes?.trim() || null,
-          size_grid: gridToPayload(it.size_grid),
-          fit: it.fit.trim() || null,
-          main_fabric: it.main_fabric.trim() || null,
-          color_supplier: it.color_supplier.trim() || null,
-          trim_material: it.trim_material.trim() || null,
-          cutting_note: it.cutting_note.trim() || null,
-          sewing_note: it.sewing_note.trim() || null,
-          labels_note: it.labels_note.trim() || null,
-          packaging: it.packaging,
-          packaging_size: it.packaging_size?.trim() || null,
-          sticker_place: it.sticker_place?.trim() || null,
-          marking_place: it.marking_place?.trim() || null,
-          packaging_note: it.packaging_note?.trim() || null,
-          packaging_width_mm: it.packaging_width_mm || null,
-          packaging_height_mm: it.packaging_height_mm || null,
-          prints: (it.prints ?? []).map((p) => ({
-            id: p.id ?? null,
-            method: p.method,
-            zone: p.zone?.trim() || null,
-            width_mm: p.width_mm || null,
-            height_mm: p.height_mm || null,
-            offset_note: p.offset_note?.trim() || null,
-            pantone: p.pantone?.trim() || null,
-            special: p.special?.trim() || null,
-            garment_kind: p.garment_kind?.trim() || null,
-            comment: p.comment?.trim() || null,
-          })),
-          labels: (it.labels ?? []).map((l) => ({
-            id: l.id ?? null,
-            label_type: l.label_type?.trim() || null,
-            place: l.place?.trim() || null,
-            size: l.size?.trim() || null,
-            comment: l.comment?.trim() || null,
-          })),
-        })),
-      });
-      setSaving(false);
-      if (ok) {
-        toast.success('Изменения сохранены');
-        onClose();
-      }
-      return;
-    }
-
-    /**
-     * Файлы ТЗ уже лежат в бакете (грузятся при выборе), заказ вместе с документами
-     * создаётся одной транзакцией (RPC erp_create_order, секция tz). Иначе при сбое
-     * дозагрузки остался бы заказ без ТЗ — ровно то, что запрещено.
-     * Цена: файлы-сироты в tz/new/, если RPC упадёт или форму закроют; удалять из
-     * бакета клиент не может (политика delete — только admin), поэтому префикс
-     * намеренно отдельный.
-     */
-    const formToPayloadIndex = new Map(
-      items
-        .map((it, index) => ({ it, index }))
-        .filter(({ it }) => it.product_type.trim() && effectiveQty(it) > 0)
-        .map(({ index }, payloadIndex) => [index, payloadIndex]),
-    );
-    const actor = currentActor();
-    const tzDocuments = [];
-    for (const d of tzDocs) {
-      if (d.state !== 'uploaded' || !d.path) continue;
-      const itemIndex = d.itemIndex === null ? null : formToPayloadIndex.get(d.itemIndex);
-      if (d.itemIndex !== null && itemIndex === undefined) continue; // позиция выпала из заказа
-      tzDocuments.push({
-        group_id: d.groupId,
-        item_index: itemIndex ?? null,
-        file_path: d.path,
-        // Восстановленный из черновика документ `File` не несёт (правка 27.09,
-        // п. 12): имя, тип и размер едут в снимке; у черновиков до правки — из пути
-        file_name: d.name || d.file?.name || fileNameFromPath(d.path),
-        mime_type: d.type || d.file?.type || TZ_MIME,
-        size_bytes: d.size ?? d.file?.size ?? null,
-        uploaded_by: actor,
-      });
-    }
-    let created = null;
-    try {
-    /**
-     * Ключи заметок В ТОМ ЖЕ ПОРЯДКЕ, в каком они уедут в секцию `notes`:
-     * по ним изображение находит свою заметку. Отбор здесь обязан совпадать
-     * с отбором в самой секции — иначе подпись уедет к соседней картинке.
-     */
-    const noteKeys = notes
-      .filter((n) => n.text.trim() || attach.files.some(
-        (f) => f.ownerKey === n.key && f.state === 'uploaded'))
-      .map((n) => n.key);
-
-    created = await createOrder({
-      /*
-        Секция `materials` уезжает ПУСТОЙ (правки 07.09, п. 14): строки-подсказки
-        менеджера убраны, а строки закупки заводит закупщик у себя. Ключ секции
-        оставлен — RPC его принимает, и убирать его из контракта ради пустого
-        массива значило бы менять функцию БД без нужды.
-      */
-      materials: [],
-      // Вложения блоков: упаковка, техблок, лист закупки. Файлы уже в бакете —
-      // грузятся при выборе, RPC только привязывает их одной транзакцией
-      attachments: attach.payload([], noteKeys),
-      /**
-       * Заметки к заказу (п. 5.8). Совсем пустая не едет: человек мог нажать
-       * «+ Заметка» и передумать — то же правило, что у строк листа закупки
-       * и бирок. Изображение без текста заметкой является: подпись
-       * необязательна, а фото само по себе несёт смысл.
-       */
-      notes_list: notes
-        .filter((n) => n.text.trim() || attach.files.some(
-          (f) => f.ownerKey === n.key && f.state === 'uploaded'))
-        .map((n, i) => ({ seq: i + 1, text: n.text.trim() || null })),
-      tz_required: true,
-      // assignments не заполняем: ТЗ принадлежит позиции и видно всему её маршруту
-      tz: { documents: tzDocuments, assignments: [] },
-      bitrix_id: form.bitrix_id.trim() || undefined,
-      title: form.title.trim(),
-      customer: form.customer.trim() || undefined,
-      manager: form.manager.trim() || undefined,
-      launch_date: form.launch_date || undefined,
-      due_date: form.due_date || undefined,
-      // `buffer_days` не шлём (правки 07.09, п. 2) — RPC подставит дефолт 0
-      packaging: form.packaging,
-      packaging_note: form.packaging === 'other' ? form.packaging_note.trim() || undefined : undefined,
-      // Размер упаковки (п. 16). У «Нет» размера не бывает — не шлём вовсе
-      packaging_width_mm: form.packaging === 'none'
-        ? undefined : Number(form.packaging_width_mm) || undefined,
-      packaging_height_mm: form.packaging === 'none'
-        ? undefined : Number(form.packaging_height_mm) || undefined,
-      stickers: form.stickers,
-      stickers_note: form.stickers === 'other' ? form.stickers_note.trim() || undefined : undefined,
-      no_chestny_znak: form.no_chestny_znak,
-      // Отметка «Закупка не требуется»: заказ не появится у закупщика,
-      // и этап «Закупка» в маршрут не попадёт (`buildItemRoute`)
-      purchase_required: form.purchase_required !== false,
-      items: validItems.map((it) => {
-        const prints = it.has_branding ? it.prints : [];
-        return {
-          product_type: it.product_type.trim(),
-          variant: it.variant.trim() || undefined,
-          // сетка заполнена → количество из сетки, иначе ручной ввод
-          qty: effectiveQty(it),
-          production_type: it.production_type,
-          /**
-           * Сценарий готового изделия (правки 07.09, п. 4). У прочих типов
-           * колонка остаётся NULL: вопрос «чьё изделие» им не задавался,
-           * и записанный ответ читался бы как решение человека.
-           */
-          garment_source: it.production_type === 'ready_garment'
-            ? garmentSourceOf(it) : undefined,
-          // Модель каталога — ссылкой; поля позиции остаются её собственным
-          // снимком, и правка карточки задним числом заказ не переписывает
-          sku_card_id: it.sku_card_id?.trim() || undefined,
-          // Технический блок и упаковка позиции (правки заказчика 16.08).
-          // Пустое поле уходит undefined, а не пустой строкой: иначе колонка
-          // хранит '' и «не заполняли» становится неотличимо от «заполнили
-          // пустым» — а по этому различию считается, показывать ли блок цеху.
-          fit: it.fit.trim() || undefined,
-          // Основная ткань — отдельным полем (правка 22.08, п. 5.1)
-          main_fabric: it.main_fabric.trim() || undefined,
-          color_supplier: it.color_supplier.trim() || undefined,
-          trim_material: it.trim_material.trim() || undefined,
-          cutting_note: it.cutting_note.trim() || undefined,
-          sewing_note: it.sewing_note.trim() || undefined,
-          labels_note: it.labels_note.trim() || undefined,
-          packaging: it.packaging || 'inherit',
-          packaging_size: it.packaging_size.trim() || undefined,
-          sticker_place: it.sticker_place.trim() || undefined,
-          marking_place: it.marking_place.trim() || undefined,
-          packaging_note: it.packaging_note.trim() || undefined,
-          // Размер упаковки позиции (п. 16). Пусто — берётся размер заказа
-          packaging_width_mm: Number(it.packaging_width_mm) || undefined,
-          packaging_height_mm: Number(it.packaging_height_mm) || undefined,
-          // Подряд (волна 4.2): тип и источник материалов только для типа «Подряд»
-          ...(it.production_type === 'outsource'
-            ? { subcontract_kind: it.subcontract_kind || 'finished_product',
-                material_source: it.material_source || 'pinhead',
-                // Операция (правка 4.2.3) — только для отдельной операции
-                subcontract_operation: (it.subcontract_kind || 'finished_product') === 'operation'
-                  ? (it.subcontract_operation?.trim() || undefined) : undefined,
-                // Следующий участок — только если для отдельной операции нужна доработка
-                return_dept: (it.subcontract_kind || 'finished_product') === 'operation' && it.needs_further
-                  ? (it.return_dept || null) : null }
-            : {}),
-          // маршрут строится по техникам из блоков «Нанесение №N»
-          branding_methods: [...new Set(prints.map((p) => p.method))],
-          /**
-           * Правка маршрута человеком едет как есть; не тронутый маршрут —
-           * `undefined`, и стор посчитает его сам тем же `formItemRoute`.
-           * Передаём именно ПРАВКУ, а не готовый маршрут: правило «правка или
-           * расчёт» должно остаться в одном месте, иначе форма и стор начнут
-           * решать это по-разному.
-           */
-          route: it.route,
-          branding_on: it.branding_on,
-          size_grid: gridToPayload(it.size_grid),
-          prints: prints.map((p) => ({
-            // Ключ уезжает в стор, а не на сервер: по нему макет находит
-            // своё нанесение, пока строки `erp_item_prints` ещё не существует
-            key: p.key,
-            method: p.method,
-            zone: p.zone.trim() || undefined,
-            width_mm: Number(p.width_mm) || null,
-            height_mm: Number(p.height_mm) || null,
-            offset_note: p.offset_note.trim() || undefined,
-            pantone: p.pantone.trim() || undefined,
-            /*
-              Эффект и тип изделия — величины РАЗНЫХ техник (пп. 10 и 11),
-              и каждая едет только со своей: эффект, оставшийся от переключения
-              на вышивку, читался бы цехом как требование к вышивке.
-            */
-            special: p.method === 'silkscreen'
-              ? (p.special?.trim() || undefined) : undefined,
-            garment_kind: p.method === 'embroidery'
-              ? (p.garment_kind || undefined) : undefined,
-            comment: p.comment.trim() || undefined,
-          })),
-          /**
-           * Бирки позиции (правка 22.08, п. 5.3). Совсем пустая строка
-           * не едет: человек мог нажать «+ Бирка» и передумать — тем же
-           * правилом отбрасываются пустые строки листа закупки.
-           */
-          labels: (it.labels ?? [])
-            .filter((l) => l.label_type.trim() || l.place.trim()
-              || l.size.trim() || l.comment.trim())
-            .map((l) => ({
-              key: l.key,
-              label_type: l.label_type.trim() || undefined,
-              place: l.place.trim() || undefined,
-              size: l.size.trim() || undefined,
-              comment: l.comment.trim() || undefined,
-            })),
-        };
-      }),
-    });
-    } finally {
-      // `setSaving(false)` обязан быть в finally. Внутри два сетевых вызова,
-      // и брошенное исключение (нет сети, CORS) оставило бы кнопку в
-      // «Создание…» навсегда — вместе со всем заполненным заказом, который
-      // человек набирал минутами. Сообщение об ошибке показывает стор.
-      setSaving(false);
-    }
-    if (created) {
-      clearOrderDraft();
-      // Черновик отработал: заказ создан, держать его снимок больше незачем
-      if (rowIdRef.current) await deleteDraftRow(rowIdRef.current);
-      toast.success(`Заказ «${created.title}» создан, маршрут построен`);
-      onClose();
-    }
-  };
 
   const printsCount = items.reduce((s, it) => s + (it.has_branding ? it.prints.length : 0), 0);
   const mainSummary = [
@@ -1138,11 +530,11 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
         {!isEdit && (
           <DraftPicker
             drafts={drafts}
-            openId={rowId}
-            dirty={!isDraftEmpty(form, items, initialLaunch, attach.files.length + tzDocs.length + notes.length)}
-            onPick={applyDraft}
-            onFresh={startFreshDraft}
-            onDelete={removeDraft}
+            openId={draft.rowId}
+            dirty={draft.dirty}
+            onPick={draft.applyDraft}
+            onFresh={draft.startFreshDraft}
+            onDelete={draft.removeDraft}
           />
         )}
 
@@ -1540,10 +932,10 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           {!isEdit && (
             <Button
               variant="secondary"
-              onClick={saveDraftNow}
-              disabled={saving || savingDraft || tzUploading || attach.uploading}
+              onClick={draft.saveDraftNow}
+              disabled={saving || draft.savingDraft || tzUploading || attach.uploading}
             >
-              {savingDraft ? 'Сохранение…' : 'Сохранить в черновики'}
+              {draft.savingDraft ? 'Сохранение…' : 'Сохранить в черновики'}
             </Button>
           )}
           <Button
