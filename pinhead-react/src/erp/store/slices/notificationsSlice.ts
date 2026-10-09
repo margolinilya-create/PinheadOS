@@ -34,6 +34,14 @@ import type { ErpStore, NotificationsSlice, NoticeSettings } from '../types';
 const LIMIT = 50;
 
 /**
+ * Колонки ленты — поимённо: `user_id` не читает никто (адресата отбирает RLS,
+ * и в ленте всегда «я»). Новые колонки таблицы не поедут в колокол сами.
+ * Имена сверяются со снимком схемы (`store/sliceColumns.test.ts`).
+ */
+export const NOTIFICATION_COLUMNS =
+  'id, kind, order_id, title, body, link, message_id, created_at, read_at';
+
+/**
  * Умолчание настроек — ТО ЖЕ, что у колонок `erp_user_settings`: строки нет,
  * значит человек ничего не выбирал, и показывать надо ровно то, что база
  * подставила бы при вставке.
@@ -115,7 +123,7 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
     const [{ data, error }, counted] = await Promise.all([
       erpRead(() => supabase
         .from('erp_notifications')
-        .select('*')
+        .select(NOTIFICATION_COLUMNS)
         .order('created_at', { ascending: false })
         .limit(LIMIT)),
       // Счёт — отдельным запросом и fail-open: его отказ не должен
@@ -293,7 +301,8 @@ export const notificationsSlice: StateCreator<ErpStore, [], [], NotificationsSli
       .from('erp_notifications')
       .update({ read_at: at })
       .in('id', fresh.map((n) => n.id))
-      .select());
+      // Ответ не читается — нужен лишь сам факт ответа без ошибки
+      .select('id'));
     if (error) {
       set({ notifications: before, notificationsUnread: unreadBefore });
       erpError('Не удалось отметить уведомления прочитанными', error);

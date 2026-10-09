@@ -12,6 +12,15 @@ import { toast } from '../../../store/useToastStore';
 import type { ErpDepartment, ErpEmployee } from '../../types';
 import type { ErpStore, EmployeesSlice, StaffProfile } from '../types';
 
+/**
+ * Колонки списка сотрудников — поимённо, а не `*`: `created_at`/`updated_at`
+ * карточки сотрудника не читает ни один экран. Строки, пришедшие вставкой
+ * (`createEmployee`) или realtime, остаются полными — лишние поля не мешают.
+ * Каждое имя сверяется со снимком схемы (`store/sliceColumns.test.ts`).
+ */
+export const EMPLOYEE_COLUMNS =
+  'id, full_name, role, department_id, extra_department_ids, profile_id, notes, active';
+
 export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (set, get) => ({
   employees: [],
   profilesList: [],
@@ -59,7 +68,7 @@ export const employeesSlice: StateCreator<ErpStore, [], [], EmployeesSlice> = (s
      */
     set({ employeesError: null });
     const [emps, profs] = await Promise.all([
-      erpQuery(() => supabase.from('erp_employees').select('*').order('full_name')),
+      erpQuery(() => supabase.from('erp_employees').select(EMPLOYEE_COLUMNS).order('full_name')),
       erpQuery(() => supabase
         .from('profiles')
         .select('id, name, email, role, approved, active')
