@@ -20,6 +20,8 @@ import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
 import { MoveStageSelect } from './MoveStageSelect';
+import { RollsInWork } from './RollsInWork';
+import { useRollsInWork } from './useRollsInWork';
 import { embroideryProgramBlock, isFileResultStage, stageResultFiles } from '../../utils/stageResult';
 import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
@@ -89,6 +91,22 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const reportDept = useErpStore(
     (s2) => s2.departments.find((d) => d.id === stage.department_id) ?? null,
   );
+  /**
+   * «ЗАВЕРШИТЬ РУЛОН» НА ЭКРАНЕ ЗАДАНИЯ (обход QA 09.10). Отказ «Завершить
+   * этап» называет рулон и велит его завершить, а кнопка жила только внутри
+   * формы «Записать результат». Рулоны — из полного заказа стора: у строки
+   * очереди их может не быть.
+   */
+  const byRolls = reportDept?.result_detail === 'rolls';
+  const fullOrder = useErpStore((s2) => s2.orders.find((o) => o.id === order.id)) ?? order;
+  const fullItem = useMemo(
+    () => (fullOrder.items ?? []).find((it) => it.id === item.id) ?? item,
+    [fullOrder, item],
+  );
+  const { awaitingFate, inWork } = useRollsInWork({
+    order: byRolls ? fullOrder : null, item: fullItem, stage: byRolls ? stage : null,
+  });
+  const finishRoll = useErpStore((s2) => s2.finishRoll);
   /**
    * РЕЗУЛЬТАТ ЭТАПА — ФАЙЛ (правка 12.09, вторая порция, баг 02). Признак
    * у САМОГО этапа: схема отчёта принадлежит участку, и разработка программы
@@ -456,6 +474,16 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
             </Button>
           )}
         </div>
+      )}
+
+      {perms.progress && group === 'in_progress' && !reportMode && (
+        <RollsInWork
+          inWork={inWork}
+          awaitingCount={awaitingFate.length}
+          itemId={item.id}
+          onFinishRoll={finishRoll}
+          disabled={busy}
+        />
       )}
 
       {perms.progress && reportMode && !fileResult && (

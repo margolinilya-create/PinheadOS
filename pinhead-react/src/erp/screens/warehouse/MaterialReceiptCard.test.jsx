@@ -343,6 +343,12 @@ describe('приёмка двумя поставками', () => {
     expect(screen.getByText(/Будет принято/)).toHaveTextContent('100 из 100 кг — план закрыт → Принято полностью');
   });
 
+  it('вторая поставка — «Принять поставку», а не «Обновить приёмку» (QA 09.10)', () => {
+    renderAt({ ...FABRIC, qty_received: 40, accept_status: 'accepted_partial', rolls: [ROLLS[0]] });
+    expect(screen.getByRole('button', { name: 'Принять поставку' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Обновить приёмку' })).toBeNull();
+  });
+
   it('в истории — обе поставки и все рулоны со своими номерами', async () => {
     renderAt({ ...FABRIC, qty_received: 100, accept_status: 'accepted_full', rolls: ROLLS });
     expect(await screen.findByText(/Поставка 1/)).toHaveTextContent('40 кг · Принято частично · накладная Н-1 · рулонов 1');
