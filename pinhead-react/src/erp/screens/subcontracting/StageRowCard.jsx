@@ -93,7 +93,7 @@ function StageRowCardBase({
           variant="secondary"
           block
           icon={open ? 'chevronUp' : 'chevronDown'}
-          onClick={onToggle}
+          onClick={() => onToggle(stage.id)}
           aria-expanded={open}
         >
           Этап · принято {sub.qty_accepted ?? 0} из {item.qty ?? '?'}

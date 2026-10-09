@@ -21,9 +21,11 @@ import styles from '../../styles';
  * Кнопка открывает форму, операцию сразу не проводит.
  *
  * @param fields  `[{ label, value, note? }]` — подписанные поля карточки
+ * @param onOpen  `(taskId) => void` — СТАБИЛЬНЫЙ обработчик списка; задачу
+ *                подставляет карточка, иначе стрелка на строку обнуляла `memo`
  */
 function WarehouseTaskCardBase({
-  typeLabel, typeIcon, orderId, orderNo, orderTitle, statusLabel, statusVariant,
+  taskId, typeLabel, typeIcon, orderId, orderNo, orderTitle, statusLabel, statusVariant,
   fields, actionLabel = 'Открыть', onOpen,
 }) {
   return (
@@ -60,7 +62,7 @@ function WarehouseTaskCardBase({
 
       {/* `block` + собственный @media(pointer: coarse) примитива дают
           кнопку во всю ширину и ≥44px — на планшете это основная цель */}
-      <Button variant="secondary" block onClick={onOpen}>
+      <Button variant="secondary" block onClick={() => onOpen(taskId)}>
         {actionLabel}
       </Button>
     </article>

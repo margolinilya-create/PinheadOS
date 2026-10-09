@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { PageHead } from '../components/PageHead';
@@ -43,15 +43,17 @@ function codeFromName(name) {
   return slug || `dept_${Date.now().toString(36)}`;
 }
 
+/** Пустой список кандидатов — одна ссылка, чтобы не обнулять `memo` карточки */
+const NO_CANDIDATES = [];
+
 export default function DepartmentsScreen({ embedded = false }) {
   const {
-    departments, orders, loaded, loadError, loadAll,
+    departments, loaded, loadError, loadAll,
     employees, employeesLoaded, loadEmployees,
     createDepartment, updateDepartment,
   } = useErpStore(
     useShallow((s) => ({
       departments: s.departments,
-      orders: s.orders,
       loaded: s.loaded,
       loadError: s.loadError,
       loadAll: s.loadAll,
@@ -66,8 +68,13 @@ export default function DepartmentsScreen({ embedded = false }) {
   const [draft, setDraft] = useState('');
   const [showHidden, setShowHidden] = useState(false);
 
-  /** Сколько незакрытых заданий висит на участке — для текста подтверждения */
-  const openStagesIn = (deptId) => (orders ?? [])
+  /**
+   * Сколько незакрытых заданий висит на участке — для текста подтверждения.
+   * Заказы читаются В МОМЕНТ нажатия, а не подпиской: они нужны только тексту
+   * диалога, а подписка перерисовывала бы справочник на каждое событие
+   * realtime и меняла бы обработчики карточек в `memo`.
+   */
+  const openStagesIn = (deptId) => (useErpStore.getState().orders ?? [])
     .filter((o) => o.status === 'active')
     .flatMap((o) => o.items ?? [])
     .flatMap((it) => it.stages ?? [])
@@ -80,7 +87,7 @@ export default function DepartmentsScreen({ embedded = false }) {
    * канбана и меню, а снятие `is_production` выводит его ещё и из маршрута и гейта ТЗ:
    * задания «повисают» без видимого места.
    */
-  const toggleActive = async (d) => {
+  const toggleActive = useCallback(async (d) => {
     if (d.active) {
       const open = openStagesIn(d.id);
       const ok = await confirm({
@@ -95,9 +102,9 @@ export default function DepartmentsScreen({ embedded = false }) {
       if (!ok) return;
     }
     await updateDepartment(d.id, { active: !d.active });
-  };
+  }, [updateDepartment]);
 
-  const toggleProduction = async (d, next) => {
+  const toggleProduction = useCallback(async (d, next) => {
     if (!next) {
       const open = openStagesIn(d.id);
       const ok = await confirm({
@@ -112,18 +119,18 @@ export default function DepartmentsScreen({ embedded = false }) {
       if (!ok) return;
     }
     await updateDepartment(d.id, { is_production: next });
-  };
+  }, [updateDepartment]);
 
   /**
    * Материал этого вида не пришёл → этап участка стоит в группе «Ожидают материалы».
    * Настройка живёт в данных, а не в коде: цех, заведённый здесь, должен попадать
    * под гейт без релиза (то же правило, что у `is_production`).
    */
-  const toggleGateKind = async (d, kind, on) => {
+  const toggleGateKind = useCallback(async (d, kind, on) => {
     const current = d.gate_material_kinds ?? [];
     const next = on ? [...new Set([...current, kind])] : current.filter((k) => k !== kind);
     await updateDepartment(d.id, { gate_material_kinds: next });
-  };
+  }, [updateDepartment]);
 
   useEffect(() => {
     if (!loaded) loadAll();
@@ -141,14 +148,19 @@ export default function DepartmentsScreen({ embedded = false }) {
     [departments, showHidden],
   );
 
-  /** Кандидаты в руководители: активные сотрудники этого цеха + руководящие роли */
-  const headCandidates = useMemo(() => {
+  /**
+   * Кандидаты в руководители: активные сотрудники этого цеха + руководящие роли.
+   * Массив на участок считается ОДИН раз на список сотрудников: функция,
+   * отдававшая новый массив на каждый вызов, обнуляла `memo` карточки участка.
+   */
+  const headCandidatesByDept = useMemo(() => {
     const active = employees.filter((e) => e.active);
-    return (deptId) => active.filter(
-      (e) => e.department_id === deptId
+    return new Map(departments.map((d) => [d.id, active.filter(
+      (e) => e.department_id === d.id
         || ['foreman', 'dispatcher', 'manager', 'director'].includes(e.role),
-    );
-  }, [employees]);
+    )]));
+  }, [employees, departments]);
+  const headCandidates = (deptId) => headCandidatesByDept.get(deptId) ?? NO_CANDIDATES;
 
   const add = async () => {
     const name = draft.trim();
@@ -218,20 +230,16 @@ export default function DepartmentsScreen({ embedded = false }) {
       {loaded && visible.length > 0 && compact && (
         <div className={styles.dataCardList}>
           {visible.map((d) => (
+            /* Обработчики — стабильные, участок карточка подставляет сама:
+               инлайн-стрелки на строку обнуляли `memo` карточки */
             <DeptCard
               key={d.id}
               dept={d}
               headCandidates={headCandidates(d.id)}
-              onRename={(name) => updateDepartment(d.id, { name })}
-              onSortOrder={(v) => updateDepartment(d.id, { sort_order: v })}
-              onToggleProduction={(next) => toggleProduction(d, next)}
-              onToggleBranding={(next) => updateDepartment(d.id, { is_branding: next })}
-              onToggleOverPlan={(next) => updateDepartment(d.id, { allows_over_plan: next })}
-              onToggleGateKind={(kind, on) => toggleGateKind(d, kind, on)}
-              onSaveResultFields={(fields) => updateDepartment(d.id, { result_fields: fields })}
-              onHead={(id) => updateDepartment(d.id, { head_employee_id: id })}
-              onNormDays={(v) => updateDepartment(d.id, { norm_days: v })}
-              onToggleActive={() => toggleActive(d)}
+              onUpdate={updateDepartment}
+              onToggleProduction={toggleProduction}
+              onToggleGateKind={toggleGateKind}
+              onToggleActive={toggleActive}
             />
           ))}
         </div>

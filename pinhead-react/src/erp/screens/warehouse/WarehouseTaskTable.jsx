@@ -59,6 +59,20 @@ function cardFields(order, task, materials) {
   ];
 }
 
+/**
+ * Поля карточки — ТОТ ЖЕ массив, пока не изменились задача, заказ и вкладка.
+ * Новый массив на каждый рендер списка обнулял `memo` у всех карточек сразу.
+ * Ключ — сама задача (объект из стора): заменили — запись уходит с ней.
+ */
+const fieldsCache = new WeakMap();
+function cachedCardFields(order, task, materials) {
+  const hit = fieldsCache.get(task);
+  if (hit && hit.order === order && hit.materials === materials) return hit.fields;
+  const fields = cardFields(order, task, materials);
+  fieldsCache.set(task, { order, materials, fields });
+  return fields;
+}
+
 export function WarehouseTaskTable({ rows, materials, compact, sort, onSort, onOpen }) {
   if (compact) {
     return (
@@ -66,6 +80,7 @@ export function WarehouseTaskTable({ rows, materials, compact, sort, onSort, onO
         {rows.map(({ order, task }) => (
           <WarehouseTaskCard
             key={task.id}
+            taskId={task.id}
             typeLabel={WAREHOUSE_TASK_TYPE_LABELS[task.task_type]}
             typeIcon={TYPE_ICON[task.task_type]}
             orderId={order.id}
@@ -73,9 +88,9 @@ export function WarehouseTaskTable({ rows, materials, compact, sort, onSort, onO
             orderTitle={order.title}
             statusLabel={taskStatusLabel(task, order)}
             statusVariant={taskVariant(task)}
-            fields={cardFields(order, task, materials)}
+            fields={cachedCardFields(order, task, materials)}
             actionLabel={taskActionLabel(order, task)}
-            onOpen={() => onOpen(task.id)}
+            onOpen={onOpen}
           />
         ))}
       </div>

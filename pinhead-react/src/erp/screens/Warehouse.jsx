@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
@@ -158,7 +158,12 @@ export default function Warehouse() {
     if (returnHref) navigate(returnHref);
     else list.patchKeep({ task: '' });
   };
-  const openTask = (id) => list.patchKeep({ task: id, from: '', back: '', supply: '' });
+  // `useCallback`: уходит в карточки задач (`memo`) через таблицу
+  const { patchKeep } = list;
+  const openTask = useCallback(
+    (id) => patchKeep({ task: id, from: '', back: '', supply: '' }),
+    [patchKeep],
+  );
 
   return (
     <>

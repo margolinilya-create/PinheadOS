@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { PreliminarySection } from './purchasing/PreliminarySection';
@@ -229,19 +229,23 @@ export default function FabricPurchasing() {
    * с журналом, а селект такой пункт и не предлагает (`StatusControl`).
    * Отметка закупщика о прибытии остаток не увеличивает (правка 05.10, п. 7).
    */
-  const setStatus = async (m, status) => {
+  const setStatus = useCallback(async (m, status) => {
     await updateMaterial(m.id, { status });
-  };
+  }, [updateMaterial]);
 
   /** Сброс подбора для «ничего не найдено» — и поиск, и вкладка сразу */
   const resetFilters = () => list.patch({ q: '', status: '' });
 
-  const handlers = {
+  /**
+   * Обработчики строк — стабильные: карточки планшета в `memo`, и функция,
+   * заново созданная на каждый рендер экрана, перерисовывала их все разом.
+   */
+  const handlers = useMemo(() => ({
     onUpdate: updateMaterial,
     onOpenOptions: setOptionsFor,
     onConfirmStock: confirmStockMaterial,
     onSetStatus: setStatus,
-  };
+  }), [updateMaterial, confirmStockMaterial, setStatus]);
 
   return (
     <>
