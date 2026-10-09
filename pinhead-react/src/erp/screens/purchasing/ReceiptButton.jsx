@@ -37,7 +37,7 @@ export function ReceiptButton({ order, m, block = false }) {
   return (
     <ButtonLink
       to={receiptHref(task.id, order.id, search)}
-      variant={task.status === 'accepted' ? 'ghost' : 'primary'}
+      variant={action.label === 'Открыть приёмку' ? 'ghost' : 'primary'}
       block={block}
       aria-label={`${action.label}: ${m.name}`}
     >

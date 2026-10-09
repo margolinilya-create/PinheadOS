@@ -39,6 +39,11 @@ describe('действие приёмки в строке закупки', () =>
       .toBe('Открыть приёмку');
   });
 
+  it('частично принятая позиция ждёт поставку и при закрытой задаче (QA 09.10)', () => {
+    expect(receiptAction({ source: 'purchase', accept_status: 'accepted_partial' },
+      task({ status: 'accepted' }))?.label).toBe('Принять поставку');
+  });
+
   it('задачи ещё нет — кнопка погашена и объясняет почему', () => {
     expect(receiptAction({ source: 'purchase' }, null)).toEqual(
       { label: 'Принять поставку', disabled: true, hint: RECEIPT_TASK_MISSING_HINT });

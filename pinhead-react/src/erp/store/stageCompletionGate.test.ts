@@ -259,6 +259,16 @@ describe('рулон без судьбы остатка держит закры�
     seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 0 });
     expect(await s().reportProgress('st1', 40)).toBe(true);
   });
+
+  /**
+   * Последняя партия кроя (QA 09.10, ошибка с боя 07.10). С 08.10 сервер
+   * пишет партию и оставляет этап открытым до «Завершить рулон». Клиентский
+   * гейт держал её прежним отказом — RPC не уходил вовсе.
+   */
+  it('партия, добирающая тираж, уходит на сервер — судьбу спросит закрытие', async () => {
+    seed({ deptId: ROLLS_DEPT.id, materials: [FABRIC_WITH_ROLL], qtyDone: 62 });
+    expect(await s().submitStageReport('st1', { qtyGood: 38 })).toBe(true);
+  });
 });
 
 /**

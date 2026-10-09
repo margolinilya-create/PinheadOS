@@ -34,7 +34,7 @@ export function RollFinishModal({ option, itemId = null, onFinish, onClose }) {
   const inFlight = useRef(false);
 
   const plan = rollFinishPlan(roll, measured);
-  const block = rollFinishBlock(plan, kind);
+  const block = rollFinishBlock(plan, kind, reason);
   const hasLeft = plan.left > 0.0005;
   const differs = plan.refineLengthM !== null;
 
@@ -46,7 +46,7 @@ export function RollFinishModal({ option, itemId = null, onFinish, onClose }) {
       kind: hasLeft ? kind : null,
       itemId,
       refineLengthM: plan.refineLengthM,
-      reason: differs ? (reason.trim() || null) : null,
+      reason: differs ? reason.trim() : null,
     });
     inFlight.current = false;
     setSaving(false);
@@ -54,7 +54,10 @@ export function RollFinishModal({ option, itemId = null, onFinish, onClose }) {
   };
 
   return (
-    <Modal title={`Завершить рулон — ${roll.label}`} onClose={onClose} closeOnOverlay={false}>
+    <Modal
+      title={`Завершить рулон — ${roll.label}`} onClose={onClose}
+      closeOnOverlay={false} closeOnEscape={false}
+    >
       <div className={styles.queueBlockForm}>
         <span className={styles.subText}>{option.label}</span>
         <p className={styles.queueReason}>

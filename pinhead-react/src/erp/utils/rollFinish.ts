@@ -91,9 +91,23 @@ export function rollFinishPlan(
   return { left: m, refineLengthM: refine, error: null };
 }
 
-/** Почему рулон нельзя завершить; `null` — можно */
-export function rollFinishBlock(plan: RollFinishPlan, kind: 'usable' | 'scrap' | null | undefined): string | null {
+/** Текст отказа, когда замер расходится с записями, а причины нет */
+export const ROLL_REFINE_REASON_REQUIRED = 'Замер расходится с записанным расходом — укажите причину расхождения';
+
+/**
+ * Почему рулон нельзя завершить; `null` — можно.
+ *
+ * `reason` — причина расхождения замера с записями. Обязательна, когда
+ * замер уточняет метраж (QA 09.10): без неё в журнал корректировок уходила
+ * общая фраза, и через месяц не понять, откуда взялись лишние метры.
+ */
+export function rollFinishBlock(
+  plan: RollFinishPlan,
+  kind: 'usable' | 'scrap' | null | undefined,
+  reason = '',
+): string | null {
   if (plan.error) return plan.error;
+  if (plan.refineLengthM !== null && !reason.trim()) return ROLL_REFINE_REASON_REQUIRED;
   if (plan.left > 0.0005) {
     return kind ? null : 'Выберите, что сделать с остатком: оставить пригодный или списать непригодный';
   }

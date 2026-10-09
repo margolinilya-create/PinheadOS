@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Warehouse from './Warehouse';
 import { useErpStore } from '../store/useErpStore';
 import { attachDomainSlices } from '../store/domainSlices';
+import { factoryToday } from '../../utils/date';
 
 // Экран рендерится напрямую, минуя lazyScreen, — стор подключает тест
 attachDomainSlices();
@@ -222,7 +223,8 @@ describe('Склад — вкладки, поиск, адрес', () => {
     ...patch,
   });
   const MATS = Array.from({ length: 14 }, (_, i) => mat(i + 1));
-  MATS[13] = mat(14, { name: 'Тест новый', eta_date: '2026-10-09' });
+  // Срок — сегодня по часам фабрики: зашитая дата выпадала из «Неделя» на следующий день
+  MATS[13] = mat(14, { name: 'Тест новый', eta_date: factoryToday() });
   const BIG = {
     id: 'o9', bitrix_id: '9001', title: 'Большой заказ', status: 'active', due_date: '2026-10-20',
     materials: MATS, items: [{ id: 'i9', product_type: 'Худи', qty: 50, stages: [] }],

@@ -24,10 +24,16 @@ function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
   return acceptStatus === 'accepted_partial' ? 'partial_receipt' : 'material_receipt';
 }
 
-/** Материал ещё ждёт приёмки складом (пришёл, но не принят) */
+/**
+ * Материал ещё ждёт приёмки складом (пришёл, но не принят полностью).
+ *
+ * Частичная приёмка — НЕ конец (QA 09.10): после 40 кг из 100 задача
+ * закрывалась, склад терял её из «Только открытых», а закупка вместо
+ * «Принять поставку» показывала «Открыть приёмку» при «осталось 60 кг».
+ */
 function awaitsAcceptance(m: ErpMaterial): boolean {
   if (m.status !== 'received') return false;
-  return m.accept_status !== 'accepted_full' && m.accept_status !== 'accepted_partial';
+  return m.accept_status !== 'accepted_full';
 }
 
 /**

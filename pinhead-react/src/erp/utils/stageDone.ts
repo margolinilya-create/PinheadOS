@@ -90,6 +90,12 @@ export interface StageDoneInput extends StageDoneWarningInput {
   orderItems?: readonly { id?: string; stages?: readonly Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[] }[] | null;
   /** id позиции этапа — отбор материалов и рулонов тот же, что у формы */
   itemId?: string | null;
+  /**
+   * Спрашивать ли судьбу остатков рулонов (по умолчанию — да). Сдача партии
+   * её не спрашивает (правка 08.10): сервер пишет партию и оставляет этап
+   * открытым до «Завершить рулон» → «Завершить этап».
+   */
+  rollsFate?: boolean;
 }
 
 /** Этапы, которые ждут именно этот (после закрытия они откроются) */
@@ -154,7 +160,7 @@ export function stageCompletionBlock(input: StageDoneInput): string | null {
      * по рулонам. Рулон «в работе» с остатком и без вида после закрытия
      * последнего этапа участка повисает мимо «Остатков ткани».
      */
-    if (input.dept?.result_detail !== 'rolls') return null;
+    if (input.dept?.result_detail !== 'rolls' || input.rollsFate === false) return null;
     return rollsFateBlock(rollsAwaitingFate(
       input.materials, input.itemId ?? null, input.stage, input.orderItems,
     ));
