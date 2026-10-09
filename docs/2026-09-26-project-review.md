@@ -106,12 +106,13 @@
   Решение владельца 26.09 — отдельными PR с опусканием ратчета.
 - **Пересчёт готовности** в `ErpLayout.jsx:144-201` и `DepartmentQueue.jsx:250-273`
   на каждое изменение `orders` — сначала замер React Profiler.
-- **`select('*')`** в `employeesSlice`, `notificationsSlice`, `planSlice`,
-  `skuSlice`; `.select()` после `update` → `.select('id')`.
-- **Нестабильные пропсы у `memo`**: `DepartmentsScreen`, `Warehouse`,
-  `FabricPurchasing`, `Subcontracting`.
+- ~~**`select('*')`** в `employeesSlice`, `notificationsSlice`, `planSlice`,
+  `skuSlice`; `.select()` после `update` → `.select('id')`.~~ **Сделано 09.10** (сессия 80).
+- ~~**Нестабильные пропсы у `memo`**: `DepartmentsScreen`, `Warehouse`,
+  `FabricPurchasing`, `Subcontracting`.~~ **Сделано 09.10** (сессия 80).
 - **Деньги Order Studio**: 77 инлайн `toLocaleString('ru-RU')`.
-- **84 индекса без чтений** — пересмотр в октябре по статистике.
+- ~~**84 индекса без чтений** — пересмотр в октябре по статистике.~~ **Пересмотрено 09.10**:
+  61 неуникальный с `idx_scan = 0`, ~1 МБ, почти все на внешних ключах — не удаляем.
 - **`erp_bootstrap` с полной формой** (`moves`, `attachments`, `order.due_date`)
   вернул бы один RTT экранам подряда и разработки; сторож `bootstrapSlice.test.ts`
   скажет, когда это сделано.
