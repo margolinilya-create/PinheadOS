@@ -35,6 +35,7 @@
 - `pravila-obzora-26-09-sessiya-69.md`  ← пакет оболочки — первый кадр; коалесценция realtime; один init; сторожа в node; индекс снимается по статистике, не по имени
 - `pravila-pravok-27-09-sessiya-72.md`  ← действие чужой роли делает сервер под меткой; гейт завершения и на прямом переходе в done; сигнатура с default требует drop прежней
 - `pravila-metrov-27-09-sessiya-72.md`  ← invoker наследует права вызывающего: отозванный EXECUTE и RLS дочерней таблицы видны только пробой от лица роли; у журнала один писатель под меткой транзакции; сервер проверяет, чей объект трогает RPC (сверка 28.09)
+- `pravila-koda-polnyy-tekst.md`  ← полный текст «Правил кода» корневого CLAUDE.md (перенос 09.10): RLS на команду и `(select …)`, девять стражей, исключения вместо перечисления, `on delete set null`, `revoke from public, anon`, плановые даты с обеих сторон
 
 ## Сторожа и тесты
 
@@ -58,6 +59,8 @@
 - `pravila-erp-zhurnal-migraciy-31-08.md`
 - `pravila-erp-audit-03-08-2026-fazy-0-5.md`
 - `pravila-erp-daty-sessiya-29.md`
+- `pravila-shemy-erp-podrobno.md`  ← таблицы и колонки ERP из раздела «Supabase — схема» корневого CLAUDE.md (перенос 09.10)
+- `pravila-zhurnal-shemy-supabase-24-08-05-10.md`  ← журнал правок схемы по датам 24.08–05.10 из корневого CLAUDE.md (перенос 09.10)
 - `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← номер заказа: одна последовательность, один формат; проверка RPC на бою без расхода номера; красный Supabase Preview на новом PR — сначала последняя проверка и журнал превью
 
 ## Вёрстка, токены, контраст
@@ -87,6 +90,7 @@
 гейта, как считать мёртвый код и почему список устаревает от первого удаления.
 
 - `pravila-uborki-dannyh-i-faylov-sessiya-60-chistka-13-09.md`
+- `pravila-shemy-erp-podrobno.md`  ← уборка `erp-attachments`: четыре носителя ключа, два уборщика
 - `pravila-obzora-proekta-24-09-sessiya-67.md`  ← носители ключа бакета выводятся из схемы; ошибка проверки = не удалять
 - `pravila-uborki-mertvogo-koda-sessiya-58.md`
 - `pravila-tehdolga-07-09-vtoraya-polovina-sessii-52.md`
@@ -114,6 +118,8 @@
 - `pravila-pravok-20-09-sessiya-64.md`  ← правки 20.09
 - `pravila-pravok-21-09-sessiya-65.md`  ← правки 21.09
 - `pravila-pravok-27-09-sessiya-72.md`  ← остаток по учтённому, не по тиражу; «Покроено» сквозь нанесение; вышивка ждёт программу той же позиции
+- `pravila-zhurnal-shemy-supabase-24-08-05-10.md`  ← схема под эти правки: факт вместо плана, гейты закрытия, рулоны и метры, экономика
+- `pravila-koda-polnyy-tekst.md`  ← ОТК, очередь, план, необратимое действие этапа, ТЗ позиции
 
 ## Рулоны, вес ткани и остатки полотна
 
@@ -148,6 +154,7 @@
 - `pravila-chata-vnutri-sdelki-pravka-14-09-pr-2-sessiya-61.md`
 - `pravila-podgotovki-k-chatu-14-09-sessiya-61-storozh-rpc-i-uvedomleniya.md`
 - `pravila-pravok-20-09-sessiya-64.md`  ← окно, поштучное прочтение, всплывающие
+- `pravila-zhurnal-shemy-supabase-24-08-05-10.md`  ← схема чата: правка, удаление, реакции, поиск, подписки, системное сообщение «ERP»
 
 ## Остальные разборы по датам
 
