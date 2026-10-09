@@ -20,8 +20,7 @@ import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
 import { MoveStageSelect } from './MoveStageSelect';
-import { RollsInWork } from './RollsInWork';
-import { useRollsInWork } from './useRollsInWork';
+import { TaskRollsInWork } from './TaskRollsInWork';
 import { embroideryProgramBlock, isFileResultStage, stageResultFiles } from '../../utils/stageResult';
 import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
@@ -92,22 +91,6 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
     (s2) => s2.departments.find((d) => d.id === stage.department_id) ?? null,
   );
   /**
-   * «ЗАВЕРШИТЬ РУЛОН» НА ЭКРАНЕ ЗАДАНИЯ (обход QA 09.10). Отказ «Завершить
-   * этап» называет рулон и велит его завершить, а кнопка жила только внутри
-   * формы «Записать результат». Рулоны — из полного заказа стора: у строки
-   * очереди их может не быть.
-   */
-  const byRolls = reportDept?.result_detail === 'rolls';
-  const fullOrder = useErpStore((s2) => s2.orders.find((o) => o.id === order.id)) ?? order;
-  const fullItem = useMemo(
-    () => (fullOrder.items ?? []).find((it) => it.id === item.id) ?? item,
-    [fullOrder, item],
-  );
-  const { awaitingFate, inWork } = useRollsInWork({
-    order: byRolls ? fullOrder : null, item: fullItem, stage: byRolls ? stage : null,
-  });
-  const finishRoll = useErpStore((s2) => s2.finishRoll);
-  /**
    * РЕЗУЛЬТАТ ЭТАПА — ФАЙЛ (правка 12.09, вторая порция, баг 02). Признак
    * у САМОГО этапа: схема отчёта принадлежит участку, и разработка программы
    * вышивки получала от цеха вышивки поля «Вышито» и «Брак».
@@ -165,12 +148,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   // экран цеха в простыню — здесь остаётся только признак открытого мастера.
   const [defectMode, setDefectMode] = useState(false);
   /**
-   * Ни одно действие не блокировалось на время запроса: `withPending` в сторе
-   * защищает от гонки с realtime, но не от повторного тапа. На медленном цеховом
-   * Wi-Fi рабочий не получал обратной связи, что тап засчитан, и жал ещё раз.
-   */
-  /**
-   * `busy` гасит кнопки на время запроса — двойной тап был закрыт и раньше.
+   * `busy` гасит кнопки на время запроса (`withPending` в сторе защищает от
+   * гонки с realtime, но не от повторного тапа) — двойной тап закрыт.
    * ЧЕГО НЕ ХВАТАЛО (правка 03.09): видимого «выполняется». `loading` стоял
    * только у «Взять в работу» (единственной кнопки с формой), а пять
    * остальных действий просто ГАСЛИ. На планшете по цеховому Wi-Fi это
@@ -476,15 +455,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
         </div>
       )}
 
-      {perms.progress && group === 'in_progress' && !reportMode && (
-        <RollsInWork
-          inWork={inWork}
-          awaitingCount={awaitingFate.length}
-          itemId={item.id}
-          onFinishRoll={finishRoll}
-          disabled={busy}
-        />
-      )}
+      {perms.progress && group === 'in_progress' && !reportMode && reportDept?.result_detail === 'rolls'
+        && <TaskRollsInWork entry={entry} disabled={busy} /> /* QA 09.10: рядом с «Завершить этап» */}
 
       {perms.progress && reportMode && !fileResult && (
         <StageReportForm

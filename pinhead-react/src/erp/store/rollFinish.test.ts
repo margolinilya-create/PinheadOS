@@ -67,35 +67,41 @@ describe('finishRoll', () => {
   it('без замера — только судьба остатка, пригодный остаток доступен дальше', async () => {
     const ok = await useErpStore.getState().finishRoll('r1', { kind: 'usable', itemId: 'it1' });
     expect(ok).toBe(true);
-    expect(fns()).toEqual(['erp_roll_set_leftover']);
-    expect(h.calls[0].args).toEqual({ p_roll_id: 'r1', p_kind: 'usable', p_item_id: 'it1' });
+    expect(fns()).toEqual(['erp_roll_finish']);
+    expect(h.calls[0].args).toEqual({
+      p_roll_id: 'r1', p_kind: 'usable', p_item_id: 'it1', p_length_m: null, p_reason: null,
+    });
     // Остатки других заказов перечитываются: пригодный появится в выборе закроя
     expect(useErpStore.getState().fabricLeftovers).toBeNull();
     expect(useErpStore.getState().loadOne).toHaveBeenCalledWith('o1');
   });
 
-  it('с замером — сначала уточнение метража с причиной, затем списание непригодного', async () => {
+  /**
+   * ОДИН ВЫЗОВ, ОДНА ТРАНЗАКЦИЯ (09.10): замер и судьба уходят вместе —
+   * обрыв между двумя вызовами оставлял рулон с замером, но без решения.
+   */
+  it('с замером — замер с причиной и списание непригодного одним вызовом', async () => {
     const ok = await useErpStore.getState().finishRoll('r1', {
-      kind: 'scrap', itemId: 'it1', refineLengthM: 110, reason: 'перемерили',
+      kind: 'scrap', itemId: 'it1', refineLengthM: 110, reason: ' перемерили ',
     });
     expect(ok).toBe(true);
-    expect(fns()).toEqual(['erp_material_roll_set_params', 'erp_roll_set_leftover']);
-    expect(h.calls[0].args).toMatchObject({
-      p_roll_id: 'r1', p_length_m: 110, p_length_source: 'measured', p_reason: 'перемерили',
+    expect(fns()).toEqual(['erp_roll_finish']);
+    expect(h.calls[0].args).toEqual({
+      p_roll_id: 'r1', p_kind: 'scrap', p_item_id: 'it1', p_length_m: 110, p_reason: 'перемерили',
     });
-    expect(h.calls[1].args).toMatchObject({ p_kind: 'scrap' });
   });
 
-  it('уточнение не записалось — судьбу не трогаем', async () => {
-    h.errors.erp_material_roll_set_params = { message: 'нет права' };
-    const ok = await useErpStore.getState().finishRoll('r1', { kind: 'scrap', refineLengthM: 110 });
+  it('отказ сервера — false и заказ перечитан', async () => {
+    h.errors.erp_roll_finish = { message: 'нет права' };
+    const ok = await useErpStore.getState().finishRoll('r1', { kind: 'scrap', refineLengthM: 110, reason: 'x' });
     expect(ok).toBe(false);
-    expect(fns()).toEqual(['erp_material_roll_set_params']);
+    expect(fns()).toEqual(['erp_roll_finish']);
+    expect(useErpStore.getState().loadOne).toHaveBeenCalledWith('o1');
   });
 
   it('замер 0 — уточнение без выбора судьбы (решать нечего)', async () => {
-    const ok = await useErpStore.getState().finishRoll('r1', { kind: null, refineLengthM: 40 });
+    const ok = await useErpStore.getState().finishRoll('r1', { kind: null, refineLengthM: 40, reason: 'x' });
     expect(ok).toBe(true);
-    expect(fns()).toEqual(['erp_material_roll_set_params']);
+    expect(h.calls[0].args).toMatchObject({ p_kind: null, p_length_m: 40 });
   });
 });

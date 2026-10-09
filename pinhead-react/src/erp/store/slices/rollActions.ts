@@ -125,9 +125,10 @@ export function rollActions(set: Set, get: Get): Pick<MaterialsSlice,
      * ЗАВЕРШИТЬ РУЛОН (правка 05.10, п. 5) — отдельно от записи результата.
      * Замер остатка уезжает уточнением полного метража (`utils/rollFinish`:
      * сервер вычтет весь записанный расход и запишет корректировку с причиной),
-     * судьба — `erp_roll_set_leftover`. Не optimistic: обе операции необратимы.
-     * Упало второе — заказ всё равно перечитывается: повтор увидит остаток
-     * уже равным замеру и уточнять повторно не станет.
+     * судьба — тем же вызовом. С 09.10 это ОДНА транзакция (`erp_roll_finish`):
+     * прежде два вызова подряд оставляли при обрыве замер без судьбы.
+     * Не optimistic: операция необратима; после отказа заказ всё равно
+     * перечитывается.
      */
     finishRoll: async (rollId, { kind, itemId = null, refineLengthM = null, reason = null }) => {
       const order = get().orders.find((o) => o.materials.some(
@@ -136,30 +137,17 @@ export function rollActions(set: Set, get: Get): Pick<MaterialsSlice,
         if (order) await get().loadOne(order.id);
         set({ fabricLeftovers: null });
       };
-      if (refineLengthM !== null) {
-        const { error } = await erpQuery(() => supabase.rpc('erp_material_roll_set_params', {
-          p_roll_id: rollId,
-          p_width_cm: null,
-          p_density_gsm: null,
-          p_length_m: refineLengthM,
-          p_length_source: 'measured',
-          p_reason: (reason ?? '').trim() || 'Замер остатка при завершении рулона',
-          p_weight_kg: null,
-        }));
-        if (error) {
-          erpError('Замер остатка не записан', error);
-          return false;
-        }
-      }
-      if (kind) {
-        const { error } = await erpQuery(() => supabase.rpc('erp_roll_set_leftover', {
-          p_roll_id: rollId, p_kind: kind, p_item_id: itemId ?? null,
-        }));
-        if (error) {
-          erpError('Рулон не завершён', error);
-          await reload();
-          return false;
-        }
+      const { error } = await erpQuery(() => supabase.rpc('erp_roll_finish', {
+        p_roll_id: rollId,
+        p_kind: kind ?? null,
+        p_item_id: itemId ?? null,
+        p_length_m: refineLengthM,
+        p_reason: refineLengthM !== null ? (reason ?? '').trim() || null : null,
+      }));
+      if (error) {
+        erpError('Рулон не завершён', error);
+        await reload();
+        return false;
       }
       await reload();
       toast.success(kind === 'usable'
