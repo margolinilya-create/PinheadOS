@@ -39,7 +39,8 @@ const EMPTY = {
 };
 
 export function UserModal({ profile, onClose }) {
-  const trapRef = useFocusTrap(true, onClose);
+  // Форма ввода: Escape не закрывает и не теряет набранное (правка 01.10, п. 3)
+  const trapRef = useFocusTrap(true);
   const isNew = !profile;
 
   const {
@@ -160,7 +161,7 @@ export function UserModal({ profile, onClose }) {
 
   return (
     // Клик мимо панели окно НЕ закрывает (правка 01.10, п. 3): это форма
-    // ввода, и промах мышью терял набранное. Закрытие — «Отмена»/Escape
+    // ввода, и промах мышью терял набранное. Закрытие — «Отмена»
     <div className={styles.modalOverlay} role="presentation">
       <div
         ref={trapRef}

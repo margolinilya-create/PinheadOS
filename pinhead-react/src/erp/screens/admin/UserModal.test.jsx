@@ -98,6 +98,15 @@ describe('UserModal — заведение', () => {
   });
 });
 
+describe('UserModal — форма ввода', () => {
+  it('Escape окно не закрывает и набранное не теряет (правка 01.10, п. 3; QA 09.10)', () => {
+    const onClose = vi.fn();
+    render(<UserModal profile={null} onClose={onClose} />);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe('UserModal — правка', () => {
   /**
    * Имя живёт в ДВУХ местах: `profiles` (списки, авторство) и `erp_employees`

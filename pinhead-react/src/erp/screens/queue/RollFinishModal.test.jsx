@@ -55,6 +55,17 @@ describe('окно «Завершить рулон»', () => {
     expect(opts.reason).toBe('перемерили');
   });
 
+  it('замер без причины не завершает рулон; Escape окно не закрывает (QA 09.10)', () => {
+    const { onClose } = renderModal();
+    fireEvent.change(screen.getByLabelText('Измеренный остаток, м'), { target: { value: '70' } });
+    fireEvent.click(screen.getByRole('radio', { name: /Списать непригодный/ }));
+    expect(screen.getByRole('button', { name: 'Завершить рулон' })).toBeDisabled();
+    expect(screen.getByText(/укажите причину расхождения/)).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Измеренный остаток, м')).toHaveValue(70);
+  });
+
   it('двойной клик не завершает рулон дважды', async () => {
     let resolve;
     const onFinish = vi.fn(() => new Promise((r) => { resolve = r; }));

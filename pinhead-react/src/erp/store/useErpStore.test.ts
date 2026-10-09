@@ -1098,6 +1098,28 @@ describe('useErpStore — материал со склада / авто-закр
     expect(tasks.find((t) => t.id === 'wt2')?.status).toBe('accepted');
     expect(tasks.find((t) => t.id === 'wt1')?.status, 'закрылась чужая приёмка').toBe('awaiting');
   });
+
+  /**
+   * ЧАСТИЧНАЯ ПРИЁМКА — НЕ КОНЕЦ (QA 09.10). После 40 кг из 100 задача
+   * закрывалась: склад терял её из «Только открытых», а следующая поставка
+   * оставалась без карточки.
+   */
+  it('acceptMaterial: частичная приёмка задачу своей позиции не закрывает', async () => {
+    seedSupply([mat({ status: 'received', accept_status: 'accepted_partial' })]);
+    useErpStore.setState({
+      orders: [{
+        ...useErpStore.getState().orders[0],
+        warehouse_tasks: [
+          { id: 'wt1', order_id: 'o1', material_id: 'm1', task_type: 'material_receipt', status: 'awaiting' },
+        ],
+      }] as any,
+    });
+    await useErpStore.getState().acceptMaterial('m1', {
+      qty: 40, accept_status: 'accepted_partial',
+    });
+    const task = useErpStore.getState().orders[0].warehouse_tasks?.[0];
+    expect(task?.status, 'частичная приёмка закрыла задачу').toBe('awaiting');
+  });
 });
 
 describe('useErpStore — задачи склада (волна 4): advanceWarehouseTask', () => {

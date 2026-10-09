@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rollMetresSummary, rollFinishPlan, rollFinishBlock } from './rollFinish';
+import { rollMetresSummary, rollFinishPlan, rollFinishBlock, ROLL_REFINE_REASON_REQUIRED } from './rollFinish';
 
 /**
  * ДАННЫЕ РУЛОНА В ЗАКРОЙКЕ И ЗАВЕРШЕНИЕ РУЛОНА (правка заказчика 05.10, п. 5).
@@ -88,7 +88,14 @@ describe('что мешает завершить рулон', () => {
   });
 
   it('замер 0 при остатке по записям — уточнение без выбора судьбы', () => {
-    expect(rollFinishBlock({ left: 0, refineLengthM: 40, error: null }, null)).toBeNull();
+    expect(rollFinishBlock({ left: 0, refineLengthM: 40, error: null }, null, 'перемерили')).toBeNull();
+  });
+
+  it('замер расходится с записями — без причины не завершить (QA 09.10)', () => {
+    const plan = { left: 4, refineLengthM: 48.25, error: null };
+    expect(rollFinishBlock(plan, 'usable')).toBe(ROLL_REFINE_REASON_REQUIRED);
+    expect(rollFinishBlock(plan, 'usable', '   ')).toBe(ROLL_REFINE_REASON_REQUIRED);
+    expect(rollFinishBlock(plan, 'usable', 'перемерили после раскладки')).toBeNull();
   });
 
   it('ошибка замера важнее выбора', () => {

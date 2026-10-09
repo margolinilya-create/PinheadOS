@@ -45,7 +45,8 @@ export function PlanAddModal({ date = null, departmentId, preselect = null, onCl
     planSlots: s.planSlots,
     planStage: s.planStage,
   })));
-  const ref = useFocusTrap(true, onClose);
+  // Форма ввода: Escape не закрывает и не теряет набранное (правка 01.10, п. 3)
+  const ref = useFocusTrap(true);
 
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(preselect);

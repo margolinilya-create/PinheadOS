@@ -332,7 +332,7 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * тираж, а схема отчёта засеяна закрою и швейке — то есть обоим участкам
      * с материальным гейтом.
      */
-    const reportBlocked = completionBlockFor(get(), found, good);
+    const reportBlocked = completionBlockFor(get(), found, good, false, true);
     if (reportBlocked) {
       toast.error(reportBlocked);
       return false;

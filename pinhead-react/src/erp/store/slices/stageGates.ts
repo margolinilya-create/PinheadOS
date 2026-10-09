@@ -77,6 +77,13 @@ export function completionBlockFor(
    * пишет и этап не закрывает.
    */
   final = false,
+  /**
+   * Сдача партии (`erp_stage_submit_report`), а не закрытие. С 08.10 сервер
+   * при сдаче судьбу остатков рулонов не спрашивает: партия пишется, этап
+   * остаётся открытым (`v_fate_pending`). Клиент строже сервера держал
+   * последнюю партию кроя — «кнопка есть, действие падает» (QA 09.10).
+   */
+  batch = false,
 ): string | null {
   const { stage, item, order } = found;
   /**
@@ -126,6 +133,7 @@ export function completionBlockFor(
     // Судьба остатков рулонов (правка 27.09, п. 2): нужны этапы всего заказа
     orderItems: order.items,
     itemId: item.id,
+    rollsFate: !batch,
   });
 }
 

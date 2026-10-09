@@ -52,12 +52,19 @@ export const RECEIPT_TASK_MISSING_HINT = 'Задача приёмки появи
  * искал бы приёмку на складе вручную — ровно то, от чего уходит пункт.
  */
 export function receiptAction(
-  m: Pick<ErpMaterial, 'source'>,
+  m: Pick<ErpMaterial, 'source'> & { accept_status?: ErpMaterial['accept_status'] | null },
   task: Pick<ErpWarehouseTask, 'status'> | null,
 ): ReceiptAction | null {
   if (!task && m.source !== 'purchase') return null;
   if (!task) return { label: 'Принять поставку', disabled: true, hint: RECEIPT_TASK_MISSING_HINT };
-  if (task.status === 'accepted') return { label: 'Открыть приёмку', disabled: false, hint: null };
+  /**
+   * Частично принятая позиция ждёт следующей поставки, даже если задачу
+   * успели закрыть (так делал склад до 09.10): «осталось 60 кг» рядом
+   * с «Открыть приёмку» читалось как «принимать больше нечего».
+   */
+  if (task.status === 'accepted' && m.accept_status !== 'accepted_partial') {
+    return { label: 'Открыть приёмку', disabled: false, hint: null };
+  }
   return { label: 'Принять поставку', disabled: false, hint: null };
 }
 
