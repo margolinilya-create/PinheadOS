@@ -41,7 +41,7 @@ import { OUTSOURCE_DEPT_CODE } from '../../../utils/outsourcing';
  * загрузка «на будущее» в правке давала бы сирот в бакете.
  */
 export function ItemBlock({
-  it, i, itemsCount, err, inputCls, route, attach,
+  it, i, itemsCount, err, inputCls, route, attach, isEdit = false,
   setItem, setBranding, setPrint, removeItem, removePrint,
   allItems = [], onCopyPrint,
 }) {
@@ -435,7 +435,20 @@ export function ItemBlock({
         <TechBlock it={it} i={i} setItem={setItem} attach={attach} />
         <LabelsBlock it={it} i={i} setItem={setItem} attach={attach} />
         <PackagingBlock it={it} i={i} setItem={setItem} attach={attach} />
-        <RouteBlock it={it} i={i} setItem={setItem} route={route} attach={attach} />
+        {/*
+          МАРШРУТ В ПРАВКЕ НЕ РЕДАКТИРУЕТСЯ (долг с 01.10, закрыт 09.10). Правка
+          заказа маршрут не отправляет — этапы уже созданы, и пересборка стёрла бы
+          факт цеха. Редактор здесь принимал изменения и молча их терял;
+          у сохранённой позиции он показывал пересчитанный, а не настоящий маршрут.
+        */}
+        {isEdit && it.id ? (
+          <p className={styles.subText}>
+            Маршрут производства уже разложен на этапы. Менять его — в карточке
+            заказа: позиция → «Изменить маршрут».
+          </p>
+        ) : (
+          <RouteBlock it={it} i={i} setItem={setItem} route={route} attach={attach} />
+        )}
         </div>
   );
 }

@@ -454,6 +454,13 @@ describe('CreateOrderModal — правка созданного заказа', 
     expect(screen.getByRole('button', { name: /Сохранить изменения/ })).toBeInTheDocument();
   });
 
+  it('маршрут сохранённой позиции не редактируется в форме — ведёт в карточку (долг 01.10)', () => {
+    setupEdit();
+    expect(screen.queryByText(/Маршрут производства —/)).toBeNull();
+    expect(screen.getByText(/Маршрут производства уже разложен на этапы/))
+      .toHaveTextContent('позиция → «Изменить маршрут»');
+  });
+
   it('сохранение обновляет ТОТ ЖЕ заказ и не создаёт новый', async () => {
     const { saveOrderEdits, createOrder, onClose } = setupEdit();
     fireEvent.change(screen.getByLabelText('Клиент'), { target: { value: 'ООО Новый' } });
