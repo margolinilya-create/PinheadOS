@@ -16,6 +16,7 @@ function renderCard(patch = {}) {
   render(
     <MemoryRouter>
       <WarehouseTaskCard
+        taskId="t1"
         typeLabel="Приёмка материалов"
         typeIcon="box"
         orderId="o1"
@@ -52,6 +53,8 @@ describe('карточка задачи склада', () => {
     const { onOpen } = renderCard();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(onOpen).toHaveBeenCalledTimes(1);
+    // Обработчик списка общий на все карточки — задачу называет сама карточка
+    expect(onOpen).toHaveBeenCalledWith('t1');
   });
 
   /**

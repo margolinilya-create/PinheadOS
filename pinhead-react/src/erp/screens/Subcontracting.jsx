@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
@@ -10,6 +10,7 @@ import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
 import { subcontractOverdue } from '../utils/time';
 import { deptShortName } from '../data/departments';
+import { deptById as deptMapById } from '../utils/deptMap';
 import {
   SUBCONTRACT_PHASE_LABELS,
   SUBCONTRACT_PAYMENT_LABELS,
@@ -108,6 +109,14 @@ export default function Subcontracting() {
   const canManage = useErpAccess().can('order.manage');
   const [query, setQuery] = useState('');
   const [openRow, setOpenRow] = useState(null);
+  /**
+   * Раскрыть/свернуть строку. Стабильный и с этапом аргументом: карточка
+   * планшета в `memo`, и стрелка на строку перерисовывала все карточки разом.
+   */
+  const toggleRow = useCallback(
+    (stageId) => setOpenRow((cur) => (cur === stageId ? null : stageId)),
+    [],
+  );
   const today = factoryToday();
   /** Планшет цеха и телефон: карточки вместо таблицы из десяти колонок */
   const compact = useCompactLayout();
@@ -121,10 +130,8 @@ export default function Subcontracting() {
   useScrollRestore(loaded);
   useEffect(() => { if (!subcontractingLoaded) loadSubcontracting(); }, [subcontractingLoaded, loadSubcontracting]);
 
-  const deptById = useMemo(
-    () => new Map(departments.map((d) => [d.id, d])),
-    [departments],
-  );
+  /** Карта участков — общая на массив (`utils/deptMap`), а не своя на экран */
+  const deptById = deptMapById(departments);
   const deptNameById = useMemo(
     () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
     [departments],
@@ -272,7 +279,7 @@ export default function Subcontracting() {
                   overdue={overdue}
                   canManage={canManage}
                   open={open}
-                  onToggle={() => setOpenRow(open ? null : stage.id)}
+                  onToggle={toggleRow}
                   onUpdate={updateSubcontractOp}
                 />
                 {open && sub && (

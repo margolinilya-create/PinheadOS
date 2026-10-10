@@ -17,6 +17,28 @@ import type { ErpSkuCard, ErpSkuCardFile, ErpSkuCardVersion } from '../../types'
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import type { ErpStore, SkuSlice } from '../types';
 
+/**
+ * Колонки карточки модели — поимённо. Не берутся `final_package` (jsonb
+ * пакета разработки — карточка его не показывает), `source_item_id`,
+ * `created_by`, `created_at`, `updated_at`. Один список на каталог, открытие
+ * карточки и ответ правки: строка из ответа ЗАМЕНЯЕТ строку списка, и разная
+ * форма у них означала бы поле, которое то есть, то нет.
+ *
+ * Поля описания (`FIELDS` в `SkuCardPage`) обязаны быть здесь: правка
+ * сравнивает черновик с `card[key]`, и `undefined` вместо `null` отправило бы
+ * в патч поле, которого человек не трогал. Это сторожит `store/sliceColumns.test.ts`.
+ * Литерал, а не `join`: типизированный клиент разбирает только литеральную строку.
+ */
+export const SKU_CARD_COLUMNS = `id, code, name, category, description, fit, pattern_tech_name,
+  pattern_version, card_version, status, experimental_id, price_min, price_max`;
+
+/** История карточки: снимок (`snapshot`, jsonb всей карточки) вкладка не показывает */
+export const SKU_CARD_VERSION_COLUMNS = 'id, card_id, version, changed_fields, author_id, created_at';
+
+/** Файлы техпакета: то, что рисует вкладка, плюс `superseded_at` для отбора текущих */
+export const SKU_CARD_FILE_COLUMNS =
+  'id, card_id, attachment_id, role, file_path, file_name, version, superseded_at, created_at';
+
 export const skuSlice: StateCreator<ErpStore, [], [], SkuSlice> = (set, get) => ({
   // Зеркало `domainState.DOMAIN_INITIAL_STATE` — сверяет `domainSlices.test.ts`
   skuCards: [],
@@ -27,7 +49,7 @@ export const skuSlice: StateCreator<ErpStore, [], [], SkuSlice> = (set, get) => 
   loadSkuCards: async () => {
     const { data, error } = await erpRead(() => supabase
       .from('erp_sku_cards')
-      .select('*')
+      .select(SKU_CARD_COLUMNS)
       .order('name'));
     if (error) {
       set({ skuCardsError: error.message, skuCardsLoaded: true });
@@ -76,7 +98,7 @@ export const skuSlice: StateCreator<ErpStore, [], [], SkuSlice> = (set, get) => 
       .from('erp_sku_cards')
       .update(patch)
       .eq('id', id)
-      .select());
+      .select(SKU_CARD_COLUMNS));
     const row = (data ?? [])[0] as ErpSkuCard | undefined;
     if (error || !row) {
       set({ skuCards: before });
@@ -121,7 +143,7 @@ export const skuSlice: StateCreator<ErpStore, [], [], SkuSlice> = (set, get) => 
   loadSkuCardDetail: async (id) => {
     const fresh = await erpRead(() => supabase
       .from('erp_sku_cards')
-      .select('*')
+      .select(SKU_CARD_COLUMNS)
       .eq('id', id)
       .maybeSingle());
     if (fresh.data) {
@@ -131,12 +153,12 @@ export const skuSlice: StateCreator<ErpStore, [], [], SkuSlice> = (set, get) => 
     const [versions, files] = await Promise.all([
       erpRead(() => supabase
         .from('erp_sku_card_versions')
-        .select('*')
+        .select(SKU_CARD_VERSION_COLUMNS)
         .eq('card_id', id)
         .order('version', { ascending: false })),
       erpRead(() => supabase
         .from('erp_sku_card_files')
-        .select('*')
+        .select(SKU_CARD_FILE_COLUMNS)
         .eq('card_id', id)
         .order('created_at')),
     ]);

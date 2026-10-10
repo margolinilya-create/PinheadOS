@@ -41,6 +41,21 @@ function tailSortOrder(slots: ErpCalendarSlot[], deptId: string, date: string): 
   return Math.max(...day.map((s) => Number(s.sort_order) || 0)) + 1000;
 }
 
+/**
+ * Колонки недели плана — поимённо. Не берутся `assignee`, `created_by`,
+ * `created_at`, `updated_at`: их не читает ни доска, ни карточка задачи.
+ * Строки из `planStage` (upsert) и realtime приходят полными — это нормально.
+ * Имена сверяются со снимком схемы (`store/sliceColumns.test.ts`). Литерал,
+ * а не `join`: типизированный клиент разбирает только литеральную строку.
+ */
+export const PLAN_SLOT_COLUMNS = `id, department_id, stage_id, work_date, qty_planned, qty_done,
+  status, comment, qty_defect, fact_comment, deviation_reason, fact_by, fact_at, sort_order,
+  priority, problem_type, problem_note, problem_affects_due, problem_needs_help,
+  problem_can_continue`;
+
+/** Переписка по задаче дня: все колонки таблицы читает карточка задачи */
+export const PLAN_COMMENT_COLUMNS = 'id, slot_id, author, side, text, created_at';
+
 export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) => ({
   planSlots: [],
   planComments: [],
@@ -83,7 +98,7 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
     set({ planLoading: true, planLoadError: false });
     const { data, error } = await erpRead(() => supabase
       .from('erp_calendar_slots')
-      .select('*')
+      .select(PLAN_SLOT_COLUMNS)
       .gte('work_date', fromDate)
       .lte('work_date', toDate)
       .order('work_date')
@@ -247,7 +262,7 @@ export const planSlice: StateCreator<ErpStore, [], [], PlanSlice> = (set, get) =
   loadPlanComments: async (slotId) => {
     const { data, error } = await erpQuery(() => supabase
       .from('erp_plan_comments')
-      .select('*')
+      .select(PLAN_COMMENT_COLUMNS)
       .eq('slot_id', slotId)
       .order('created_at'));
     if (error) {

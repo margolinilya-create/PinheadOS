@@ -27,7 +27,7 @@ import { ORDER_LIST_SELECT } from '../store/orderHelpers';
 
 const SRC = join(process.cwd(), 'src');
 const MODAL = withoutJsComments(
-  readFileSync(join(SRC, 'erp/screens/orders/CreateOrderModal.jsx'), 'utf8'),
+  readFileSync(join(SRC, 'erp/screens/orders/create/orderPayload.ts'), 'utf8'),
 );
 /**
  * ДВА ПРИЁМА, И ОБА ОБЯЗАТЕЛЬНЫ.

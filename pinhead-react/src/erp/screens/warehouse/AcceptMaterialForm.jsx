@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { formatDateShort } from '../../utils/time';
 import { MATERIAL_ACCEPT_LABELS, MATERIAL_STATUS_LABELS } from '../../types';
 import { confirm } from '../../../store/useConfirmStore';
+import { qtyLeftToAccept } from '../../utils/receiptLink';
 import styles from '../../styles';
 import { ScrollHintBox } from '../../components/ScrollHintBox';
 import { useCompactLayout } from '../../layout/useCompactLayout';
@@ -68,6 +69,12 @@ export function AcceptMaterialForm({ material: m, onAccept, onSetRollWeights, on
   // Приёмка — цеховой экран, и открывают её со склада, то есть с планшета
   const compact = useCompactLayout();
   const done = !awaitsAcceptance(m) && m.accept_status;
+  /**
+   * Следующая поставка частично принятой позиции (обход QA 09.10): это новый
+   * приход, а не правка прежнего — кнопка «Обновить приёмку» читалась как
+   * «исправить записанное».
+   */
+  const nextDelivery = m.accept_status === 'accepted_partial' && (qtyLeftToAccept(m) ?? 0) > 0;
   const units = useDictionary('unit');
   /**
    * УЧИТЫВАЕТСЯ ЛИ МАТЕРИАЛ РУЛОНАМИ (правка 16.09, п. 5) — решает справочник
@@ -386,7 +393,7 @@ export function AcceptMaterialForm({ material: m, onAccept, onSetRollWeights, on
           ))}
         </div>
         <Button variant="primary" loading={saving} disabled={saving || errors.length > 0} onClick={accept}>
-          {done ? 'Обновить приёмку' : 'Принять'}
+          {nextDelivery ? 'Принять поставку' : done ? 'Обновить приёмку' : 'Принять'}
         </Button>
       </div>
     </div>

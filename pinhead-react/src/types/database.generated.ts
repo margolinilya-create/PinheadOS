@@ -3905,6 +3905,16 @@ export type Database = {
         Args: { p_adjustment_id: string; p_item_id?: string }
         Returns: Json
       }
+      erp_roll_finish: {
+        Args: {
+          p_item_id?: string
+          p_kind?: string
+          p_length_m?: number
+          p_reason?: string
+          p_roll_id: string
+        }
+        Returns: Json
+      }
       erp_roll_recalc: { Args: { p_roll_id: string }; Returns: undefined }
       erp_roll_set_leftover: {
         Args: { p_item_id?: string; p_kind: string; p_roll_id: string }

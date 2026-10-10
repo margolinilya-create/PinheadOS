@@ -717,6 +717,12 @@ a.cellTitle:hover { color: var(--accent); }
 }
 .purchaseTable { width: 100%; table-layout: fixed; }
 .purchaseTable td { overflow-wrap: anywhere; vertical-align: top; }
+/* Шапка переносится (обход QA 09.10): у `.table th` — `nowrap`, а при
+   `table-layout: fixed` длинная подпись («Материал и цвет») обрезалась */
+.purchaseTable th { white-space: normal; }
+/* Таблица рулонов приёмки: шесть подписей капсом с разрядкой в одну строку
+   не помещались в широкую панель при 1440 px — «Расчётный метраж» уходил за край */
+.rollParamsTable th { white-space: normal; vertical-align: bottom; }
 .purchaseTable th:nth-child(1) { width: 48px; }
 .purchaseTable th:nth-child(4) { width: 190px; }
 .purchaseTable th:nth-child(5) { width: 112px; }

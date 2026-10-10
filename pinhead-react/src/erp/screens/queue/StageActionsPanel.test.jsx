@@ -454,3 +454,51 @@ describe('StageActionsPanel — форма записи результата о�
     expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeInTheDocument();
   });
 });
+
+/**
+ * «ЗАВЕРШИТЬ РУЛОН» НА ЭКРАНЕ ЗАДАНИЯ (обход QA 09.10). Отказ «Завершить
+ * этап» велит завершить рулон — кнопка обязана быть рядом, а не только
+ * внутри формы «Записать результат».
+ */
+describe('StageActionsPanel — рулоны в работе у закроя', () => {
+  const ROLL = {
+    id: 'r1', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 20, qty_left: 5,
+    leftover_kind: null, unit: 'кг',
+  };
+  const withRolls = (rolls) => {
+    const entry = makeEntry('in_progress');
+    const order = {
+      ...ORDER,
+      materials: [{ id: 'm1', name: 'Футер', kind: 'fabric', item_id: null, rolls }],
+      items: [{ ...entry.item, stages: [entry.stage] }],
+    };
+    return { ...entry, order, item: order.items[0] };
+  };
+
+  beforeEach(() => {
+    attachDomainSlices();
+    useErpStore.setState({
+      orders: [],
+      departments: [{ id: 'd1', name: 'Закрой', result_detail: 'rolls', result_fields: [] }],
+    });
+  });
+
+  it('рулон с остатком без судьбы — кнопка видна без открытия формы и открывает окно', () => {
+    renderCard(withRolls([ROLL]));
+    const group = screen.getByRole('group', { name: 'Рулоны в работе' });
+    expect(group).toHaveTextContent('без решения по остатку этап не закроется');
+    fireEvent.click(within(group).getByRole('button', { name: 'Завершить рулон' }));
+    expect(screen.getByRole('dialog', { name: /Завершить рулон — Рулон №1/ })).toBeInTheDocument();
+  });
+
+  it('судьба решена — блока нет', () => {
+    renderCard(withRolls([{ ...ROLL, status: 'used', leftover_kind: 'usable' }]));
+    expect(screen.queryByRole('group', { name: 'Рулоны в работе' })).toBeNull();
+  });
+
+  it('участок без разбора по рулонам — блока нет', () => {
+    useErpStore.setState({ departments: [{ id: 'd1', name: 'ВТО', result_fields: [] }] });
+    renderCard(withRolls([ROLL]));
+    expect(screen.queryByRole('group', { name: 'Рулоны в работе' })).toBeNull();
+  });
+});

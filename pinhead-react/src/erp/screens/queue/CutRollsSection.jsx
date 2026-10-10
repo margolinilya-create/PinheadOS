@@ -3,7 +3,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import {
   rollsForItem, cutTotals, rollTotal, cellKey, rollLeft, rollAvailable, rollHasMetres,
-  rollsAwaitingFate, rollLeftText, metresText, fabricAcceptedWithoutRolls,
+  metresText, fabricAcceptedWithoutRolls,
 } from '../../utils/cutRolls';
 import {
   fmtKg, kgFromLength, rollKgPerM, rollPricePerM, rollWorkingLength, sourceLabel, METRES_MISSING_TEXT,
@@ -14,7 +14,8 @@ import { cutExtras, cutExtrasText } from '../../utils/cutExtras';
 import { NO_COLOR } from '../../utils/sizeGrid';
 import { CutSizeRows } from './CutSizeRows';
 import { RollParamsForm } from '../../components/RollParamsForm';
-import { RollFinishModal } from './RollFinishModal';
+import { RollsInWork } from './RollsInWork';
+import { useRollsInWork } from './useRollsInWork';
 import { rollMetresSummary } from '../../utils/rollFinish';
 import styles from '../../styles';
 
@@ -63,26 +64,11 @@ export function CutRollsSection({
   });
   /**
    * РУЛОНЫ В РАБОТЕ — ЗАВЕРШАЮТСЯ ОТДЕЛЬНО (правка 05.10, п. 5; прежде
-   * галочкой в строке расхода — 27.09, п. 2). Список — рулоны со
-   * сохранённым расходом и остатком: позиции и те, что держат закрытие
-   * последнего этапа участка (`rollsAwaitingFate` — охват всего заказа).
-   * Завершение учитывает только УЖЕ ЗАПИСАННЫЙ расход: новая партия этой
-   * формы в остаток не входит, пока её не записали.
+   * галочкой в строке расхода — 27.09, п. 2). Завершение учитывает только
+   * УЖЕ ЗАПИСАННЫЙ расход: новая партия этой формы в остаток не входит,
+   * пока её не записали. Список и кнопки — общие с экраном задания.
    */
-  const awaitingFate = useMemo(
-    () => (stage ? rollsAwaitingFate(order?.materials, item?.id, stage, order?.items, extraRolls) : []),
-    [order, item, stage, extraRolls],
-  );
-  const inWork = useMemo(() => {
-    const seen = new Set();
-    return [...awaitingFate, ...options].filter((o) => {
-      if (seen.has(o.roll.id)) return false;
-      seen.add(o.roll.id);
-      return o.roll.status === 'in_use' && !o.roll.leftover_kind
-        && Number(o.roll.length_left_m ?? o.roll.qty_left ?? 0) > 0.0005;
-    });
-  }, [awaitingFate, options]);
-  const [finishing, setFinishing] = useState(null);
+  const { awaitingFate, inWork } = useRollsInWork({ order, item, stage, options, extraRolls });
   const choices = useMemo(() => sizeChoicesFor(item?.size_grid), [item]);
   const planned = useMemo(() => hasPlannedSizes(item?.size_grid), [item]);
   const totals = useMemo(() => cutTotals(entries), [entries]);
@@ -327,33 +313,13 @@ export function CutRollsSection({
         );
       })}
 
-      {inWork.length > 0 && onFinishRoll && (
-        <div className={styles.queueBlockForm} role="group" aria-label="Рулоны в работе">
-          <span className={styles.queueReason}>
-            {awaitingFate.length > 0 && <><Icon name="alert" size={13} />{' '}</>}
-            Рулоны в работе
-            {awaitingFate.length > 0 ? ' — без решения по остатку этап не закроется' : ''}:
-          </span>
-          {inWork.map((o) => (
-            <div key={o.roll.id} className={styles.queueActions}>
-              <span className={styles.subText}>
-                {o.label} · остаток {rollLeftText(o.roll, o.material)}
-              </span>
-              <Button variant="secondary" size="sm" disabled={disabled} onClick={() => setFinishing(o)}>
-                Завершить рулон
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-      {finishing && (
-        <RollFinishModal
-          option={finishing}
-          itemId={item?.id ?? null}
-          onFinish={onFinishRoll}
-          onClose={() => setFinishing(null)}
-        />
-      )}
+      <RollsInWork
+        inWork={inWork}
+        awaitingCount={awaitingFate.length}
+        itemId={item?.id ?? null}
+        onFinishRoll={onFinishRoll}
+        disabled={disabled}
+      />
 
       <div className={styles.queueActions}>
         <Button variant="secondary" size="sm" disabled={disabled || free.length === 0} onClick={addRoll}>

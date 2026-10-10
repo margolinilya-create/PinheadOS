@@ -121,7 +121,7 @@ export function RollParamsFields({
         </div>
       ) : (
         <ScrollHintBox className={styles.tableWrap} label="Рулоны поставки">
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.rollParamsTable}`}>
             <thead>
               <tr>
                 <th>№</th>

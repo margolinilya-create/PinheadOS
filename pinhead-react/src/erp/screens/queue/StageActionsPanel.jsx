@@ -20,6 +20,7 @@ import { DictionaryChips } from '../../components/DictionaryChips';
 import { StageReportForm } from '../../components/StageReportForm';
 import { StageResultFile } from './StageResultFile';
 import { MoveStageSelect } from './MoveStageSelect';
+import { TaskRollsInWork } from './TaskRollsInWork';
 import { embroideryProgramBlock, isFileResultStage, stageResultFiles } from '../../utils/stageResult';
 import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
@@ -147,12 +148,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   // экран цеха в простыню — здесь остаётся только признак открытого мастера.
   const [defectMode, setDefectMode] = useState(false);
   /**
-   * Ни одно действие не блокировалось на время запроса: `withPending` в сторе
-   * защищает от гонки с realtime, но не от повторного тапа. На медленном цеховом
-   * Wi-Fi рабочий не получал обратной связи, что тап засчитан, и жал ещё раз.
-   */
-  /**
-   * `busy` гасит кнопки на время запроса — двойной тап был закрыт и раньше.
+   * `busy` гасит кнопки на время запроса (`withPending` в сторе защищает от
+   * гонки с realtime, но не от повторного тапа) — двойной тап закрыт.
    * ЧЕГО НЕ ХВАТАЛО (правка 03.09): видимого «выполняется». `loading` стоял
    * только у «Взять в работу» (единственной кнопки с формой), а пять
    * остальных действий просто ГАСЛИ. На планшете по цеховому Wi-Fi это
@@ -457,6 +454,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
           )}
         </div>
       )}
+
+      {perms.progress && group === 'in_progress' && !reportMode && reportDept?.result_detail === 'rolls'
+        && <TaskRollsInWork entry={entry} disabled={busy} /> /* QA 09.10: рядом с «Завершить этап» */}
 
       {perms.progress && reportMode && !fileResult && (
         <StageReportForm

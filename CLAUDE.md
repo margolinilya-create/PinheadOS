@@ -178,260 +178,10 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 
 **ERP (префикс `erp_*`, проект pinhead-os-v2)** — полная схема в
 `pinhead-react/src/erp/types.ts` (зеркало таблиц) и в `supabase/migrations/`.
-Ядро: `erp_departments` · `erp_orders` (+ `customer`) · `erp_order_items`
-(+ техблок изделия: `fit`, `trim_material`, `cutting_note`, `sewing_note`,
-`labels_note`, и упаковка позиции `packaging`/`packaging_note`, где `inherit` —
-«как в заказе») · `erp_item_stages` (граф `depends_on`, `queue_position` —
-приоритет в очереди цеха, `assignee` — исполнитель, `executor`/`contractor`/
-`operation` — наш цех или подрядчик) · `erp_materials` (+ разделение полей
-менеджера и закупщика: `manager_note`, `qty_ordered`, `ordered_on`). Сопровождение: `erp_item_prints`,
-`erp_stage_events` (история этапов), `erp_order_audit`/`_comments`/`_attachments` (у вложений есть `item_id` и вид
-`preview|attachment|packaging|tech|purchase`),
-`erp_procurement_tasks`, `erp_subcontracting` (карточка подрядчика ПРИ этапе:
-`stage_id`, фаза `planned…ready_at_contractor…closed`, материалы
-`pinhead|contractor|mixed`, журнал `erp_subcontract_moves`), `erp_warehouse_ops`/`_tasks`,
-`erp_experimental`(+`_ops`), `erp_employees`, `erp_role_permissions` (матрица прав),
-`erp_dictionaries` (справочники админки: причины блокировок, типы проблем, типы изделий,
-поставщики, единицы измерения, крой изделия, операции маршрута), `erp_stage_reports` (журнал результатов этапов и складских
-задач), `erp_material_receipts` (частичная приёмка материалов), `erp_subcontract_moves`
-(перемещения по подряду), `erp_settings` (настройки производства key/value: общая мощность
-в изделиях за месяц), `erp_calendar_slots` (производственный план: этап × день,
-план/факт/брак, проблема) + `erp_plan_comments` (переписка по задаче дня), `erp_material_suppliers` (варианты поставщиков на позицию закупки, ровно один
-`is_selected`), `erp_client_errors` (отчёты об ошибках интерфейса от `lib/errorReport`: вставка — вошедший от своего имени, чтение — `staff.invite`, вкладка админки «Ошибки»; ни UPDATE, ни DELETE, правка 24.09), `erp_tz_documents` (ТЗ в PDF: версии внутри `group_id`, документ
-принадлежит позиции — `item_id`, либо всему заказу при `item_id = null`),
-`erp_experimental.branding_note` («Комментарий по проработке» — необязательный
-результат этапа проработки, который читает цех нанесения в своём задании,
-правка 13.09),
-`erp_order_items.garment_source` третьим значением `stock` («Склад готовой
-продукции», правка 14.09: закупки нет, склад ВЫДАЁТ изделие — в отличие
-от `customer`, где он его ПРИНИМАЕТ), вид вложения `production` («Файлы
-производства») со стражем `erp_attachment_guard` (правится только `kind`
-и только между `attachment` и `production`), право `files.manage` и роль
-`designer`,
-`erp_chat_threads`/`erp_chat_messages`/`erp_chat_mentions`/`erp_chat_reads`
-(чат внутри сделки, правка 14.09: сообщение принадлежит ТРЕДУ — тогда привязка
-разработки к сделке не требует копирования переписки; единственный писатель —
-`erp_chat_send`, у сообщений нет ни INSERT-, ни UPDATE-, ни DELETE-политики;
-отметок прочтения две — на тред и на этап), вид вложения `chat`
-с `erp_order_attachments.message_id`, `erp_notifications` (+`message_id`,
-уникальность `(user_id, message_id)`),
-`erp_sku_cards`/`erp_sku_card_versions`/`erp_sku_card_files` (каталог моделей
-ERP, правка 14.09: карточка отвечает на «как это шьётся», прайс-каталог
-визарда `app_config.sku_catalog` — на «сколько стоит», связь по `code`;
-`experimental_id` уникален, `card_version` и `pattern_version` — РАЗНЫЕ
-величины; историю пишет триггер, DELETE-политики нет) + `erp_order_items.sku_card_id`
-(ссылка, а не замена полей),
-`erp_experimental_tasks` (задачи разработки: параллельные, необязательные,
-`depends_on` внутри разработки, `cycle` — круг доработки, `stage_id` — задача,
-ушедшая в цех; её статус ведёт триггер).
-`erp_tz_assignments` и `erp_experimental_ops` **удалены 2026-08-12** вместе
-с фазовой моделью: первая была пуста с 03.08, вторая перенесена в задачи.
-
-Правки 05.10 (сессия 78) — **передаётся факт, а не план**: выход этапа —
-`qty_done`; прозрачный этап (`erp_item_stages.qty_passthrough`: пропущенный,
-непроизводственный, файловый, старый закрытый с нулём; ведёт триггер
-`erp_stage_passthrough`) передаёт свой вход. `erp_stage_input_qty` →
-`erp_stage_input_qty_d` (рекурсия), `erp_stage_output_qty`,
-`erp_item_produced_qty` (выпущено по позиции — предел склада ГП и отгрузки),
-`erp_item_production_closed`; потолок `erp_clamp_stage_qty` — вход этапа
-(кроме закроя, прозрачных и меток `erp.moving`/`erp.subcontract_rollup`);
-`erp_stage_unaccounted` — от принятого, когда предшественники закрыты;
-`erp_ship_order` не отгружает больше выпущенного. Правила —
-`docs/rules/pravila-pravok-05-10-sessiya-78.md`.
-
-Правки 01.10 (сессия 77, PR #195): ткань без единицы учитывается рулонами
-(`erp_material_tracks_rolls(kind, unit)` — зеркало `materialTracksRolls`);
-`erp_material_rolls_add` (`security definer`, `material.receive`) заводит рулоны
-к ПРИНЯТОЙ ткани без новой строки журнала приходов, ключ попытки —
-`erp_material_rolls.add_key`. DELETE-политика `erp_order_attachments` открыта
-`order.manage` для файлов формы заказа (зеркало — `utils/attachmentRights.ts`),
-`erp_tz_document_remove` снимает ТЗ (`is_current = false` у группы).
-Чат: `erp_chat_messages.author_id` допускает NULL — системное сообщение «ERP»
-(его правку и удаление держит страж `erp_chat_system_guard` на таблице — десятый страж, BEFORE UPDATE); `erp_chat_mark_seen` гасит
-и личные уведомления о показанных сообщениях; упоминание и ответ не глушатся
-режимом `none`; `erp_user_settings` (звук/окно браузера, RLS на себя);
-`erp_overdue_requests` + `erp_overdue_requests_run()` (`pg_cron` 06:00 UTC) —
-запрос причины просрочки один раз на срок.
-
-Правки 27.09 (сессия 72, PR 2) перевели **учёт полотна на погонные метры**
-(отменяет правило 20.09 «пересчёта единиц система не делает»): закупка
-по-прежнему вводит кг и цену за кг (`erp_materials.price_per_unit` — цена
-по единице материала, плюс `width_cm`/`density_gsm` как умолчания для
-рулонов), метры — свойство РУЛОНА: `erp_material_rolls.length_m` +
-`length_source` (`calc`/`supplier`/`measured`), `length_calc_m`, `kg_per_m`
-(+`_source`), `length_left_m` (+`_source`), `price_per_m` — считает
-`erp_roll_recalc` по `erp_fabric_kg_per_m` (кг × 1000 / (ширина_м ×
-плотность); зеркало — `utils/fabricMetres.ts`), пересчёт полной точности,
-округление только в показе. `erp_material_accept(…, p_roll_weights,
-p_roll_params jsonb)` принимает на рулон вес + ширину/плотность/метраж
-поставщика; `erp_material_roll_set_params` (`security definer`,
-`material.receive` ЛИБО `stage.progress`) дозаполняет и уточняет: до
-первого расхода — пересчёт, после — корректировка `length_refine` и новые
-коэффициенты для остатка (списанное не трогается). Журнал
-`erp_material_roll_adjustments` (`length_refine`/`leftover_measure`/
-`scrap_writeoff`, причина, автор, `item_id` у списания) — корректировки
-К РАСХОДУ НЕ ПРИБАВЛЯЮТСЯ. `erp_stage_report_rolls.length_used_m` +
-снимки `kg_per_m`/`price_per_m`/`cost` (правка справочника закрытые строки
-не меняет); `qty_used` (кг) остался для прежнего пути (`qty_source =
-entered`). `erp_stage_submit_report(…, p_client_key)` — ключ попытки
-(`erp_stage_reports.client_key`, уникальный частичный индекс): повтор
-не списывает дважды; отказы «Не заполнены данные для учёта в метрах…»,
-«доступно N м, а списывается M м…», «остался N м — выберите …» — тексты
-общие с формой закроя. Экономика и аналитика: `erp_fabric_usage`
-(метры, `calc_metres` — кг-строки, пересчитанные по коэффициенту рулона,
-`incomplete_kg` — непересчитанные), `erp_analytics_overview`/`_series`
-в метрах (`fabric_per_item` по отчётам закроя, `fabric_incomplete`),
-`erp_analytics_fabric_by_sku` (модель × материал × ширина),
-`erp_item_economics` → `fabric{…}`, `losses{leftovers_usable, leftovers_scrap,
-adjustments, extras, defects, wip}` («в работе» — только начатые этапы),
-`production_done`, `preliminary`, `costs{fabric, scrap, assembly, total,
-missing}`, `unit_cost_good` (затраты / годные + годные плюсы),
-`unit_cost_plan` (затраты / клиентский тираж). Пригодный остаток в затраты
-не входит. Проба на бою и четыре правки по её итогам (grant `erp_roll_recalc`,
-INSERT-политика журнала, `array_append`, WIP) — `SESSION-STATE.md`.
-
-Сверка документа 27.09 по подпунктам (28.09) добавила: `erp_material_rolls.location`
-(место хранения, пишет `erp_material_roll_set_location`), `erp_material_roll_adjustments.qty_kg/
-confirmed_at/confirmed_by`; у журнала корректировок **один писатель** — `erp_roll_adjustment_add`
-под меткой транзакции `erp.roll_adjust` (INSERT-политика снята); `erp_roll_set_leftover`
-(судьба остатка рулона «в работе» — малый остаток списанием на позицию),
-`erp_roll_adjustment_confirm` (остаточная стоимость → затраты позиции, `economics.view`),
-`erp_material_roll_set_params(…, p_weight_kg)` (чистый вес обязателен при метраже; расход в кг
-учитывается при уточнении), `erp_stage_submit_report` проверяет, ЧЕЙ рулон (свой, пригодный
-остаток или уже взятый) и снова открывает взятый остаток; `erp_fabric_leftovers()` (остатки
-по всем заказам), `erp_order_foreign_rolls(order)` (чужие рулоны, взятые заказом),
-`erp_stage_unaccounted_by_size` (разбивка — только если сходится с итогом),
-`erp_stage_after_role` (этап после сборки — для брака и незавершёнки). Программа вышивки
-держит только `p_final` (закрытие), не сдачу части.
-
-Правки 27.09 (сессия 72, PR 1) добавили **серверные гейты закрытия**:
-`erp_supply_autoclose` (триггер на `erp_materials`: закупка закрывается САМА,
-когда все материалы заказа `erp_material_fully_received` — `accepted_full`
-и `qty_received ≥ qty_expected`; идёт под меткой `erp.supply_autoclose`,
-которую `erp_stage_guard` пропускает только для перехода этапа `supply`
-в `done`), `erp_stage_unaccounted` (не учтено = greatest(тираж, принято) −
-сдано − брак; обе RPC сдачи закрывают этап по нему, а не по тиражу),
-`erp_stage_size_output`/`erp_stage_size_input` (размеры сквозь нанесение —
-зеркало `sizeInputFor`), `erp_stage_rolls_fate_block` (судьба остатков
-рулонов при закрытии последнего этапа участка), `erp_stage_program_block`
-(вышивка ждёт «Разработку программы» той же позиции),
-`erp_stage_completion_block(uuid, int, p_final)` с четырьмя ветками
-и триггер `erp_stage_done_gate` на прямом переходе в `done` (пропуск
-service role и меток `erp.force_complete`/`erp.moving`/
-`erp.subcontract_rollup`/`erp.supply_autoclose`). Это ГЕЙТЫ «можно ли
-закрыть», а не стражи колонок — стражей по-прежнему девять.
-
-Правки 21.09 (сессия 65) добавили **вес рулона, остаток полотна и плюс
-закроя**: `erp_material_rolls.qty` теперь заполняется приёмкой (`erp_material_accept`
-принимает `p_roll_weights` — пары «рулон → вес», сумма сверяется с приходом),
-плюс `qty_left` (остаток, ведёт сервер), `leftover_kind` (`usable`/`scrap`;
-NULL — рулон ещё в работе) и `price_per_unit` (снимок цены материала
-на момент приёмки: поздняя правка цены иначе перепишет себестоимость уже
-закрытых заказов). Рулонам, принятым ДО правки, вес дозаполняет склад —
-`erp_material_rolls_set_weights` (`security definer`, право `material.receive`).
-`erp_stage_submit_report` при сдаче закроя проверяет расход НАКОПИТЕЛЬНО
-(`qty_used ≤ qty − уже израсходованное`; fail-open у рулона без веса),
-пересчитывает `qty_left` и ставит `leftover_kind`; `erp_stage_report_sizes.qty_extra`
-и `erp_stage_reports.qty_extra` несут производственный «плюс» (превышение
-тиража), который раскладывается по рулонам в порядке `erp_material_rolls.seq`,
-а не по uuid. Экономика (`erp_item_economics`/`erp_order_economics`) отдаёт
-`leftover` и `qty_extra`, стоимость остатка считается по цене КОНКРЕТНОГО
-рулона. Цена у `erp_materials` обязательна для `kind = 'fabric'` — триггер
-`erp_material_price_required` **только на INSERT**: десять тканей
-из семнадцати на бою заведены без цены, и страж на UPDATE запер бы их правку.
-Плюс `erp_size_grid_merge` (разовая склейка дублей `(color, size)` в четырёх
-колонках сеток) и `erp_size_grid_cells`.
-
-Правки 20.09 (сессия 64) добавили **идемпотентную отгрузку, экономику
-и поштучное прочтение чата**: уникальность `erp_order_shipments` переехала
-на `(client_key, item_id)` (одна попытка = одна строка НА ПОЗИЦИЮ; прежний
-ключ без `item_id` ронял `23505` на любом заказе из ≥2 позиций),
-`erp_materials.size_grid_ordered` (факт «сколько заказано у поставщика
-по размерам» — отдельно от `size_grid`, где лежит потребность из заказа),
-`erp_stage_reports.assembly_cost_per_unit` (цена ЭТОЙ сдачи; колонка позиции
-остаётся итоговой, иначе средневзвешенную не посчитать),
-`erp_departments.cost_role` (`fabric`/`assembly` — роль участка
-в себестоимости, свойство В ДАННЫХ рядом с `result_detail`),
-права `stage.force_complete` (админ и директор; RPC `erp_stage_force_complete`
-с обязательной причиной + ветка в `erp_stage_guard`) и `economics.view`
-(вкладка «Экономика позиции», функции `erp_item_economics`/
-`erp_order_economics`; отбор «основное полотно» fail-open — `role = 'main'`
-ЛИБО `role is null и kind = 'fabric'`, потому что `role` заполнена
-у одной строки из двадцати пяти).
-Чат: `erp_chat_message_reads` (прочтение ПОШТУЧНО: `(message_id, user_id)`;
-watermark `erp_chat_reads` остаётся — по ней считаются текущие счётчики),
-`erp_chat_subscriptions` (режим на заказ: `all`/`mentions`/`none`, отсутствие
-строки = `mentions`, то есть сегодняшнее поведение), вид уведомления
-`chat_message`, `erp_chat_unread` переписана на формулу «позже водяной
-отметки И без строки receipts» (одна проверка «нет receipt» в утро выката
-вывалила бы всю историю как непрочитанную) и отдаёт `mentions`
-и `first_unread_id`; плюс `erp_chat_unread_many` (счётчики списка заказов
-одним запросом), `erp_chat_mark_seen`, `erp_chat_read_receipts`
-(`security definer`: «Прочитали N» иначе не собрать — свои строки видит
-только автор).
-
-Вторая очередь чата (та же сессия 64) добавила **правку, удаление, реакции
-и поиск**: `erp_chat_messages.edited_at`/`deleted_at` (удаление ЗАТИРАЕТ `body`
-и уносит упоминания, файлы и уведомления сообщения, но НЕ строку — на неё
-ссылаются цитаты), RPC `erp_chat_edit`/`erp_chat_delete` (`security definer`,
-гейт «только автор»: политик у сообщений по-прежнему нет),
-`erp_chat_reactions` (ключ — тройка `(message_id, user_id, emoji)`; здесь
-политики уместны, подделать можно ровно «Иван поставил палец») + `erp_chat_react`
-(переключает по `row_count` самого `delete`) и `erp_chat_reaction_people`,
-`erp_chat_search` (`pg_trgm` + GIN по `body`: в цеху ищут по обрывку, а
-`to_tsvector` по части слова не находит; удалённые не ищутся), плюс
-`erp_chat_reactions` в `supabase_realtime` — это единственное в переписке,
-что меняется чужими руками без нового сообщения.
-
-Правки 16.09 (сессия 63) добавили **размерный факт и рулоны**:
-`erp_stage_report_sizes` (результат этапа по размерам: отчёт × ЦВЕТ × размер —
-одна таблица на приёмку склада, раскрой и пошив, потому что по ней считается
-аналитика и проверка «сшито+брак+переделка ≤ принято по размеру»),
-`erp_material_rolls` (рулоны принятой партии: склад заводит приёмкой, номер
-сквозной внутри материала, число рулонов НЕ хранится — это `count(*)`),
-`erp_stage_report_rolls` (расход ткани с рулона; отдельно от размеров, потому
-что расход у рулона ОДИН, а размеров несколько),
-`erp_materials.kind = 'finished_good'` + `size_grid` (закупка готового изделия
-одной строкой с разбивкой; `qty_expected` при сетке считает триггер),
-`erp_material_receipts.size_grid` (факт прихода по размерам — складывается,
-а не перезаписывается), `erp_departments.result_detail` (`rolls`/`sizes` —
-детализация результата участка, свойство В ДАННЫХ рядом с `result_fields`),
-`erp_order_items.assembly_cost_per_unit` (фактическая стоимость сборки,
-единственный писатель — `erp_stage_submit_report` через узкую ветку стража),
-право `analytics.view` и функции раздела «Аналитика» (`erp_analytics_released`
-определяет выпуск ОДИН раз для всех сводок). Признак «единица учитывается
-рулонами» — в `erp_dictionaries.meta.rolls`, а не списком в коде: в `unit`
-на бою лежат и код («кг»), и имя («Килограммы») одного значения.
-
-Правки 12.09 (вторая порция, сессия 57) добавили: `erp_warehouse_tasks.material_id`
-(приёмка материалов принадлежит ПОЗИЦИИ закупки и заводится её переходом
-в `in_transit`), `erp_item_stages.result_kind` (`embroidery_program` — результат
-этапа файл, а не штуки), `erp_departments.allows_over_plan` (участок может сдать
-больше тиража — включён у закроя), вид вложения `stage_result` (файл, который цех
-СДАЁТ, в отличие от `subcontract` — тех, что подрядчику отдают) и функцию
-`erp_stage_input_qty` (серверное зеркало клиентского `stageInputQty`; с 27.09 рядом
-`erp_stage_size_input` — по размерам, и `erp_stage_unaccounted` — «не учтено»).
-
-Правки 07.09 (сессия 52) добавили: размер упаковки в мм у заказа и позиции
-(`packaging_width_mm`/`packaging_height_mm`), `erp_item_prints.garment_kind`
-(тип изделия у вышивки: на крое и полотне / на готовых / шевроны; эффект
-шелкографии живёт в существующей `special`) и вид справочника `print_effect`.
-Участок `dtg` ДЕАКТИВИРОВАН (`active = false`), роль `dtg` убрана из CHECK
-`erp_employees.role` и `erp_invites.employee_role`; значение метода
-`erp_item_prints.method = 'dtg'` осталось читаемым. Кладовщик получил
-`stage.take` и `stage.complete` — у склада появился этап маршрута (приёмка
-готового изделия перед нанесением). Плюс `erp_order_items.garment_source`
-(п. 4: `customer` — давальческое, изделие клиента; `purchased` — закупаем мы;
-NULL читается как `purchased`) — у давальческого из маршрута уходит `supply`,
-а приёмка склада обязательна даже без нанесений. Не путать
-с `material_source`: та про материал ПОДРЯДЧИКА.
-
-Правки 24.08 (сессия 41) добавили: `erp_experimental.board_stage` (колонка
-канбана ЭКС, поставленная технологом вручную; NULL — считается из задач),
-`erp_order_attachments.task_id` + вид вложения `dev_task` (файл задачи
-разработки), тип складской задачи `subcontract_send` («Передача подрядчику» —
-зеркало приёмки, п. 3) и ключ `final_package.add_to_sku` (переключатель
-карточки SKU, от него зависит обязательность её полей).
+Ядро: `erp_departments` · `erp_orders` · `erp_order_items` · `erp_item_stages` ·
+`erp_materials`. Таблицы и колонки — `docs/rules/pravila-shemy-erp-podrobno.md`;
+**журнал правок схемы по датам** (24.08–05.10) —
+`docs/rules/pravila-zhurnal-shemy-supabase-24-08-05-10.md`.
 
 **Storage:**
 | Bucket | Назначение |
@@ -440,19 +190,9 @@ NULL читается как `purchased`) — у давальческого из
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
 | `storage-backup` | Ночная копия двух бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
-Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc`
-(гейт `is_admin()`, сухой прогон по умолчанию, возрастной гейт сутки) либо
-`npm run storage:gc` с ключом `service_role` из окружения. Правила — раздел
-«Правила уборки данных и файлов». Носителей ключа ЧЕТЫРЕ (`erp_order_attachments`,
-`erp_tz_documents`, `erp_sku_card_files` — карточка модели ссылается на файл
-разработки снимком пути, без копии, — и `erp_order_drafts.payload`:
-`attachments[].path`/`tzDocs[].path` черновика, `JSON_REFERENCES`, правка 28.09),
-и список сторожится тестом `erp/utils/storageGc.test.ts`: колонки `file_path`
-он выводит из миграций (правка 24.09, сессия 67), массивы черновика — из формы
-`OrderDraftEnvelope`. Уборщиков ДВА — edge-функция и `scripts/storage-gc.mjs`, — и
-сторож читает ОБА: до сессии 68 он видел только функцию, и скрипт остался
-с двумя носителями. Клиентские удаления объекта идут через `freeOfSkuCards`;
-ошибка проверки = ничего не удалять.
+Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
+`npm run storage:gc`; носителей ключа четыре, уборщиков два, ошибка проверки =
+ничего не удалять. Подробно — `docs/rules/pravila-shemy-erp-podrobno.md`.
 
 Статусы заказа: draft → review → approved → production → done
 
@@ -477,185 +217,46 @@ NULL читается как `purchased`) — у давальческого из
 
 ## Правила кода
 
+Выжимка; полный текст длинных пунктов (история, замеры) — `docs/rules/pravila-koda-polnyy-tekst.md`.
+
 - `useShallow` для объектных селекторов Zustand — обязательно
-- `toast.error` при каждой Supabase ошибке
-- `return null` из async при ошибке (не fallback объект)
-- Optimistic update только с rollback
-- НЕ optimistic delete — ждать ответ Supabase
-- CSS токены из `:root` (--type-*, --space-*, --z-*)
-- Autofocus на первом поле формы
-- Не добавлять npm-зависимости без обсуждения
-- Не `!important` в CSS
+- `toast.error` при каждой Supabase ошибке; `return null` из async при ошибке (не fallback объект)
+- Optimistic update только с rollback; НЕ optimistic delete — ждать ответ Supabase
+- CSS токены из `:root` (--type-*, --space-*, --z-*); не `!important`
+- Autofocus на первом поле формы; npm-зависимости — только после обсуждения
 - Supabase ключи строго из `.env` (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-- RLS: политика пишется НА КОМАНДУ (`for select/insert/update/delete`), а не `for all`
-  рядом с отдельной `select` — иначе Postgres проверяет обе на каждый SELECT
-  (advisor `multiple_permissive_policies`). `auth.uid()`/`auth.role()` в предикате
-  оборачивать в `(select …)` — иначе вызов идёт на каждую строку (`auth_rls_initplan`)
-- `is_admin()`, `erp_is_manager()`, `erp_is_member()` вызываемы через REST, и advisor
-  на это ругается — **так и оставляем**: выражения RLS исполняются от лица вызывающего,
-  и отзыв `EXECUTE` сломает сами политики. Утечки нет: функции без аргументов и
-  возвращают булево о самом вызывающем. Не «чинить»
-- **Вызов функции-обёртки в политике оборачивать в `(select …)`**, как и сам
-  `auth.uid()`: `using ((select public.erp_is_member()))`. Замер 24.09
-  (`EXPLAIN` на бою): вне RLS планировщик выносит `erp_is_member()` за скан
-  сам (`One-Time Filter`), а в предикате политики оставляет обычным
-  `Filter`, то есть по строке; `(select …)` даёт `InitPlan` — один раз.
-  Advisor `auth_rls_initplan` этого НЕ видит: он ищет голый `auth.uid()`,
-  а не вызов функции. Новые политики пишем сразу с обёрткой; массовую
-  переделку существующих делать только с замером до и после — на сотнях
-  строк выигрыш неизмерим, а переписывание предиката рискует их ослабить
-- При logout вызывать `storageClearAll()` — чистит все app-ключи
-- Удаление пользователя: soft-delete (active=false), не hard delete
-- Auth: ProfileStatus state machine (active/pending_approval/disabled/no_profile)
-- Dev-mode created_by: фильтровать 'dev' → null (и в saveOrder, и в duplicateOrder)
-- deleteSkuPhotoByUrl: проверять результат, показывать toast.error при ошибке
-- **Order v4 пишется, ERP не трогается** (решение владельца 28.09): код Order
-  только ЧИТАЕТ типы и чистые хелперы ERP; правка `erp/` и `erp_*` — отдельным
-  решением. Поле формы ERP без записи в `ITEM_FIELD_SOURCES`/`FORM_FIELD_SOURCES`
-  моста роняет typecheck и сторож `orderstudio/bridge/tzToErpDraft.test.ts`.
-  Экраны и данные Order не импортируют РАНТАЙМ ERP (типы можно): общий модуль
-  сборщик выносит в чанк оболочки ERP — сторож `orderstudio/erpImports.test.ts`
-- **Визард Order Studio внутри «Заказов v4» — только через сессию позиции**
-  (`orderstudio/wizard/itemSession.ts`): шаги визарда пишут в общий `useStore`
-  рядом с недоделанным заказом главной, поэтому вход снимает его в память
-  и ставит на паузу черновик (`useDraft.setDraftPaused`), выход возвращает.
-  Пауза снимается ДО возврата состояния — подписка черновика синхронна.
-  Блокировщик ухода (`useBlocker` в `OrderStudioApp`) читает `useStore.getState()`
-  В МОМЕНТ перехода: сброс визарда и `navigate` в одном обработчике иначе
-  ловят «Заказ не сохранён» по шагу из прошлого рендера
-- ERP: доступ только через `useErpAccess` (право из матрицы + принадлежность цеху),
-  кнопки этапа — через `useStagePermissions` (у каждого действия своё право);
-  приоритет очереди — `reorderStageQueue`, перенос между цехами — `moveStageToDepartment`
-  с подтверждением последствий; прогресс считается в штуках (`erp/utils/progress`)
-- ERP: финальный ОТК (`qc`) — последний этап производственного маршрута, зависит от
-  ВСЕХ терминальных этапов (нанесение на готовом = параллельные ветки); маршрут без
-  производственных этапов ОТК не получает. Галочка «Финальный ОТК» живёт только
-  в форме — этапы материализуются при создании заказа
-- ERP, realtime: коалесценция событий живёт в `store/realtimeCoalesce.ts`
-  (серия событий → одно перечитывание, таймер на заказ — свой); пакет
-  оболочки `erp_bootstrap` — первый кадр, флаги `*Loaded` ставят только
-  загрузчики экранов (его форма беднее); возврат вкладки — один resync
-  (`focus` не слушается). `useErpStore()` без селектора запрещён
-  (сторож `selectorRequired.test.ts`). Правила сессии 69 —
-  `docs/rules/pravila-obzora-26-09-sessiya-69.md`
-- ERP, realtime, переподключение (сессия 73): **живой канал ровно один**,
-  его метка — в `store/realtimeReconnect.ts`; статусы канала, закрытого
-  нашей же отпиской (`CLOSED`, запоздалый `CHANNEL_ERROR`, эхо `SUBSCRIBED`),
-  игнорируются, слушатели `online`/`visibilitychange` ставятся один раз
-  на подписку. Прежняя редакция заводила по каналу и паре слушателей
-  на каждый круг переподключения: за ночь вкладка копила сотни каналов,
-  а на пробуждении выпускала всплеск одинаковых `loadAll` — «ничего
-  не загружается». Сторож — `store/realtimeReconnect.test.ts` (мок
-  `removeChannel` присылает `CLOSED` синхронно, как настоящий клиент
-  при мёртвом сокете)
-- Сторож, читающий файлы, идёт под `// @vitest-environment node` первой строкой
-  (сторож `guardEnv.test.ts`); обходчик исходников — `src/testutil/sourceFiles.ts`;
-  миграции читаются через `migrations.testutil` (кэш на модуль)
-- Дата для показа — `utils/date.parseDateLocal`; `new Date('YYYY-MM-DD')` — UTC
-  и сдвиг дня западнее Гринвича (сторож в `utils/deadline.test.ts`); сырой
-  байт 0x00 в исходнике запрещён — `CELL_SEP` из `utils/cellKey.ts`
-- ERP: боковая карточка заказа ведётся в адресе (`?order=`) — открытие пушит запись
-  истории, закрытие снимает её же, «Назад» и ✕ совпадают
-- ERP, необратимое действие этапа: последствия считает чистая утилита с тестами и
-  формулирует их текстом — `utils/stageDone` (закрытие с недосдачей),
-  `utils/stageDefect` (возврат брака через промежуточные этапы). Записывать факт
-  «по умолчанию весь тираж» / молча откатывать маршрут нельзя
-- Справочники ERP (`erp_dictionaries`) — подсказка, а не ограничение; значения отключаются,
-  а не удаляются. Статусы в справочник не выносятся — они часть маршрутной логики
-- Материальный гейт — из данных: `erp_departments.gate_material_kinds` (какие виды
-  материала блокируют запуск участка), правится в админке. Пусто = не гейтится
-  (fail-open). Константы вида «ткань → закрой» в коде не держать
-- Группы очереди: `awaiting_materials` (нет материалов) отделена от `waiting`
-  (ждёт предыдущий этап, ТЗ или закупку) — это разные решения руководителя.
-  На канбане у обеих и у `blocked` свои дорожки, «Ожидают материалы» — перед «Готово»
-- Производственный план (`/plan`) — РУЧНОЙ инструмент: система план не составляет
-  и остаток сама не переносит, она показывает отклонение, а новую дату ставит
-  человек. Раскладка живёт в `erp_calendar_slots`; «убрать из плана» —
-  `status='cancelled'`, не DELETE (факт и переписка остаются, повтор идёт upsert-ом)
-- План ставит роль `production_head` (право `plan.manage`), факт вносит цех
-  (`plan.fact` + принадлежность цеху). Диспетчеру `plan.manage` НЕ даётся —
-  иначе снятая у одного галочка отключает работу другого
-- Мощности цехов (`capacity_per_day`) не возвращать: удалены осознанно миграцией
-  20260716170000, загрузка выражается в штуках
-- Матрица прав действует и НА СЕРВЕРЕ: `erp_has_permission(право)` +
-  `erp_role_of_caller()` — дословное зеркало `resolveErpRole` из
-  `utils/permissions.ts`. Расхождение двух реализаций даёт худший отказ («кнопка
-  есть, сервер отвечает 42501»), поэтому его сторожит тест `serverPermissions.test.ts`,
-  читающий саму миграцию. Отсутствие права в матрице на сервере = запрет
-  (на клиенте там работает `DEFAULT_PERMISSIONS`, но это защита от неудачной загрузки)
-- Одна UPDATE-операция под разными правами разделяется ТРИГГЕРОМ по изменившимся
-  колонкам, а не политикой: RLS работает на уровне строки. Пустой `auth.uid()`
-  в таком страже — это service_role, его пропускаем: он и так минует RLS,
-  и запирать починку через SQL нельзя.
-  **Стражей девять, а не пять** (сверка с живой базой 23.09 — прежняя редакция
-  этого правила называла первые четыре): `erp_stage_guard` (этапы),
-  `erp_order_guard` / `erp_order_item_guard` (заказ и позиция),
-  `erp_calendar_guard` (план), `erp_attachment_guard` (вложения),
-  `erp_material_guard` (приёмка материала), `erp_notification_guard`,
-  `erp_sku_card_guard`, `erp_dev_package_guard`. Рядом стоит
-  `erp_clamp_stage_qty` — он не запрещает, а молча правит количества
-  (срезает отрицательные, держит потолок факта, ведёт `finished_at`),
-  и искать в нём гейт бесполезно
-- **Страж перечисляет ИСКЛЮЧЕНИЯ, а не охраняемые колонки** (правка 24.09).
-  Поимённый список отстаёт от схемы молча: колонка, добавленная позже
-  отдельной миграцией, не попадает в него и не охраняется ВООБЩЕ ничем — так
-  четыре колонки `erp_orders` (`purchase_required`, `delivered_at`,
-  `tz_order_id`, `tz_number`) оказались открыты любому участнику ERP при
-  зелёном стороже. Сравнивайте снимки строки (`to_jsonb(new)` против
-  `to_jsonb(old)` минус разрешённые поля), как это делают `erp_order_guard`
-  и `erp_order_item_guard`: тогда новая колонка защищена по умолчанию.
-  Сторож тоже проверяет ОТСУТСТВИЕ перечисления, а не присутствие известных
-  полей — второе было зелёным всё время, пока дыра существовала.
-  С сессии 68 так устроены и `erp_stage_guard`, `erp_calendar_guard`,
-  `erp_attachment_guard`, `erp_notification_guard` (`20260924231233`: у вложений
-  открытым был `message_id`, у этапов — `id`/`created_at`) и `erp_sku_card_guard`
-  (`20260924235701`: держатель `sku.edit` перепривязывал карточку к чужой
-  разработке) — семь из девяти; набор исключений сторожа читают общим
-  `snapshotExclusions` из `migrations.testutil`. У каждого исключения — своя
-  проверка, иначе поле открыто всем, кого пускает политика.
-  `erp_material_guard` — НЕ тот класс: он сторожит узкое подмножество приёмки
-  в таблице, открытой решением 10.08, и перевод на исключения запер бы закупщика;
-  `erp_dev_package_guard` — гейт полноты пакета, а не разбор прав по колонкам
-- **Ссылка `on delete set null` у таблицы со стражем требует ветки «родитель
-  удалён»** (правка 24.09). Postgres обнуляет ссылку UPDATE-ом, страж видит его
-  с `auth.uid()` удаляющего, и неизменная колонка запирает УДАЛЕНИЕ РОДИТЕЛЯ:
-  проба на бою — удаление позиции-источника карточки SKU падало 42501 даже
-  у админа. Ветка: `new.x is null and old.x is not null and not exists (родитель)`.
-  Сторож `guardSetNull.test.ts` сверяет все девять стражей с `FK_SNAPSHOT.md`
-- **Страж и клиентский гейт ставятся ОДНИМ коммитом.** `erp_orders` UPDATE стоял
-  на `erp_is_member()` без разбора колонок — рабочий цеха мог через REST сменить
-  срок и менеджера любого заказа. Но и клиент инлайн-правки не гейтил: страж
-  в одиночку дал бы запрещённое «кнопка есть, действие падает». Прежде чем
-  закрывать дыру на сервере — проверьте, закрыта ли она в интерфейсе
-- `revoke execute … from anon` сам по себе НЕ РАБОТАЕТ: право приходит от PUBLIC
-  (`=X/postgres` в ACL), а `anon` его наследует. Отзывать нужно
-  `from public, anon` и следом явно `grant … to authenticated` — иначе отберёте
-  доступ у самих политик. После отзыва проверьте `set local role authenticated`
-- Страж разрешает ровно то, что разрешает интерфейс. Строже клиента — «кнопка есть,
-  а действие падает», и виноватым выглядит цех; мягче — дыра. Поэтому переход
-  в `done` принимает `stage.progress` (факт добрал тираж и закрыл этап сам) и
-  `stage.move_department` (перенос закрывает исходный этап), а не только `complete`
-- **Плановые даты этапа охраняются С ОБЕИХ СТОРОН** — `order.manage` в `PlanCell`
-  и `erp_stage_guard` на сервере. Прежняя редакция этого правила («стражем
-  НЕ охраняются, гейт нужен») описывала состояние ДО того, как гейт поставили,
-  и устарела: проверка на живой базе 07.09 показала 42501 у рабочего и на своём
-  этапе, и на чужом. Устаревшее правило хуже отсутствующего — по нему пошли бы
-  «закрывать дыру», которой нет, и ослабили рабочий гейт. Правила про гейты
-  сверяйте с базой, а не с их прошлой формулировкой
-- ТЗ в PDF принадлежит ПОЗИЦИИ и автоматически видно всем цехам её маршрута
-  (`itemTzDocument`: своё ТЗ позиции → общее ТЗ заказа). Назначать документ каждому
-  цеху не нужно — этот шаг отменён 2026-08-03. Гейт (`utils/tz`) требует ТЗ только
-  у производственных цехов и только при `tz_required === true` (fail-open: остановка
-  цеха не должна случаться из-за отсутствующего поля). Заказ с ТЗ создаётся одной
-  транзакцией: файлы в бакет → `erp_create_order` с секцией `tz`
-- Ключ объекта в Storage — строго ASCII (`tzFilePath` транслитерирует кириллицу).
-  Supabase проверяет ключ регуляркой S3-safe символов, где `\w` без флага `u`, и на
-  русское имя файла отвечает `InvalidKey`. На этом ломалось создание ЛЮБОГО заказа
-  с ТЗ; человекочитаемое имя живёт в `erp_tz_documents.file_name`
-- Файл, который человек видит приложенным, обязан быть в бакете: загрузка идёт при
-  выборе файла, у каждого своё состояние (загружается/загружено/ошибка), и submit
-  заблокирован, пока есть незавершённые. Грузить в сабмите нельзя — интерфейс
-  показывал приложенным то, чего в Storage нет
+- RLS: политика НА КОМАНДУ, не `for all` рядом с `select`; `auth.uid()`/`auth.role()`
+  и функцию-обёртку в предикате — в `(select …)`
+- `is_admin()`, `erp_is_manager()`, `erp_is_member()` открыты REST — **так и оставляем**, не «чинить»
+- Logout — `storageClearAll()`; удаление пользователя — soft-delete (active=false);
+  Auth — ProfileStatus state machine
+- Dev-mode created_by: 'dev' → null (saveOrder и duplicateOrder); deleteSkuPhotoByUrl —
+  проверять результат, toast.error при ошибке
+- **Order v4 пишется, ERP не трогается**: Order только читает типы и чистые хелперы ERP
+- Визард внутри «Заказов v4» — только через сессию позиции (`orderstudio/wizard/itemSession.ts`)
+- ERP: доступ — `useErpAccess`, кнопки этапа — `useStagePermissions`; прогресс в штуках;
+  финальный ОТК (`qc`) зависит от ВСЕХ терминальных этапов
+- ERP, realtime: `useErpStore()` без селектора запрещён; **живой канал ровно один**
+- Сторож, читающий файлы, — `// @vitest-environment node` первой строкой
+- Дата для показа — `utils/date.parseDateLocal`; байт 0x00 — только `CELL_SEP`
+- ERP: боковая карточка заказа — в адресе (`?order=`)
+- Необратимое действие этапа: последствия считает утилита и называет текстом
+- Справочники — подсказка, значения отключаются, не удаляются; статусы не в справочнике
+- Материальный гейт — из данных (`gate_material_kinds`), пусто = fail-open
+- Очередь: `awaiting_materials` ≠ `waiting`
+- План (`/plan`) — РУЧНОЙ, «убрать» = `cancelled`, не DELETE; план ставит
+  `production_head`, факт — цех; диспетчеру `plan.manage` не давать
+- `capacity_per_day` не возвращать — загрузка в штуках
+- Матрица прав действует и НА СЕРВЕРЕ (зеркало `resolveErpRole`); нет права = запрет
+- Права по колонкам — ТРИГГЕР-страж, не политика. **Стражей девять, а не пять**
+- **Страж перечисляет ИСКЛЮЧЕНИЯ, а не охраняемые колонки**
+- `on delete set null` у таблицы со стражем — ветка «родитель удалён»
+- **Страж и клиентский гейт — ОДНИМ коммитом**; страж разрешает ровно то, что интерфейс
+- `revoke` — `from public, anon`, затем `grant … to authenticated`
+- Плановые даты этапа охраняются С ОБЕИХ СТОРОН; гейты сверять с базой
+- ТЗ в PDF принадлежит ПОЗИЦИИ, видно всем цехам маршрута; гейт ТЗ fail-open
+- Ключ объекта в Storage — строго ASCII (`tzFilePath`)
+- Файл, видимый приложенным, обязан быть в бакете: загрузка при выборе, не в сабмите
 
 ## Где искать правило
 

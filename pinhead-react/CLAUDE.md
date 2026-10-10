@@ -13,7 +13,9 @@ URL: https://pinhead-os.vercel.app
   с именем/типом/размером — 27.09 п. 12), SizeGridEditor (не даёт завести вторую строку того же цвета —
   дубли удваивали ввод, правка 21.09 п. 8), DraftPicker (выбор черновика прямо
   в форме; окна подтверждения при выходе больше нет — 21.09 п. 6),
-  FormParts, ItemBlock, TzSection — форма разрезана);
+  FormParts, ItemBlock (+ PrintBlock/CopyPrintPicker/TechBlock/LabelsBlock/PackagingBlock/
+  RouteBlock — блоки позиции), TzSection, useOrderSubmit (сабмит), useOrderDraft (черновик),
+  orderPayload.ts (сборка payload правки и создания) — форма разрезана, 09.10);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
   MoveStageSelect (перенос в цех из панели)/CutRollsSection (закрой по рулонам;
