@@ -33,18 +33,25 @@ export const ZONE_LABELS = {
   'front-panel':'Тулья спереди', 'back-panel':'Тулья сзади',
   'side-panel':'Боковая панель', 'side-a':'Сторона A', 'side-b':'Сторона B',
   hood:'Капюшон', pocket:'Карман',
-  'sleeve-l':'Лев. рукав', 'sleeve-r':'Прав. рукав'
+  'sleeve-l':'Лев. рукав', 'sleeve-r':'Прав. рукав',
+  'leg-l':'Лев. штанина', 'leg-r':'Прав. штанина'
 };
 
 export const DEFAULT_USD_RATE = 92;
 
+// Зоны по правке CRM 13.10, п. 11: рукава — без штанов, шорт и сумок; у сумок —
+// стороны A/B; у штанов и шорт — штанины (размеры зон согласуются с производством);
+// капюшон — только у моделей с капюшоном, карман — если он в конструкции или выбран
+const SLEEVE_CATEGORIES = ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers'];
 export const ZONES_CATALOG_DEFAULT = [
-  { id: 'front',    name: 'Грудь (перед)',  forCategories: null, sortOrder: 1 },
-  { id: 'back',     name: 'Спина',          forCategories: null, sortOrder: 2 },
-  { id: 'sleeve-l', name: 'Левый рукав',    forCategories: null, sortOrder: 3 },
-  { id: 'sleeve-r', name: 'Правый рукав',   forCategories: null, sortOrder: 4 },
-  { id: 'hood',     name: 'Капюшон',        forCategories: ['hoodies','ziphoodies','halfzips'], sortOrder: 5 },
-  { id: 'pocket',   name: 'Карман',          forCategories: null, sortOrder: 6 },
+  { id: 'front',    name: 'Грудь (перед)',  forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','pants','shorts'], sortOrder: 1 },
+  { id: 'back',     name: 'Спина',          forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','pants','shorts'], sortOrder: 2 },
+  { id: 'sleeve-l', name: 'Левый рукав',    forCategories: SLEEVE_CATEGORIES, sortOrder: 3 },
+  { id: 'sleeve-r', name: 'Правый рукав',   forCategories: SLEEVE_CATEGORIES, sortOrder: 4 },
+  { id: 'hood',     name: 'Капюшон',        forCategories: null, requiresHood: true, sortOrder: 5 },
+  { id: 'pocket',   name: 'Карман',         forCategories: null, requiresPocket: true, sortOrder: 6 },
   { id: 'side-a',   name: 'Сторона A',      forCategories: ['accessories'], sortOrder: 7 },
   { id: 'side-b',   name: 'Сторона B',      forCategories: ['accessories'], sortOrder: 8 },
+  { id: 'leg-l',    name: 'Левая штанина',  forCategories: ['pants','shorts'], sortOrder: 9 },
+  { id: 'leg-r',    name: 'Правая штанина', forCategories: ['pants','shorts'], sortOrder: 10 },
 ];

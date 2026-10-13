@@ -35,7 +35,7 @@ export default function PricePanel({ order, price }) {
         <span className={styles.muted}>Маржа</span>
         <span className={`${styles.num} ${styles.muted}`}>{rub(price.margin)} · {pct(price.margin_pct)}</span>
       </div>
-      {order.urgent && <div className={styles.muted}>Срочность включена в цену за штуку</div>}
+      {order.urgent && <div className={styles.muted}>Срочный пошив включён в цену изделия; нанесения — без надбавки</div>}
       {price.below_threshold && (
         <div className={styles.alert} role="status">Маржа ниже порога — цену согласует РОП или директор</div>
       )}

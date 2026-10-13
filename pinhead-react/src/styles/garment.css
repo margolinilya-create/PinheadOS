@@ -582,3 +582,4 @@ input[type="text"].qty-input {
   .photo-lightbox-next { right: 8px; }
   .photo-lightbox-close { top: 8px; right: 8px; }
 }
+.fabric-not-found { margin: var(--space-xs) 0; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm); background: var(--bg-warning); color: var(--color-warning-ink); font-size: var(--type-body-sm); }

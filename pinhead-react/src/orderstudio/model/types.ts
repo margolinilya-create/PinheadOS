@@ -165,8 +165,10 @@ export interface SalesOrder {
   // ── продажные ──
   delivery_method: 'pickup' | 'courier' | 'carrier' | '';
   delivery_address: string;
-  /** Срочность: +`urgentMult` прайса (по умолчанию 20 %) ко всему заказу */
+  /** Срочность (прежний флажок): без `urgent_days` читается как 5 дней */
   urgent: boolean;
+  /** Срочный пошив: на сколько дней сокращён срок — 0/5/10/15 (+15/30/50 % к изделию) */
+  urgent_days?: number;
   discount: SalesDiscount | null;
   payments: SalesPayment[];
   items: SalesItem[];

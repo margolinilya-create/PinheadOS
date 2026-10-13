@@ -7,7 +7,7 @@ import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { supabase } from '../../lib/supabase';
 import { clearCatalogsCache } from '../../lib/catalogs';
 import { toast } from '../../store/useToastStore';
-import { invalidatePricesCache } from '../../utils/pricing';
+import { invalidatePricesCache, getSkuEstPrice } from '../../utils/pricing';
 import { storageSet } from '../../lib/storage';
 import SkuItemsTab from './sku/SkuItemsTab';
 import SkuFabricsTab from './sku/SkuFabricsTab';
@@ -20,6 +20,7 @@ import ZonesCatalogTab from './sku/ZonesCatalogTab';
 import AddSkuModal from './sku/AddSkuModal';
 import ZonesModal from './sku/ZonesModal';
 import { factoryToday } from '../../utils/date';
+import { searchFabrics } from '../../utils/materialSearch';
 
 const TABS = [
   { id: 'items', name: 'Изделия' },
@@ -99,7 +100,9 @@ export default function SkuEditor() {
     const currentTrims = state.trimCatalog;
     const currentExtras = state.extrasCatalog;
     const currentHardware = state.hardwareCatalog;
-    const currentPrices = state.prices;
+    // Курс — в прайс: раньше он жил только в localStorage этого браузера и
+    // при следующей загрузке перетирался прайсом базы (правка 13.10)
+    const currentPrices = { ...state.prices, usdRate: state.usdRate };
     const currentRules = state.categoryRules;
     const currentZones = state.zonesCatalog;
     try {
@@ -185,7 +188,7 @@ export default function SkuEditor() {
     setField('fabricsCatalog', [...fabricsCatalog, {
       code: generateCode('новая-ткань-' + (fabricsCatalog.length + 1)),
       name: 'Новая ткань', supplier: 'Медас', composition: '100% хб',
-      density: null, priceUSD: 10.00, forCategories: ['tshirts'],
+      density: null, priceRub: 0, unit: 'm', mPerKg: null, priceUSD: 0, forCategories: ['tshirts'],
     }]);
   };
   const deleteFabric = (idx) => {
@@ -201,7 +204,7 @@ export default function SkuEditor() {
   const addTrim = () => {
     setField('trimCatalog', [...trimCatalog, {
       code: generateCode('новая-отделка-' + (trimCatalog.length + 1)),
-      name: 'Новая отделка', supplier: 'Медас', priceUSD: 13.20,
+      name: 'Новая отделка', supplier: 'Медас', kind: null, priceRub: 0, unit: 'm', mPerKg: null, priceUSD: 0,
     }]);
   };
   const deleteTrim = (idx) => {
@@ -266,11 +269,15 @@ export default function SkuEditor() {
     }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(skuData), 'SKU');
     const fabData = fabricsCatalog.map(f => ({
-      'Код': f.code, 'Название': f.name, '$ за метр': f.priceUSD,
+      'Код': f.code, 'Название': f.name, '₽ за пог. м': f.priceRub ?? '', 'м/кг': f.mPerKg ?? '',
+      'Состав': f.composition || '', 'Плотность': f.density ?? '',
       'Категории': (f.forCategories || []).join(','), 'Поставщик': f.supplier || '',
     }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(fabData), 'Ткани');
-    const trimData = trimCatalog.map(t => ({ 'Код': t.code, 'Название': t.name, '$ за метр': t.priceUSD }));
+    const trimData = trimCatalog.map(t => ({
+      'Код': t.code, 'Название': t.name, 'Поставщик': t.supplier || '', 'Вид': t.kind || '',
+      'Цена ₽': t.priceRub ?? '', 'Ед.': t.unit === 'pcs' ? 'шт' : 'м', 'м/кг': t.mPerKg ?? '',
+    }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(trimData), 'Отделка');
     const extData = extrasCatalog.map(e => ({ 'Код': e.code, 'Название': e.name, 'Цена ₽': e.price }));
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(extData), 'Обработки');
@@ -302,15 +309,23 @@ export default function SkuEditor() {
       const fabSheet = wb.Sheets['Ткани'];
       if (fabSheet) {
         const rows = window.XLSX.utils.sheet_to_json(fabSheet);
+        // Только ₽ за метр: колонку «$ за метр» прежней выгрузки не читаем —
+        // в ней лежала цена за кг (правка 13.10)
         setField('fabricsCatalog', rows.map(r => ({
-          code: r['Код'] || '', name: r['Название'] || '', priceUSD: Number(r['$ за метр']) || 3,
+          code: r['Код'] || '', name: r['Название'] || '',
+          priceRub: Number(r['₽ за пог. м']) || 0, unit: 'm', mPerKg: Number(r['м/кг']) || null, priceUSD: 0,
+          composition: r['Состав'] || '', density: Number(r['Плотность']) || null,
           forCategories: (r['Категории'] || '').split(',').filter(Boolean), supplier: r['Поставщик'] || '',
         })));
       }
       const trimSheet = wb.Sheets['Отделка'];
       if (trimSheet) {
         const rows = window.XLSX.utils.sheet_to_json(trimSheet);
-        setField('trimCatalog', rows.map(r => ({ code: r['Код'] || '', name: r['Название'] || '', priceUSD: Number(r['$ за метр']) || 2.5 })));
+        setField('trimCatalog', rows.map(r => ({
+          code: r['Код'] || '', name: r['Название'] || '', supplier: r['Поставщик'] || '',
+          kind: r['Вид'] || null, priceRub: Number(r['Цена ₽']) || 0,
+          unit: r['Ед.'] === 'шт' ? 'pcs' : 'm', mPerKg: Number(r['м/кг']) || null, priceUSD: 0,
+        })));
       }
     };
     input.click();
@@ -339,20 +354,13 @@ export default function SkuEditor() {
   const filteredFabrics = useMemo(() => {
     let items = fabricsCatalog;
     if (fabricSupplierFilter !== 'all') items = items.filter(f => f.supplier === fabricSupplierFilter);
-    if (fabricSearch.trim()) {
-      const q = fabricSearch.toLowerCase();
-      items = items.filter(f => (f.name || '').toLowerCase().includes(q) || (f.composition || '').toLowerCase().includes(q));
-    }
-    return items;
-  }, [fabricsCatalog, fabricSupplierFilter, fabricSearch]);
+    // По всему каталогу: модель + поставщик + ткань (правка 13.10, п. 10)
+    return searchFabrics(items, fabricSearch, SKU_CATEGORIES, skuCatalog);
+  }, [fabricsCatalog, fabricSupplierFilter, fabricSearch, skuCatalog]);
 
-  const estimatePrice = (s) => {
-    const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(s.category));
-    const fabricCost = fabric ? Math.round(s.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
-    const trim = trimCatalog.find(t => t.code === s.trimCode);
-    const trimCost = trim ? Math.round((s.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
-    return s.sewingPrice + fabricCost + trimCost;
-  };
+  // Себестоимость — та же функция, что в визарде и в «Заказах v4» (правка 13.10:
+  // своя копия формулы здесь множила цену за кг на метры)
+  const estimatePrice = (s) => Math.round(getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate));
 
   return (
     <div className="sku-ed-overlay">
@@ -415,14 +423,14 @@ export default function SkuEditor() {
           fabricSupplierFilter={fabricSupplierFilter} setFabricSupplierFilter={setFabricSupplierFilter}
           fabricSearch={fabricSearch} setFabricSearch={setFabricSearch}
           filteredFabrics={filteredFabrics} fabricsCatalog={fabricsCatalog}
-          changedFabrics={changedFabrics} usdRate={usdRate}
+          changedFabrics={changedFabrics}
           updateFabric={updateFabric} addFabric={addFabric} deleteFabric={deleteFabric}
         />
       )}
 
       {tab === 'trims' && (
         <SkuTrimsTab
-          trimCatalog={trimCatalog} changedTrims={changedTrims} usdRate={usdRate}
+          trimCatalog={trimCatalog} changedTrims={changedTrims}
           updateTrim={updateTrim} addTrim={addTrim} deleteTrim={deleteTrim}
         />
       )}

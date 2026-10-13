@@ -88,7 +88,8 @@ describe('priceItem — позиция', () => {
     const plain = priceItem(item(), P, CAT, DEFAULT_PRICE_RULES, false);
     const old = core.calcTotalBreakdown(P, wizardState());
     const urgent = priceItem(item(), P, CAT, DEFAULT_PRICE_RULES, true);
-    expect(urgent.calc_unit).toBe(ceil5(old.unitPrice * (1 + (P.urgentMult || 0.2))));
+    // Прежний флажок «срочно» = 5 дней: +15 % к изделию (нанесений здесь нет)
+    expect(urgent.calc_unit).toBe(ceil5(old.markedBase * 1.15));
     expect(urgent.calc_unit).toBeGreaterThan(plain.calc_unit);
   });
 
@@ -164,7 +165,7 @@ describe('priceOrder — заказ', () => {
 
   it('считает по ПЕРЕДАННОМУ прайсу', () => {
     const o = newSalesOrder({ items: [item()] });
-    const pricier = { ...P, markupTiers: [1], markupByType: {}, markupDefault: [5] };
+    const pricier = { ...P, overhead: 2 };
     expect(priceOrder(o, pricier, CAT).total).toBeGreaterThan(priceOrder(o, P, CAT).total);
   });
 });

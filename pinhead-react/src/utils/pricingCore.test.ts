@@ -51,17 +51,28 @@ describe('pricingCore — цены аргументом', () => {
     expect(core.getZoneSurcharge(doubled, 'front', state())).toBe(base * 2);
   });
 
-  it('наценка по тиражу берётся из переданного прайса', () => {
-    const flat: core.PricesExt = { ...P, markupTiers: [1], markupByType: {}, markupDefault: [0.5] };
+  it('наценка по группе и тиражу берётся из переданного прайса', () => {
+    const flat: core.PricesExt = { ...P, markupTiers: [1], markupGroups: { A: [0.5], B: [0.5], C: [0.5] } };
     const b = core.calcTotalBreakdown(flat, state());
     expect(b.markupPct).toBe(0.5);
-    expect(b.markedBase).toBe(Math.round(b.cost * 1.5));
+    expect(b.markedBase).toBe(Math.round(b.cost * (1 + b.overheadPct) * 1.5));
   });
 
-  it('срочность — множитель из прайса поверх цены единицы', () => {
+  it('накладные — из переданного прайса', () => {
+    const b = core.calcTotalBreakdown({ ...P, overhead: 0 }, state());
+    const c = core.calcTotalBreakdown({ ...P, overhead: 1 }, state());
+    expect(b.overhead).toBe(0);
+    expect(c.overhead).toBeCloseTo(c.cost, 2);
+    expect(c.markedBase).toBeGreaterThan(b.markedBase);
+  });
+
+  it('срочность пошива — из прайса, к изделию, не к нанесению', () => {
     const plain = core.calcTotalBreakdown(P, state());
-    const urgent = core.calcTotalBreakdown({ ...P, urgentMult: 0.5 }, state({ urgentOption: true }));
-    expect(urgent.unitPrice).toBe(plain.unitPrice + Math.round(plain.unitPrice * 0.5));
+    const urgent = core.calcTotalBreakdown({ ...P, urgentByDays: { 5: 0.5, 10: 0.6, 15: 0.7 } }, state({ urgentDays: 5 }));
+    expect(urgent.urgentPct).toBe(0.5);
+    expect(urgent.print).toBe(plain.print);
+    expect(Math.abs(urgent.urgent - plain.markedBase * 0.5)).toBeLessThanOrEqual(1);
+    expect(Math.abs(urgent.unitPrice - (plain.unitPrice + urgent.urgent))).toBeLessThanOrEqual(1);
   });
 
   it('calcTotal и calcTotalBreakdown сходятся по итогу', () => {

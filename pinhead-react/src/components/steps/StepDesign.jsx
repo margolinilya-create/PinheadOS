@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS, TECH_NAMES } from '../../data';
 import { hasNoPrint, getZoneSurcharge } from '../../utils/pricing';
-import { getZoneName } from '../../utils/skuRules';
+import { getZoneName, zonesForSku } from '../../utils/skuRules';
 import { toast } from '../../store/useToastStore';
 import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
@@ -46,14 +46,14 @@ function getZoneMiniSummary(zone, state) {
 export default function StepDesign() {
   const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
     sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones,
-    artworkPath, setArtworkPath, zonesCatalog } = useStore(
+    artworkPath, setArtworkPath, zonesCatalog, extras, extrasCatalog } = useStore(
     useShallow(s => ({ sku: s.sku, type: s.type, color: s.color, zones: s.zones, toggleZone: s.toggleZone,
       noPrint: s.noPrint, toggleNoPrint: s.toggleNoPrint, designNotes: s.designNotes, setField: s.setField,
       nextStep: s.nextStep, prevStep: s.prevStep, sizes: s.sizes, customSizes: s.customSizes,
       zoneTechs: s.zoneTechs, zonePrints: s.zonePrints, flexZones: s.flexZones, dtgZones: s.dtgZones,
       embZones: s.embZones, dtfZones: s.dtfZones,
       artworkPath: s.artworkPath, setArtworkPath: s.setArtworkPath,
-      zonesCatalog: s.zonesCatalog }))
+      zonesCatalog: s.zonesCatalog, extras: s.extras, extrasCatalog: s.extrasCatalog }))
   );
   const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes };
   const [screenConfirmed, setScreenConfirmed] = useState(false);
@@ -63,7 +63,10 @@ export default function StepDesign() {
     return <div className="step-panel"><div className="empty-state">Сначала выберите изделие</div></div>;
   }
 
-  const displayZones = sku.zones || [];
+  // Зоны, которые модель допускает: категория, капюшон, карман (правка 13.10, п. 11)
+  const displayZones = zonesCatalog?.length
+    ? zonesForSku(zonesCatalog, sku, extras || [], extrasCatalog || []).map(z => z.id)
+    : (sku.zones || []);
   const noPrintType = hasNoPrint(type);
 
   return (

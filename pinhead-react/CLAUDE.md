@@ -176,6 +176,8 @@ URL: https://pinhead-os.vercel.app
 ## Не трогать без тестов
 - utils/pricing.ts + pricingCore.ts — 88 тестов (pricing.test.js + pricing-extended.test.js)
   и pricingCore.test.ts; формула — в ядре, pricing.ts — обёртки с getPrices()
+- utils/costRules.ts + printRules.ts — формула правок CRM 13.10 (накладные, группы наценки,
+  срочность, DTF/DTG/вышивка); контрольные примеры документа — costRules.test.ts, printRules.test.ts
 - orderstudio/ — priceOrder (16), tzToErpDraft (22, сторож контракта с формой ERP),
   salesOrders (7, туда-обратно с RPC), useSalesStore (очередь автосохранения),
   erpImports (сторож: без рантайм-импорта ERP), wizardAdapter (13), itemSession (5),

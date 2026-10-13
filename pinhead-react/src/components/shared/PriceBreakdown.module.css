@@ -20,3 +20,13 @@
 .pb-row-total { font-weight: 700; font-size: 13px; color: var(--text); }
 .pb-row-total .pb-val { color: var(--accent); }
 .pb-divider { border-top: 1px solid var(--border-light); margin: 4px 0; }
+
+.pb-row-sum .pb-name, .pb-row-sum .pb-val { font-weight: 600; }
+.pb-error {
+  margin-bottom: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-error);
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}

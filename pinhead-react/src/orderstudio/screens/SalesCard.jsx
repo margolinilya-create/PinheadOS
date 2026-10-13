@@ -8,6 +8,8 @@ import PricePanel from './PricePanel';
 import { useOrderPrice } from './useOrderPrice';
 import { STATUS_LABELS } from './labels';
 import styles from './Sales.module.css';
+import { orderUrgentDays } from '../pricing/priceOrder';
+import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
 
 const SAVE_LABELS = {
   idle: '',
@@ -96,9 +98,13 @@ export default function SalesCard() {
               <label className={styles.field}>Срок (дата в КП)
                 <input className={styles.input} type="date" value={order.due_date} onChange={(e) => set({ due_date: e.target.value })} />
               </label>
-              <label className={styles.check}>
-                <input type="checkbox" checked={order.urgent} onChange={(e) => set({ urgent: e.target.checked })} />
-                Срочный заказ
+              <label className={styles.field}>Срочный пошив
+                <select className={styles.select} value={orderUrgentDays(order)}
+                  onChange={(e) => { const d = Number(e.target.value); set({ urgent_days: d, urgent: d > 0 }); }}>
+                  {URGENT_DAY_OPTIONS.map((d) => (
+                    <option key={d} value={d}>{d === 0 ? 'Обычный срок' : `На ${d} дней раньше (+${Math.round(URGENT_BY_DAYS[d] * 100)} % к изделию)`}</option>
+                  ))}
+                </select>
               </label>
               <div className={styles.field}>Скидка на заказ
                 <div className={styles.row}>

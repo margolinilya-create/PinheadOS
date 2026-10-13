@@ -47,6 +47,7 @@ export function wizardOrderToSalesOrder(
       due_date: str(state.deadline),
       delivery_address: str(state.address),
       urgent: !!state.urgentOption,
+      urgent_days: typeof state.urgentDays === 'number' ? state.urgentDays : (state.urgentOption ? 5 : 0),
       packaging: packNote ? 'individual' : 'none',
       packaging_note: packNote ?? '',
       items,

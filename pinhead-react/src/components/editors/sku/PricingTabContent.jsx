@@ -7,6 +7,9 @@ import { invalidatePricesCache } from '../../../utils/pricing';
 import { confirm } from '../../../store/useConfirmStore';
 import { clearCatalogsCache } from '../../../lib/catalogs';
 import { storageGet, storageSet, storageRemove } from '../../../lib/storage';
+import { mergePrices } from '../../../store/slices/catalogSlice';
+import { EmbroideryTab, DtfTab, DtgTab, MarkupGroupsTab } from './PricingRulesTabs';
+import { setIn, getIn } from '../../../utils/pathSet';
 
 const STORAGE_KEY = 'ph_prices';
 const HISTORY_KEY = 'ph_price_history';
@@ -56,26 +59,10 @@ const TABS = [
   { id: 'dtf', name: 'DTF' },
   { id: 'dtg', name: 'DTG' },
   { id: 'flex', name: 'Флекс' },
-  { id: 'markup', name: 'Наценки' },
+  { id: 'markup', name: 'Наценки и накладные' },
   { id: 'extras', name: 'Доп' },
   { id: 'history', name: 'История' },
 ];
-
-const MARKUP_CATEGORIES = [
-  { key: 'tshirts',      label: 'Футболки' },
-  { key: 'longsleeves',  label: 'Лонгсливы' },
-  { key: 'sweatshirts',  label: 'Свитшоты' },
-  { key: 'halfzips',     label: 'Халф-зипы' },
-  { key: 'hoodies',      label: 'Худи' },
-  { key: 'ziphoodies',   label: 'Зип-худи' },
-  { key: 'polo',         label: 'Поло' },
-  { key: 'bombers',      label: 'Бомберы' },
-  { key: 'pants',        label: 'Штаны' },
-  { key: 'shorts',       label: 'Шорты' },
-  { key: 'accessories',  label: 'Аксессуары' },
-];
-
-const DTG_FORMAT_ORDER = ['A6', 'A5', 'A4', 'A3', 'A3+'];
 
 /**
  * PricingTabContent — pricing editor UI, designed to be embedded as a tab
@@ -91,8 +78,10 @@ export default function PricingTabContent({ onDirtyChange }) {
   useEffect(() => {
     loadPricesFromSupabase().then(remote => {
       if (remote) {
-        setPrices(remote);
-        storageSet(STORAGE_KEY, remote);
+        // Поверх умолчаний: ключ, которого в базе нет, редактор видит из кода
+        const merged = mergePrices(remote);
+        setPrices(merged);
+        storageSet(STORAGE_KEY, merged);
       }
     });
   }, []);
@@ -134,29 +123,16 @@ export default function PricingTabContent({ onDirtyChange }) {
   };
 
   const undoItem = (entry) => {
-    const parts = entry.field.split('.');
-    const p = { ...prices };
-    if (parts.length === 1) {
-      p[parts[0]] = entry.was;
-    } else if (parts.length === 2) {
-      p[parts[0]] = { ...p[parts[0]], [parts[1]]: entry.was };
-    } else if (parts.length === 4) {
-      const [section, fmt, col, tier] = parts;
-      p[section] = { ...p[section] };
-      p[section][fmt] = { ...p[section][fmt] };
-      p[section][fmt][col] = [...p[section][fmt][col]];
-      p[section][fmt][col][Number(tier)] = entry.was;
-    }
-    setPrices(p);
+    setPrices(p => setIn(p, entry.field.split('.'), entry.was));
     setChanged(c => c + 1);
   };
 
-  const updateField = (section, key, value) => {
-    const old = prices[section]?.[key];
-    const num = Number(value);
-    if (isNaN(num) || num < 0 || num > 1000000) return;
-    setPrices(p => ({ ...p, [section]: { ...p[section], [key]: num } }));
-    addHistory(`${section}.${key}`, old, num);
+  /** Запись числа по пути (правки 13.10: таблицы вышивки, DTF, DTG, групп наценки) */
+  const setAt = (path, value) => {
+    if (typeof value !== 'number' || isNaN(value) || value < 0 || value > 1000000) return;
+    const old = getIn(prices, path);
+    setPrices(p => setIn(p, path, value));
+    addHistory(path.join('.'), old, value);
   };
 
   const updateScalar = (key, value) => {
@@ -264,6 +240,7 @@ export default function PricingTabContent({ onDirtyChange }) {
 
       <h3>Наценки шелкографии</h3>
       <div className="pe-grid pe-grid-surcharges">
+        <p className="pe-hint">Надбавки «цветной» и «футер» не складываются — берётся большая, затем коэффициент эффекта.</p>
         <label className="pe-input-row">
           <span className="pe-input-label">Цветной текстиль</span>
           <input type="number" step="0.1" value={prices.screenColoredMult ?? 1.3} onChange={e => updateScalar('screenColoredMult', e.target.value)} />
@@ -278,110 +255,19 @@ export default function PricingTabContent({ onDirtyChange }) {
         </label>
         <label className="pe-input-row">
           <span className="pe-input-label">PUFF</span>
-          <input type="number" step="0.1" value={prices.screenFxPuffMult ?? 2.0} onChange={e => updateScalar('screenFxPuffMult', e.target.value)} />
+          <input type="number" step="0.1" value={prices.screenFxPuffMult ?? 1.5} onChange={e => updateScalar('screenFxPuffMult', e.target.value)} />
         </label>
         <label className="pe-input-row">
           <span className="pe-input-label">Металлик</span>
-          <input type="number" step="0.1" value={prices.screenFxMetallicMult ?? 2.0} onChange={e => updateScalar('screenFxMetallicMult', e.target.value)} />
+          <input type="number" step="0.1" value={prices.screenFxMetallicMult ?? 1.2} onChange={e => updateScalar('screenFxMetallicMult', e.target.value)} />
         </label>
         <label className="pe-input-row">
           <span className="pe-input-label">Флюр</span>
-          <input type="number" step="0.1" value={prices.screenFxFluorMult ?? 2.0} onChange={e => updateScalar('screenFxFluorMult', e.target.value)} />
-        </label>
-      </div>
-    </div>
-  );
-
-  const renderEmbroideryTab = () => (
-    <div className="pe-section">
-      <h3>Вышивка — расчёт по стежкам</h3>
-      <div className="pe-grid">
-        <label className="pe-input-row">
-          <span className="pe-input-label">Стежков на 1 см²</span>
-          <input type="number" value={prices.embStitchesPerCm2 ?? 300} onChange={e => updateScalar('embStitchesPerCm2', e.target.value)} />
+          <input type="number" step="0.1" value={prices.screenFxFluorMult ?? 1.2} onChange={e => updateScalar('screenFxFluorMult', e.target.value)} />
         </label>
         <label className="pe-input-row">
-          <span className="pe-input-label">Цена за 1000 стежков</span>
-          <input type="number" value={prices.embPricePerThousand ?? 14} onChange={e => updateScalar('embPricePerThousand', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Мин. цена вышивки</span>
-          <input type="number" value={prices.embMinPrice ?? 50} onChange={e => updateScalar('embMinPrice', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Металлик ×</span>
-          <input type="number" step="0.1" value={prices.embMetallicMult ?? 1.2} onChange={e => updateScalar('embMetallicMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Объёмная (puff) ×</span>
-          <input type="number" step="0.1" value={prices.embPuffMult ?? 1.5} onChange={e => updateScalar('embPuffMult', e.target.value)} />
-        </label>
-      </div>
-      <div className="pe-hint" style={{ marginTop: 12 }}>
-        Цена = (площадь_см² × стежков_на_см² × заполняемость) / 1000 × цена_за_1000
-      </div>
-    </div>
-  );
-
-  const renderDtfTab = () => (
-    <div className="pe-section">
-      <h3>DTF — расчёт по площади плёнки</h3>
-      <div className="pe-grid">
-        <label className="pe-input-row">
-          <span className="pe-input-label">Цена метра плёнки</span>
-          <input type="number" value={prices.dtfPricePerMeter ?? 1400} onChange={e => updateScalar('dtfPricePerMeter', e.target.value)} />
-          <span className="pe-input-unit">&#8381;/м</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Цена переноса</span>
-          <input type="number" value={prices.dtfTransferPrice ?? 50} onChange={e => updateScalar('dtfTransferPrice', e.target.value)} />
-          <span className="pe-input-unit">&#8381;/шт</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Ширина рулона</span>
-          <input type="number" value={prices.dtfFilmWidth ?? 550} readOnly style={{ opacity: 0.6 }} />
-          <span className="pe-input-unit">мм</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Зазор между макетами</span>
-          <input type="number" min="5" max="20" step="1" value={prices.dtfGap ?? 10} onChange={e => updateScalar('dtfGap', e.target.value)} />
-          <span className="pe-input-unit">мм</span>
-        </label>
-      </div>
-      <div className="pe-hint" style={{ marginTop: 12 }}>
-        Цена за зону = (высота_макета × цена_метра / макетов_в_ряду) + перенос
-      </div>
-    </div>
-  );
-
-  const renderDtgTab = () => (
-    <div className="pe-section">
-      <h3>DTG</h3>
-      <div className="pe-grid">
-        <label className="pe-input-row">
-          <span className="pe-input-label">Базовая цена</span>
-          <input type="number" value={prices.tech?.dtg ?? 280} onChange={e => updateField('tech', 'dtg', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
-        </label>
-      </div>
-      <h3>Надбавки за формат</h3>
-      <div className="pe-grid">
-        {DTG_FORMAT_ORDER.map(key => (
-          <label key={key} className="pe-input-row">
-            <span className="pe-input-label">{key}</span>
-            <input type="number" value={prices.dtgFormatAdd?.[key] ?? 0} onChange={e => updateField('dtgFormatAdd', key, e.target.value)} />
-            <span className="pe-input-unit">&#8381;</span>
-          </label>
-        ))}
-      </div>
-      <h3>Белая подложка</h3>
-      <div className="pe-grid">
-        <label className="pe-input-row">
-          <span className="pe-input-label">Цена подложки</span>
-          <input type="number" value={prices.dtgWhiteUnder ?? 60} onChange={e => updateScalar('dtgWhiteUnder', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
+          <span className="pe-input-label">Вытравка</span>
+          <input type="number" step="0.05" value={prices.screenFxDischargeMult ?? 1.35} onChange={e => updateScalar('screenFxDischargeMult', e.target.value)} />
         </label>
       </div>
     </div>
@@ -442,75 +328,11 @@ export default function PricingTabContent({ onDirtyChange }) {
           <input type="number" value={prices.pack ?? 15} onChange={e => updateScalar('pack', e.target.value)} />
           <span className="pe-input-unit">&#8381;</span>
         </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Срочный заказ</span>
-          <input
-            type="number"
-            step="1"
-            value={Math.round((prices.urgentMult ?? 0.2) * 100)}
-            onChange={e => updateScalar('urgentMult', Number(e.target.value) / 100)}
-          />
-          <span className="pe-input-unit">%</span>
-        </label>
       </div>
       <h3>Минимальный тираж по технике</h3>
       <p className="pe-hint">Настраивается через конфигурацию заказа</p>
     </div>
   );
-
-  const updateMarkup = (catKey, tierIdx, value) => {
-    const num = Number(value);
-    if (isNaN(num)) return;
-    const pct = num / 100;
-    const old = prices.markupByType?.[catKey]?.[tierIdx];
-    setPrices(p => {
-      const mbt = { ...p.markupByType };
-      mbt[catKey] = [...(mbt[catKey] || p.markupDefault || [])];
-      mbt[catKey][tierIdx] = pct;
-      return { ...p, markupByType: mbt };
-    });
-    addHistory(`markupByType.${catKey}.${tierIdx}`, old, pct);
-  };
-
-  const renderMarkupTab = () => {
-    const tiers = prices.markupTiers || [1, 25, 50, 100, 200, 300, 500, 1000];
-    return (
-      <div className="pe-section">
-        <h3>Наценка по категориям и тиражу</h3>
-        <p className="pe-hint">Значения в % — наценка на себестоимость</p>
-        <table className="pe-matrix-table pe-markup-table">
-          <thead>
-            <tr>
-              <th>Категория</th>
-              {tiers.map((t, i) => <th key={i}>{t}+</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {MARKUP_CATEGORIES.map(({ key, label }) => {
-              const row = prices.markupByType?.[key] || prices.markupDefault || [];
-              return (
-                <tr key={key}>
-                  <td className="pe-matrix-label pe-markup-cat">{label}</td>
-                  {tiers.map((t, ti) => (
-                    <td key={ti}>
-                      <input
-                        type="number"
-                        className="pe-matrix-input"
-                        step="1"
-                        value={Math.round((row[ti] ?? 0) * 100)}
-                        aria-label={`Наценка ${label}, от ${t} шт.`}
-                        onChange={e => updateMarkup(key, ti, e.target.value)}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
 
   const renderHistoryTab = () => (
     <div className="pe-section">
@@ -563,11 +385,11 @@ export default function PricingTabContent({ onDirtyChange }) {
       {/* ── Body ── */}
       <div className="pe-body">
         {tab === 'screen' && renderScreenTab()}
-        {tab === 'embroidery' && renderEmbroideryTab()}
-        {tab === 'dtf' && renderDtfTab()}
-        {tab === 'dtg' && renderDtgTab()}
+        {tab === 'embroidery' && <EmbroideryTab prices={prices} setAt={setAt} />}
+        {tab === 'dtf' && <DtfTab prices={prices} setAt={setAt} />}
+        {tab === 'dtg' && <DtgTab prices={prices} setAt={setAt} />}
         {tab === 'flex' && renderFlexTab()}
-        {tab === 'markup' && renderMarkupTab()}
+        {tab === 'markup' && <MarkupGroupsTab prices={prices} setAt={setAt} />}
         {tab === 'extras' && renderExtrasTab()}
         {tab === 'history' && renderHistoryTab()}
       </div>

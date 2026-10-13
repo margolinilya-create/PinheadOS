@@ -125,6 +125,42 @@ export function getAvailableZonesForSku(
     .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
 }
 
+/** Обработка, добавляющая карман, — по коду или названию */
+export function isPocketExtra(e: { code: string; name?: string }): boolean {
+  return /pocket/i.test(e.code) || /карман/i.test(e.name || '');
+}
+
+/**
+ * Зоны, которые модель реально допускает (правка CRM 13.10, п. 11):
+ * - категория зоны (`forCategories`; null — все);
+ * - «Капюшон» (`requiresHood`) — только у модели с капюшоном (`sku.hasHood`);
+ * - «Карман» (`requiresPocket`) — если карман в конструкции (`sku.hasPocket`)
+ *   или выбран обработкой.
+ * `sku.zones` — выбор администратора; пустой — все допустимые.
+ */
+export function zonesForSku(
+  zonesCatalog: ZoneDefinition[],
+  sku: Pick<SkuItem, 'category' | 'zones' | 'hasHood' | 'hasPocket'> | null | undefined,
+  extras: string[] = [],
+  extrasCatalog: { code: string; name?: string }[] = [],
+): ZoneDefinition[] {
+  if (!sku) return [];
+  const pocketByExtra = extras.some((c) => {
+    const e = extrasCatalog.find((x) => x.code === c);
+    return e ? isPocketExtra(e) : /pocket/i.test(c);
+  });
+  const allowed = getAvailableZonesForSku(zonesCatalog, sku.category).filter((z) => {
+    if (z.requiresHood && !sku.hasHood) return false;
+    if (z.requiresPocket && !sku.hasPocket && !pocketByExtra) return false;
+    return true;
+  });
+  const picked = sku.zones || [];
+  // Карман, добавленный обработкой, виден, даже если админ не отметил его у модели
+  return picked.length
+    ? allowed.filter((z) => picked.includes(z.id) || (z.requiresPocket && pocketByExtra))
+    : allowed;
+}
+
 /**
  * Resolve zone display name: first from dynamic catalog, fallback to ZONE_LABELS constant.
  */

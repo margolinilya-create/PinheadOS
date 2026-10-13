@@ -572,6 +572,7 @@ td.pe-markup-cat,
 .fabric-price-inp::-webkit-inner-spin-button,
 .fabric-price-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .fabric-price-inp { -moz-appearance:textfield; }
+.fabric-legacy-hint { margin-top:2px; font-size:var(--type-label); color:var(--color-warning-ink); white-space:nowrap; }
 .supplier-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px; vertical-align:middle; }
 .cat-pill { display:inline-block; padding:1px 5px; font-size:9px; border-radius:3px; background:var(--surface); color:var(--text-dim); margin:1px 2px 1px 0; white-space:nowrap; }
 .supplier-filter { display:flex; gap:4px; }

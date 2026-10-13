@@ -20,7 +20,7 @@ const resetFields: Record<string, unknown> = {
   ...(defaultItemFields as unknown as Record<string, unknown>),
   phone: '', messenger: '', bitrixDeal: '', role: 'manager',
   name: '', contact: '', email: '', deadline: '', address: '', notes: '',
-  packOption: false, packType: 'none', urgentOption: false,
+  packOption: false, packType: 'none', urgentOption: false, urgentDays: 0,
 };
 
 export const orderSlice = (set: SetFn, get: GetFn) => ({
@@ -110,6 +110,8 @@ export const orderSlice = (set: SetFn, get: GetFn) => ({
       packOption: (d.packOption as boolean) || false,
       packType: (d.packType as string) || ((d.packOption as boolean) ? 'bopp' : 'none'),
       urgentOption: (d.urgentOption as boolean) || false,
+      // Заказы до правки 13.10 знали только флажок: он = 5 дней
+      urgentDays: typeof d.urgentDays === 'number' ? d.urgentDays : (d.urgentOption ? 5 : 0),
     });
   },
 

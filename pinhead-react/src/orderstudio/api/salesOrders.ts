@@ -15,6 +15,7 @@ import type {
   SalesDiscount, SalesGrid, SalesItem, SalesLabel, SalesOrder, SalesOrderStatus, SalesPrint,
 } from '../model/types';
 import type { OrderPrice } from '../pricing/priceOrder';
+import { orderUrgentDays } from '../pricing/priceOrder';
 
 // ── Строки базы ─────────────────────────────────────────────────────────────
 
@@ -143,6 +144,8 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     delivery_method: r.delivery_method ?? '',
     delivery_address: str(r.delivery_address),
     urgent: !!r.urgent,
+    // До миграции order_v4_urgent_days столбца нет: флажок = 5 дней
+    urgent_days: Number(r.urgent_days) > 0 ? Number(r.urgent_days) : (r.urgent ? 5 : 0),
     discount,
     payments: [],
     items: [...(r.order_items ?? [])].sort(bySort).map(itemFromRow),
@@ -179,6 +182,7 @@ export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null
     stickers_note: order.stickers_note,
     no_chestny_znak: order.no_chestny_znak,
     urgent: order.urgent,
+    urgent_days: orderUrgentDays(order),
     discount: order.discount,
     price_total: price ? price.total : null,
     price_margin_pct: price ? price.margin_pct : null,
@@ -245,5 +249,14 @@ export async function saveSalesOrder(payload: Row): Promise<SaveResult | null> {
     console.error('order_v4_save', error);
     return null;
   }
-  return data as SaveResult;
+  const saved = data as SaveResult;
+  // Дни срочного пошива — отдельным RPC: order_v4_save пишет только флажок (13.10)
+  if (typeof payload.urgent_days === 'number') {
+    const res = await supabase.rpc('order_v4_set_urgent_days', { p_order_id: saved.id, p_days: payload.urgent_days });
+    if (res.error) {
+      console.error('order_v4_set_urgent_days', res.error);
+      return null;
+    }
+  }
+  return saved;
 }

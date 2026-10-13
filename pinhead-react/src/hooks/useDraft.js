@@ -14,7 +14,7 @@ export const DRAFT_FIELDS = [
   'zoneTechs', 'zonePrints', 'flexZones', 'dtgZones', 'embZones', 'dtfZones',
   'zoneArtworks', 'designNotes', 'artworkPath', 'sizeComment', 'phone', 'messenger', 'bitrixDeal',
   'role', 'name', 'contact', 'email', 'deadline', 'address', 'notes',
-  'packOption', 'packType', 'urgentOption', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
+  'packOption', 'packType', 'urgentOption', 'urgentDays', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];
 
 /**
