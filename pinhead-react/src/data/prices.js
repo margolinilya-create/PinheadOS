@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════
 // PRICES — таблицы цен, наценки, матрицы
 // ═══════════════════════════════════════════
+import { MARKUP_TIERS, MARKUP_GROUPS, MARKUP_GROUP_OF, URGENT_BY_DAYS, DEFAULT_OVERHEAD } from '../utils/costRules';
+import { EMB_TIERS, EMB_RATES, EMB_SURCHARGES, DTF_STEPS, DTG_TIERS, DTG_TABLE, DTG_PLACEMENT_MULT } from '../utils/printRules';
 
 export const PRICES = {
   // Базовые цены по типам изделий
@@ -49,38 +51,65 @@ export const PRICES = {
   },
   screenColoredMult: 1.3,
   screenFutherMult: 1.5,
+  // Коэффициенты эффектов (правка 13.10, п. 7); надбавки «цветной» и «футер»
+  // не складываются — берётся большая, затем эффект
   screenFxStoneMult: 2.0,
-  screenFxPuffMult: 2.0,
-  screenFxMetallicMult: 2.0,
-  screenFxFluorMult: 2.0,
-  screenFxOptions: ['none','stone','puff','metallic','fluor'],
+  screenFxPuffMult: 1.5,
+  screenFxMetallicMult: 1.2,
+  screenFxFluorMult: 1.2,
+  screenFxDischargeMult: 1.35,
+  screenFxOptions: ['none','stone','puff','metallic','fluor','discharge'],
 
-  // DTG: надбавка за формат + белая подложка
+  // DTG: таблица «размер × текстиль × тираж» (13.10, п. 9); старые поля — для истории
+  dtgTiers: DTG_TIERS,
+  dtgTable: DTG_TABLE,
+  dtgPlacementMult: DTG_PLACEMENT_MULT,
   dtgFormatAdd: {'A6':0,'A5':30,'A4':60,'A3':120,'A3+':180},
   dtgWhiteUnder: 60,
-  // Вышивка: расчёт по стежкам
+  // Вышивка: ₽ за 1000 стежков по способу и тиражу, надбавки суммируются (13.10, п. 7)
   embStitchesPerCm2: 300,
+  embTiers: EMB_TIERS,
+  embRates: EMB_RATES,
+  embSurcharges: EMB_SURCHARGES,
+  // Минимум за нанесение по способу — владелец согласует и впишет (13.10: «пока без минимума»)
+  embMinByMode: { cut: 0, garment: 0, patch: 0 },
   embPricePerThousand: 14,
   embMetallicMult: 1.2,
   embPuffMult: 1.5,
-  embMinPrice: 50,
+  embMinPrice: 0,
   embAreaAdd: {s:0, m:80, l:180},
   embColorAdd: 20,
-  // DTF: расчёт по площади плёнки
-  dtfPricePerMeter: 1400,
+  // DTF: ступени ₽/м по непрерывному метражу, к оплате — целые метры (13.10, п. 8)
+  dtfSteps: DTF_STEPS,
+  dtfPricePerMeter: 1500,
   dtfTransferPrice: 50,
   dtfFilmWidth: 550,
+  dtfPad: 10,
   dtfGap: 10,
   dtfFormatAdd: {'A6':0,'A5':20,'A4':50,'A3':100,'A3+':160},
   label:30, pack:0, packOptions:[
     {key:'none', name:'Без упаковки', price:0},
     {key:'bopp', name:'БОПП пакет',   price:20},
     {key:'zip',  name:'ЗИП пакет',    price:40},
-  ], urgentMult:0.2,
+  ],
+  // Прежний флажок «срочно» без дней = 5 дней (+15 %); urgentMult больше не читается
+  urgentMult:0.15,
+  // Срочность пошива: сокращение срока, дней → надбавка; только к изделию, не к нанесениям
+  urgentByDays: URGENT_BY_DAYS,
+  // Курс: рублёвые цены не пересчитываются; $ — только у старых карточек без priceRub
+  usdRate: 92.70,
+  // Накладные расходы на себестоимость изделия (13.10, п. 1)
+  overhead: DEFAULT_OVERHEAD,
   fit:{ regular:0, free:50, oversize:100 },
 
-  // Наценка на себестоимость по тиражу и категории изделия
-  markupTiers: [1, 25, 50, 100, 200, 300, 500, 1000],
+  // Наценка по группе изделия и тиражу (13.10, п. 6). Группа А — футболки,
+  // лонгсливы, свитшоты, худи, зипы, халф-зипы, олимпийки, бомберы; Б — поло,
+  // регбийки, штаны, шорты; В — шопперы
+  markupTiers: MARKUP_TIERS,
+  markupGroups: MARKUP_GROUPS,
+  markupGroupOf: MARKUP_GROUP_OF,
+  // Прежняя наценка по категории — не читается, пока есть markupGroups
+  markupTiersLegacy: [1, 25, 50, 100, 200, 300, 500, 1000],
   markupByType: {
     tshirts:     [0.75, 0.75, 0.70, 0.65, 0.55, 0.50, 0.45, 0.40],
     longsleeves: [0.75, 0.75, 0.70, 0.65, 0.55, 0.50, 0.45, 0.40],

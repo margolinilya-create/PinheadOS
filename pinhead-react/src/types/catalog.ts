@@ -63,7 +63,20 @@ export interface SkuItem {
   allowedExtras?: string[] | null;
   /** Restrict available sizes (null/undefined = use category rules) */
   availableSizes?: string[] | null;
+  /** Обработки, уже включённые в цену пошива: второй раз не начисляются */
+  includedExtras?: string[];
+  /** Доп. материалы на изделие, ₽ (поло и регбийки — отдельной строкой, не воротник) */
+  extraMaterials?: number;
+  /** Группа наценки, если не совпадает с категорией (олимпийка в категории polo — группа A) */
+  markupGroup?: 'A' | 'B' | 'C';
+  /** Есть капюшон — зона «Капюшон» доступна */
+  hasHood?: boolean;
+  /** Карман предусмотрен конструкцией — зона «Карман» доступна */
+  hasPocket?: boolean;
 }
+
+/** Единица материала: метр или штука (воротник) */
+export type MaterialUnit = 'm' | 'pcs';
 
 export interface Fabric {
   code: string;
@@ -71,7 +84,13 @@ export interface Fabric {
   supplier: string;
   composition: string;
   density: number | null;
+  /** Устаревшая цена в $ — читается, только если нет priceRub */
   priceUSD: number;
+  /** Цена за единицу `unit`, ₽ (правка 13.10: ₽ за погонный метр) */
+  priceRub?: number | null;
+  unit?: MaterialUnit;
+  /** Метров в килограмме — для пересчёта при закупке в кг; в цену не входит */
+  mPerKg?: number | null;
   forCategories: string[];
 }
 
@@ -79,7 +98,14 @@ export interface Trim {
   code: string;
   name: string;
   supplier: string;
+  /** Устаревшая цена в $ — читается, только если нет priceRub */
   priceUSD: number;
+  /** Цена за единицу `unit`, ₽: метр рибаны/кашкорсе, штука воротника */
+  priceRub?: number | null;
+  unit?: MaterialUnit;
+  mPerKg?: number | null;
+  /** Вид отделки; нет — по названию */
+  kind?: 'ribana' | 'kashkorse' | 'collar' | null;
 }
 
 export declare const FABRIC_SUPPLIERS: string[];

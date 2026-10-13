@@ -6,6 +6,11 @@ import { PRICES, SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFA
 import { toast } from '../useToastStore';
 import type { CategoryRules, ZoneDefinition } from '../../types/catalog';
 
+/** Прайс из базы поверх умолчаний кода (неглубоко: таблица целиком — из базы) */
+export function mergePrices(db: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  return { ...(PRICES as Record<string, unknown>), ...(db || {}) };
+}
+
 type SetFn = (update: Record<string, unknown> | ((s: Record<string, unknown>) => Record<string, unknown>)) => void;
 
 export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) => ({
@@ -18,15 +23,19 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
   hardwareCatalog: HARDWARE_CATALOG_DEFAULT,
   categoryRules: [] as CategoryRules[],
   zonesCatalog: ZONES_CATALOG_DEFAULT as ZoneDefinition[],
-  usdRate: 92,
+  usdRate: (PRICES as Record<string, unknown>).usdRate as number,
 
   loadCatalogs: async () => {
     const patch: Record<string, unknown> = {};
     try {
       const catalogs = await loadAllCatalogs();
       if (catalogs.prices) {
-        patch.prices = catalogs.prices;
-        if ((catalogs.prices as Record<string, unknown>).usdRate) patch.usdRate = (catalogs.prices as Record<string, unknown>).usdRate;
+        // Прайс базы — ПОВЕРХ умолчаний: ключ, которого в базе ещё нет
+        // (накладные, группы наценки — правка 13.10), берётся из кода, а не
+        // пропадает целиком, как было при замене объекта
+        const merged = mergePrices(catalogs.prices as Record<string, unknown>);
+        patch.prices = merged;
+        if (merged.usdRate) patch.usdRate = merged.usdRate;
         invalidatePricesCache();
       }
       if (!patch.usdRate && typeof catalogs.usdRate === 'number') patch.usdRate = catalogs.usdRate;

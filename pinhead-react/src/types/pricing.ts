@@ -60,4 +60,16 @@ export interface PriceBreakdown {
   unitPrice: number;
   total: number;
   qty: number;
+  /** Разбивка себестоимости изделия (правка 13.10), ₽ за штуку */
+  fabric: number;
+  trim: number;
+  sewing: number;
+  extraMaterials: number;
+  /** Накладные, ₽ и доля (0.7 = 70 %) */
+  overhead: number;
+  overheadPct: number;
+  /** Надбавка за срочный пошив, доля */
+  urgentPct: number;
+  /** Ткань не найдена или без цены — показывать ошибку, а не ноль */
+  fabricMissing: boolean;
 }

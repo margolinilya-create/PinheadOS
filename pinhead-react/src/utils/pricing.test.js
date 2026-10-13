@@ -110,7 +110,7 @@ describe('getZoneSurcharge', () => {
     s.zoneTechs = { front: 'dtg' };
     s.dtgZones = { front: { size: 'A4', textile: 'white' } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(280 + 60); // base + A4 add
+    expect(result).toBe(450); // таблица DTG 13.10: А4 белый, тираж 40 (35–49)
   });
 
   it('dtg: A4 color (adds white under)', () => {
@@ -118,7 +118,7 @@ describe('getZoneSurcharge', () => {
     s.zoneTechs = { front: 'dtg' };
     s.dtgZones = { front: { size: 'A4', textile: 'color' } };
     const result = getZoneSurcharge('front', s);
-    expect(result).toBe(280 + 60 + 60); // base + A4 + white under
+    expect(result).toBe(600); // А4 цветной, тираж 40 (35–49)
   });
 
   it('embroidery: 50x50mm default (stitch pricing)', () => {
@@ -126,8 +126,8 @@ describe('getZoneSurcharge', () => {
     s.zoneTechs = { front: 'embroidery' };
     s.embZones = { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } };
     const result = getZoneSurcharge('front', s);
-    // area=25cm², stitches=25*300*1=7500, price=round(7500/1000*14)=105
-    expect(result).toBe(105);
+    // 25 см² × 300 = 7500 стежков; на крое, тираж 40 < 50 → первая ступень 15 ₽/1000
+    expect(result).toBe(112.5);
   });
 
   it('dtf: A3 (film pricing, optimal rotation)', () => {
@@ -135,9 +135,9 @@ describe('getZoneSurcharge', () => {
     s.zoneTechs = { front: 'dtf' };
     s.dtfZones = { front: { fmt: 'A3' } };
     const result = getZoneSurcharge('front', s);
-    // A3 297x420, gap=10: rotated is cheaper
-    // cols2=floor(550/430)=1, cost2=(307/1000)*1400=429.8 → round(429.8+50)=480
-    expect(result).toBe(480);
+    // A3 297×420 + 1 см: повёрнутый 430×307 → 1 в ряд, 3 ряда в метре; 40 шт. → 14 м
+    // по 1400 ₽ (непрерывно 40 × 0,307 = 12,28 м) + перенос 50 → (19600 + 2000) / 40 = 540
+    expect(result).toBe(540);
   });
 });
 
@@ -145,25 +145,24 @@ describe('getZoneSurcharge', () => {
 // 5. SKU est price
 // ═══════════════════════════════
 describe('getSkuEstPrice', () => {
-  it('calculates for T-001 (Футболка Classic woman)', () => {
-    const sku = SKU_CATALOG_DEFAULT[0]; // sewingPrice:141, mainFabricUsage:0.95, trimCode:ribana-1x1, trimUsage:0.15
+  it('calculates for T-001 (Футболка Classic woman) — рубли за метр', () => {
+    const sku = SKU_CATALOG_DEFAULT[0]; // пошив 141, ткань 0,95 м, рибана 1×1 0,15 м
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    // fabric: medas-kulirnaya-100-160 $10.90 * 92 * 0.95 = 952.66 → 953
-    // trim: ribana-1x1 $13.20 * 92 * 0.15 = 182.16 → 182 (Math.round)
-    expect(price).toBe(141 + Math.round(0.95 * 10.90 * 92) + Math.round(0.15 * 13.20 * 92));
+    // кулирка Медас 160: 307,12 ₽/м; рибана Медас 600 ₽/м; курс на ₽-цены не влияет
+    expect(price).toBe(141 + 291.76 + 90);
   });
 
-  it('returns sewingPrice only when no fabric match', () => {
+  it('returns sewing + trim when no fabric match', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], category: 'nonexistent' };
     const price = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(price).toBe(141 + 0 + Math.round(0.15 * 13.20 * 92)); // no fabric match, trim only
+    expect(price).toBe(141 + 90);
   });
 
   it('applies priceMultiplier when set', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: 1.1 };
     const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(withMult).toBe(Math.round(base * 1.1));
+    expect(withMult).toBeCloseTo(base * 1.1, 2);
   });
 
   it('priceMultiplier of 1 returns same as no multiplier', () => {
@@ -177,7 +176,7 @@ describe('getSkuEstPrice', () => {
     const sku = { ...SKU_CATALOG_DEFAULT[0], priceMultiplier: 0.9 };
     const base = getSkuEstPrice({ ...SKU_CATALOG_DEFAULT[0] }, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     const withMult = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(withMult).toBe(Math.round(base * 0.9));
+    expect(withMult).toBeCloseTo(base * 0.9, 2);
   });
 
   it('undefined priceMultiplier returns base cost', () => {
@@ -237,64 +236,55 @@ describe('getLabelConfigPrice', () => {
 // 7. calcTotal
 // ═══════════════════════════════
 describe('calcTotal', () => {
+  // T-001, 40 шт.: себестоимость 522,76; накладные 70 %; группа А, тираж 25–49 → 90 %
+  const garment = (base) => Math.round(base * 1.7 * 1.9);
+
   it('returns 0 when qty is 0', () => {
     const s = baseState();
     s.sizes = { S: 0, M: 0 };
     expect(calcTotal(s)).toBe(0);
   });
 
-  it('calculates base price × qty with markup (no extras, no print)', () => {
+  it('cost × overhead × markup × qty (no extras, no print)', () => {
     const s = baseState();
-    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const markup = getMarkup(40, s.sku.category);
-    const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = 40 * markedUp;
-    expect(calcTotal(s)).toBe(expected);
+    expect(getMarkup(40, s.sku.category)).toBe(0.90);
+    expect(calcTotal(s)).toBe(40 * garment(522.76));
   });
 
-  it('adds extras cost', () => {
+  it('extras are inside the cost: overhead and markup apply to them', () => {
     const s = baseState();
     s.extras = ['double-stitch']; // 30₽
-    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const markup = getMarkup(40, s.sku.category);
-    const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = 40 * (markedUp + 30);
-    expect(calcTotal(s)).toBe(expected);
+    expect(calcTotal(s)).toBe(40 * garment(522.76 + 30));
   });
 
-  it('adds print surcharge', () => {
+  it('extra already included in sewing price is not charged twice', () => {
+    const s = baseState();
+    s.extras = ['double-stitch'];
+    s.sku = { ...s.sku, includedExtras: ['double-stitch'] };
+    expect(calcTotal(s)).toBe(40 * garment(522.76));
+  });
+
+  it('print surcharge is added without overhead and markup', () => {
     const s = baseState();
     s.zones = ['front'];
     s.zoneTechs = { front: 'dtf' };
     s.dtfZones = { front: { fmt: 'A4' } };
-    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const markup = getMarkup(40, s.sku.category);
-    const markedUp = Math.round(skuBase * (1 + markup));
-    // DTF A4: gap=10, orient1: cols=floor(550/220)=2, cost=(307/1000)*1400/2=214.9 → round(214.9+50)=265
-    const techCost = 265;
-    const expected = 40 * (markedUp + techCost);
-    expect(calcTotal(s)).toBe(expected);
+    // A4 210×297 + 1 см: прямо 2 в ряд × 3 ряда = 6/м → 40 шт. = 7 м по 1500 + перенос 50
+    const techCost = Math.round((7 * 1500 + 40 * 50) / 40 * 100) / 100;
+    expect(calcTotal(s)).toBe(Math.round(40 * (garment(522.76) + techCost)));
   });
 
-  it('applies urgent multiplier', () => {
+  it('legacy urgent flag = 5 days (+15 %) on the garment only', () => {
     const s = baseState();
     s.urgentOption = true;
-    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const markup = getMarkup(40, s.sku.category);
-    const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = Math.round(40 * markedUp * 1.2);
-    expect(calcTotal(s)).toBe(expected);
+    expect(calcTotal(s)).toBe(40 * Math.round(522.76 * 1.7 * 1.9 * 1.15));
   });
 
   it('adds pack option', () => {
     const s = baseState();
     s.packType = 'bopp';
     s.packOption = true;
-    const skuBase = getSkuEstPrice(s.sku, s.fabric, s.fabricsCatalog, s.trimCatalog, s.usdRate);
-    const markup = getMarkup(40, s.sku.category);
-    const markedUp = Math.round(skuBase * (1 + markup));
-    const expected = 40 * (markedUp + 20); // BOPP = 20₽
-    expect(calcTotal(s)).toBe(expected);
+    expect(calcTotal(s)).toBe(40 * (garment(522.76) + 20)); // BOPP = 20₽
   });
 });
 
@@ -322,10 +312,9 @@ describe('TECH_TABS', () => {
 });
 
 describe('SCREEN_FX', () => {
-  it('has 5 effects', () => {
-    expect(SCREEN_FX).toHaveLength(5);
-    expect(SCREEN_FX[0].key).toBe('none');
-    expect(SCREEN_FX[0].mult).toBe(1);
-    expect(SCREEN_FX[1].mult).toBe(2);
+  it('has 6 effects with coefficients of 13.10', () => {
+    expect(SCREEN_FX.map(f => [f.key, f.mult])).toEqual([
+      ['none', 1], ['stone', 2], ['puff', 1.5], ['metallic', 1.2], ['fluor', 1.2], ['discharge', 1.35],
+    ]);
   });
 });

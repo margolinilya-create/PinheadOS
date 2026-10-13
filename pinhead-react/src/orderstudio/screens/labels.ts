@@ -56,6 +56,9 @@ export const ISSUE_LABELS: Record<PriceIssue, string> = {
   method_unpriced: 'У техники нет цены в конструкторе — нужна ручная цена',
   print_no_size: 'У нанесения нет размера в мм — посчитано по A4',
   print_oversize: 'Макет больше A3 — посчитано по A3',
+  print_too_big: 'DTF: макет не помещается в плёнку 55 см — расчёт заблокирован',
+  fabric_not_found: 'Ткань не найдена или без цены — выберите ткань из каталога',
+  emb_low_qty: 'Вышивка меньше 50 шт. — тариф согласовать отдельно',
 };
 
 export const rub = (v: number | null | undefined): string =>
