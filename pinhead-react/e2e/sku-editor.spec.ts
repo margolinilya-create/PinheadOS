@@ -98,8 +98,8 @@ test.describe('SKU Editor — Зоны нанесения', () => {
     await expect(page.locator('.zones-catalog-table')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Глобальный каталог зон')).toBeVisible();
 
-    // At least the default zones should be present
-    await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(8, { timeout: 5000 });
+    // Зоны по умолчанию: 8 прежних + левая и правая штанина (правка 13.10)
+    await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(10, { timeout: 5000 });
   });
 
   test('Add zone button is disabled with empty ID', async ({ page }) => {
@@ -123,10 +123,10 @@ test.describe('SKU Editor — Ценообразование sub-tabs', () => {
     await expect(page.getByText('Стежков на 1 см²')).toBeVisible();
 
     await page.getByRole('button', { name: 'DTF' }).click();
-    await expect(page.getByText('Цена метра плёнки')).toBeVisible();
+    await expect(page.getByText('DTF — ступени цены за погонный метр')).toBeVisible();
 
     await page.getByRole('button', { name: 'DTG' }).click();
-    await expect(page.getByText('Базовая цена')).toBeVisible();
+    await expect(page.getByText('DTG — цена за одно нанесение, ₽')).toBeVisible();
 
     await page.getByRole('button', { name: 'Наценки' }).click();
     await expect(page.locator('.pe-markup-table')).toBeVisible();
