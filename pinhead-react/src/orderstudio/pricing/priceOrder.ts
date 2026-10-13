@@ -134,7 +134,8 @@ function printUnitPrice(
     case 'dtg': {
       // Размеры DTG свои (А4 — 20×30, А3 — 30×41, 40×45 см): подбор по мм макета
       const size = w && h ? printRules.dtgFitSize(w, h) : 'A4';
-      const placement = print.zone === 'pocket' ? 'pocket' : 'standard';
+      // Зона v4 хранит название («Карман»); печать по карману — × 1,2
+      const placement = /карман|pocket/i.test(print.zone || '') ? 'pocket' : 'standard';
       return {
         unit: core.calcZonePriceDirect(P, 'dtg', { fmt: size || '40x45', textile: print.textile, placement }, qty),
         issue: !w || !h ? 'print_no_size' : size ? undefined : 'print_oversize',

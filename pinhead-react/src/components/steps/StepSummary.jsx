@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { urgentLabel } from '../../utils/costRules';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -122,7 +123,7 @@ ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 ОПЦИИ
 Упаковка: ${state.packOption ? 'Да' : 'Нет'}
-Срочно: ${state.urgentOption ? 'Да' : 'Нет'}
+Срочно: ${state.urgentOption ? 'Да' + (state.urgentDays ? ` (${urgentLabel(state.urgentDays)})` : '') : 'Нет'}
 
 ИТОГО: ${grandTotal.toLocaleString('ru-RU')} ₽
 ━━━━━━━━━━━━━━━━━━━━`.replace(/\n{3,}/g, '\n\n').trim();
@@ -130,18 +131,18 @@ ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 export default function StepSummary() {
   const navigate = useNavigate();
-  const { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
+  const { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption, urgentDays,
     prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
     _editingOrderId, _editingOrderNumber, _lastSavedOrderNum } = useStore(
     useShallow(s => ({ items: s.items, name: s.name, contact: s.contact, email: s.email, phone: s.phone,
       deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption,
-      urgentOption: s.urgentOption, prevStep: s.prevStep, resetOrder: s.resetOrder,
+      urgentOption: s.urgentOption, urgentDays: s.urgentDays || (s.urgentOption ? 5 : 0), prevStep: s.prevStep, resetOrder: s.resetOrder,
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
       usdRate: s.usdRate, bitrixDeal: s.bitrixDeal, messenger: s.messenger,
       _editingOrderId: s._editingOrderId, _editingOrderNumber: s._editingOrderNumber,
       _lastSavedOrderNum: s._lastSavedOrderNum }))
   );
-  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption,
+  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption, urgentDays,
     fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
     _editingOrderId, _editingOrderNumber, _lastSavedOrderNum };
   const saveOrder = useOrdersStore(s => s.saveOrder);
@@ -158,7 +159,8 @@ export default function StepSummary() {
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
 
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays };
+  // Надбавка за срочный пошив — из разбивки (только изделие, без нанесений)
 
   // Per-item calculations
   const itemCalcs = items.map(item => {
@@ -172,6 +174,7 @@ export default function StepSummary() {
 
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
   const grandQty = itemCalcs.reduce((sum, ic) => sum + ic.qty, 0);
+  const urgentTotal = itemCalcs.reduce((sum, ic) => sum + (ic.breakdown.urgent || 0) * ic.qty, 0);
 
   // ─── Validation ───
   const errors = [];
@@ -231,7 +234,7 @@ export default function StepSummary() {
         // Shared fields
         name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
         role, messenger: messenger,
-        packOption, urgentOption,
+        packOption, urgentOption, urgentDays,
         total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
       };
 
@@ -405,7 +408,7 @@ export default function StepSummary() {
       {/* Urgent surcharge */}
       {urgentOption && (
         <div className="summary-urgent" data-testid="urgent-line">
-          ⚡ Срочный заказ: +20% = +{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽
+          ⚡ Срочный пошив ({urgentLabel(urgentDays)}): +{urgentTotal.toLocaleString('ru-RU')} ₽
         </div>
       )}
 
@@ -447,7 +450,7 @@ export default function StepSummary() {
               );
             })}
             {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
-            {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочность +20%</span><span className="amount">+{Math.round(grandTotal - grandTotal / 1.2).toLocaleString('ru-RU')} ₽</span></div>}
+            {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочный пошив: {urgentLabel(urgentDays)}</span><span className="amount">+{urgentTotal.toLocaleString('ru-RU')} ₽</span></div>}
           </div>
         )}
         <div className="price-total">

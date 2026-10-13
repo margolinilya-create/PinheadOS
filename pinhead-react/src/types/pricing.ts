@@ -43,6 +43,22 @@ export interface Prices {
   markupByType: Record<string, number[]>;
   markupDefault: number[];
   flexMatrix?: Record<string, Record<number, number[]>>;
+  // ── правка CRM 13.10 (необязательны: у старого прайса базы их нет) ──
+  overhead?: number;
+  usdRate?: number;
+  markupGroups?: Partial<Record<'A' | 'B' | 'C', number[]>>;
+  markupGroupOf?: Record<string, 'A' | 'B' | 'C'>;
+  urgentByDays?: Record<string, number>;
+  screenFxDischargeMult?: number;
+  dtgTiers?: number[];
+  dtgTable?: Record<string, { white: number[]; color: number[] }>;
+  dtgPlacementMult?: Record<string, number>;
+  embTiers?: number[];
+  embRates?: Partial<Record<'cut' | 'garment' | 'patch', number[]>>;
+  embSurcharges?: Record<string, number>;
+  embMinByMode?: Partial<Record<'cut' | 'garment' | 'patch', number>>;
+  dtfSteps?: [number, number][];
+  dtfPad?: number;
 }
 
 export interface PriceBreakdown {

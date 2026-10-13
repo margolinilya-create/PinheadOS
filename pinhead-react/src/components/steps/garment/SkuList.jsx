@@ -1,4 +1,5 @@
 import { useRef, useState, useDeferredValue } from 'react';
+import { skuDescription } from '../../../utils/skuDescription';
 import { useStore } from '../../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { supabase } from '../../../lib/supabase';
@@ -50,7 +51,9 @@ function PhotoLightbox({ photos, startIdx, onClose }) {
   );
 }
 
-function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
+function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabricCode }) {
+  // Состав, плотность и поставщик — из ткани, а не зашитым текстом (правка 13.10)
+  const desc = skuDescription(s, fabricCode, fabricsCatalog);
   const photos = s.photos || [];
   const [lightbox, setLightbox] = useState(null);
   const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
@@ -84,8 +87,8 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
         <div className="garment-expand-title">{s.name}</div>
         <div className="garment-expand-subtitle">{s.code} · {s.fit ? s.fit + ' fit' : ''}</div>
 
-        {s.description && (
-          <div className="garment-expand-desc">{s.description}</div>
+        {desc && (
+          <div className="garment-expand-desc">{desc}</div>
         )}
 
         {s.sizeChart && (
@@ -128,9 +131,9 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect }) {
 }
 
 export default function SkuList() {
-  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabricsCatalog, trimCatalog, usdRate } = useStore(
+  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabric, fabricsCatalog, trimCatalog, usdRate } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
-      selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabricsCatalog: s.fabricsCatalog,
+      selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabric: s.fabric, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
   );
   const dragRef = useRef(null);
@@ -273,6 +276,7 @@ export default function SkuList() {
                         <ExpandPanel
                           s={s}
                           fabricsCatalog={fabricsCatalog}
+                          fabricCode={sku?.code === s.code ? fabric : null}
                           trimCatalog={trimCatalog}
                           usdRate={usdRate}
                           onSelect={handleSelect}

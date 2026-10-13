@@ -1,4 +1,8 @@
 import { useMemo, useState } from 'react';
+import { searchFabrics } from '../../utils/materialSearch';
+import { zonesForSku } from '../../utils/skuRules';
+import { materialPrice } from '../../utils/costRules';
+import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import { newSalesLabel, newSalesPrint } from '../model/factory';
@@ -23,28 +27,38 @@ const toMm = (v) => {
  * и разработка есть в модели и в цене, их шаги визарда — срез 3.
  */
 export default function ItemEditor({ item, index, price, onChange, onRemove, onWizard }) {
-  const { skuCatalog, fabricsCatalog, zonesCatalog } = useStore(useShallow((s) => ({
+  const { skuCatalog, fabricsCatalog, zonesCatalog, extrasCatalog } = useStore(useShallow((s) => ({
     skuCatalog: s.skuCatalog,
     fabricsCatalog: s.fabricsCatalog,
     zonesCatalog: s.zonesCatalog,
+    extrasCatalog: s.extrasCatalog,
   })));
   const [query, setQuery] = useState('');
+  const [fabricQuery, setFabricQuery] = useState('');
 
   const skus = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? skuCatalog.filter((s) => `${s.code} ${s.name}`.toLowerCase().includes(q)) : skuCatalog;
   }, [skuCatalog, query]);
   const sku = skuCatalog.find((s) => s.code === item.sku_code);
+  const currentFabric = fabricsCatalog.find((f) => f.code === item.fabric_code) || null;
   const fabricsBySupplier = useMemo(() => {
+    // Ткани модели: её категория; поиск — по всему каталогу (модель + поставщик + ткань)
+    const own = sku ? fabricsCatalog.filter((f) => (f.forCategories || []).includes(sku.category)) : fabricsCatalog;
+    const list = fabricQuery.trim() ? searchFabrics(fabricsCatalog, fabricQuery, SKU_CATEGORIES, skuCatalog) : own;
     const out = new Map();
-    for (const f of fabricsCatalog) {
+    for (const f of list) {
       const key = f.supplier || 'Без поставщика';
       if (!out.has(key)) out.set(key, []);
       out.get(key).push(f);
     }
     return [...out.entries()];
-  }, [fabricsCatalog]);
-  const zones = useMemo(() => (zonesCatalog ?? []).map((z) => z.name).filter(Boolean), [zonesCatalog]);
+  }, [fabricsCatalog, fabricQuery, sku, skuCatalog]);
+  // Зоны модели (категория, капюшон, карман — правка 13.10); без модели — все
+  const zones = useMemo(() => {
+    const list = sku ? zonesForSku(zonesCatalog ?? [], sku, item.extras, extrasCatalog) : (zonesCatalog ?? []);
+    return list.map((z) => z.name).filter(Boolean);
+  }, [zonesCatalog, sku, item.extras, extrasCatalog]);
 
   const pickSku = (code) => {
     const s = skuCatalog.find((x) => x.code === code);
@@ -83,12 +97,29 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
             {skus.map((s) => <option key={s.code} value={s.code}>{s.code} · {s.name}</option>)}
           </select>
         </label>
+        <label className={styles.field}>Поиск ткани
+          <input className={styles.input} value={fabricQuery} onChange={(e) => setFabricQuery(e.target.value)}
+            placeholder="Модель, поставщик, ткань: «худи медас футер»" disabled={item.client_fabric} />
+          {fabricQuery.trim() && fabricsBySupplier.length === 0 && (
+            <span className={styles.issue} role="alert">Ткань не найдена — уточните поставщика, название или плотность</span>
+          )}
+        </label>
         <label className={styles.field}>Ткань
           <select className={styles.select} value={item.fabric_code} onChange={(e) => pickFabric(e.target.value)} disabled={item.client_fabric}>
             <option value="">По умолчанию для модели</option>
+            {currentFabric && !fabricsBySupplier.some(([, list]) => list.includes(currentFabric)) && (
+              <option value={currentFabric.code}>{currentFabric.supplier} · {currentFabric.name}</option>
+            )}
             {fabricsBySupplier.map(([supplier, list]) => (
               <optgroup key={supplier} label={supplier}>
-                {list.map((f) => <option key={f.code} value={f.code}>{f.name}{f.density ? ` · ${f.density} г/м²` : ''}</option>)}
+                {list.map((f) => {
+                  const rub = materialPrice(f, 0);
+                  return (
+                    <option key={f.code} value={f.code}>
+                      {f.name}{f.composition ? ` · ${f.composition}` : ''}{f.density ? ` · ${f.density} г/м²` : ''}{rub ? ` · ${Math.round(rub)} ₽/м` : ''}
+                    </option>
+                  );
+                })}
               </optgroup>
             ))}
           </select>

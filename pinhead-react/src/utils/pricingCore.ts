@@ -199,7 +199,7 @@ export function calcZonePriceDirect(P: PricesExt, tech: string, params: ZoneCalc
     const fmt = params.fmt || params.size || 'A4';
     const textile = params.textile || 'white';
     // Таблица «размер × текстиль × тираж» × коэффициент условия печати (13.10, п. 9)
-    return prints.dtgPrice(P as prints.DtgPrices, fmt, textile, qty, params.placement || 'standard');
+    return prints.dtgPrice(P, fmt, textile, qty, params.placement || 'standard');
   }
   if (tech === 'embroidery') {
     // Тариф за 1000 стежков по способу и тиражу, надбавки суммируются (13.10, п. 7)

@@ -61,6 +61,13 @@ export const MARKUP_GROUP_OF: Record<string, MarkupGroup> = {
 export const URGENT_BY_DAYS: Record<string, number> = { 5: 0.15, 10: 0.30, 15: 0.50 };
 export const URGENT_DAY_OPTIONS = [0, 5, 10, 15] as const;
 
+/** Подпись срочности: «срок −10 дн., +30 % к пошиву»; 0 — пусто */
+export function urgentLabel(days: number | null | undefined, P: CostPrices = {}): string {
+  const rate = urgentRate(P, days);
+  if (!rate) return '';
+  return `срок −${days} дн., +${Math.round(rate * 100)} % к пошиву`;
+}
+
 // ── Материалы ────────────────────────────────────────────────────────────
 
 /** Цена материала за его единицу, ₽; null — цены нет */

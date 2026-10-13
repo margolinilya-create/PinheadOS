@@ -10,16 +10,16 @@ import { confirm } from '../../store/useConfirmStore';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
-    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption } = useStore(
+    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays } = useStore(
     useShallow(s => ({ items: s.items, activeItemIdx: s.activeItemIdx, nextStep: s.nextStep, prevStep: s.prevStep,
       addNewItem: s.addNewItem, editItem: s.editItem, removeItem: s.removeItem,
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
-      usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption }))
+      usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption, urgentDays: s.urgentDays }))
   );
 
   const [openBreakdown, setOpenBreakdown] = useState(null);
 
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption };
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays };
 
   const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
   const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);

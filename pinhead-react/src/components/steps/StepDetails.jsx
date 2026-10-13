@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { URGENT_DAY_OPTIONS, urgentRate } from '../../utils/costRules';
+import { getPrices } from '../../utils/pricing';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { sanitizeText, validateEmail, validatePhone } from '../../utils/validate';
@@ -12,11 +14,11 @@ const ROLES = [
 
 export default function StepDetails() {
   const { name, contact, email, phone, messenger, bitrixDeal, deadline, address, notes,
-    role, packType, urgentOption, setField, setPackType, toggleUrgent, nextStep, prevStep } = useStore(
+    role, packType, urgentDays, setField, setPackType, setUrgentDays, nextStep, prevStep } = useStore(
     useShallow(s => ({ name: s.name, contact: s.contact, email: s.email, phone: s.phone, messenger: s.messenger,
       bitrixDeal: s.bitrixDeal, deadline: s.deadline, address: s.address, notes: s.notes, role: s.role,
-      packType: s.packType || 'none', urgentOption: s.urgentOption, setField: s.setField, setPackType: s.setPackType,
-      toggleUrgent: s.toggleUrgent, nextStep: s.nextStep, prevStep: s.prevStep }))
+      packType: s.packType || 'none', urgentDays: s.urgentDays || (s.urgentOption ? 5 : 0), setField: s.setField, setPackType: s.setPackType,
+      setUrgentDays: s.setUrgentDays, nextStep: s.nextStep, prevStep: s.prevStep }))
   );
   const [showErrors, setShowErrors] = useState(false);
   const [emailError, setEmailError] = useState('');
@@ -138,16 +140,18 @@ export default function StepDetails() {
         ))}
       </div>
 
-      {/* Toggle Options */}
-      <div className="toggle-row">
-        <div>
-          <div className="toggle-label-text">Срочное производство (+20%)</div>
-          <div className="toggle-sub">Приоритет в очереди производства</div>
-        </div>
-        <label className="toggle">
-          <input type="checkbox" checked={urgentOption} onChange={toggleUrgent} />
-          <span className="toggle-slider" />
-        </label>
+      {/* Срочный пошив: на сколько дней сократить срок (правка 13.10) */}
+      <div className="section-label" id="urgent-days-label">Срочный пошив</div>
+      <div className="toggle-sub">Надбавка — к изделию с пошивом, после накладных и наценки; на нанесения не идёт</div>
+      <div className="pack-options" role="radiogroup" aria-labelledby="urgent-days-label">
+        {URGENT_DAY_OPTIONS.map(d => (
+          <button key={d} type="button" role="radio" aria-checked={urgentDays === d}
+            className={`pack-btn${urgentDays === d ? ' active' : ''}`}
+            onClick={() => setUrgentDays(d)}>
+            {d === 0 ? 'Обычный срок' : `На ${d} дней раньше`}
+            {d > 0 && <span className="pack-price">+{Math.round(urgentRate(getPrices(), d) * 100)}%</span>}
+          </button>
+        ))}
       </div>
 
       <div className="btn-row">

@@ -13,6 +13,10 @@ export interface ZoneDefinition {
   forCategories?: string[] | null;
   /** Display sort order */
   sortOrder?: number;
+  /** Зона только у моделей с капюшоном (`SkuItem.hasHood`) */
+  requiresHood?: boolean;
+  /** Зона только при кармане в конструкции или выбранной обработке «карман» */
+  requiresPocket?: boolean;
 }
 
 /** Category-level rules for wizard filtering and defaults */

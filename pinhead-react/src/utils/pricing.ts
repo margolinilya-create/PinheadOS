@@ -76,8 +76,8 @@ export function getTotalSurcharge(state: PricingState): number {
 }
 
 // Наценка по тиражу и категории
-export function getMarkup(qty: number, category: string): number {
-  return core.getMarkup(getPrices(), qty, category);
+export function getMarkup(qty: number, category: string, sku?: Parameters<typeof core.getMarkup>[3]): number {
+  return core.getMarkup(getPrices(), qty, category, sku);
 }
 
 export function calcTotal(state: PricingState, debug = false): number {
