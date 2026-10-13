@@ -32,6 +32,8 @@ jobs:
   visual:
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: pinhead-react
@@ -51,6 +53,18 @@ jobs:
             npx playwright test e2e/visual.spec.ts --update-snapshots
           else
             npx playwright test e2e/visual.spec.ts
+          fi
+      - name: Commit updated snapshots
+        if: inputs.update_snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/visual.spec.ts-snapshots
+          if git diff --cached --quiet; then
+            echo "Snapshots unchanged"
+          else
+            git commit -m "test(visual): update snapshots"
+            git push origin HEAD:${{ github.ref_name }}
           fi
       - uses: actions/upload-artifact@v4
         if: failure()
