@@ -15,11 +15,22 @@ description: Use when encountering any bug, test failure, unexpected behavior, o
 - Сформулируй: «Баг воспроизводится когда X — ожидается Y — получается Z»
 
 Файлы для первичного поиска в Pinhead:
-- Ошибка при сохранении — `useOrdersStore.js` + `StepSummary.jsx`
-- Ошибка в визарде — `useStore.js` + компонент шага
-- Ошибка авторизации — `useAuthStore.js`
-- Ошибка каталогов — `catalogSlice.js` + `lib/catalogs.js`
-- Ошибка цен — `utils/pricing.js`
+**🏭 Производство (ERP) — раздел по умолчанию:**
+- Задание не появилось в очереди / «не запускается» — `erp/utils/queueEntries.js`
+  (группа и причина) → `erp/utils/routes.ts` (гейты материалов/закупки/ТЗ)
+- Ничего не сохраняется в этапе — `erp/store/slices/stagesSlice.ts`
+- «Нет доступа» / кнопки не активны — `erp/store/useErpAccess.ts` + матрица
+  `erp_role_permissions` (право) и привязка `erp_employees` (свой цех)
+- Цех не виден в меню/канбане — `erp_departments.is_production` + `isProductionDept`
+- ТЗ не открывается / этап заблокирован «Не назначено ТЗ» — `erp/utils/tz.ts`
+- Данные разъезжаются после чужой правки — `erp/store/slices/realtimeSlice.ts`
+
+**✏️ ТЗ (Order Studio, за флагом):**
+- Ошибка при сохранении — `useOrdersStore.ts` + `StepSummary.jsx`
+- Ошибка в визарде — `useStore.ts` + компонент шага
+- Ошибка авторизации — `useAuthStore.ts`
+- Ошибка каталогов — `catalogSlice.ts` + `lib/catalogs.ts`
+- Ошибка цен — `utils/pricing.ts`
 
 ## Шаг 2 — Изолируй причину
 
@@ -40,7 +51,7 @@ cd pinhead-react && npm test -- --run 2>&1 | grep -E "FAIL|Error" | head -20
 Паттерны багов в Pinhead:
 - **Silent fail** — Supabase возвращает ошибку, catch пустой — добавь `toast.error`
 - **Потеря данных** — optimistic update без rollback — верни старое состояние при ошибке
-- **Неправильный шаг** — `editItem` переходит не туда — проверь `itemsSlice.js`
+- **Неправильный шаг** — `editItem` переходит не туда — проверь `itemsSlice.ts`
 - **Старые каталоги** — sessionStorage кэш — очисти через `sessionStorage.clear()`
 - **DEV_MODE** — в dev авторизация пропущена, `userId = 'dev'` — не UUID, осторожно с Supabase
 
@@ -57,7 +68,8 @@ cd pinhead-react && npm test -- --run 2>&1 | grep -E "FAIL|Error" | head -20
 cd pinhead-react && npm test -- --run
 ```
 
-Baseline: **722 теста зелёных**. Если упало — это регрессия, откати и ищи дальше.
+Baseline — **столько же тестов, сколько было до твоей правки** (запомни число до начала;
+на 27.07.2026 это 1194). Абсолютное число быстро устаревает, важен факт «не убыло».
 
 ## Шаг 5 — Проверь и задокументируй
 

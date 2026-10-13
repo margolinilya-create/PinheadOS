@@ -1,5 +1,4 @@
 // E2E smoke tests: navigation between core routes
-// Plan: tests/E2E-TEST-PLAN.md — Kanban, Analytics, Editors groups
 
 import { test, expect } from '@playwright/test';
 

@@ -1,0 +1,165 @@
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { SCREEN_ACCESS, canOpenScreen } from './screenAccess';
+import { DEFAULT_PERMISSIONS } from './permissions';
+import { ERP_PERMISSIONS } from '../types';
+import type { EmployeeRole, ErpPermission } from '../types';
+
+/**
+ * Право, до экрана которого не дойти, — то же декоративное право, только
+ * этажом выше.
+ *
+ * Разделы «Операции» были закрыты ролью УЧЁТНОЙ ЗАПИСИ, двумя независимыми
+ * списками — в маршруте и в меню. Права, заведённые 10.08 под конкретных людей,
+ * оказались недостижимы: кладовщик получил «Вести склад», но не видел пункта
+ * «Склад» и не мог открыть адрес. Матрица говорила «можно», интерфейс —
+ * «раздела нет».
+ */
+
+const SRC = join(process.cwd(), 'src/erp');
+const APP = readFileSync(join(SRC, 'ErpApp.jsx'), 'utf8');
+const SIDEBAR = readFileSync(join(SRC, 'layout/Sidebar.jsx'), 'utf8');
+const ADMIN = readFileSync(join(SRC, 'screens/AdminScreen.jsx'), 'utf8');
+
+/** Кто получает раздел по запасным значениям прав */
+function holders(path: string): EmployeeRole[] {
+  const can = (role: EmployeeRole) => (p: ErpPermission) =>
+    DEFAULT_PERMISSIONS[role].includes(p);
+  return (Object.keys(DEFAULT_PERMISSIONS) as EmployeeRole[])
+    .filter((r) => canOpenScreen(can(r), path));
+}
+
+describe('разделы «Операции» открываются правом, а не ролью учётной записи', () => {
+  it.each(Object.keys(SCREEN_ACCESS))('маршрут %s гейтится через canOpen', (path) => {
+    expect(APP).toContain(`canOpen('${path}')`);
+  });
+
+  it('ни один раздел «Операций» не остался на isAdmin', () => {
+    for (const path of Object.keys(SCREEN_ACCESS)) {
+      const route = APP.slice(APP.indexOf(`path="${path}"`), APP.indexOf(`path="${path}"`) + 160);
+      expect(route, `${path} всё ещё под isAdmin`).not.toMatch(/allowed=\{isAdmin\}/);
+    }
+  });
+
+  it('меню и маршруты берут ОДИН источник', () => {
+    // Два независимых списка уже разъехались один раз — этим тестом и ловим
+    expect(APP).toContain('canOpenScreen');
+    expect(SIDEBAR).toContain('canOpenScreen');
+  });
+
+  it('пункты «Операций» больше не помечены admin', () => {
+    const block = SIDEBAR.slice(SIDEBAR.indexOf("title: 'Операции'"), SIDEBAR.indexOf("title: 'Настройки'"));
+    /**
+     * ОБХОД ИДЁТ ОТ ПУНКТОВ МЕНЮ К ПРАВАМ, А НЕ НАОБОРОТ.
+     *
+     * Прежняя редакция требовала пункт меню для КАЖДОГО ключа `SCREEN_ACCESS`
+     * — и была верна ровно пока все они были разделами. С 15.09 там есть
+     * `/sku-card`: это КАРТОЧКА, в которую приходят из каталога, а не раздел,
+     * и своего пункта в «Операциях» у неё нет по построению. По прежней
+     * редакции верная правка выглядела бы поломкой — «сторож, падающий
+     * на верной правке», и переписывается он на СВОЮ причину: ни один пункт
+     * «Операций» не закрыт ролью учётной записи, и у каждого есть право.
+     */
+    for (const [, path] of block.matchAll(/to: '([^']+)'/g)) {
+      expect(SCREEN_ACCESS[path], `${path} в меню, но без права`).toBeTruthy();
+    }
+    /**
+     * Комментарии убираются перед проверкой ОТСУТСТВИЯ: объяснение «почему
+     * `admin: true` здесь больше не стоит» содержит ровно те же слова, и тест
+     * ловил бы сам себя. Правило проекта, записанное для SQL, — то же и здесь.
+     */
+    const code = block.split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n');
+    expect(code).not.toMatch(/admin: true/);
+  });
+
+  /**
+   * АДМИНКА ОСТАЁТСЯ ЗА УЧЁТНОЙ ЗАПИСЬЮ — но с 15.09 в неё заходит ещё и тот,
+   * у кого есть каталог моделей: документ 14.09 требует проверять доступ
+   * к вкладке каталога ОТДЕЛЬНО от прочей админки, а весь `/admin` был закрыт
+   * ролью. Прежняя редакция сторожа требовала дословного `allowed={isAdmin}`
+   * и падала бы на этой правке — при том что дыра здесь совсем в другом.
+   *
+   * НАСТОЯЩАЯ ОПАСНОСТЬ — ВТОРАЯ ПОЛОВИНА ПРАВКИ: расширив маршрут, легко
+   * забыть про состав вкладок, и тогда каталог открывает управление
+   * сотрудниками менеджеру, закупщику и дизайнеру. Поэтому сторож проверяет
+   * обе половины: маршрут по-прежнему спрашивает `isAdmin`, а КАЖДАЯ вкладка
+   * админки имеет собственный `needs`.
+   */
+  it('админка остаётся за учётной записью, а вкладки гейтятся поимённо', () => {
+    expect(APP).toMatch(/path="\/admin"[\s\S]{0,200}allowed=\{isAdmin/);
+
+    const tabs = ADMIN.slice(ADMIN.indexOf('const TABS = ['), ADMIN.indexOf('];', ADMIN.indexOf('const TABS = [')));
+    const rows = [...tabs.matchAll(/\{\s*id: '([^']+)'[^}]*\}/g)];
+    expect(rows.length, 'вкладки админки не разобрались').toBeGreaterThan(5);
+    for (const [row, id] of rows) {
+      expect(row, `вкладка ${id} без needs — её видит любой, кто вошёл в админку`)
+        .toMatch(/needs: '/);
+    }
+  });
+});
+
+describe('каждый раздел достижим тем, ради кого заведено право', () => {
+  it('кладовщик видит склад', () => {
+    expect(holders('/warehouse')).toContain('storekeeper');
+  });
+
+  it('закупщик видит закупку', () => {
+    expect(holders('/purchasing')).toContain('purchaser');
+  });
+
+  it('технолог видит эксперим. цех', () => {
+    expect(holders('/experimental')).toContain('technologist');
+  });
+
+  it('менеджер заказа видит подряд', () => {
+    expect(holders('/subcontracting')).toContain('manager');
+  });
+
+  it.each(Object.keys(SCREEN_ACCESS))('директор видит %s', (path) => {
+    expect(holders(path)).toContain('director');
+  });
+
+  it.each(Object.keys(SCREEN_ACCESS))('рабочий цеха НЕ видит %s', (path) => {
+    // У него нет ни одного из перечисленных прав — раздел ему не нужен
+    expect(holders(path)).not.toContain('worker');
+  });
+
+  it('кадры не видят ни одного раздела «Операций»', () => {
+    for (const path of Object.keys(SCREEN_ACCESS)) {
+      expect(holders(path)).not.toContain('hr');
+    }
+  });
+});
+
+describe('список прав раздела осмыслен', () => {
+  it.each(Object.entries(SCREEN_ACCESS))('%s перечисляет существующие права', (_p, perms) => {
+    for (const perm of perms) {
+      expect(ERP_PERMISSIONS).toContain(perm);
+    }
+  });
+
+  it('незнакомый путь открыт: гейт перечисляет исключения', () => {
+    // Иначе новый экран, забытый в списке, молча пропал бы у всех
+    expect(canOpenScreen(() => false, '/board')).toBe(true);
+  });
+
+  /**
+   * ПОДСТРАНИЦА РАЗДЕЛА ЗАКРЫТА ТЕМ ЖЕ ПРАВОМ (правка 22.08).
+   *
+   * Карточка разработки переехала со шторки `?dev=` на страницу
+   * `/experimental/<uuid>` (п. 4.11). При сравнении путей ЦЕЛИКОМ такой адрес
+   * оказался бы «незнакомым», то есть открытым всем, включая цех без права
+   * `experimental.manage`. Ровно этим доводом вид раздела в своё время увели
+   * в query-параметр — теперь причина устранена в самом гейте.
+   */
+  it('страница внутри раздела требует прав раздела', () => {
+    const none = () => false;
+    const tech = (p: string) => p === 'experimental.manage';
+    expect(canOpenScreen(none, '/experimental/8f1b0f0e-1111-2222-3333-444455556666')).toBe(false);
+    expect(canOpenScreen(tech, '/experimental/8f1b0f0e-1111-2222-3333-444455556666')).toBe(true);
+    // И у остальных разделов поведение не изменилось
+    expect(canOpenScreen(none, '/warehouse')).toBe(false);
+  });
+});

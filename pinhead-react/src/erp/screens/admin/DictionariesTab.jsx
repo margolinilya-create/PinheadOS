@@ -1,0 +1,330 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useErpStore } from '../../store/useErpStore';
+import InlineEdit from '../../components/InlineEdit';
+import { LoadFailed, EmptyResult, EmptyState } from '../../components/ErpStates';
+import { TableSkeleton } from '../../components/ErpSkeletons';
+import { Icon } from '../../components/Icon';
+import {
+  DICTIONARY_HINTS,
+  DICTIONARY_LABELS,
+  MATERIAL_STATUS_LABELS,
+  ORDER_STATUS_LABELS,
+  PACK_SHIP_STATUS_LABELS,
+  PROCUREMENT_STATUS_LABELS,
+  STAGE_STATUS_LABELS,
+  SUBCONTRACT_PHASE_LABELS,
+  SUBCONTRACT_PAYMENT_LABELS,
+} from '../../types';
+import { Tabs, TabPanel } from '../../components/Tabs';
+import { statusChipClass } from '../../utils/statusUi';
+import styles from '../../styles';
+import { ScrollHintBox } from '../../components/ScrollHintBox';
+import { Button } from '../../components/Button';
+import { confirm } from '../../../store/useConfirmStore';
+
+/**
+ * Справочники производства (правка 12) — редактируются руководством, без правки кода:
+ * причины блокировок, типы проблем, типы изделий, поставщики. Значения всплывают
+ * подсказками в рабочих экранах (см. DICTIONARY_HINTS).
+ *
+ * Значения не удаляются, а отключаются: они уже записаны в заказах и истории,
+ * физическое удаление сделало бы историю нечитаемой.
+ *
+ * Отдельная вкладка «Статусы» — только для чтения: статусы зашиты в CHECK-констрейнты
+ * и стейт-машины маршрута, склада и подряда; их изменение — это доработка кода,
+ * а не запись в справочник. Показываем список, чтобы он был в одном месте с остальными.
+ */
+
+/**
+ * Виды справочников, доступные админу.
+ *
+ * Список ОБЯЗАН совпадать с `DictionaryKind` — иначе получается справочник,
+ * который есть в базе, в типах и в подписях, но не редактируется вообще
+ * ниоткуда. Так и жили «Единицы измерения»: заведены миграцией 20260810200000
+ * вместе с подписью и подсказкой, а сюда их вписать забыли, и пять значений
+ * (кг, м, шт, уп, рул) нельзя было ни дополнить, ни отключить.
+ * Расхождение сторожит `dictionaryKinds.test.ts`.
+ */
+const KINDS = [
+  'block_reason', 'problem_type', 'product_type', 'supplier', 'unit',
+  'experimental_task_type', 'route_operation', 'label_type', 'print_effect',
+];
+
+/** Статусы системы — только для чтения */
+/**
+ * `entity` — ключ словаря состояний (`utils/statusUi`). С ним чип рисуется
+ * тем же цветом, каким этот статус видит цех.
+ *
+ * §4.5 обхода 04.09: вкладка рисовала ВСЕ статусы серым, то есть отвечала
+ * на «как это называется» и молчала о том, что цвет вообще что-то значит.
+ * А это единственное место, где статусы перечислены подряд, — то есть
+ * готовая документация словаря, если её не обесцвечивать.
+ *
+ * Оплата подряда `entity` не имеет намеренно: в словаре её нет, потому что
+ * она не участвует ни в одном производственном переходе (правило 10.08),
+ * и придумывать ей цвет значило бы объявить её состоянием работы.
+ */
+const STATUS_GROUPS = [
+  { title: 'Этап производства', labels: STAGE_STATUS_LABELS, entity: 'stage' },
+  { title: 'Заказ', labels: ORDER_STATUS_LABELS, entity: 'order' },
+  { title: 'Материал', labels: MATERIAL_STATUS_LABELS, entity: 'material' },
+  { title: 'Упаковка и отгрузка', labels: PACK_SHIP_STATUS_LABELS, entity: 'packShip' },
+  { title: 'Задача закупки', labels: PROCUREMENT_STATUS_LABELS, entity: 'procurement' },
+  // Подряд ведётся ФАЗОЙ (волна 3.5). Устаревший список статусов показывать
+  // нельзя: админ читал бы значения, которые давно ничем не управляют.
+  { title: 'Подряд: фаза', labels: SUBCONTRACT_PHASE_LABELS, entity: 'subcontractPhase' },
+  { title: 'Подряд: оплата', labels: SUBCONTRACT_PAYMENT_LABELS, entity: null },
+];
+
+function DictionaryList({ kind }) {
+  const { dictionaries, createDictionaryItem, updateDictionaryItem, moveDictionaryItem } =
+    useErpStore(
+      useShallow((s) => ({
+        dictionaries: s.dictionaries,
+        createDictionaryItem: s.createDictionaryItem,
+        updateDictionaryItem: s.updateDictionaryItem,
+        moveDictionaryItem: s.moveDictionaryItem,
+      })),
+    );
+  const [draft, setDraft] = useState('');
+  const [showHidden, setShowHidden] = useState(false);
+
+  /**
+   * Отключение значения справочника — через подтверждение, как и остальные
+   * видимые действия админки. Значения тут именно ОТКЛЮЧАЮТСЯ, а не удаляются
+   * (правило проекта), и текст обязан это говорить: иначе кнопка выглядит
+   * удалением, и её боятся нажимать.
+   */
+  const onToggleActive = async (item) => {
+    if (!item.active) {
+      await updateDictionaryItem(item.id, { active: true });
+      return;
+    }
+    const ok = await confirm({
+      title: `Отключить «${item.name}»?`,
+      message: 'Значение перестанет предлагаться в подсказках. Уже проставленные записи не меняются, вернуть его можно здесь же.',
+      confirmLabel: 'Отключить',
+    });
+    if (ok) await updateDictionaryItem(item.id, { active: false });
+  };
+
+  const items = useMemo(
+    () => dictionaries
+      .filter((d) => d.kind === kind && (showHidden || d.active))
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
+    [dictionaries, kind, showHidden],
+  );
+  /** Сколько значений скрыто фильтром — чтобы «пусто» не врало про пустой справочник */
+  const hiddenCount = useMemo(
+    () => dictionaries.filter((d) => d.kind === kind && !d.active).length,
+    [dictionaries, kind],
+  );
+
+  const add = async () => {
+    const created = await createDictionaryItem(kind, draft);
+    if (created) setDraft('');
+  };
+
+  return (
+    <>
+      <div className={styles.queueReason} style={{ marginBottom: 12 }}>
+        {DICTIONARY_HINTS[kind]} Значения не удаляются, а отключаются — уже записанные
+        в заказах остаются читаемыми.
+      </div>
+
+      <div className={styles.toolbar}>
+        <input
+          className={styles.input}
+          value={draft}
+          placeholder={`Новое значение: ${DICTIONARY_LABELS[kind].toLowerCase()}`}
+          aria-label={`Новое значение справочника «${DICTIONARY_LABELS[kind]}»`}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+        />
+        <Button variant="primary" disabled={!draft.trim()} onClick={add}>
+          + Добавить
+        </Button>
+        <div className={styles.spacer} />
+        <label className={styles.checkLabel}>
+          <input
+            type="checkbox"
+            checked={showHidden}
+            onChange={(e) => setShowHidden(e.target.checked)}
+          />
+          Показывать отключённые
+        </label>
+      </div>
+
+      {items.length === 0 ? (
+        /*
+          ДВА РАЗНЫХ «ПУСТО», и примитивы у них тоже разные.
+
+          Значения есть, но все отключены — это РЕЗУЛЬТАТ ПОДБОРА: их прячет
+          снятая галочка «Показывать отключённые», и нужное действие — показать
+          их, а не заводить заново (ровно то, о чём говорила прежняя строка).
+          Поэтому `EmptyResult` с действием: подсказка, которую надо исполнить
+          руками, на один шаг длиннее кнопки, которая её исполняет.
+
+          Справочник пуст по существу — `EmptyState`.
+        */
+        hiddenCount > 0 ? (
+          <EmptyResult
+            icon="filter"
+            resetLabel="Показать отключённые"
+            onReset={() => setShowHidden(true)}
+          >
+            Все значения отключены ({hiddenCount}). Верните нужное — заводить
+            дубликат не нужно.
+          </EmptyResult>
+        ) : (
+          <EmptyState
+            icon="tag"
+            title="Справочник пуст"
+            text="Добавьте первое значение — поле ввода над списком."
+          />
+        )
+      ) : (
+        <ScrollHintBox className={styles.tableWrap} label="Справочник">
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Значение</th><th>Код</th><th>Порядок</th><th>Действие</th></tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={item.id} style={item.active ? undefined : { opacity: 0.5 }}>
+                  <td>
+                    <InlineEdit
+                      value={item.name}
+                      ariaLabel={`Название значения ${item.name}`}
+                      onSave={(v) => updateDictionaryItem(item.id, { name: (v || '').trim() || item.name })}
+                    />
+                    {!item.active && <span className={styles.subText}> · отключено</span>}
+                  </td>
+                  <td className={styles.subText}>{item.code}</td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      disabled={i === 0}
+                      aria-label={`Поднять ${item.name}`}
+                      onClick={() => moveDictionaryItem(item.id, 'up', items[i - 1]?.id)}>
+                      <Icon name="arrowUp" size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={i === items.length - 1}
+                      aria-label={`Опустить ${item.name}`}
+                      onClick={() => moveDictionaryItem(item.id, 'down', items[i + 1]?.id)}>
+                      <Icon name="arrowDown" size={14} />
+                    </Button>
+                  </td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      onClick={() => onToggleActive(item)}>
+                      {item.active
+                        ? (
+                          <span className={styles.cellWithIcon}>
+                            <Icon name="x" size={13} /> Отключить
+                          </span>
+                        )
+                        : 'Вернуть'}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollHintBox>
+      )}
+    </>
+  );
+}
+
+function StatusesList() {
+  return (
+    <>
+      <div className={styles.queueReason} style={{ marginBottom: 12 }}>
+        Статусы — часть маршрутной логики: они зашиты в ограничения базы и в переходы
+        производства, склада и подряда. Переименовать их из админки нельзя — это доработка
+        кода. Список здесь для справки — и он же показывает, каким цветом каждое
+        состояние видит цех: цвет берётся из того же словаря
+        (<code>utils/statusUi</code>), которым раскрашены экраны.
+      </div>
+      {STATUS_GROUPS.map((g) => (
+        <section key={g.title} className={styles.matSection}>
+          <div className={styles.matSectionHead}><strong>{g.title}</strong></div>
+          <div className={styles.checkRow}>
+            {Object.entries(g.labels).map(([code, label]) => (
+              <span
+                key={code}
+                className={`${styles.chip} ${styles[g.entity
+                  ? statusChipClass(g.entity, code)
+                  : 'chipNeutral']}`}
+                title={code}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className={styles.subText}>
+            {Object.keys(g.labels).join(' · ')}
+          </div>
+        </section>
+      ))}
+    </>
+  );
+}
+
+export function DictionariesTab() {
+  const { dictionariesLoaded, dictionariesError, loadDictionaries } = useErpStore(
+    useShallow((s) => ({
+      dictionariesLoaded: s.dictionariesLoaded,
+      dictionariesError: s.dictionariesError,
+      loadDictionaries: s.loadDictionaries,
+    })),
+  );
+  const [kind, setKind] = useState('block_reason');
+
+  useEffect(() => {
+    if (!dictionariesLoaded) loadDictionaries();
+  }, [dictionariesLoaded, loadDictionaries]);
+
+  /**
+   * Отказ загрузки называется прямо (правка 03.09). Для ЭКРАНОВ справочник —
+   * подсказка, и fail-open там верен: без него работают на свободном вводе.
+   * Но на вкладке РЕДАКТИРОВАНИЯ пустой список читается как «значений нет»,
+   * и админ заводит второй раз то, что уже заведено.
+   */
+  if (dictionariesError) {
+    return <LoadFailed onRetry={loadDictionaries} what="справочники" />;
+  }
+
+  /* Без скелетона пустой справочник при загрузке неотличим от справочника,
+     в котором ничего не завели, — и админ заводит второй раз то, что уже есть
+     (этот же довод записан абзацем выше про порядок проверок) */
+  if (!dictionariesLoaded) {
+    return <TableSkeleton rows={6} label="Загрузка справочников" />;
+  }
+
+  return (
+    <>
+      {/* «Статусы» — такая же вкладка, а не кнопка рядом с рядом вкладок:
+          она читается только (`StatusesList`), но переключает ту же панель */}
+      <Tabs
+        idPrefix="dict"
+        label="Справочники"
+        tabs={[
+          ...KINDS.map((k) => ({ id: k, label: DICTIONARY_LABELS[k] })),
+          { id: 'statuses', label: 'Статусы' },
+        ]}
+        active={kind}
+        onSelect={setKind}
+      />
+
+      <TabPanel idPrefix="dict" active={kind}>
+        {kind === 'statuses' ? <StatusesList /> : <DictionaryList key={kind} kind={kind} />}
+      </TabPanel>
+    </>
+  );
+}

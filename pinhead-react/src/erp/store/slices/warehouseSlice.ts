@@ -1,0 +1,445 @@
+/**
+ * Слайс склада (правки 2, 3 + волна 4): числовая приёмка материалов (план/факт/статус)
+ * с записью в историю складских операций; прочие операции (упаковка/отгрузка/маркировка);
+ * и задачи склада с жизненным циклом (erp_warehouse_tasks) — приёмка → маркировка →
+ * упаковка и отгрузка. Задачи авто-создаются триггером БД по переходам маршрута; здесь —
+ * их продвижение по стейт-машине с записью значимых переходов в историю.
+ */
+
+import type { StateCreator } from 'zustand';
+import { supabase } from '../../../lib/supabase';
+import { toast } from '../../../store/useToastStore';
+import type {
+  ErpMaterial, ErpMaterialReceipt, ErpSubcontractOp, ErpWarehouseOp, ErpWarehouseTask,
+  WarehouseOpType,
+} from '../../types';
+import { currentActor, erpError, erpQuery, erpWrite } from '../shared';
+import { enqueue } from '../offlineQueue';
+import type { ErpOrderFull, ErpStore, WarehouseSlice } from '../types';
+import { factoryToday } from '../../../utils/date';
+import { findSupplyDept, openSupplyStages } from '../../utils/supply';
+
+/** Тип складской операции для приёмки по статусу приёмки */
+function receiptOpType(acceptStatus: string): ErpWarehouseOp['op_type'] {
+  return acceptStatus === 'accepted_partial' ? 'partial_receipt' : 'material_receipt';
+}
+
+/**
+ * Материал ещё ждёт приёмки складом (пришёл, но не принят полностью).
+ *
+ * Частичная приёмка — НЕ конец (QA 09.10): после 40 кг из 100 задача
+ * закрывалась, склад терял её из «Только открытых», а закупка вместо
+ * «Принять поставку» показывала «Открыть приёмку» при «осталось 60 кг».
+ */
+function awaitsAcceptance(m: ErpMaterial): boolean {
+  if (m.status !== 'received') return false;
+  return m.accept_status !== 'accepted_full';
+}
+
+/**
+ * Значимые статусы задач → строка истории склада (прочие переходы её не пишут).
+ *
+ * КЛЮЧ `packed` УБРАН, ВМЕСТО НЕГО `ready_to_ship` (правка 03.09). Статус
+ * `packed` схлопнут миграцией `20260823214022` (у упаковки осталось три
+ * статуса: `packing | ready_to_ship | shipped`), а `shipped` через
+ * `advanceWarehouseTask` теперь запрещён явно — его пишет `erp_ship_order`.
+ * То есть из трёх ключей работал один, и переход «упаковано» не попадал
+ * в историю склада НИ РАЗУ, хотя подпись `WAREHOUSE_OP_LABELS.packaging`
+ * для него так и осталась.
+ */
+const OP_FOR_STATUS: Record<string, WarehouseOpType> = {
+  issued: 'marking',
+  ready_to_ship: 'packaging',
+  shipped: 'shipment',
+};
+
+/** Точечный патч задачи склада в orders[].warehouse_tasks (сохраняет идентичность прочих заказов) */
+function patchTaskIn(orders: ErpOrderFull[], taskId: string, patch: Partial<ErpWarehouseTask>): ErpOrderFull[] {
+  return orders.map((o) =>
+    (o.warehouse_tasks ?? []).some((t) => t.id === taskId)
+      ? { ...o, warehouse_tasks: o.warehouse_tasks!.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) }
+      : o);
+}
+
+export const warehouseSlice: StateCreator<ErpStore, [], [], WarehouseSlice> = (set, get) => ({
+  /**
+   * Приёмка материала: приход в журнал и статус позиции — ОДНОЙ транзакцией
+   * (RPC `erp_material_accept`).
+   *
+   * До 22.08 это были два независимых действия: статус писала эта функция,
+   * а строку журнала — отдельная форма «Записать приход», необязательная.
+   * На боевой базе результат был такой: девять материалов приняты, задач
+   * приёмки закрыто шесть, строк в `erp_material_receipts` — НОЛЬ, и
+   * `qty_received` пуст у всех девятнадцати позиций.
+   *
+   * Ломалось при этом три вещи разом, и все молча: экран закупки показывал
+   * «принято: —» у каждого принятого материала; «сколько осталось принять»
+   * считалось от нуля, то есть частичная приёмка не работала вовсе; сортировка
+   * по «принято» падала на дату. Производство не встало только потому, что
+   * материальный гейт цеха смотрит `status` + `accept_status`, а не количество.
+   *
+   * Правило проекта, под которое это подпадает дословно, записано после разбора
+   * подряда 20.08: «селект хранимого статуса рядом с величиной, которую ведёт
+   * журнал, — это разрешение соврать; то, что меняет количества, пишет журнал
+   * той же транзакцией». Здесь та же конструкция: «Принято полностью» можно
+   * было выставить, не записав ни единицы.
+   *
+   * `qty` необязателен: правка статуса или комментария у уже принятого
+   * материала нового прихода не означает. Сам гейт («принято» невозможно при
+   * нулевом `qty_received`) стоит на сервере — там, где его не обойти.
+   */
+  acceptMaterial: async (
+    materialId,
+    { qty = null, accept_status, accept_comment = null, invoice = null,
+      fact_name = null, fact_color = null, fact_article = null, clientKey = null,
+      sizeGrid = null, rolls = null, rollWeights = null, rollParams = null },
+  ) => {
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    if (!order) {
+      erpError('Приёмка не записана', { message: 'Материал не найден в загруженных заказах' });
+      return false;
+    }
+    const args = {
+      p_material_id: materialId,
+      p_accept_status: accept_status,
+      p_qty: qty,
+      p_comment: accept_comment,
+      p_invoice: invoice,
+      p_received_on: factoryToday(),
+      p_fact_name: fact_name,
+      p_fact_color: fact_color,
+      p_fact_article: fact_article,
+      p_actor: currentActor(),
+      p_client_key: clientKey,
+      /**
+       * Разбивка приходит только у закупки готового изделия. При ней
+       * количество считает СЕРВЕР (`erp_size_grid_total`), и `p_qty`
+       * он игнорирует — второй писатель того же числа запрещён.
+       */
+      p_size_grid: sizeGrid && sizeGrid.length > 0 ? sizeGrid : null,
+      /**
+       * Рулоны заводит сервер той же транзакцией — и только когда приход
+       * реально вставился. Клиент их не создаёт: повтор офлайн-очереди
+       * иначе удвоил бы рулоны так же, как удвоил бы килограммы.
+       */
+      p_rolls: rolls && rolls > 0 ? Math.round(rolls) : null,
+      /**
+       * ВЕС КАЖДОГО РУЛОНА (правка 21.09, п. 2). Сервер сверяет сумму
+       * с приходом и отвечает 22023, если она не сходится — тот же гейт,
+       * что показывает форма. Без весов вызов остаётся прежним: очередь
+       * офлайна хранит УЖЕ СОБРАННЫЕ вызовы, и обязательный параметр
+       * уронил бы в день выката всё, что накопилось на планшетах.
+       */
+      p_roll_weights: rollWeights && rollWeights.length > 0 ? rollWeights : null,
+      /**
+       * ПАРАМЕТРЫ РУЛОНОВ (правка 27.09, п. 4): вес, ширина, плотность
+       * и метраж каждого. Сервер по ним заводит рулон с метражом,
+       * коэффициентом кг/м и ценой за метр (`erp_roll_recalc`). Без них —
+       * прежний путь по весам: рулон без метража, закрой дозаполнит.
+       */
+      p_roll_params: rollParams && rollParams.length > 0 ? rollParams : null,
+    };
+
+    /**
+     * Без связи приёмка не теряется, а ждёт (см. `store/offlineQueue`).
+     * Кладовщик стоит у поставки, и «нет сети, действие не сохранено»
+     * означало потерянные цифры и второй заход к тому же материалу.
+     *
+     * Очередь безопасна здесь и только здесь: операция накопительная и
+     * идемпотентна по `p_client_key` — повтор не удвоит приход. Ключ
+     * обязателен: без него очередь лечила бы обрыв связи двойным количеством
+     * материала на фабрике.
+     */
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offline && clientKey) {
+      const material = order.materials.find((m) => m.id === materialId);
+      const ok = enqueue({
+        id: clientKey,
+        kind: 'material_accept',
+        label: `${material?.name ?? 'материал'} · ${order.title}`,
+        at: new Date().toISOString(),
+        args,
+      });
+      // Правду говорим полностью: приёмки в базе ЕЩЁ НЕТ, и «принято» было бы
+      // ложью — материал остаётся в списке ожидающих приёмки
+      if (ok) {
+        toast.warning('Нет связи. Приёмка сохранена на устройстве и уйдёт, когда связь появится');
+      }
+      return false;
+    }
+
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_accept', args));
+    if (error) {
+      erpError('Приёмка не записана', error);
+      return false;
+    }
+    /**
+     * Сколько этапов закупки было открыто ДО приёмки — чтобы после
+     * перечитывания сказать кладовщику, что закупка закрылась. Закрывает её
+     * сервер в той же транзакции (`erp_supply_autoclose`, правка 27.09, п. 9);
+     * клиент этап больше не пишет — от лица кладовщика страж его не пускал.
+     */
+    const supplyDept = findSupplyDept(get().departments);
+    const openBefore = supplyDept ? openSupplyStages(order, supplyDept.id).length : 0;
+    // Сумму журнала пересчитал триггер — перечитываем заказ, чтобы её увидели
+    // и гейты, и экран. Не optimistic по той же причине: считает сервер.
+    await get().loadOne(order.id);
+
+    // История склада: строка приёмки. Её неудача приёмку не отменяет —
+    // та уже закоммичена, и откатывать интерфейс поверх неё нельзя.
+    const opRow = await get().logWarehouseOp(order.id, {
+      op_type: receiptOpType(accept_status),
+      material_id: materialId,
+      qty,
+      note: accept_comment,
+    });
+    if (!opRow) toast.warning('Приёмка записана, но не попала в историю склада');
+
+    /**
+     * ЗАКРЫВАЕТСЯ ЗАДАЧА ЭТОЙ ПОЗИЦИИ (правка 12.09, баг 01).
+     *
+     * Задача приёмки стала позиционной, и прежнее «любая незакрытая задача
+     * заказа» закрыло бы чужую: у заказа с двумя тканями приёмка первой
+     * погасила бы карточку второй, которая ещё едет.
+     *
+     * Legacy-задачи по заказу целиком (`material_id` пуст) закрываются
+     * по-старому — когда принимать в заказе больше нечего: такая задача
+     * отвечает за все позиции сразу, и связать её с одной из них нельзя.
+     */
+    const fresh = get().orders.find((o) => o.id === order.id);
+    const accepted = fresh?.materials.find((m) => m.id === materialId);
+    const task = fresh?.warehouse_tasks?.find(
+      (t) => t.task_type === 'material_receipt' && t.status !== 'accepted'
+        && (t.material_id ? t.material_id === materialId : true));
+    const settled = task?.material_id
+      ? Boolean(accepted) && !awaitsAcceptance(accepted!)
+      : Boolean(fresh) && !fresh!.materials.some(awaitsAcceptance);
+    if (task && settled) {
+      await get().advanceWarehouseTask(task.id, 'accepted');
+    }
+
+    /**
+     * ПРИЁМКА ЗАКРЫВАЕТ И ЗАКУПКУ (правка 12.09, п. 8; с 27.09 — на сервере).
+     * Здесь только результат для человека: этапы закупки были открыты,
+     * а после перечитывания их нет — значит, сервер закрыл закупку.
+     */
+    if (openBefore > 0 && supplyDept) {
+      const after = get().orders.find((o) => o.id === order.id);
+      if (after && openSupplyStages(after, supplyDept.id).length === 0) {
+        toast.success('Материалы приняты полностью — закупка по заказу закрыта');
+      }
+    }
+    return true;
+  },
+
+  /**
+   * ВЕС РУЛОНОВ, ПРИНЯТЫХ ДО ПРАВКИ 21.09 (решение заказчика).
+   *
+   * У сорока одного рулона на бою веса нет вовсе — приёмка заводила их пустыми.
+   * Без веса не посчитать остаток, а разложить принятое поровну нельзя:
+   * это выдуманные цифры в учётных данных. Поэтому склад проставляет вес
+   * тем же действием и с той же проверкой суммы, что при приёмке.
+   *
+   * Пишет RPC (`security definer`): право на это — `material.receive`,
+   * а UPDATE-политика рулонов открыта под права ЭТАПА, потому что расход
+   * по рулону пишет цех. Кладовщик без definer получил бы 42501.
+   */
+  setRollWeights: async (materialId, weights) => {
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_rolls_set_weights', {
+      p_material_id: materialId,
+      p_weights: weights,
+    }));
+    if (error) {
+      erpError('Вес рулонов не сохранён', error);
+      return false;
+    }
+    if (order) await get().loadOne(order.id);
+    toast.success('Вес рулонов записан');
+    return true;
+  },
+
+  /**
+   * РУЛОНЫ К ПРИНЯТОЙ ТКАНИ (правка 01.10, п. 1): «к уже закрытому приходу
+   * разрешить добавить рулоны без повторного поступления и удвоения
+   * остатка». Повторная приёмка записала бы второй приход, поэтому путь
+   * отдельный: журнал приходов не трогается, рулоны раскладывают уже
+   * принятое. Не optimistic — номера и метраж считает сервер.
+   */
+  addMaterialRolls: async (materialId, rollParams, clientKey = null) => {
+    const order = get().orders.find((o) => o.materials.some((m) => m.id === materialId));
+    const { error } = await erpQuery(() => supabase.rpc('erp_material_rolls_add', {
+      p_material_id: materialId,
+      p_roll_params: rollParams,
+      p_client_key: clientKey,
+    }));
+    if (error) {
+      erpError('Рулоны не добавлены', error);
+      return false;
+    }
+    if (order) await get().loadOne(order.id);
+    toast.success('Рулоны добавлены — закрой может записывать расход');
+    return true;
+  },
+
+  /**
+   * Журнал приходов позиций закупки — точечной выборкой.
+   *
+   * В `ORDER_SELECT` журнал не кладётся: он растёт быстрее всего и нужен
+   * ровно там, где спрашивают «что и в каких размерах уже приехало», —
+   * в окне приёмки готового изделия и в карточке закупки.
+   *
+   * Пустой список ID не превращается в запрос: `in ()` вернул бы всё, что
+   * видно политике, и окно тихо предзаполнилось бы чужими приходами.
+   */
+  loadMaterialReceipts: async (materialIds) => {
+    const ids = [...new Set((materialIds ?? []).filter(Boolean))];
+    if (ids.length === 0) return [];
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_material_receipts')
+      .select('*')
+      .in('material_id', ids)
+      .order('created_at', { ascending: true }));
+    if (error) {
+      erpError('Не удалось прочитать приходы закупки', error);
+      return [];
+    }
+    return (data ?? []) as ErpMaterialReceipt[];
+  },
+
+  /**
+   * Отчёт склада по задаче (волна 3.4): строка в `erp_stage_reports` с якорем
+   * `warehouse_task_id`. Тот же журнал, что у цехов — приёмка готовой продукции
+   * считается в штуках и отвечает на те же вопросы. Отдельной таблицы для неё
+   * нет намеренно: иначе «сколько изделий приняли» собиралось бы из двух мест
+   * с разными правилами.
+   */
+  submitWarehouseReport: async (taskId, input) => {
+    const good = Math.max(input.qtyGood ?? 0, 0);
+    const defect = Math.max(input.qtyDefect ?? 0, 0);
+    if (good + defect <= 0) {
+      toast.error('Внесите количество');
+      return false;
+    }
+    const comment = (input.comment ?? '').trim();
+    if (defect > 0 && !comment) {
+      toast.error('Брак нужно объяснить — заполните комментарий');
+      return false;
+    }
+    const { error } = await erpQuery(() => supabase.rpc('erp_warehouse_submit_report', {
+      p_task_id: taskId,
+      p_qty_in: input.qtyIn ?? null,
+      p_qty_good: good,
+      p_qty_defect: defect,
+      p_comment: comment || null,
+      p_extra: input.extra ?? {},
+    }));
+    if (error) {
+      erpError('Приёмка не записана', error);
+      return false;
+    }
+    const order = get().orders.find(
+      (o) => (o.warehouse_tasks ?? []).some((t) => t.id === taskId));
+    if (order) await get().loadOne(order.id);
+    return true;
+  },
+
+  logWarehouseOp: async (orderId, op) => {
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_warehouse_ops')
+      .insert({
+        order_id: orderId,
+        material_id: op.material_id ?? null,
+        op_type: op.op_type,
+        qty: op.qty ?? null,
+        note: op.note ?? null,
+        actor: currentActor(),
+      })
+      .select());
+    const row = data?.[0] as ErpWarehouseOp | undefined;
+    if (error || !row) {
+      // `erpError`, а не плоский тост: отказ прав (42501) обязан отличаться
+      // от обрыва сети — правило проекта про причину, а не про факт
+      erpError('Складская операция не записана', error);
+      return null;
+    }
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === orderId
+          ? { ...o, warehouse_ops: [...(o.warehouse_ops ?? []), row] }
+          : o),
+    }));
+    return row;
+  },
+
+  advanceWarehouseTask: async (taskId, status, extra) => {
+    const prev = get().orders;
+    const order = prev.find((o) => (o.warehouse_tasks ?? []).some((t) => t.id === taskId));
+    const task = order?.warehouse_tasks?.find((t) => t.id === taskId);
+    if (!order || !task) return false;
+
+    /**
+     * ОТГРУЗКА СЮДА БОЛЬШЕ НЕ ХОДИТ (правка заказчика 30.08, п. 6).
+     *
+     * Раньше здесь стояло «сперва `shipOrder`, потом закрываем задачу», и это
+     * было верно, пока отгрузка была одним UPDATE. Теперь она пишет журнал
+     * по позициям, агрегаты и статус заказа одной транзакцией
+     * (`erp_ship_order`) и ЗАКРЫВАЕТ ЗАДАЧУ САМА — но только когда клиенту
+     * передано всё. Оставь мы прежнюю ветку, у перехода в `shipped` стало бы
+     * два писателя, и второй закрывал бы задачу после ЧАСТИЧНОЙ передачи —
+     * ровно тот дефект, который правка и устраняет: заказ исчезал со склада
+     * с неотданным остатком.
+     *
+     * Отказ называет себя, а не молчит: «кнопка есть, действие ничего
+     * не делает» хуже отсутствующей кнопки.
+     */
+    if (task.task_type === 'pack_ship' && status === 'shipped') {
+      toast.error('Отгрузка оформляется в карточке задачи: укажите, сколько передано клиенту');
+      return false;
+    }
+
+    const patch: Partial<ErpWarehouseTask> = {
+      status,
+      ...(extra?.marking_type !== undefined ? { marking_type: extra.marking_type } : {}),
+      ...(extra?.deadline !== undefined ? { deadline: extra.deadline } : {}),
+      ...(extra?.note !== undefined ? { note: extra.note } : {}),
+    };
+    set((s) => ({ orders: patchTaskIn(s.orders, taskId, patch) }));
+    /**
+     * `.select()` обязателен: RLS на UPDATE (`warehouse.manage`) запрещает через
+     * `USING`, то есть отдаёт «0 строк» БЕЗ ошибки. Проверка одного `error`
+     * оставляла бы на экране «задача принята» и «заказ отгружен» там, где
+     * в базе не изменилось ничего, — а следом `logWarehouseOp` дописывал
+     * в историю склада строку о непроизошедшем переходе.
+     */
+    const ok = await erpWrite('Задача склада не обновлена', () => supabase
+      .from('erp_warehouse_tasks').update(patch).eq('id', taskId).select());
+    if (!ok) {
+      set({ orders: prev });
+      return false;
+    }
+    // История склада для значимых переходов (маркировка выпущена / упаковано / отгружено)
+    const opType = OP_FOR_STATUS[status];
+    if (opType) await get().logWarehouseOp(order.id, { op_type: opType });
+
+    /**
+     * Приёмку подряда закрывает СЕРВЕР — триггер `erp_warehouse_fg_accepted`.
+     *
+     * Здесь стояла клиентская цепочка: найти подрядную операцию, перевести её
+     * в «принято», а следом завести упаковку. После ввода `warehouse.manage`
+     * она ломалась ровно у того, кто эту задачу и делает: складскую задачу
+     * кладовщик двигать вправе, а `erp_subcontracting` стоит под `order.manage`,
+     * которого у него нет. Выходило «задача принята, подряд не принят, упаковки
+     * нет», причём молча: оптимистичная правка откатывалась, а тост говорил
+     * лишь «не удалось обновить операцию подряда».
+     *
+     * Триггер SECURITY DEFINER прав не требует и видит все три предусловия
+     * упаковки сразу (`erp_can_pack_ship`). Стор только перечитывает данные.
+     */
+    if (task.task_type === 'subcontract_receipt' && status === 'accepted') {
+      await get().loadOne(order.id);
+      if (get().subcontractingLoaded) await get().loadSubcontracting();
+    }
+    return true;
+  },
+});

@@ -3,24 +3,31 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 95",
     "preview": "vite preview",
     "test": "vitest run",
-    "seed": "node scripts/seed-catalog.js",
-    "seed:sql": "node scripts/generate-seed-sql.js",
     "audit": "node scripts/audit-guidebook.js",
+    "bundle:budget": "node scripts/bundle-budget.mjs",
+    "migrations:verify": "node scripts/verify-migrations.mjs",
+    "storage:gc": "node scripts/storage-gc.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "e2e": "playwright test",
     "e2e:update": "playwright test --update-snapshots",
+    "shots": "playwright test -c playwright.bench.config.ts",
+    "shots:index": "node scripts/shots-index.mjs",
     "prepare": "cd .. && husky pinhead-react/.husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
-    "agentation": "^2.2.1",
+    "agentation": "^3.0.2",
     "chart.js": "^4.5.1",
-    "qrcode": "^1.5.4",
+    "mobile-drag-drop": "^3.0.0-rc.0",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
@@ -28,6 +35,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
@@ -36,6 +44,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",

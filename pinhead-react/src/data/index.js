@@ -6,7 +6,7 @@ export { PRICES } from './prices';
 export { SKU_CATEGORIES, SKU_CATALOG_DEFAULT } from './skuCatalog';
 export {
   FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT,
-  FABRIC_SUPPLIERS,
+  FABRIC_SUPPLIERS, TRIM_SUPPLIERS,
   LAYER1_TYPES, LAYER2_TYPES,
 } from './fabricsCatalog';
 export {

@@ -2,9 +2,56 @@ dist
 node_modules
 .env
 .env.*
+# Шаблон без секретов — трекается; общий шаблон выше его прятал от git add
+!.env.example
 .playwright-mcp/
 skills-lock.json
 *.png
 !pinhead-react/e2e/**/*.png
+!pinhead-react/public/icon-*.png
 .DS_Store
 test-results/
+
+# Ruflo / claude-flow runtime & data (не версионируется)
+.claude-flow/
+.swarm/
+.agents/
+.claude/helpers/*.db
+.hive-mind/
+memory.db
+
+# Ruflo local secrets and runtime data
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+# Векторная БД памяти ruflo — пишется в корень, весит мегабайты
+ruvector.db
+
+# Отчёты Strix — выдержки из кода и найденные уязвимости, в репозиторий не идут
+strix_runs/
+
+# ── Вендорная AI-обвязка: не версионируется ──────────────────────────────
+# Приезжает установщиком (ruflo/claude-flow) и весила 6 МБ в git: 635 файлов
+# чужих скилов, команд и агентов. `.agents/` стоит выше с тем же смыслом —
+# но .gitignore не снимает с учёта то, что уже добавлено, и файлы
+# отслеживались вопреки записи. Сняты `git rm --cached`, на диске остались.
+#
+# Перечислением идёт то, что ОСТАЁТСЯ: что не названо — вендорное.
+# `.claude/helpers/` и `proven-config` удалены 24.09 (сессия 67): хуки
+# и сервер claude-flow сняты из settings.json и .mcp.json (MCP не поднимался
+# ни в 53-й, ни в 67-й сессии, применён один раз). Установщик ruflo кладёт
+# их обратно — поэтому они здесь.
+.claude/helpers/
+.claude/proven-config.json
+.claude/.proven-config-version
+.claude/commands/
+.claude/skills/*
+!.claude/skills/changelog-generator/
+!.claude/skills/root-cause-tracing/
+!.claude/skills/subagent-driven-development/
+!.claude/skills/systematic-debugging/
+!.claude/skills/zustand-store-ts/
+.claude/agents/*
+!.claude/agents/pinhead-qa.md

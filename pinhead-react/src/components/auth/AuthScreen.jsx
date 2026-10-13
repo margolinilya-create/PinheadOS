@@ -9,8 +9,22 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const { login, register, error, loading, clearError } = useAuthStore(
-    useShallow(s => ({ login: s.login, register: s.register, error: s.error, loading: s.loading, clearError: s.clearError }))
+  const {
+    login, register, error, loading, clearError,
+    awaitingEmailConfirm, resendConfirmation, resendingConfirm, clearEmailConfirm,
+    requestPasswordReset, sendingReset, resetSentTo, clearPasswordReset,
+  } = useAuthStore(
+    useShallow(s => ({
+      login: s.login, register: s.register, error: s.error, loading: s.loading, clearError: s.clearError,
+      awaitingEmailConfirm: s.awaitingEmailConfirm,
+      resendConfirmation: s.resendConfirmation,
+      resendingConfirm: s.resendingConfirm,
+      clearEmailConfirm: s.clearEmailConfirm,
+      requestPasswordReset: s.requestPasswordReset,
+      sendingReset: s.sendingReset,
+      resetSentTo: s.resetSentTo,
+      clearPasswordReset: s.clearPasswordReset,
+    }))
   );
 
   const switchTab = (t) => {
@@ -32,9 +46,88 @@ export default function AuthScreen() {
     const pv = validatePassword(password);
     if (!pv.valid) { setPassError(pv.error); return; }
     setPassError('');
-    const ok = await register(name, email, password);
-    if (ok) setTab('pending');
+    const outcome = await register(name, email, password);
+    // 'confirm_email' — экран подтверждения адреса поднимает стор (он же нужен
+    // и при входе в неподтверждённый аккаунт), 'failed' — причина уже в `error`.
+    if (outcome === 'signed_in') setTab('pending');
   };
+
+  /**
+   * Письмо со ссылкой на смену пароля ушло.
+   *
+   * Отдельный экран, а не тост: тост исчезнет через три секунды, а человеку
+   * нужно переключиться в почту и вернуться — и всё это время он должен видеть,
+   * куда именно письмо ушло.
+   */
+  if (resetSentTo) {
+    return (
+      <div className="auth-overlay">
+        <div className="auth-card">
+          <div className="auth-logo">✳ PINHEAD</div>
+          <div className="auth-pending">
+            <div className="auth-pending-icon">✉</div>
+            <h3>Ссылка отправлена</h3>
+            <p>Письмо со ссылкой на смену пароля ушло на адрес</p>
+            <p className="auth-pending-email">{resetSentTo}</p>
+            <p>Откройте ссылку из письма и задайте новый пароль. Письма нет — проверьте папку «Спам».</p>
+            {error && <div className="auth-error">{error}</div>}
+            <div className="auth-pending-actions">
+              <button type="button" className="btn-secondary" onClick={clearPasswordReset}>
+                Вернуться ко входу
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /**
+   * Регистрация не закончена: адрес почты не подтверждён.
+   *
+   * Экран поднимается в двух случаях — сразу после регистрации и при попытке
+   * войти в неподтверждённый аккаунт. Раньше не было ни того, ни другого:
+   * после регистрации человек видел «ждите подтверждения администратора»
+   * (администратор был ни при чём), а при входе — красную строку «Email
+   * не подтверждён» без единой подсказки, что с этим делать.
+   */
+  if (awaitingEmailConfirm) {
+    const backToLogin = () => {
+      clearEmailConfirm();
+      setTab('login');
+    };
+    return (
+      <div className="auth-overlay">
+        <div className="auth-card">
+          <div className="auth-logo">✳ PINHEAD</div>
+          <div className="auth-pending">
+            <div className="auth-pending-icon">✉</div>
+            <h3>Подтвердите адрес почты</h3>
+            <p>Мы отправили письмо со ссылкой на адрес</p>
+            <p className="auth-pending-email">{awaitingEmailConfirm}</p>
+            <p>
+              Откройте ссылку из письма — только после этого можно войти.
+              Письма нет — проверьте папку «Спам».
+            </p>
+            {error && <div className="auth-error">{error}</div>}
+            <div className="auth-pending-actions">
+              <button
+                type="button"
+                className="btn-accent auth-submit"
+                onClick={() => resendConfirmation()}
+                disabled={resendingConfirm}
+              >
+                {resendingConfirm ? 'Отправляем...' : 'Отправить письмо повторно'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={backToLogin}>
+                Вернуться ко входу
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (tab === 'pending') {
     return (
@@ -84,6 +177,22 @@ export default function AuthScreen() {
             <button type="submit" className="btn-accent auth-submit" disabled={loading}>
               {loading ? 'Вход...' : 'Войти'}
             </button>
+            {/* Восстановления не было вовсе: забывший пароль упирался в «Неверный
+                email или пароль» и не имел ни одного выхода — повторная
+                регистрация отвечает «адрес уже заведён» */}
+            <button
+              type="button"
+              className="auth-forgot"
+              disabled={sendingReset}
+              onClick={() => {
+                if (!email) { setPassError('Введите email — на него уйдёт ссылка'); return; }
+                setPassError('');
+                requestPasswordReset(email);
+              }}
+            >
+              {sendingReset ? 'Отправляем...' : 'Забыли пароль?'}
+            </button>
+            {passError && tab === 'login' && <span className="auth-error">{passError}</span>}
           </form>
         ) : (
           <form className="auth-form" onSubmit={handleRegister}>

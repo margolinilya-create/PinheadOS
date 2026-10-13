@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { calcTotal } from '../../utils/pricing';
 import { useDraft } from '../../hooks/useDraft';
+import { useTheme } from '../../hooks/useTheme';
+import { setFeature } from '../../config/features';
 import styles from './Header.module.css';
 
 export default function Header() {
@@ -24,12 +26,7 @@ export default function Header() {
     : 'черновик';
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem('ph_theme') || 'light');
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('ph_theme', theme);
-  }, [theme]);
+  const { theme, toggleTheme } = useTheme();
   const isAdmin = ['admin', 'director'].includes(effectiveRole);
   const isProd = effectiveRole === 'production';
   const isDes = effectiveRole === 'designer';
@@ -75,6 +72,11 @@ export default function Header() {
           ТЗ
         </button>
         {isAdmin && (
+          <button className={`${styles['header-nav-btn']}${pathname.startsWith('/sales') ? ` ${styles.active}` : ''}`} data-nav="sales" onClick={nav('/sales')}>
+            Заказы v4
+          </button>
+        )}
+        {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/sku') ? ` ${styles.active}` : ''}`} onClick={nav('/sku')}>
             SKU
           </button>
@@ -88,6 +90,18 @@ export default function Header() {
         {isAdmin && (
           <button className={`${styles['header-nav-btn']}${isActive('/admin') ? ` ${styles.active}` : ''}`} onClick={nav('/admin')}>
             Админ
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            className={styles['header-nav-btn']}
+            title="Перейти во внутреннее ERP производства"
+            onClick={() => {
+              setFeature('orderStudio', false);
+              window.location.href = '/';
+            }}
+          >
+            🏭 Производство
           </button>
         )}
       </nav>
@@ -109,7 +123,7 @@ export default function Header() {
         )}
         <button
           className={styles['theme-toggle']}
-          onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+          onClick={toggleTheme}
           aria-label={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
           title={theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}
         >

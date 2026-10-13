@@ -4,12 +4,123 @@
 ERP/CRM для типографии (печать на одежде). React 19 + Vite 7 + Zustand 5 + Supabase.
 URL: https://pinhead-os.vercel.app
 
+## Два раздела (переключение в шапке, admin/director)
+- **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
+  screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
+  ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
+  screens/orders/ — DueCell/OrderRow/OrderCardMobile/CreateOrderModal
+  (+ create/: useTzDocs (ТЗ формы: загрузка при выборе, снимок для черновика
+  с именем/типом/размером — 27.09 п. 12), SizeGridEditor (не даёт завести вторую строку того же цвета —
+  дубли удваивали ввод, правка 21.09 п. 8), DraftPicker (выбор черновика прямо
+  в форме; окна подтверждения при выходе больше нет — 21.09 п. 6),
+  FormParts, ItemBlock (+ PrintBlock/CopyPrintPicker/TechBlock/LabelsBlock/PackagingBlock/
+  RouteBlock — блоки позиции), TzSection, useOrderSubmit (сабмит), useOrderDraft (черновик),
+  orderPayload.ts (сборка payload правки и создания) — форма разрезана, 09.10);
+  screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
+  StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
+  MoveStageSelect (перенос в цех из панели)/CutRollsSection (закрой по рулонам;
+  кнопки судьбы остатка у рулонов «в работе» — 27.09 п. 2; «Фактический
+  расход, м», доступно/источник/≈кг, замер остатка и форма параметров
+  рулона при их отсутствии — 27.09 п. 4; с 05.10 п. 5 судьба остатка — только
+  окном RollFinishModal «Завершить рулон», в строке — исходный метраж/записано/доступно)
+  + CutSizeRows (размерные строки рулона, «записано N» у размера)/
+  DefectWizard (мастер брака: 2 шага в Drawer);
+  screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
+  screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
+  цепочкой «план → факт → срок заказа» с подписью источника (utils/gantt);
+  screens/PlanScreen.jsx — «План производства» (/plan): недельная доска по дням,
+  вкладки цехов, сводка «Все цеха», отклонения; screens/plan/ — PlanTaskCard/
+  PlanSlotDrawer (план+факт+проблема+переписка)/PlanAddModal (постановка из общего плана);
+  screens/queue/DeptPlanPanel.jsx — вкладка «План» в кабинете цеха;
+  screens/orderCard/ — format/PlanCell/StageStepper/OrderItemSection/CommentsSection/HistorySection +
+  useOrderDetail (общий хук данных)/OrderDrawer/OrderDrawerHost (боковая карточка, редизайн)/
+  TzDocsSection (ТЗ в PDF: загрузка, назначение цехам, версии)/
+  EconomicsSection (вкладка «Экономика позиции», правка 20.09 п. 9: расход и стоимость
+  полотна, средняя сборка, прямая себестоимость — считает сервер, право `economics.view`;
+  с 27.09 п. 8 расход в метрах, «Себестоимость годной единицы» и «Затраты
+  на единицу клиентского тиража») + LossesSection («Остатки и потери
+  по заказу»: пригодные и списанные остатки, корректировки, плюсы, брак,
+  в работе — раскрываются до рулона и этапа);
+  components/chat/ — ChatWindow (окно поверх ERP, смонтировано в ОБОЛОЧКЕ: переживает
+  переход между разделами)/ChatPanel (лента: дни, группы по 5 минут, граница
+  непрочитанного, «Новые сообщения, N»)/ChatMessage/ChatComposer/ChatSection (вход
+  с экранов)/ChatNotifyMenu (режим подписки)/ChatReadReceipts («Прочитали N»);
+  layout/NotificationCenter + layout/NoticePopups (центр и всплывающие под колоколом;
+  очередь показа считает `utils/noticePopups`, первая загрузка сессии молчит);
+  screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
+  SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
+  InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
+  screens/skuCard/ — SkuCardPage (/sku-card/:cardId: Описание · Технический пакет · Заказы ·
+  История) + SkuCardLink (ссылка на карточку из разработки и из позиции заказа);
+  screens/warehouse/ — MaterialReceiptCard → AcceptMaterialForm (форма материала с 05.10 п. 4:
+  рулоны строками, итог в закреплённом низу, план/факт/документы/история свёрнуты;
+  ReceiptHistory — поставки и рулоны по receipt_id) (план/факт, правка 4.1.3; веса рулонов
+  и дозаполнение веса у принятых до правки — 21.09 п. 2; ширина/плотность/метраж
+  поставщика на рулон — 27.09 п. 4) + RollParamsFields (поля рулонов при приёмке
+  и дозаполнение параметров у принятых до правки)/MarkingCard/PackShipCard/
+  SubcontractReceiptCard (приёмка от подрядчика, правка 4.2.1) — задачи склада),
+  screens/FabricLeftovers.jsx — «Остатки ткани» (/leftovers, правка 21.09 п. 5):
+  рулоны с ненулевым остатком, вес, цена и заказ-источник; остаток это САМ рулон,
+  отдельной сущности нет; с 27.09 п. 4 — в метрах с источником, ширина,
+  плотность, цена за метр, кг «расчёт» рядом;
+  screens/purchasing/ — AddPurchaseModal (модалка «Новая закупка», подсветка
+  обязательных полей — 27.09 п. 1; ширина и плотность у ткани — п. 4),
+  PurchaseFields (+ FabricParamsFields: ширина/плотность в таблице закупки),
+  SupplierOptionsModal (сравнение вариантов поставщика, правка 10),
+  purchaseLabels.js (подписи; `pricePerUnitLabel` — цена по ЕДИНИЦЕ материала,
+  одна функция на таблицу, карточку планшета, инлайн-правку и модалку),
+  components (StageReportForm + SizeReportSection (размерная таблица сдачи, остаток
+  по размерам) + useStageReports (отчёты предков и свои — 27.09 пп. 6, 7) +
+  RollParamsForm (параметры рулона для учёта в метрах: общая для закроя
+  и склада, расчёт виден до нажатия — 27.09 п. 4; чистый вес у рулона без веса — 28.09) +
+  useForeignRolls (остатки других заказов для формы закроя),
+  ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
+  ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
+  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
+  RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
+  редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
+  useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
+  + useErpAccess.ts (права: can/canActIn/canDo) + useStagePermissions.ts (права на этап по действиям) + useDictionary.js (активные значения справочника);
+  orders/stages (+ stageGates.ts — гейты закрытия у писателя: файл → программа
+  вышивки → тираж → закупка/рулоны, не учтённые изделия)/materials/procurement/subcontracting/employees/permissions/dictionaries/tz/plan/realtime;
+  realtimeCoalesce.ts (серия событий → одно перечитывание), realtimeHelpers.ts, reworkEvents.ts (журнал
+  переделок с кэшем по `id:qty`), slices/rollActions.ts (действия с рулонами: судьба остатка,
+  параметры, место хранения, остатки по всем заказам — 28.09), attempts.ts (ключи попыток сдачи по этапу —
+  в модуле, не в состоянии: повтор не спишет метры дважды, 27.09 п. 4),
+  authHelpers.ts у useAuthStore;
+  контракт+DTO в types.ts, плумбинг в shared.ts, чистые хелперы в orderHelpers.ts;
+  точечный realtime, ленивый архив, RPC erp_create_order, pendingMutations),
+  utils (routes/time/stageUi/orderForm (+ orderDraftEnvelope — снимок черновика,
+  файлы проходят нормализацию)/stageRemaining (не учтено = принято − сдано − брак,
+  пока предшественник в работе — от большего из тиража; stageDonePatch пишет принятое)/
+  stageInput (выход этапа = факт, прозрачный этап, itemProducedQty — 05.10)/progress/filterStages/queueEntries/queueOrder/
+  stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
+  sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
+  читателей)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
+  общие с RPC)/cutExtras (производственный «плюс», накопительно)/
+  rollFinish (сводка метража рулона в закройке и план завершения рулона:
+  замер → уточнение полного метража, 05.10 п. 5)/
+  fabricMetres (формулы кг ↔ м и ₽/м, `fmtM`/`fmtKg`, рабочий метраж рулона
+  с источником — 27.09 п. 4)/rollParams (параметры рулонов приёмки → payload
+  `p_roll_params`)/foreignRolls (рулоны других заказов как варианты закроя — 28.09)/
+  analyticsCsv (выгрузка аналитики в CSV)/reportTotals (числа отчёта из разбивки — правило одно
+  с сервером)/itemEconomics (подписи экономики: пробелы, покрытие, пересчёт)/
+  fabricLeftovers/attachmentView/deptMap (карты участков, WeakMap по массиву)/cellKey (`CELL_SEP`)),
+  orderFormGrid.ts (размерная сетка формы, реэкспорт из orderForm),
+  data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
+  pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
+  PWA: public/manifest.webmanifest + icon-192/512.
+- **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
+  SKU, аналитика. Компоненты ниже — его состав.
+- Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
+- Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
+
 ## Структура src/
 - components/ — UI-компоненты
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
   - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
   - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
-  - editors/ — PriceEditor (wrapper), SkuEditor (8 табов), ExpressCalc
+  - editors/ — SkuEditor (8 табов), ExpressCalc
   - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
   - analytics/ — Dashboard (Chart.js)
   - auth/ — AuthScreen, AdminPanel
@@ -24,9 +135,10 @@ URL: https://pinhead-os.vercel.app
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts
+- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js, useScrollRestore.js
 
 ## Ключевые правила
+- Общение с пользователем: всегда на русском языке
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
@@ -46,21 +158,105 @@ URL: https://pinhead-os.vercel.app
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 - Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
 
+## Где искать «как это устроено»
+
+Секции «где что лежит» ПЕРЕЕХАЛИ в `docs/rules/react/` (15.09) — один файл
+на секцию, текст перенесён дословно. Вход — **`docs/rules/react/INDEX.md`**
+(карта по подсистемам: маршрут · закупка и склад · форма заказа · стор и вес
+оболочки · интерфейс · планшет · даты · права · чат и каталог SKU).
+Правила ПРОЕКТА — этажом выше, `docs/rules/INDEX.md`.
+
+Поиск по слову: `grep -rn "слово" docs/rules/react/`.
+
+Зачем: файл весил ~59k токенов и читался целиком на каждом запросе, притом
+что 48 секций из 55 — журнал по сессиям. Здесь остаётся то, что нужно всегда:
+состав приложения, структура `src/`, ключевые правила, что не трогать без
+тестов, команды и дизайн-система.
+
 ## Не трогать без тестов
-- utils/pricing.ts — 84 теста (pricing.test.js + pricing-extended.test.js)
+- utils/pricing.ts + pricingCore.ts — 88 тестов (pricing.test.js + pricing-extended.test.js)
+  и pricingCore.test.ts; формула — в ядре, pricing.ts — обёртки с getPrices()
+- utils/costRules.ts + printRules.ts — формула правок CRM 13.10 (накладные, группы наценки,
+  срочность, DTF/DTG/вышивка); контрольные примеры документа — costRules.test.ts, printRules.test.ts
+- orderstudio/ — priceOrder (16), tzToErpDraft (22, сторож контракта с формой ERP),
+  salesOrders (7, туда-обратно с RPC), useSalesStore (очередь автосохранения),
+  erpImports (сторож: без рантайм-импорта ERP), wizardAdapter (13), itemSession (5),
+  ItemWizard (4), leaveGuard (3), wizardOrderToSales (7), transferToSales (2)
 - store/slices/ — 796 тестов зависят от них
+- erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
+  волны 1, 88 тестов
+- erp/utils/tz.ts — резолюция версий и гейт ТЗ, 38 тестов
+- erp/utils/queueEntries.js — единый источник групп очереди, 21 тест
+
+Сторожа, читающие файлы, — под `// @vitest-environment node` (сторож `guardEnv.test.ts`);
+обходчик исходников один — `src/testutil/sourceFiles.ts`. Полный прогон и линт
+в контейнере 16 ГБ — по очереди (`--maxWorkers=3`), иначе процесс убивается.
 
 ## Тесты
 ```bash
-npm run test     # 796 unit тестов (Vitest)
-npm run e2e      # 40 E2E сценариев (Playwright, 7 файлов)
-npm run lint     # 0 ошибок обязательно
-npm run build    # успешный билд обязательно
+npm run test      # unit-тесты (Vitest); сколько — PROJECT.md, «Статистика» (с датой)
+npm run typecheck # tsc --noEmit, strict: true — 0 ошибок обязательно
+npm run e2e       # E2E (Playwright, 24 спеки на 24.09 + визуальные эталоны).
+                  # @playwright/test ждёт сборку 1208, а предустановлена 1194 —
+                  # вместо временного конфига проще разложить ожидаемые пути
+                  # из имеющихся бинарников:
+                  #   mkdir -p /opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64
+                  #   ln -s .../chromium_headless_shell-1194/chrome-linux/headless_shell \
+                  #         .../chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+                  #   ln -s .../chromium-1194/chrome-linux .../chromium-1208/chrome-linux
+                  # Тогда работает штатная команда, без своего конфига
+npm run lint      # 0 ошибок обязательно
+npm run build     # успешный билд обязательно
 ```
+
+**E2E `.env` больше не требует** (правка 31.08). Фиктивные ключи Supabase
+задаёт сам `playwright.config.ts` обоим серверам, поэтому `npm run e2e`
+работает на чистом клоне и в свежем контейнере. `.env` по-прежнему нужен
+для `npm run dev` против боевой базы; unit-тестам он не нужен вовсе —
+`setupTests.js` мокает `lib/supabase` целиком.
+
+**Почему это чинилось.** `lib/supabase.ts` бросает «Missing Supabase
+credentials» на уровне модуля — до React, поэтому ErrorBoundary
+не срабатывает, а Playwright видит пустой `<div id="root">` и сообщает
+«element(s) not found» про КАЖДЫЙ локатор. Мок сети не спасает: он
+перехватывает запросы, а падает импорт. Отказ читается как десяток
+сломанных спек, и найти в нём «нет настройки» нельзя — прежняя редакция
+этого раздела прямо советовала «сначала проверьте `.env`, а не спеки», то
+есть держала ловушку советом вместо починки. Сторож — `src/lib/e2eEnv.test.ts`.
 
 ## Design System
 - Токены: src/index.css (:root) — --type-*, --space-*, --z-*, --radius-*, --color-*
 - Dark mode: html[data-theme="dark"] с полным набором override-токенов
-- Шрифты: Barlow Condensed (заголовки) / Inter (текст) / Roboto Mono (числа)
-- Кнопки: .btn + variants (.btn-primary, .btn-secondary, .btn-danger, .btn-ghost)
+- Шрифты: Oswald (заголовки, `--font-display`) / Inter (текст) / Roboto Mono (числа).
+  С 06.09 вместо Barlow Condensed: у того НЕТ кириллицы, и на русских заголовках
+  он не применялся вовсе — валидное правило с нулевым эффектом. Сторож
+  «каждое семейство покрывает кириллицу» — в `styles/fonts.test.ts`
+- Кнопки: в ERP — примитив `erp/components/Button` (variant/size/icon/loading);
+  глобальные .btn + variants остаются языком Order Studio
+- Иконки ERP: `erp/components/Icon` + набор в icons.js. Эмодзи вместо иконок не использовать;
+  иконка участка — `deptIcon(code)`, значение это ИМЯ иконки, не глиф
+- Высоты контролов — токены `--control-h-sm/md/lg` (32/40/48; на `pointer: coarse`
+  40/44/48, переопределение стоит рядом с объявлением в `index.css`, как
+  у `--dept-tab-h`). Своих медиазапросов высоты у модулей примитивов НЕТ:
+  два таких, в примитиве и в монолите, уже разъезжались (кнопка 36 против
+  поля 40). Общий список классов ≥44px для НЕпримитивов — в erp.module.css
+- Кегли — только ступени шкалы (`--type-label/body-sm/body/body-lg/title/h4/h3/h2/h1`
+  + `--type-metric`), и все они ПРОСТЫЕ px: сторож мелкого текста разворачивает
+  токен регуляркой по `px`, и ступень через `clamp()` он объявит ссылкой в пустоту
+- Движение — `--dur-fast/base/slow` + `--ease-out`; тени — `--shadow-card/raise/modal`;
+  кольцо фокуса — `--focus-ring`/`--focus-ring-error`. Литералы сторожат
+  `styles/motion.test.ts` и `styles/shadows.test.ts`
 - Анимации: fadeSlideIn, slideInRight, scaleIn, skeleton shimmer
+- **Размер, заданный разметкой инлайном, требует блочного отображения.**
+  `<span className={styles.X} style={{ width }}/>` на строчном элементе
+  не работает ВООБЩЕ: так не рисовались три полосы прогресса сразу.
+  Сторож — `erp/inlineSizing.test.ts`
+- Пустое состояние собирают только `EmptyState`/`EmptyResult` (сторож
+  `erp/emptyStates.test.ts`). Подпись поля обязана быть связана с контролом —
+  `htmlFor` либо обёртка `<label>`; сторожится РЕЗУЛЬТАТ, а не способ
+  (`erp/labelBinding.test.ts`), поэтому массовая миграция рукописных полей
+  на примитив `Field` не требуется и НЕ делалась
+- Обход вёрстки глазами — `npm run shots` (стенд `playwright.bench.config.ts`,
+  29 состояний × 3 ширины × 2 темы) + `npm run shots:index -- before after`.
+  Это НЕ эталоны: вывод в `.shots/` вне гита, сравнения нет, страница
+  намеренно разжата. Сторож — `styles/screenshotBench.test.ts`

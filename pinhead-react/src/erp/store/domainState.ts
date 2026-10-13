@@ -1,0 +1,140 @@
+import { DEFAULT_CAPACITY } from '../utils/capacity';
+import type { ErpStore } from './types';
+
+/**
+ * Исходные ДАННЫЕ доменных слайсов — в ядре, хотя сами слайсы приезжают лениво.
+ *
+ * ЗАЧЕМ. Слайс прицепляется вместе с чанком экрана, а данные нужны раньше:
+ *   · `myDeptId`/`myRole` (employees) читает `useErpAccess` — он в оболочке;
+ *   · `subcontracting`, `experimental`, `dictionaries` НАПОЛНЯЕТ `loadBootstrap`,
+ *     то есть ядро, ещё до открытия любого экрана.
+ * Если бы данные приезжали вместе со слайсом, позднее подключение затирало бы
+ * уже загруженное: `loadBootstrap` — сетевой запрос, подключение слайса —
+ * локальный импорт, и кто из них финиширует последним, зависит от кэша.
+ * Поэтому `attachDomainSlices()` переносит в стор ТОЛЬКО функции, а данные
+ * стоят здесь с самого начала.
+ *
+ * Второе следствие — `resetErpStore()`: он снимает снимок данных при создании
+ * стора, и доменные поля обязаны быть в нём. Иначе выход из системы не очистил
+ * бы список подряда, и на общем планшете следующая смена увидела бы чужой.
+ *
+ * ЭТО ЗЕРКАЛО, А НЕ ВТОРОЙ ИСТОЧНИК. Значения обязаны совпадать с тем, что
+ * объявляют сами слайсы; расхождение ловит `domainSlices.test.ts`, выполняя
+ * каждую фабрику и сверяя её нефункциональные поля с этим объектом.
+ */
+/**
+ * Именно `Pick`, а не `Partial`: так TypeScript проверяет и имена полей,
+ * и типы значений против настоящего контракта стора. С `Partial` опечатка
+ * в имени прошла бы молча — поле просто не попало бы в стор.
+ */
+type DomainState = Pick<ErpStore,
+  | 'subcontracting' | 'subcontractingLoaded' | 'subcontractingError'
+  | 'preliminary' | 'preliminaryLoaded'
+  | 'employees' | 'profilesList' | 'employeesLoaded' | 'employeesError'
+  | 'invites' | 'invitesLoaded'
+  | 'myDeptId' | 'myRole' | 'myDeptLoaded'
+  | 'dictionaries' | 'dictionariesLoaded' | 'dictionariesError'
+  | 'experimental' | 'experimentalLoaded' | 'experimentalError'
+  | 'planSlots' | 'planComments' | 'planLoaded' | 'planLoading' | 'planLoadError'
+  | 'plannedStageIds' | 'plannedAheadLoaded'
+  | 'capacity' | 'capacityLoaded' | 'capacityError'
+  | 'orderDrafts' | 'orderDraftsLoaded' | 'orderDraftsError'
+  | 'chatDirectory' | 'chatDirectoryLoaded'
+  | 'analytics' | 'analyticsKey' | 'analyticsLoading'
+  | 'orderEconomics' | 'economicsLoading'
+  | 'chatUnreadAnchor' | 'chatWindow'
+  | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
+  | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
+  | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
+>;
+
+export const DOMAIN_INITIAL_STATE: DomainState = {
+  // Аналитика (правка 16.09, п. 7): снимок приезжает по запросу вкладки
+  analytics: null,
+  analyticsKey: null,
+  analyticsLoading: false,
+  // Экономика позиций (20.09, п. 9): поле без хозяина никто не чистит при выходе
+  chatUnreadAnchor: null,
+  chatWindow: null,
+  orderEconomics: {},
+  economicsLoading: false,
+
+  // subcontractingSlice
+  subcontracting: [],
+  subcontractingLoaded: false,
+  subcontractingError: null,
+  // orderDraftsSlice — черновики формы создания заказа (правка 22.08, п. 5.5)
+  orderDrafts: [],
+  orderDraftsLoaded: false,
+  orderDraftsError: null,
+  /**
+   * materialsSlice — ПЕРВЫЕ собственные данные у этого слайса: предварительные
+   * закупки (п. 17 документа 16.08). Остальные материалы живут внутри заказов
+   * и своего состояния не имеют, а строка без заказа в `orders` не попадёт
+   * никогда — её грузит отдельный запрос.
+   */
+  preliminary: [],
+  preliminaryLoaded: false,
+  // employeesSlice — `myDeptId`/`myRole` нужны оболочке (useErpAccess)
+  employees: [],
+  profilesList: [],
+  employeesLoaded: false,
+  employeesError: null,
+  myDeptId: null,
+  myRole: null,
+  myDeptLoaded: false,
+  // invitesSlice
+  invites: [],
+  invitesLoaded: false,
+  // dictionariesSlice
+  dictionaries: [],
+  dictionariesLoaded: false,
+  dictionariesError: null,
+  // experimentalSlice
+  experimental: [],
+  experimentalLoaded: false,
+  experimentalError: null,
+  // planSlice
+  planSlots: [],
+  planComments: [],
+  planLoaded: false,
+  planLoading: false,
+  planLoadError: false,
+  plannedStageIds: [],
+  plannedAheadLoaded: false,
+  // settingsSlice
+  capacity: DEFAULT_CAPACITY,
+  capacityLoaded: false,
+  capacityError: null,
+  /**
+   * chatSlice — переписка сделки. В ядре она стоит по той же причине, что
+   * и остальные доменные данные, но с более прямой ценой: `resetErpStore()`
+   * снимает снимок ИМЕННО отсюда, и оставленная за его пределами лента
+   * показала бы следующей смене на общем цеховом планшете чужой разговор.
+   *
+   * `chatPing` правит ЯДРО (`realtimeSlice`), а читает доменное окно чата:
+   * событие подписки приходит независимо от того, приехал ли доменный чанк.
+   */
+  chatDirectory: [],
+  chatDirectoryLoaded: false,
+  chatOrderId: null,
+  chatContext: {},
+  chatMessages: [],
+  chatHasMore: false,
+  chatLoading: false,
+  chatError: null,
+  chatUnread: {},
+  chatPing: 0,
+  // skuSlice — каталог моделей ERP (правка 14.09, п. 6)
+  skuCards: [],
+  skuCardsLoaded: false,
+  skuCardsError: null,
+  skuPriceCodes: [],
+};
+
+/**
+ * Слайсы этапов, материалов, склада, закупки и ТЗ здесь не перечислены
+ * НАМЕРЕННО: у них нет собственных данных вовсе — они правят `orders`,
+ * которые принадлежат ядру. Пустая строка в этом списке была бы ложью
+ * о том, что у слайса есть состояние.
+ */

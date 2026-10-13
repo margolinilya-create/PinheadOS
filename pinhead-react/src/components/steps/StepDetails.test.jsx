@@ -73,7 +73,8 @@ describe('StepDetails', () => {
 
   it('shows urgent toggle', () => {
     render(<StepDetails />);
-    expect(screen.getByText(/Срочное производство/)).toBeInTheDocument();
+    expect(screen.getByText(/Срочный пошив/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /На 10 дней раньше/ })).toBeInTheDocument();
   });
 
   it('calls setPackType when clicking pack button', () => {

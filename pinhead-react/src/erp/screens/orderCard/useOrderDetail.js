@@ -1,0 +1,157 @@
+import { useEffect, useMemo, useState } from 'react';
+import { deptById as deptsById, deptNameById as deptNamesById } from '../../utils/deptMap';
+import { useShallow } from 'zustand/react/shallow';
+import { supabase } from '../../../lib/supabase';
+import { useErpStore } from '../../store/useErpStore';
+import { isOrderReadyToShip } from '../../utils/stageUi';
+
+/**
+ * Общая логика деталей заказа (загрузка события/аудит/комментарии + realtime, инлайн-правки,
+ * плановые даты, отправка комментария, производные карты цехов/этапов). Переиспользуется
+ * страницей `OrderCard` и страницей задания `ProductionTask`. Боковая карточка
+ * убрана правкой заказчика 16.08 — второго рендера тех же данных больше нет.
+ */
+export function useOrderDetail(orderId) {
+  const {
+    orders, detailIds, departments, loaded, loadError, loadAll, loadOne, setStagePlan,
+    loadOrderBundle, updateOrder, addComment,
+    profilesList, employees,
+  } = useErpStore(
+    useShallow((s) => ({
+      orders: s.orders,
+      detailIds: s.detailIds,
+      departments: s.departments,
+      loaded: s.loaded,
+      loadError: s.loadError,
+      loadAll: s.loadAll,
+      loadOne: s.loadOne,
+      setStagePlan: s.setStagePlan,
+      loadOrderBundle: s.loadOrderBundle,
+      updateOrder: s.updateOrder,
+      addComment: s.addComment,
+      profilesList: s.profilesList,
+      employees: s.employees,
+    })),
+  );
+  const [events, setEvents] = useState(null);
+  const [audit, setAudit] = useState(null);
+  const [comments, setComments] = useState(null);
+  const [lookedUpFor, setLookedUpFor] = useState(null);
+  const lookedUp = lookedUpFor === orderId;
+
+  useEffect(() => {
+    if (!loaded) loadAll();
+  }, [loaded, loadAll]);
+
+  /**
+   * Полные данные заказа, а не «заказ вообще есть в сторе».
+   *
+   * Списочный запрос (`ORDER_LIST_SELECT`) не тянет колонки, нужные только
+   * карточке — размерную сетку позиции. Раньше здесь стояла проверка «есть
+   * в сторе», и после облегчения списка карточка молча рисовала бы позицию
+   * без сетки: данные вроде есть, а поля нет.
+   */
+  const hasDetail = detailIds.includes(orderId);
+  const detailError = useErpStore((s) => s.detailError);
+  useEffect(() => {
+    if (!loaded || hasDetail || lookedUp || !orderId) return undefined;
+    let alive = true;
+    loadOne(orderId).finally(() => { if (alive) setLookedUpFor(orderId); });
+    return () => { alive = false; };
+  }, [loaded, hasDetail, lookedUp, loadOne, orderId]);
+
+  useEffect(() => {
+    if (!orderId) return undefined;
+    // alive-гард: медленный ответ по прошлому заказу не перезаписывает текущий
+    // (страница OrderCard дополнительно keyed по orderId — полный remount при A→B).
+    // Отменить сам запрос нельзя — supabase-js не принимает AbortSignal, — поэтому
+    // гард на применении результата остаётся единственной защитой и после
+    // перехода на пакетный RPC.
+    let alive = true;
+    // Один RPC вместо трёх запросов: история этапов, лог правок, комментарии.
+    // Кэш дедуплицирует — страница и боковой Drawer используют этот же хук.
+    loadOrderBundle(orderId).then((bundle) => {
+      if (!alive) return;
+      setEvents(bundle?.events ?? []);
+      setAudit(bundle?.audit ?? []);
+      setComments(bundle?.comments ?? []);
+    });
+    const channel = supabase
+      .channel(`erp-comments-${orderId}-${crypto.randomUUID()}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'erp_order_comments', filter: `order_id=eq.${orderId}` },
+        (payload) => {
+          setComments((prev) => {
+            if (!prev || prev.some((c) => c.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
+        })
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(channel); };
+  }, [orderId, loadOrderBundle]);
+
+  const order = orders.find((o) => o.id === orderId);
+  /**
+   * Перечитать ленту правок после собственной мутации.
+   *
+   * `force` обязателен: пакет заказа лежит в кэше со сроком свежести, и без
+   * сброса человек сохранил бы дату, а история осталась бы прежней — то есть
+   * выглядело бы, что правка не прошла. Аудит пишет ТРИГГЕР на стороне БД,
+   * поэтому его результат виден только новым запросом.
+   */
+  const refreshAudit = () => loadOrderBundle(orderId, { force: true })
+    .then((bundle) => setAudit(bundle?.audit ?? []));
+  const saveOrderField = async (patch) => {
+    const ok = await updateOrder(orderId, patch);
+    if (ok) refreshAudit();
+    return ok;
+  };
+  const onSavePlan = async (stageId, plan) => {
+    const ok = await setStagePlan(stageId, plan);
+    if (ok) refreshAudit();
+    return ok;
+  };
+  const onSendComment = async (text) => {
+    const row = await addComment(orderId, text);
+    if (row) setComments((prev) => (prev && !prev.some((c) => c.id === row.id) ? [...prev, row] : prev));
+    return row;
+  };
+  const readyToShip = order ? isOrderReadyToShip(order) : false;
+  const shippedByName = useMemo(() => {
+    if (!order?.shipped_by) return null;
+    const p = profilesList.find((x) => x.id === order.shipped_by);
+    if (p) return p.name || p.email;
+    return employees.find((x) => x.profile_id === order.shipped_by)?.full_name ?? null;
+  }, [order, profilesList, employees]);
+
+  const deptById = deptsById(departments);
+  const deptNameById = deptNamesById(departments);
+  const stageById = useMemo(() => {
+    const m = new Map();
+    for (const it of order?.items ?? []) for (const st of it.stages) m.set(st.id, { st, it });
+    return m;
+  }, [order]);
+
+  return {
+    order,
+    loaded,
+    loadError,
+    loadAll,
+    detailError,
+    /**
+     * Повтор ТОЧЕЧНОЙ загрузки. Эффект выше второй раз не сработает —
+     * `lookedUpFor` уже проставлен, — поэтому кнопке «Повторить» нужен
+     * собственный путь, иначе единственным выходом остаётся F5.
+     */
+    retryDetail: () => loadOne(orderId),
+    /**
+     * «Не найдено» — ТОЛЬКО когда сервер ответил и записи действительно нет
+     * (правка 03.09). При сбое запроса `loadOne` тоже отдаёт `null`, и раньше
+     * этого хватало, чтобы объявить заказ удалённым.
+     */
+    notFound: loaded && !order && lookedUp && !detailError,
+    events, audit, comments,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    deptById, deptNameById, stageById, departments,
+  };
+}

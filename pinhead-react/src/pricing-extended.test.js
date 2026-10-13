@@ -4,6 +4,7 @@
 // screen multipliers, flex из getPrices, boundary conditions
 // ═══════════════════════════════════════════════════════════════
 import { describe, it, expect, beforeEach } from 'vitest';
+import { skuCost } from './utils/costRules';
 import {
   screenLookup, flexLookup, getMarkup, calcTotal,
   getZoneSurcharge,
@@ -52,45 +53,23 @@ beforeEach(() => {
 // 1. getMarkup — наценка по тиражу и категории
 // ════════════════════════════════════════════════
 describe('getMarkup', () => {
-  // markupTiers: [1, 25, 50, 100, 200, 300, 500, 1000]
-  // tshirts:     [0.75, 0.75, 0.70, 0.65, 0.55, 0.50, 0.45, 0.40]
-  it('qty=1 → 75% для tshirts', () => {
-    expect(getMarkup(1, 'tshirts')).toBeCloseTo(0.75);
+  // Правка 13.10: группы А/Б/В × ступени 25…10000; ниже 25 — ставка первой ступени
+  it.each([
+    [1, 0.90], [24, 0.90], [25, 0.90], [50, 0.78], [100, 0.70], [200, 0.55], [300, 0.50],
+    [500, 0.45], [1000, 0.40], [3000, 0.37], [5000, 0.34], [10000, 0.30], [20000, 0.30],
+  ])('группа А (футболки): %i шт. → %f', (qty, rate) => {
+    expect(getMarkup(qty, 'tshirts')).toBeCloseTo(rate);
   });
-  it('qty=24 → 75% (tier 1)', () => {
-    expect(getMarkup(24, 'tshirts')).toBeCloseTo(0.75);
+  it('худи — та же группа А', () => {
+    expect(getMarkup(50, 'hoodies')).toBeCloseTo(0.78);
   });
-  it('qty=25 → 75% (tier 25)', () => {
-    expect(getMarkup(25, 'tshirts')).toBeCloseTo(0.75);
+  it('поло, штаны — группа Б; шопперы — группа В', () => {
+    expect(getMarkup(50, 'polo')).toBeCloseTo(0.73);
+    expect(getMarkup(100, 'pants')).toBeCloseTo(0.65);
+    expect(getMarkup(50, 'accessories')).toBeCloseTo(0.83);
   });
-  it('qty=50 → 70%', () => {
-    expect(getMarkup(50, 'tshirts')).toBeCloseTo(0.70);
-  });
-  it('qty=100 → 65%', () => {
-    expect(getMarkup(100, 'tshirts')).toBeCloseTo(0.65);
-  });
-  it('qty=200 → 55%', () => {
-    expect(getMarkup(200, 'tshirts')).toBeCloseTo(0.55);
-  });
-  it('qty=300 → 50%', () => {
-    expect(getMarkup(300, 'tshirts')).toBeCloseTo(0.50);
-  });
-  it('qty=500 → 45%', () => {
-    expect(getMarkup(500, 'tshirts')).toBeCloseTo(0.45);
-  });
-  it('qty=1000 → 40%', () => {
-    expect(getMarkup(1000, 'tshirts')).toBeCloseTo(0.40);
-  });
-  it('qty=2000 → 40% (max tier)', () => {
-    expect(getMarkup(2000, 'tshirts')).toBeCloseTo(0.40);
-  });
-  it('hoodies have different markup at qty=50', () => {
-    // hoodies: [0.75, 0.70, 0.65, ...]  vs tshirts: [0.75, 0.75, 0.70, ...]
-    expect(getMarkup(50, 'hoodies')).toBeCloseTo(0.65);
-  });
-  it('unknown category uses markupDefault', () => {
-    expect(getMarkup(1, 'unknown')).toBeCloseTo(0.75);
-    expect(getMarkup(50, 'unknown')).toBeCloseTo(0.65);
+  it('неизвестная категория — группа А', () => {
+    expect(getMarkup(1, 'unknown')).toBeCloseTo(0.90);
   });
 });
 // ════════════════════════════════════════════════
@@ -140,9 +119,8 @@ describe('calcTotal — urgentOption порядок применения', () =>
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
     const markup = getMarkup(100, 'tee');
-    const markedUp = Math.round(basePrice * (1 + markup));
-    const urgentSurcharge = markedUp * 0.2;
-    const expected = Math.round(100 * (markedUp + urgentSurcharge));
+    // Прежний флажок = 5 дней: +15 % к изделию, после наценки (правка 13.10)
+    const expected = 100 * Math.round(basePrice * (1 + markup) * 1.15);
     expect(total).toBe(expected);
   });
   it('срочность с наценкой (qty=10)', () => {
@@ -153,8 +131,7 @@ describe('calcTotal — urgentOption порядок применения', () =>
     const total = calcTotal(state);
     const basePrice = PRICES.type['tee'];
     const markup = getMarkup(10, 'tee');
-    const markedUp = Math.round(basePrice * (1 + markup));
-    const expected = Math.round(10 * markedUp * 1.20);
+    const expected = 10 * Math.round(basePrice * (1 + markup) * 1.15);
     expect(total).toBe(expected);
   });
   it('срочность не применяется если urgentOption=false', () => {
@@ -177,8 +154,8 @@ describe('calcTotal — с SKU-каталогом', () => {
     const total = calcTotal(state);
     const estPrice = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
     const markup = getMarkup(20, sku.category);
-    const markedUp = Math.round(estPrice * (1 + markup));
-    expect(total).toBe(20 * markedUp);
+    // × 1,70 накладных (правка 13.10)
+    expect(total).toBe(20 * Math.round(estPrice * 1.7 * (1 + markup)));
   });
   it('разные ткани дают разную цену (т.е. выбор ткани учитывается)', () => {
     const stateA = makeState({
@@ -227,15 +204,19 @@ describe('getSkuEstPrice — учёт выбранной ткани', () => {
     // первая ткань категории tshirts = medas-kulirnaya-100-160 → должны совпасть
     expect(p1).toBe(p2);
   });
-  it('usdRate влияет на цену', () => {
+  it('рублёвые цены курсом не пересчитываются; старая карточка в $ — пересчитывается', () => {
     const p1 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 80);
     const p2 = getSkuEstPrice(sku, 'medas-kulirnaya-100-160', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 100);
-    expect(p2).toBeGreaterThan(p1);
+    expect(p2).toBe(p1);
+    const legacy = [{ code: 'old', name: 'x', supplier: '', composition: '', density: null, priceUSD: 3, forCategories: ['tshirts'] }];
+    const l1 = getSkuEstPrice(sku, 'old', legacy, TRIM_CATALOG_DEFAULT, 80);
+    const l2 = getSkuEstPrice(sku, 'old', legacy, TRIM_CATALOG_DEFAULT, 100);
+    expect(l2).toBeGreaterThan(l1);
   });
-  it('неизвестный fabricCode → fallback на категорию', () => {
-    const pFallback = getSkuEstPrice(sku, null, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    const pUnknown = getSkuEstPrice(sku, 'nonexistent-fabric', FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, 92);
-    expect(pFallback).toBe(pUnknown);
+  it('неизвестный fabricCode → ошибка «ткань не найдена», а не подмена другой тканью', () => {
+    const c = skuCost(sku, { fabricCode: 'nonexistent-fabric', fabricsCatalog: FABRICS_CATALOG_DEFAULT, trimCatalog: TRIM_CATALOG_DEFAULT, usdRate: 92 });
+    expect(c.fabricMissing).toBe(true);
+    expect(c.fabric).toBe(0);
   });
 });
 // ════════════════════════════════════════════════
@@ -374,18 +355,16 @@ describe('calcZonePriceDirect — все техники', () => {
   });
   it('dtg: A4, white', () => {
     const result = calcZonePriceDirect('dtg', { fmt: 'A4', textile: 'white' }, 50);
-    const P = PRICES;
-    expect(result).toBe((P.tech.dtg || 280) + (P.dtgFormatAdd?.['A4'] || 0));
+    expect(result).toBe(400); // таблица DTG 13.10: А4 белый, 50–99 шт.
   });
-  it('dtg: A4, color — добавляет белую подложку', () => {
-    const white = calcZonePriceDirect('dtg', { fmt: 'A4', textile: 'white' }, 50);
+  it('dtg: A4, color — своя строка таблицы', () => {
     const color = calcZonePriceDirect('dtg', { fmt: 'A4', textile: 'color' }, 50);
-    expect(color - white).toBe(PRICES.dtgWhiteUnder || 60);
+    expect(color).toBe(500);
   });
   it('embroidery: 50x50mm default (stitch pricing)', () => {
     const result = calcZonePriceDirect('embroidery', { width_mm: 50, height_mm: 50, fill: 1.0 }, 50);
-    // area=25cm², stitches=7500, price=round(7500/1000*14)=105
-    expect(result).toBe(105);
+    // 25 см² × 300 = 7500 стежков; на крое, 50–99 шт. → 15 ₽/1000 = 112,5
+    expect(result).toBe(112.5);
   });
   it('embroidery: larger area = more expensive', () => {
     const small = calcZonePriceDirect('embroidery', { width_mm: 50, height_mm: 50 }, 50);
@@ -394,8 +373,9 @@ describe('calcZonePriceDirect — все техники', () => {
   });
   it('dtf: A3 (film pricing)', () => {
     const result = calcZonePriceDirect('dtf', { fmt: 'A3' }, 50);
-    // A3 297x420, gap=10: rotated cols=floor(550/430)=1, cost=(307/1000)*1400=429.8 → round(429.8+50)=480
-    expect(result).toBe(480);
+    // повёрнутый 430×307: 1 в ряд, 3 в метре → 17 м; непрерывно 50 × 0,307 = 15,35 м → 1400 ₽/м
+    // (17 × 1400 + 50 × 50) / 50 = 526
+    expect(result).toBe(526);
   });
   it('неизвестная техника → 0', () => {
     expect(calcZonePriceDirect('unknown', {}, 50)).toBe(0);

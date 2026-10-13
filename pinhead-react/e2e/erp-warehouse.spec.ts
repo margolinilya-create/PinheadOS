@@ -1,0 +1,298 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, buildStages, FX_CREATED } from './support/mockSupabase';
+
+/**
+ * Экран «Склад» — главный экран пилота, и до 22.08 он не открывался НИ В ОДНОЙ
+ * спеке. Ни unit-теста, ни e2e: `screens/Warehouse.jsx` и все пять карточек
+ * задач (`MaterialReceiptCard`, `MarkingCard`, `PackShipCard`, `FgReceiptCard`,
+ * `SubcontractReceiptCard`) были непокрыты целиком.
+ *
+ * Здесь проверяется то, чего unit-тесты по построению не видят: доходит ли
+ * задача до экрана, что показывает счётчик вкладки и можно ли объявить приёмку,
+ * не сказав, сколько пришло.
+ *
+ * Заказы свои: базовые четыре держат visual-эталоны и счётчики соседних спек.
+ */
+
+const FIXED_TIME = new Date('2026-07-20T09:00:00');
+
+/** База заказа: поля, которые ждёт список и карточка */
+const ORDER_BASE = {
+  customer: 'ООО «Ромашка»',
+  manager: 'Анна',
+  launch_date: '2026-07-18',
+  due_date: '2026-07-28',
+  buffer_days: 1,
+  priority: 0,
+  status: 'active',
+  shipped_status: 'not_shipped',
+  delivered_at: null,
+  shipped_at: null,
+  shipped_by: null,
+  notes: null,
+  packaging: 'none',
+  packaging_note: null,
+  stickers: 'none',
+  stickers_note: null,
+  no_chestny_znak: false,
+  created_by: null,
+  created_at: FX_CREATED,
+  updated_at: FX_CREATED,
+  attachments: [],
+};
+
+/**
+ * Приёмка материалов: журнал приходов ПУСТ (`qty_received: null`) — ровно то
+ * состояние, в котором на боевой базе оказались все девятнадцать позиций.
+ */
+const ORDER_RECEIPT = {
+  ...ORDER_BASE,
+  id: 'wh-a',
+  bitrix_id: '77001',
+  title: 'Свитшоты склад-тест',
+  items: [{
+    id: 'wh-a-i1',
+    order_id: 'wh-a',
+    product_type: 'Свитшот',
+    variant: null,
+    qty: 50,
+    production_type: 'sewing',
+    branding_methods: [],
+    branding_on: 'cut',
+    notes: null,
+    size_grid: null,
+    sort_order: 10,
+    created_at: FX_CREATED,
+    updated_at: FX_CREATED,
+    stages: buildStages('wh-a-i1', [
+      { code: 'supply', status: 'done' },
+      { code: 'cutting', status: 'waiting', deps: [0] },
+    ]),
+    prints: [],
+  }],
+  materials: [{
+    id: 'wh-a-m1', order_id: 'wh-a', item_id: null, kind: 'fabric',
+    name: 'Футер трёхнитка', source: 'purchase', qty: '100 кг',
+    qty_expected: 100, qty_received: null, unit: 'кг',
+    status: 'received', accept_status: null, eta_date: null, received_at: null,
+    notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+  }],
+  warehouse_tasks: [{
+    id: 'wh-a-t1', order_id: 'wh-a', item_id: null, stage_id: null,
+    task_type: 'material_receipt', status: 'awaiting',
+    marking_type: null, deadline: null, note: null,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+  }],
+};
+
+/** Приёмка готовой продукции — тип, счётчик которого давал NaN */
+const ORDER_FG = {
+  ...ORDER_BASE,
+  id: 'wh-b',
+  bitrix_id: '77002',
+  title: 'Худи приёмка ГП',
+  items: [{
+    ...ORDER_RECEIPT.items[0],
+    id: 'wh-b-i1',
+    order_id: 'wh-b',
+    product_type: 'Худи',
+    qty: 30,
+    stages: buildStages('wh-b-i1', [{ code: 'sewing', status: 'done' }]),
+  }],
+  materials: [],
+  warehouse_tasks: [{
+    id: 'wh-b-t1', order_id: 'wh-b', item_id: null, stage_id: null,
+    task_type: 'fg_receipt', status: 'awaiting',
+    marking_type: null, deadline: null, note: null,
+    created_at: FX_CREATED, updated_at: FX_CREATED,
+  }],
+};
+
+const EXTRA = { orders: [ORDER_RECEIPT, ORDER_FG] };
+
+test.beforeEach(async ({ page }) => {
+  await installSupabaseMock(page, EXTRA);
+  await page.clock.setFixedTime(FIXED_TIME);
+});
+
+test.describe('Экран склада: задачи доходят до экрана', () => {
+  test('задачи склада видны списком', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+
+    const table = page.getByRole('table');
+    await expect(table).toContainText('Свитшоты склад-тест');
+    await expect(table).toContainText('Худи приёмка ГП');
+  });
+
+  /**
+   * Счётчик вкладки готовой продукции давал `NaN`: инициализатор перечислял
+   * типы задач руками и пропускал `fg_receipt`. С правки 05.10 (п. 8)
+   * вкладки — операции склада, и приёмка ГП живёт в «Готовые изделия».
+   */
+  test('«Готовые изделия» показывают число открытых задач', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    const chip = page.getByRole('button', { name: /^Готовые изделия/ });
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toContainText('1');
+    await expect(chip).not.toContainText('NaN');
+  });
+
+  /**
+   * Рабочие вкладки (правка 05.10, п. 8): операции, а не типы задач;
+   * во вкладке материалов нет приёмок готовых изделий.
+   */
+  test('вкладки — операции склада; в материалах нет готовых изделий', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    for (const name of ['Приёмка материалов', 'Готовые изделия', 'Подряд', 'Отгрузка']) {
+      await expect(page.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(1);
+    }
+    await page.getByRole('button', { name: /^Приёмка материалов/ }).click();
+    await expect(page).toHaveURL(/tab=materials/);
+    const table = page.getByRole('table');
+    await expect(table).toContainText('Свитшоты склад-тест');
+    await expect(table).not.toContainText('Худи приёмка ГП');
+  });
+});
+
+test.describe('Приёмка материала: приход обязателен', () => {
+  test('карточка открывается и показывает план', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toContainText('Футер трёхнитка');
+    await expect(drawer).toContainText('100');
+  });
+
+  /**
+   * Главная проверка контура. На боевой базе девять материалов были «приняты»
+   * при полностью пустом журнале приходов: приёмка и приход были двумя формами,
+   * и вторая работала без первой. Теперь действие одно, и объявить приёмку,
+   * не сказав, сколько пришло, нельзя — гейт стоит на сервере, а кнопка гасится
+   * по тому же правилу.
+   */
+  test('«Принять» погашена, пока не указано количество, и причина названа', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('Укажите вес новой поставки');
+  });
+
+  /**
+   * ПРАВКА 16.09, П. 5. Материал этой задачи учитывается в килограммах,
+   * а значит приёмка обязана назвать ещё и число рулонов: по ним закрой
+   * отчитывается о расходе ткани, и рулон, не заведённый на приёмке,
+   * выбрать в цеху уже нечем.
+   *
+   * Одного количества теперь мало — и это ровно то, на чём спека упала
+   * при выкате правки: она заполняла килограммы и ждала открытую кнопку.
+   */
+  // С правки 05.10 (п. 4) поля «Количество рулонов» нет: рулоны — строки
+  // таблицы, первая стоит сразу, и без её веса кнопка не открывается
+  test('вес поставки введён, а вес рулона — нет: кнопка погашена и причина названа', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('Укажите вес каждого рулона');
+  });
+
+  /**
+   * ПРАВКА 21.09, П. 2. Числа рулонов стало мало: «при приёмке ткани нужно
+   * указывать вес каждого рулона отдельно». Без веса закрой не посчитает
+   * ни расход, ни остаток, а сорок один рулон на бою принят именно так.
+   *
+   * Спека упала при выкате ровно здесь — заполняла количество и число
+   * рулонов и ждала открытую кнопку. Это НЕ поломка: гейт стал строже
+   * осознанно, и правило проекта требует, чтобы клиент и сервер запрещали
+   * одно и то же.
+   */
+  test('веса рулонов не заполнены — кнопка погашена и причина названа', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('вес каждого рулона');
+  });
+
+  /** Сумма весов обязана сойтись с приходом — иначе приёмка врёт о партии */
+  test('сумма весов не сходится с приходом — кнопка погашена, расхождение названо', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByLabel(/Вес рулона 1/).fill('20');
+    await drawer.getByLabel(/Вес рулона 2/).fill('20');
+    await drawer.getByLabel(/Вес рулона 3/).fill('15');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeDisabled();
+    await expect(drawer).toContainText('55');
+  });
+
+  test('количество, рулоны и их веса введены — кнопка открывается', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await drawer.getByLabel(/Сколько пришло сейчас/).fill('60');
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByRole('button', { name: /Добавить строку рулона/ }).click();
+    await drawer.getByLabel(/Вес рулона 1/).fill('20');
+    await drawer.getByLabel(/Вес рулона 2/).fill('20');
+    await drawer.getByLabel(/Вес рулона 3/).fill('20');
+    await expect(drawer.getByRole('button', { name: 'Принять' })).toBeEnabled();
+  });
+
+  /**
+   * Форм было ДВЕ — «Записать приход» и «Принять», каждая со своим селектом
+   * статуса. Второй селект рядом с величиной, которую ведёт журнал, — это
+   * то самое «разрешение соврать», из-за которого журнал и остался пустым.
+   */
+  test('форма приёмки одна, отдельной «Записать приход» больше нет', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByRole('button', { name: 'Записать приход' })).toHaveCount(0);
+    await expect(drawer.getByLabel(/Статус приёмки/)).toHaveCount(1);
+  });
+
+  /** Сумма журнала — то, чего экран не показывал никогда */
+  test('«Ранее принято» показано и равно нулю при пустом журнале', async ({ page }) => {
+    await page.goto('/warehouse?studio=0');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+
+    await expect(page.getByRole('dialog')).toContainText('Ранее принято0 кг');
+  });
+});
+
+test.describe('Склад: контекст в адресе (правка 05.10, п. 8)', () => {
+  test('поиск и вкладка переживают открытие и закрытие формы', async ({ page }) => {
+    await page.goto('/warehouse?studio=0&tab=materials');
+    await page.getByLabel('Поиск задач склада').fill('Свитшоты');
+    await page.getByRole('row').filter({ hasText: 'Свитшоты склад-тест' })
+      .getByRole('button', { name: 'Принять материал' }).click();
+    await expect(page).toHaveURL(/task=wh-a-t1/);
+    await page.getByRole('dialog').getByRole('button', { name: 'Закрыть' }).click();
+    await expect(page).toHaveURL(/tab=materials/);
+    await expect(page.getByLabel('Поиск задач склада')).toHaveValue('Свитшоты');
+  });
+});

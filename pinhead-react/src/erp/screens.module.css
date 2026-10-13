@@ -1,0 +1,2401 @@
+/*
+ * CSS ЭКРАНОВ раздела «Производство» — то, чего нет в оболочке.
+ *
+ * ЗАЧЕМ. `erp.module.css` импортировали и оболочка (`layout/*`, общие
+ * компоненты), и все экраны, поэтому он ехал критическим путём целиком —
+ * вместе с правилами очереди цеха, плана, админки и формы создания заказа.
+ * Здесь собрано то, чьи классы использует ТОЛЬКО `screens/**`.
+ *
+ * КАК ПОДКЛЮЧЕНО. Экраны импортируют агрегатор `erp/styles.js`, а не этот
+ * файл: в разделе два десятка обращений вида `styles[STAGE_CHIP_CLASS[st]]`,
+ * и разложи классы по двум переменным — часть из них молча стала бы
+ * `undefined`, то есть `className={undefined}`.
+ *
+ * ЧТО СЮДА НЕ ПОПАДАЕТ СОЗНАТЕЛЬНО (каждое правило куплено падением):
+ *   · цели `composes` — он работает внутри файла и только сверху вниз;
+ *   · классы групповых правил начертаний и любые УТОЧНЕНИЯ базового класса
+ *     (`deptTab` → `deptTabActive`): специфичность равна, спор решает
+ *     порядок, а между чанками порядка не существует;
+ *   · класс, чьё имя встречается в коде строкой, — к нему могут обратиться
+ *     динамически, и «используется только экранами» про него не доказать.
+ *
+ * Файл СОБИРАЕТСЯ СКРИПТОМ и правится руками: скрипт лежит в истории задачи,
+ * здесь он не нужен — новые правила пишите там, где им место по смыслу.
+ */
+
+.rowClickable { cursor: pointer; }
+.rowClickable:hover td { background: var(--surface); }
+
+/* Кнопка «Отгрузить» (строка/карточка заказа) */
+.shipBtn { white-space: nowrap; align-self: flex-start; }
+
+/* ─── Формы ─── */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* Группа полей формы с подписью (правка 05.10, п. 6: «поля группами»).
+   Рамку `fieldset` гасим: группу отделяет подпись и отступ, а не коробка
+   внутри коробки модалки */
+.formGroup { border: 0; margin: 0 0 var(--space-lg); padding: 0; min-width: 0; }
+.formGroupTitle {
+  padding: 0; margin-bottom: var(--space-sm);
+  font-family: var(--font-display); font-size: var(--type-body); font-weight: 600;
+  color: var(--text);
+}
+
+/* Жёсткие 7 колонок ломались на подряде: та же grid-строка получала 9-12 детей
+   (фрагменты DOM-узла не создают), и свободный ввод «Операция подрядчика» сжимался
+   до 32px — колонки кнопки ✕, которая при этом уезжала во второй ряд.
+   auto-fit переносит поля сами, как в .formGrid. */
+.itemRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+  align-items: end;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.checkLabel {
+  display: inline-flex; gap: 6px; align-items: center;
+  font-size: var(--type-body-sm); cursor: pointer; white-space: nowrap;
+  min-height: 28px;
+}
+
+/* ─── Приглашение сотрудника ссылкой ─── */
+/* Свежая ссылка — самое важное на экране: её пришли получить. Поэтому она
+   выделена, доступна для выделения мышью и не прячется в тост, который исчезнет
+   раньше, чем человек успеет переключиться в мессенджер. */
+.inviteReady {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm);
+  padding: var(--space-md); border-left: 3px solid var(--accent); background: var(--accent-light);
+}
+.inviteReadyTitle {
+  flex-basis: 100%; display: flex; align-items: center; gap: 6px;
+  font-weight: 600; color: var(--text);
+}
+.inviteLink {
+  flex: 1 1 320px; min-width: 0;
+  font-family: var(--mono); font-size: var(--type-label);
+  padding: var(--space-sm) 10px; border: 1px solid var(--border-light); background: var(--card);
+  color: var(--text);
+}
+.inviteListTitle { font-weight: 600; margin-top: var(--space-xs); }
+.inviteList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.inviteRow {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+  padding: var(--space-sm) 10px; border: 1px solid var(--border-light); flex-wrap: wrap;
+}
+.inviteRowActions { display: flex; gap: 6px; }
+.inviteArchive { color: var(--text-dim); }
+.inviteArchive summary { cursor: pointer; padding: 6px 0; }
+
+/* ─── Карточка пользователя ─── */
+/* Смена пароля и смена адреса — отдельные действия, а не часть «Сохранить»:
+   они уходят на сервер поодиночке, и общая кнопка врала бы про то, что
+   именно сохранилось. Отсюда своя строка «поле + кнопка» у каждого. */
+/* Кнопки формы — на всю ширину сетки, а не в ячейку рядом с последним полем:
+   в колонке ~180px они складываются в столбик и читаются как ещё одно поле */
+.formGrid > .modalActions { grid-column: 1 / -1; }
+.userRow {
+  display: flex; align-items: flex-end; gap: var(--space-sm); flex-wrap: wrap;
+}
+.userRow > :first-child { flex: 1 1 220px; min-width: 0; }
+/* Удаление стоит поодаль от правок и подписано красным: рядом с «Сохранить»
+   его нажимают промахом, а отката у него нет */
+.dangerZone {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border-left: 3px solid var(--signal);
+  background: var(--bg-error);
+}
+.dangerZoneTitle { font-weight: 600; color: var(--color-error-ink); margin-bottom: var(--space-xs); }
+
+/* ─── Модалка ─── */
+.modalOverlay {
+  position: fixed; inset: 0;
+  background: var(--overlay);
+  z-index: var(--z-modal);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 4vh var(--space-lg);
+  overflow-y: auto;
+}
+.modal {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 900px;
+  padding: var(--space-xl);
+  display: flex; flex-direction: column; gap: var(--space-md);
+  box-shadow: var(--shadow-modal);
+}
+/* Кнопки формы закреплены и на десктопе: форма с раскрытыми секциями, размерными
+   сетками и нанесениями — в несколько экранов, и «Создать заказ» вместе с подсказкой
+   «Осталось заполнить» жили в самом низу (на мобильном sticky был, на десктопе нет) */
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 0 2px;
+  margin-top: var(--space-xs);
+  background: var(--card);
+  border-top: 1px solid var(--border-light);
+}
+
+/* ─── Тулбар / вкладки цехов ─── */
+.toolbar {
+  display: flex; gap: 10px; align-items: center;
+  margin-bottom: var(--space-md); flex-wrap: wrap;
+}
+/* Ряд, стоящий СРАЗУ под заголовком экрана. `.pageHead` даёт снизу 20px,
+   а ряду под ним нужен обычный шаг сетки — разницу и выбирает этот класс.
+   Стояла она инлайном (`style={{ marginTop: -8 }}`) в трёх экранах: одна
+   и та же величина, выписанная от руки трижды, — и правило «компактные
+   размеры только классами» нарушалось ровно там, где верстают на глаз.
+   Соседним селектором `.pageHead + .toolbar` это не выражается: классы
+   объявлены в РАЗНЫХ CSS-модулях, и в каждом из них второе имя получило бы
+   чужой хеш — правило молча не сработало бы. */
+.toolbarUnderHead { margin-top: calc(var(--space-md) - 20px); }
+/* Строка фактов заказа под заголовком: клиент · менеджер · даты · заметка.
+   Свой зазор шире общего (18px против 10) — это не «тулбар с кнопками»,
+   а перечисление величин, и им нужно дышать, чтобы пары «подпись: значение»
+   не слипались в сплошную строку. */
+.orderFacts { gap: 18px; }
+/* Пояснение под заголовком группы: прижато к заголовку (его собственный
+   нижний отступ шире, чем нужно паре «заголовок + пояснение») и отделено
+   от следующего блока. Стояло инлайном, то есть мимо медиазапросов. */
+.groupNote { margin-top: -6px; margin-bottom: 10px; }
+/* Ряд фильтр-чипов внутри тулбара: без переноса ряд был шире 390px
+   и вылезал за вьюпорт (мобильный overflow ~20px) */
+.filterRow { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.deptTabs {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 0 18px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.deptTabs::-webkit-scrollbar { display: none; }
+/* Ряд вкладок держит высоту ДО приезда состава участков: пустой flex-контейнер
+   схлопывался до 2px рамок, и приезд цехов поднимал его до 48px, увозя вниз всё
+   содержимое экрана. Псевдоэлемент нулевой ширины растягивает строку и в
+   заполненном состоянии не делает ничего. min-height на самом .deptTabs
+   не годится: box-sizing глобально border-box, 46px включили бы рамки
+   и остался бы сдвиг ровно на 2px. */
+.deptTabs::before { content: ''; flex: 0 0 0; min-height: var(--dept-tab-h); }
+/* Обёртка вкладок: градиенты-подсказки, что справа/слева есть скрытые вкладки */
+.deptTabsWrap { position: relative; margin: 0 0 18px; }
+.deptTabsWrap .deptTabs { margin: 0; }
+.deptTabsFade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 32px;
+  pointer-events: none;
+  z-index: 1;
+}
+.deptTabsFadeL {
+  left: 1px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: linear-gradient(90deg, var(--card) 15%, transparent);
+}
+.deptTabsFadeR {
+  right: 1px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: linear-gradient(270deg, var(--card) 15%, transparent);
+}
+
+.dueSoon { color: var(--color-warning-ink); font-weight: 700; }
+.stageChips { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+
+/* ─── Очередь цеха ─── */
+.queueGroupTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.dragHandle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: var(--type-body-sm);
+  line-height: 1;
+  user-select: none;
+}
+.dragHandle:active { cursor: grabbing; }
+.queueDue { text-align: right; font-size: var(--type-label); white-space: nowrap; }
+
+/*
+  МИНИАТЮРЫ ПРЕВЬЮ И ЛАЙТБОКС СНЯТЫ 07.09 вместе с самой величиной.
+  Вид вложения `preview` перестал создаваться, когда убрали дроп-зону
+  «Превью заказа» (п. 15), а на боевой базе таких вложений НОЛЬ за всё
+  время — то есть показ был мёртвой веткой ещё до правки. Ушли
+  `.queueThumb*`, `.orderThumb*` (в `erp.module.css`) и всё семейство
+  `.lightbox*` вместе с компонентом `queue/Lightbox.jsx`, который звала
+  только карточка очереди: правило без носителя — то же осиротевшее
+  правило, что ловит сторож стилей.
+*/
+
+/* Разворачиваемое полное ТЗ в карточке очереди */
+.tzToggle { min-height: 44px; }
+.tzBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border-top: 1px dashed var(--border-light);
+  padding-top: 10px;
+}
+.tzMatList {
+  margin: var(--space-xs) 0 0;
+  padding-left: 18px;
+  font-size: var(--type-body-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Строка «кто увидит ТЗ» (карточка заказа и форма создания).
+   Раньше это был список выпадающих выборов по цехам, теперь — справка:
+   документ принадлежит позиции и назначать его цехам не нужно. */
+.tzAssignRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr;
+  align-items: start;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-light);
+}
+.tzAssignRow > * { min-width: 0; overflow-wrap: anywhere; }
+.tzAssignRow:last-child { border-bottom: 0; }
+.tzAssignDept { font-weight: 600; }
+.tzAssignMissing { color: var(--color-error-ink); }
+@media (max-width: 768px) {
+
+  .tzAssignRow { grid-template-columns: 1fr; }
+}
+
+
+/* Прогресс частичной готовности «300/500» */
+.progressLine { display: flex; align-items: center; gap: var(--space-sm); }
+
+/* Кнопка «прикрепить фото» (брак/блокировка) */
+.fileBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+  max-width: 100%;
+}
+.fileBtn:hover { border-color: var(--accent); color: var(--text); }
+.fileBtn:focus-within { outline: 2px solid var(--accent); outline-offset: -1px; }
+.fileBtnText {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* .navBadge — определён выше в блоке Sidebar (редизайн) */
+
+/* ─── Закупка ─── */
+.matSection {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 14px;
+  margin-bottom: var(--space-md);
+}
+/* Заголовок свёрнутого блока — ОДИН вид на все `details.matSection`.
+   До 06.09 два соседних блока закупки, стоящие друг под другом и одинаковые
+   по роли, были набраны по-разному: у «Предварительных закупок» на summary
+   висел `labelCaps`, у «Завершённых закупок» — ничего. Вид задаётся здесь,
+   а не в разметке: иначе третий такой блок снова получит своё оформление,
+   а четвёртый — ещё одно. */
+.matSection > summary {
+  font-family: var(--font-display);
+  font-size: var(--type-body-lg);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  cursor: pointer;
+}
+.matSectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.addMatRow { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+/* Поле ввода растягивается на свободное место. Правило жило в `erp.module.css`
+   как `.addMatRow .input:nth-child(2)` — и не работало ВОВСЕ: `.addMatRow`
+   объявлен здесь, а упоминание в соседнем модуле давало ему другой хеш,
+   который агрегатор и отдавал разметке. Половина про `.input` выражена
+   селектором элемента: класс соседнего модуля отсюда не адресуется. */
+.addMatRow input:nth-child(2) { flex: 1; min-width: 200px; }
+@media (max-width: 768px) {
+
+  .itemRow { grid-template-columns: 1fr 1fr; }
+  .queueDue { white-space: normal; max-width: 40%; }
+  .queueDue > div { white-space: normal; }
+
+  /* Полноэкранная модалка: 100dvh, без скруглений, скролл внутри оверлея */
+  .modalOverlay { padding: 0; align-items: stretch; }
+  .modal {
+    min-height: 100dvh;
+    max-width: none;
+    border-radius: 0;
+    padding: var(--space-lg) var(--space-md) 0;
+    box-shadow: none;
+  }
+  /* Кнопки сабмита прилипают к низу экрана */
+  .modalActions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: auto;
+    background: var(--card);
+    border-top: 1px solid var(--border-light);
+    padding: var(--space-sm) 0 var(--space-md);
+    flex-wrap: wrap;
+  }
+}
+
+
+/* Кнопка-ячейка плановых дат в карточке заказа */
+.planBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 2px var(--space-xs);
+  font: inherit;
+  font-size: var(--type-label);
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.planBtn:hover { background: var(--surface); outline: 1px dashed var(--border-light); }
+
+/* ─── Комментарии ─── */
+.commentList { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: 10px; max-height: 320px; overflow-y: auto; }
+.commentItem {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) 11px;
+  font-size: var(--type-body-sm);
+}
+.commentMeta { font-size: var(--type-label); color: var(--text-dim); margin-bottom: 2px; }
+.commentForm { display: flex; gap: var(--space-sm); }
+/* Поле сообщения занимает строку, кнопка — по содержимому. Переехало
+   из `erp.module.css` (`.commentForm .input`) по той же причине. */
+.commentForm > input { flex: 1; }
+
+/* ─── Плитки и drop-zone (волна 3) ─── */
+.tileRow { display: flex; flex-wrap: wrap; gap: 5px; }
+.tile {
+  appearance: none;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text-mid);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: var(--type-label);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 36px;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.tile:hover { border-color: var(--accent); color: var(--text); }
+.tileActive { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ─── Обрезка длинных названий в ячейках таблиц (полное имя — в title) ─── */
+/* Название заказа в таблице — дисплейным начертанием, как в очереди цеха
+   и на карточке канбана: одна величина, один голос.
+
+   `overflow-wrap` — `break-word`, а НЕ `anywhere`. Разница не косметическая:
+   `anywhere` учитывается при расчёте min-content, то есть объявляет колонке
+   минимальную ширину в ОДНУ БУКВУ. Именно поэтому браузер и счёл возможным
+   ужать «Заказ» до 85px, отдав ширину заголовкам служебных колонок, а потом
+   разорвал слово: «Шоппер / ы эко…». `break-word` переносит внутри слова
+   только тогда, когда слово иначе не помещается вовсе. */
+.cellTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  max-width: 420px;
+}
+a.cellTitle { color: inherit; text-decoration: none; }
+a.cellTitle:hover { color: var(--accent); }
+
+/* ─── Поля ТЗ в форме ─── */
+.itemBlock {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.itemBlock .itemRow { border: none; background: none; padding: 0; }
+/* Шапка позиции: номер, изделие и удаление. Номер нужен, потому что подсказка
+   валидации говорит «(поз. 2)», а блоки на экране были неотличимы друг от друга. */
+.itemBlockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-light);
+}
+.itemBlockTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-body-lg);
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.printBlock {
+  border-left: 3px solid var(--accent);
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sizeGrid { display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm) 0 2px; }
+/* Размерная сетка в карточке заказа: таблица на 4–6 колонок, которой незачем
+   растягиваться на всю ширину экрана — числа разъезжались бы на полтора метра
+   друг от друга. Ширина и отступ стояли инлайном (`style={{ maxWidth: 560 }}`),
+   то есть решение о раскладке жило в разметке и не подчинялось медиазапросам. */
+.sizeGridWrap { max-width: 560px; margin-bottom: 10px; }
+
+/* ─── ШИРИНЫ ПОЛЕЙ ВВОДА ───
+   Девять чисел (70 · 80 · 90 · 110 · 120 · 130 · 140 · 160 · 220) стояли
+   ИНЛАЙНОМ в восьми файлах — нерасписанная шкала, где разницу между 80 и 90,
+   между 110 и 120 никто не выбирал. Инлайновый размер к тому же СИЛЬНЕЕ
+   медиазапроса: правило проекта «компактные размеры — только классами»
+   нарушалось ровно там, где поля стоят плотнее всего (закупка, склад, подряд).
+
+   Четыре ступени по НАЗНАЧЕНИЮ поля, а не по числу: сколько знаков в него
+   вводят. Ширина — потолок, а не фиксация: узкому контейнеру поле уступает.
+
+   Имена — `w*`, а не `field*`: класс, чьё имя начинается с имени другого
+   класса, читается как его УТОЧНЕНИЕ, и `stylesResolve.test.ts` справедливо
+   требует их в одном файле (между чанками порядок правил не гарантирован).
+   База `.field` живёт в `erp.module.css`, а ширины нужны только экранам —
+   значит это самостоятельная вещь, и названа она по смыслу, а не по месту. */
+.wNum  { max-width: 88px; }
+.wQty  { max-width: 120px; }
+.wCode { max-width: 160px; }
+.wName { max-width: 220px; }
+/* Таблица сетки «цвет × размер» (правки 07.09, пп. 6–7).
+   Отступы ячеек СВОИ: общий `.table td` рассчитан на шесть-семь колонок текста,
+   а здесь их до тринадцати, и на 12px по горизонтали таблица уезжает за край
+   даже на десктопе. Объявлена рядом со своей базой `.sizeGrid` — правило
+   «уточнение живёт в одном модуле с базой» (см. stylesResolve.test.ts). */
+.sizeGridTable th,
+.sizeGridTable td {
+  padding: 6px var(--space-sm);
+  vertical-align: middle;
+}
+/* Заголовок строки — цвет: слева, обычным весом, без разрядки шапки колонок */
+.sizeGridTable tbody th,
+.sizeGridTable tfoot th {
+  text-transform: none;
+  letter-spacing: normal;
+  background: transparent;
+  font-weight: 600;
+}
+.sizeGridTotal {
+  text-align: right;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+}
+.sizeGridTable tfoot td,
+.sizeGridTable tfoot th {
+  border-top: 1px solid var(--border-light);
+  border-bottom: none;
+  background: var(--surface);
+}
+.gridDetails summary { cursor: pointer; padding: 2px 0; }
+
+/* ─── Форма заказа: аккордеон, черновик, инлайн-валидация, чипсы размеров ─── */
+.accSection {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.accHeader {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  min-height: 40px;
+}
+.accHeader:hover { background: var(--surface); }
+.accHeader:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.accChevron { color: var(--text-dim); font-size: var(--type-label); width: 12px; flex-shrink: 0; }
+.accTitle {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.accSummary {
+  color: var(--text-dim);
+  font-size: var(--type-label);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.accBody {
+  padding: 2px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.draftBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px dashed var(--border-light);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+}
+/* Незаполненный БЛОК, а не поле: у листа закупки ошибка относится к «файл
+   приложен или отмечено, что не нужен», и подсветить один input тут нечего */
+.invalidBlock {
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+}
+.remainingHint {
+  flex: 1;
+  align-self: center;
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+
+.tileSm { min-height: 30px; padding: var(--space-xs) 9px; }
+@media (max-width: 480px) {
+
+  .formGrid { grid-template-columns: 1fr; }
+  .itemRow { grid-template-columns: 1fr; }
+  .queueDue { max-width: none; text-align: left; }
+  .matSection { padding: 10px; }
+  .modal { padding: var(--space-md) var(--space-sm) 0; }
+  .accBody { padding: 2px 10px var(--space-md); }
+  .toolbar { gap: var(--space-sm); }
+  .printRow { display: grid; grid-template-columns: 1fr 1fr; }
+  .printRow > * { grid-column: 1 / -1; min-width: 0; }
+  .printRow > .mmLabel { grid-column: auto; }
+  .mmLabel { display: flex; }
+  /* Кнопка удаления прижимается вправо. Оба правила переехали из
+     `erp.module.css`: `.itemRow` и `.printRow` объявлены здесь, и там они
+     получали чужой хеш. Половина про кнопку — `:global`, она адресуется
+     из любого модуля. */
+  .itemRow > :global(.btn-ghost) { justify-self: end; }
+  .printRow > :global(.btn-ghost) { justify-self: end; }
+}
+
+
+/* ─── Тач-таргеты ≥44px на устройствах с грубым указателем ───
+   Список отстал от компонентов редизайна: Pagination, Drawer, сайдбар и FilterBar
+   появились позже и сюда не попали, поэтому на планшете цеха всё меню (38px),
+   пагинация (32px) и 14 кнопок-чипов (~25px) были меньше собственного правила
+   DESIGN.md. Держать список в актуальном виде — часть правила, а не довесок. */
+
+/* Выравнивание чекбокса по низу строки формы. Раньше это был инлайновый
+   style={{ alignSelf: 'end', minHeight: 40 }} — и minHeight перебивал
+   @media (pointer: coarse), оставляя на планшете 40px вместо 44. */
+.checkLabelEnd { align-self: end; }
+
+/* ─── Строка схемы отчёта участка (admin/DeptFields) ───
+   Своя строка, а не `.planFormRow`: шесть полей на строку не помещаются
+   в одну линию даже в диалоге на 900px, и без разделителя три строки полей
+   сливаются в сплошную стену подписей — где кончается одно поле и начинается
+   следующее, прочитать нельзя. Остальным формам раздела разделитель не нужен:
+   там строка одна. */
+.resultFieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: flex-end;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+.resultFieldRow:last-of-type { border-bottom: none; }
+@media (pointer: coarse) {
+
+  .tile { min-height: 44px; }
+  .tileSm { min-height: 44px; }
+  .accHeader { min-height: 44px; }
+  .planBtn { min-height: 44px; }
+  .shipBtn { min-height: 44px; }
+  .checkLabel { min-height: 44px; }
+  .checkLabel input[type='checkbox'] { width: 20px; height: 20px; }
+  /* Дописано по аудиту: интерактивные элементы редизайна, не попавшие в список.
+     Правило одно — добавили интерактивный класс, впишите его сюда же. */
+  .fileBtn { min-height: 44px; }
+  .gridDetails summary { min-height: 44px; }
+  .supplierCell { min-height: 44px; }
+  .expandBtn { min-width: 44px; min-height: 44px; }
+  /* Ручка приоритета: размер не был задан вовсе (~13px), а именно за неё
+     бригадир таскает задания на планшете */
+  .dragHandle { min-width: 44px; min-height: 44px; display: inline-flex;
+                align-items: center; justify-content: center; }
+}
+
+
+/* ─── Таблица материалов закупки без горизонтали (правка 05.10, п. 6) ───
+   Таблица обязана помещаться в широкую панель: `table-layout: fixed`
+   и перенос внутри ячеек вместо `overflow-x`. Колонки с полями ввода
+   получают ширину, остальные делят остаток */
+.purchaseTableWrap {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.purchaseTable { width: 100%; table-layout: fixed; }
+.purchaseTable td { overflow-wrap: anywhere; vertical-align: top; }
+/* Шапка переносится (обход QA 09.10): у `.table th` — `nowrap`, а при
+   `table-layout: fixed` длинная подпись («Материал и цвет») обрезалась */
+.purchaseTable th { white-space: normal; }
+/* Таблица рулонов приёмки: шесть подписей капсом с разрядкой в одну строку
+   не помещались в широкую панель при 1440 px — «Расчётный метраж» уходил за край */
+.rollParamsTable th { white-space: normal; vertical-align: bottom; }
+.purchaseTable th:nth-child(1) { width: 48px; }
+.purchaseTable th:nth-child(4) { width: 190px; }
+.purchaseTable th:nth-child(5) { width: 112px; }
+.purchaseTable th:nth-child(6) { width: 150px; }
+.purchaseTable th:nth-child(8) { width: 180px; }
+.purchaseTable :global(input) { max-width: 100%; }
+.expandBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: var(--control-h-sm); min-height: var(--control-h-sm);
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--text-dim); cursor: pointer;
+}
+.expandBtn:hover { border-color: var(--border-mid); background: var(--surface); }
+.expandBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.purchaseDetailsRow > td { background: var(--surface); }
+.purchaseDetails { display: flex; flex-direction: column; gap: var(--space-md); }
+.purchaseActions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-xs); }
+.receiptAction { display: inline-flex; flex-direction: column; gap: var(--space-xs); }
+.receiptList { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); }
+.qtyTriple { display: flex; flex-direction: column; gap: var(--space-xs); }
+.qtyTripleRow { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: var(--space-xs); }
+/* «← К закупке» в панели приёмки, открытой из закупки (правка 05.10, п. 7) */
+.drawerBackRow { margin-bottom: var(--space-md); }
+/* Сводка закупки строкой вместо шести плиток */
+.summaryLine { margin: 0 0 var(--space-md); color: var(--text); font-size: var(--type-body-sm); }
+
+/* Ячейка поставщика в закупке: открывает сравнение вариантов (правка 10) */
+.supplierCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: var(--space-xs) 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.supplierCell:hover { border-color: var(--border-mid); background: var(--surface); }
+.supplierCell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Выбранный вариант в таблице сравнения */
+.supplierRowSelected { background: var(--bg-success); }
+/* Семейство `.kpiIcon*` и `.kpiBody` переехали в erp.module.css, к своему
+   `.kpiCard` (06.09). Здесь их держать нельзя: `PurchaseCard` адресует
+   варианты СТРОКОЙ (`cls: 'kpiIconOk'` в таблице плиток), а такое обращение
+   не разрешается статически — сторож `stylesResolve.test.ts` требует, чтобы
+   динамически адресуемые классы жили в базовом файле. */
+
+.loadRow { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.loadName {
+  width: 92px; flex-shrink: 0; font-size: var(--type-label); color: var(--text-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loadTrack { flex: 1; height: 8px; border-radius: var(--radius-pill); background: var(--surface); overflow: hidden; }
+/* `display: block` ОБЯЗАТЕЛЕН, и без него полоса не рисовалась ВООБЩЕ.
+   Заливка — `<span>`, то есть строчный элемент: ни `width`, ни `height`
+   к нему не применяются по построению. Трек при этом виден, потому что он
+   flex-item и блокифицируется родителем, а заливка внутри него — нет.
+   На обзоре это выглядело как три пустых серых дорожки: виджет «Задачи
+   по цехам» не показывал ни одной загрузки, хотя числа справа стояли.
+   Ни один тест такого не видит — разметка та же, поведение то же. */
+.loadFill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--accent); }
+.loadVal { width: 30px; text-align: right; font-family: var(--mono); font-size: var(--type-label); color: var(--text-mid); }
+
+.deadlineItem {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: 9px 0; border-bottom: 1px solid var(--border-light);
+}
+.deadlineItem:last-child { border-bottom: none; }
+/* ЧИСЛО НАД МЕСЯЦЕМ, А НЕ РЯДОМ С НИМ.
+   Здесь стоял `span` без `display`, а внутри два строчных элемента —
+   «18» и «ИЮЛ» шли в одну строку, не помещались в 40px и наезжали
+   на название заказа: на снимке обзора это читалось как «18ИЮЛ BOX39».
+   Ширина остаётся фиксированной (колонка дат выравнивается по вертикали),
+   но содержимому нужен столбец. */
+.deadlineDate {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.deadlineDay { font-family: var(--mono); font-size: var(--type-title); font-weight: 700; color: var(--text); line-height: 1; }
+.deadlineMon { font-size: var(--type-label); text-transform: uppercase; color: var(--text-dim); }
+.deadlineBody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.deadlineName {
+  font-size: var(--type-body-sm); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deadlineMeta { font-size: var(--type-label); color: var(--text-dim); }
+
+.quickGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.quickAction {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-sm);
+  padding: 14px var(--space-sm);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); text-decoration: none;
+  color: var(--text-mid); font-size: var(--type-label); text-align: center;
+}
+.quickAction:hover { background: var(--surface); color: var(--text); }
+.quickIcon {
+  width: 40px; height: 40px; border-radius: 10px; background: var(--bg-info);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.notifItem {
+  display: flex; gap: 10px; padding: 9px 0;
+  border-bottom: 1px solid var(--border-light);
+  color: inherit; text-decoration: none;
+}
+.notifItem:hover { background: var(--surface); }
+.notifItem:last-child { border-bottom: none; }
+.notifText { flex: 1; font-size: var(--type-body-sm); color: var(--text); min-width: 0; }
+.notifSub { font-size: var(--type-label); color: var(--text-dim); }
+
+/* Вкладка «Файлы» карточки заказа */
+/* ─── Страница производственного задания (правка 5) ─── */
+.taskGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-md);
+  align-items: start;
+}
+.taskFacts {
+  display: grid;
+  grid-template-columns: minmax(110px, auto) 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: var(--type-body-sm);
+}
+.taskFacts dt {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  align-self: center;
+}
+.taskFacts dd { margin: 0; min-width: 0; }
+
+/*
+  КЛЮЧЕВАЯ СТРОКА ЗАДАНИЯ (правка 13.09, п. 4): заказ · изделие · количество ·
+  выполнено · срок одной лентой. Не `.taskFacts`: у той сетка «подпись слева,
+  значение справа», и пять таких пар занимали половину первого экрана —
+  ровно то место, где по референсу стоит работа цеха.
+
+  `flex-wrap` вместо сетки с колонками: длины подписей разные (от «Срок»
+  до «Количество»), и подобранная под них колонка развалилась бы от первого
+  нового поля. Перенос по месту переживает любой состав.
+*/
+.taskKeyFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--type-body-sm);
+}
+.taskKeyFact { display: flex; align-items: baseline; gap: var(--space-sm); min-width: 0; }
+.taskKeyFact dt {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.taskKeyFact dd { margin: 0; min-width: 0; }
+
+/*
+  Файлы задания — компактной лентой ссылок вместо сетки плиток по 120px.
+  Превью у вложений задания нет (их рисует карточка заказа), и плитка
+  показывала имя файла в коробке на треть экрана.
+*/
+.taskFileRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  font-size: var(--type-body-sm);
+}
+
+.fileGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.fileCard {
+  display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); text-decoration: none; color: var(--text);
+}
+/* Рамка загорается, когда курсор над ССЫЛКОЙ, а не над всей плиткой: подпись
+   и строка действий ссылкой не являются, и подсветка на них обещала переход,
+   которого нет (правка владельца, п. 2) */
+.fileCard:has(> .fileCardLink:hover) { border-color: var(--accent); }
+/* Плитка файла перестала быть ссылкой целиком (правка 14.09, п. 3): рядом
+   с ней живут «Удалить» и «→ в другую папку», а кнопка внутри ссылки — это
+   вложенная интерактивность, которую клавиатура и скринридер разбирают неверно.
+   Ссылкой осталось СОДЕРЖИМОЕ плитки, действия стоят отдельной строкой. */
+.fileCardLink {
+  display: flex; flex-direction: column; gap: 6px;
+  text-decoration: none; color: inherit;
+}
+.fileCardActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.fileThumb { width: 100%; height: 88px; object-fit: cover; border-radius: 6px; background: var(--surface); }
+/* Заглушка вместо превью: файл не картинка либо картинка не загрузилась.
+   Габариты те же, что у `.fileThumb`, — иначе плитка прыгает */
+.fileThumbStub {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 88px; border-radius: 6px;
+  background: var(--surface); color: var(--text-dim);
+}
+/* Блок нанесений позиции: отбит от таблицы этапов выше */
+.thumbStubBlock { margin-top: var(--space-md); }
+.fileName { font-size: var(--type-label); color: var(--text-mid); word-break: break-word; }
+/* Матрица прав: 9 колонок не помещаются, и при прокрутке вправо название права
+   уезжало — галочка ставилась вслепую */
+.matrixTable th:first-child,
+.matrixTable td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--card);
+}
+.matrixTable thead th:first-child { z-index: 3; }
+/* Колонка «Право» — единственная с прозой: названия вроде «Вести ТЗ (загрузка
+   и замена)» ломались в три строки, и ряд вырастал до 90px при двадцати
+   правах. Минимум ширины даёт им одну-две строки; таблица и так прокручивается
+   вбок, а первая колонка залипает, так что отдать ей место ничего не стоит. */
+.matrixTable th:first-child { min-width: 210px; }
+.moveBtn {
+  appearance: none;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text-mid);
+  border-radius: var(--radius-sm);
+  width: 22px;
+  height: 16px;
+  line-height: 1;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+.moveBtn:hover:not(:disabled) { border-color: var(--border-mid); color: var(--text); }
+.moveBtn:disabled { opacity: 0.35; cursor: default; }
+@media (pointer: coarse) {
+
+  .moveBtn { min-width: 44px; min-height: 44px; font-size: var(--type-title); }
+  /* Галочка матрицы прав — голый `input[type=checkbox]` рисуется системным
+     размером (~13px), то есть втрое мельче тач-минимума. Растягиваем сам
+     контрол, а не обёртку: попасть надо в него, а промах здесь стоит
+     СНЯТОГО ПРАВА у целой роли */
+  .matrixCheck { width: 24px; height: 24px; margin: 10px; }
+}
+
+
+/* Длинные названия заказов распирали 8-колоночные таблицы и выталкивали их
+   в горизонтальный скролл: .subText задавал только цвет и размер */
+.cellSub {
+  color: var(--text-dim);
+  font-size: var(--type-label);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 220px;
+}
+/* Внешние отступы прокручиваемых блоков: заменяют инлайновые style={{ margin* }},
+   которые стояли на обёртках таблиц. Инлайн в этом проекте запрещён — он бьёт
+   @media (pointer: coarse) и становится вторым источником правды по размерам. */
+.scrollHintGapTop { margin-top: var(--space-sm); }
+.scrollHintGapBottom { margin-bottom: var(--space-md); }
+
+
+/* Раскрывашка строки заказа: клавиатурная альтернатива клику по всей строке */
+.rowToggle {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 6px 0 0;
+  font-size: var(--type-label);
+  line-height: 1;
+}
+.rowToggle:hover { color: var(--text); }
+@media (pointer: coarse) {
+
+  .rowToggle { min-width: 44px; min-height: 44px; }
+}
+
+
+/* ─── Мастер брака (боковая панель, 2 шага) ─── */
+.wizSteps {
+  display: flex;
+  gap: var(--space-sm);
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  font-size: var(--type-label);
+}
+.wizStep, .wizStepActive {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-dim);
+  text-align: center;
+}
+.wizStepActive { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.wizActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+.wizActions > * { flex: 1; }
+
+/* ─── Загрузка цехов (сетка «цех × день») ─── */
+.loadPeriod { font-weight: 600; font-size: var(--type-body-sm); }
+/* Ячейка дня: заливка-«тепло» под числом, доля от максимума по сетке */
+.loadCell { position: relative; text-align: center; }
+.loadCellFill {
+  position: absolute;
+  inset: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  pointer-events: none;
+}
+.loadCellValue { position: relative; font-family: var(--mono); font-size: var(--type-label); }
+/* Сегодняшняя колонка выделена, чтобы не считать дни глазами */
+.loadToday { color: var(--accent); }
+
+/* ── Загрузка цеха карточкой (планшет) ─────────────────────────────────────
+   Сетка «цех × семь дней + две сводные колонки» на 768px не помещается
+   и уезжала за край. Карточка на ЦЕХ, а внутри — лента из семи дней: семь
+   ячеек по ~44px укладываются и в 375px, поэтому горизонтальной прокрутки
+   не остаётся вовсе. Числа те же и считаются тем же кодом. */
+.loadWeek {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0;
+}
+.loadDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  position: relative;
+  min-height: 44px;
+  justify-content: center;
+}
+.loadDayLabel { font-size: var(--type-label); color: var(--text-dim); position: relative; }
+
+/* Прогресс материалов в списке-навигации закупки (правка 23.08, п. 1.1):
+   «3 из 7» плюс небольшая шкала. Ячейке нужен flex-контекст — `.progressTrack`
+   растягивается через `flex: 1 1 auto`, а в обычном потоке `<td>` он inline
+   и высоты не получает вовсе (объявление отбрасывается молча). */
+.supplyMaterials {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* ─── Ожидание материалов (группа «Ожидают материалы», правка 2026-08-03) ───
+   Что именно ждём, к какому сроку и с кого спрашивать — прямо на карточке
+   задания. Раньше вся информация умещалась в одну строку причины, и по ней
+   нельзя было понять ни ответственного, ни давности сведений. */
+.matWaitList {
+  list-style: none;
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  font-size: var(--type-label);
+}
+.matWaitCompact { margin-top: 6px; }
+/* Блок свёрнут по умолчанию (правка 23.08, п. 2.4): раскрытый на всю ширину,
+   он занимал основную часть экрана у задания, которое нельзя начать. Причину
+   ожидания при этом показывает компактный маркер в самой карточке. */
+.matWaitBlock { margin-top: 6px; }
+.matWaitBlock > summary {
+  cursor: pointer;
+  padding: var(--space-xs) 0;
+  /* ≥44px на тач-экранах — общий список интерактивных классов ведётся в
+     erp.module.css, здесь высота задаётся самому элементу раскрытия */
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+.matWaitBlock[open] > summary { margin-bottom: 2px; }
+.matWaitBlock > summary::marker { color: var(--color-warning); }
+/* Внутри свёртки список уже отбит рамкой самого блока — верхний отступ лишний */
+.matWaitBlock > .matWaitList { margin-top: 0; }
+/* ≥44px на тач-экранах. Правило стоит рядом со своим классом, а не в общем
+   списке `erp.module.css`: тот список — другой CSS-модуль, и класс отсюда
+   в нём не разрешится вовсе. Тем же приёмом живёт `.rowToggle` ниже. */
+@media (pointer: coarse) {
+
+  .matWaitBlock > summary { min-height: 44px; }
+}
+.matWaitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--space-md);
+  min-width: 0;
+}
+.matWaitName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--color-warning-ink);
+  overflow-wrap: anywhere;
+}
+.matWaitFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-md);
+  min-width: 0;
+}
+.matWaitNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}
+
+/* ─── Производственный план: недельная доска (правка 2026-08-03) ───
+   Колонка = день, карточка = задача цеха на этот день. Цвет карточки —
+   дополнительный сигнал: текстовый статус стоит на ней всегда. */
+.planBoardWrap { margin-top: var(--space-sm); }
+.planBoard {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.planDay {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  max-height: calc(100dvh - 300px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.planDayToday { border-color: var(--accent); }
+.planDayHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.planDayStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: var(--type-label);
+  color: var(--text-mid);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.planCardWrap { display: flex; flex-direction: column; gap: 2px; }
+.planCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--type-label);
+  min-width: 0;
+}
+
+.planCardHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+}
+.planCardTitle { font-weight: 700; overflow-wrap: anywhere; }
+.planFigures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  font-family: var(--mono);
+}
+.planRemain { color: var(--color-warning-ink); }
+.planCardFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  min-width: 0;
+}
+.planCardActions { display: flex; gap: 6px; flex-wrap: wrap; }
+.planMoveBtns { display: flex; gap: var(--space-xs); justify-content: flex-end; }
+
+/* Окно переноса задачи плана: дни недели кнопками — «через шаг» одним касанием.
+   `auto-fit` + `minmax` вместо порогов: пять дней укладываются в ряд на 1280,
+   в два ряда на планшете и в столбик на телефоне без единого медиазапроса */
+.planMoveDays {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-xs);
+}
+.planMoveDay { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.planMoveCustom { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+/* Компактная сводка «Все цеха»: карточка на цех вместо таблицы из 12 колонок */
+.planDeptCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.planDeviations { margin-top: var(--space-lg); }
+.planDeviationList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+
+/* Карточка задачи целиком (Drawer) */
+.planDrawerBody { display: flex; flex-direction: column; gap: var(--space-md); }
+.planSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-light);
+}
+.planSection h4 { margin: 0; font-family: var(--font-display); text-transform: uppercase; }
+.planComment {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-light);
+  font-size: var(--type-body-sm);
+}
+
+/* Выбор задания при постановке в план */
+.planPickList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.planPickRow {
+  appearance: none;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: var(--space-sm) 10px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.planPickRow:hover:not(:disabled) { background: var(--surface); }
+.planPickRow:disabled { opacity: 0.5; cursor: default; }
+.planPickRowActive { border-color: var(--accent); background: var(--surface); }
+/*
+  ШИРИНА КОЛОНКИ ДНЯ — ПО ПРИЗНАКУ КОМПАКТНОЙ РАСКЛАДКИ, А НЕ ПО 768px.
+  Порог 768 оставлял планшет В ЛАНДШАФТЕ (1024×768) с колонками по 300px:
+  доска шире экрана, а `useCompactLayout` при этом уже считает раскладку
+  компактной — то есть CSS и JS отвечали на один вопрос по-разному.
+  Условие дословно повторяет `COMPACT_LAYOUT_QUERY` (`layout/useCompactLayout`).
+*/
+@media (max-width: 1024px), (pointer: coarse) {
+  .planDay { flex-basis: 88vw; }
+}
+
+@media (max-width: 768px) {
+  .planDeviationList { grid-template-columns: 1fr; }
+}
+
+
+/* Ряд чипов этапов внутри развёрнутой строки заказа (был инлайновый marginTop) */
+.stageChipsRow { margin-top: var(--space-xs); }
+/* Ячейка, которую нельзя переносить: даты и счётчики в админских таблицах */
+.nowrap { white-space: nowrap; }
+
+/* ─── Витрина дизайн-системы (/styleguide, за флагом) ───
+   Свои классы, а не инлайновые стили: страница, показывающая, как надо,
+   не может сама быть примером того, как не надо. Единственные инлайновые
+   значения на ней — сами демонстрируемые токены (`var(--space-lg)` и т.п.),
+   и это их суть: показать величину, а не назначить её. */
+.sgRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+.sgStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+}
+.sgSwatchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.sgToken {
+  min-width: 150px;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.sgSwatch {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+}
+.sgBar {
+  /* Тот же случай, что у .progressFill: носитель — `<span>` с инлайновой
+     шириной, и без блочного отображения витрина рисовала шкалу отступов
+     полосками нулевой ширины */
+  display: block;
+  height: 14px;
+  min-width: 2px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+.sgRadius {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+}
+.sgCode {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text);
+}
+.sgIcon {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 92px;
+  padding: var(--space-sm) var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.sgIcon .sgToken { min-width: 0; word-break: break-word; }
+
+/* ─── Уведомления обзора: группы по критичности ─── */
+.notifGroup {
+  border-top: 1px solid var(--border-light);
+  padding: var(--space-xs) 0;
+}
+.notifGroup:first-of-type { border-top: none; }
+.notifSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  font-size: var(--type-body);
+}
+.notifSummary::-webkit-details-marker { display: none; }
+.notifSummary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.notifGroupTitle { flex: 1; }
+.notifCount {
+  min-width: 22px;
+  padding: 1px var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  text-align: center;
+}
+/* Точка-тон: цвет ДОПОЛНЯЕТ заголовок и подсказку, а не заменяет их */
+.notifDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.notifHint {
+  margin: 0 0 var(--space-xs) 20px;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+.notifMore {
+  display: block;
+  padding: var(--space-xs) 0 var(--space-xs) 20px;
+  color: var(--accent);
+  font-size: var(--type-label);
+}
+/* Разбивка просрочки на KPI-плитке */
+.kpiBreakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+.kpiBreakdownHot { color: var(--color-error-ink); font-weight: 600; }
+
+/* Отключённая строка таблицы (soft-delete): приглушена, но читаема.
+   Был инлайновый opacity — он бьёт медиазапросы и становится вторым
+   источником правды по виду строки. */
+.rowDisabled { opacity: 0.55; }
+
+/* ─── Очередь «Не запланировано» на экране плана (правки заказчика 10.08) ─── */
+.planUnplannedList { display: flex; flex-direction: column; gap: 6px; }
+.planUnplannedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: var(--type-body-sm);
+}
+.planUnplannedBody { min-width: 0; }
+
+/**
+ * Печатная форма листа закупки (правка заказчика 16.08, п. 15).
+ *
+ * PDF формирует браузер: «Печать → Сохранить как PDF». Отсюда два требования
+ * к странице — она должна читаться на бумаге и не тащить в печать интерфейс.
+ * `.no-print` — глобальный класс (объявлен в styles/utils.css вместе с правилами
+ * печати Order Studio), поэтому здесь он не дублируется: два объявления одного
+ * класса разъехались бы при первой же правке.
+ */
+.printPage {
+  max-width: 900px;
+}
+.printTitle {
+  font-family: var(--font-display);
+  /* --type-h1 это 56px — заголовок экрана, а не документа: на листе А4 он
+     съел бы четверть первой страницы */
+  font-size: var(--type-h2);
+  margin: 0 0 var(--space-md);
+}
+.printFacts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-xs) var(--space-md);
+  margin: 0 0 var(--space-lg);
+  font-size: var(--type-body-sm);
+}
+.printFacts dt { color: var(--text-dim); }
+.printFacts dd { margin: 0; }
+.printSection { margin-bottom: var(--space-lg); }
+.printSectionTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-body);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-sm);
+}
+.printFoot {
+  margin-top: var(--space-lg);
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+@media print {
+
+  /* Лист печатается сам по себе: оболочка, сайдбар и шапка на бумаге не нужны */
+  .printPage {
+    max-width: none;
+  }
+  .printSection {
+    /* Таблица материалов изделия не должна разрываться посреди строки */
+    break-inside: avoid;
+  }
+}
+
+
+/**
+ * Групповая строка заголовка таблицы: «Потребность — задал менеджер» против
+ * «Факт — ведёт закупка» (правка заказчика 16.08, п. 12).
+ *
+ * Разделитель — вертикальная граница у первой ячейки группы, а не цвет фона:
+ * цветом в этой таблице уже показан статус материала, и вторая цветовая
+ * система рядом с ним читалась бы как ещё один статус.
+ */
+.groupHeadRow th { border-bottom: 0; }
+.groupHead {
+  text-align: left;
+  font-size: var(--type-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding-bottom: 2px;
+}
+.groupHead + .groupHead { border-left: 1px solid var(--border-light); padding-left: 10px; }
+/*
+  Ряд кнопок переноса карточки между колонками канбана ЭКС (правка 24.08,
+  п. 4.2). Имя НЕ начинается с `.kanbanCard`, хотя ряд и живёт внутри неё:
+  такое имя читается как уточнение базового класса, а тот объявлен
+  в `erp.module.css` — между чанками порядок не гарантирован, и сторож
+  `stylesResolve.test.ts` справедливо на это ругается. Это отдельная вещь
+  доски ЭКС, и называется она соответственно; оболочке доска не нужна.
+*/
+.devMoveRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-top: 2px;
+}
+
+/*
+  ДВЕ КОЛОНКИ КАРТОЧКИ РАЗРАБОТКИ (референс заказчика 24.08): рабочая область
+  с вкладками слева, постоянная справка справа.
+
+  Правая колонка НЕ вкладка и не может ею стать: там живут блокер, следующее
+  действие и материалы — «почему стоит» и «что делать дальше», а правило
+  проекта требует, чтобы они были видны ВСЕГДА. Спрятать их за переключателем
+  значит показать проблему только тому, кто угадал вкладку.
+
+  Порядок в разметке — main, потом aside: на узком экране колонки
+  схлопываются в одну, и работа обязана идти первой, а справка следом.
+  Поэтому здесь `grid` без перестановки, а не `order`.
+*/
+.devLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: var(--space-md);
+  align-items: start;
+}
+.devMain { min-width: 0; }
+.devAside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Справка едет вместе с длинной таблицей задач: карточка разработки —
+     самый прокручиваемый экран раздела, и блокер, уехавший за верхний край,
+     перестаёт отвечать на вопрос, ради которого он там стоит */
+  position: sticky;
+  top: 8px;
+}
+.devAsideCard {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 10px var(--space-md);
+}
+.devAsideCardWarn {
+  border-color: var(--color-warning);
+  background: var(--bg-warning);
+}
+.devAsideRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 3px 0;
+}
+.devAsideRow > span:last-child { text-align: right; overflow-wrap: anywhere; }
+
+@media (max-width: 1024px) {
+
+  /* Ниже планшета две колонки не помещаются: справка уходит под работу
+     и перестаёт липнуть — на узком экране липкий блок съедает высоту */
+  .devLayout { grid-template-columns: 1fr; }
+  .devAside { position: static; }
+}
+
+/* Ячейка «Сейчас» списка заказов: чип состояния, участок и причина простоя.
+   Ширину не задаём — колонка делит место с остальными, а причина переносится
+   по словам: обрезать её многоточием значит спрятать ровно то, ради чего
+   колонка и заведена. */
+.nowCell { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 280px; }
+.nowCell > * { min-width: 0; }
+/* Участок и состояние — одной строкой и в порядке чтения: сначала ГДЕ,
+   потом ЧТО. Переносятся вместе, если места мало. */
+.nowHead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nowWhere {
+  font-weight: 600; white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Главный ответ вкладки «Аварийный режим»: система в норме. Набран как ответ,
+   а не как примечание — 12px `subText` ставил его вровень со строкой загрузки. */
+.bypassOk {
+  display: flex; align-items: center; gap: var(--space-sm);
+  margin: 0; padding: var(--space-md) 14px;
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  background: var(--bg-success); color: var(--color-success-ink);
+  font-size: var(--type-body); font-weight: 600;
+}
+
+/* Полоса «Сейчас» в шапке карточки заказа: где заказ и почему стоит.
+   Стоит ВНЕ вкладок — вопрос, с которым в карточку заходят, не должен
+   зависеть от того, какую вкладку человек угадал. */
+.orderNowBar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 0; padding: 10px var(--space-md);
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+/* Остановленный заказ подсвечен рамкой, а не только словом: строка одна
+   на все состояния, и без признака «стоит» она читается как справка. */
+.orderNowBar[data-stopped] { border-color: var(--color-warning); background: var(--bg-warning); }
+
+/* ─── Гант: список задач слева, шкала времени справа (правки 07.09, п. 19) ──
+   Сетка одна на шапку и на строки: колонка подписи плюс по колонке на день.
+   Число дней приходит инлайном (`--gantt-days`) — это единственная величина,
+   которую нельзя знать заранее; здесь оно объявлено значением по умолчанию,
+   чтобы `var()` не остался без объявленного токена.
+
+   Полоса позиционируется ГРИДОМ (`grid-column`), а не процентами от ширины:
+   проценты разъезжаются с колонками шкалы на дробный пиксель, и полоса
+   переставала совпадать с днём, над которым стоит её подпись. */
+/* Обёртка объявляет число дней и ширину подписи ОДИН раз: строки-гриды
+   наследуют их как обычные custom properties. Объяви `.ganttGrid` их у себя —
+   и инлайновое значение с обёртки перестало бы доезжать до строк. */
+.ganttWrap {
+  --gantt-days: 7;
+  --gantt-label-w: 300px;
+  min-width: max-content;
+}
+.ganttGrid {
+  display: grid;
+  grid-template-columns: var(--gantt-label-w) repeat(var(--gantt-days), minmax(38px, 1fr));
+  align-items: stretch;
+}
+.ganttHeadCell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-xs) 2px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+  text-align: center;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+/* Выходной — опора для глаза на шкале из тридцати одинаковых колонок.
+   Приглушением, а не заливкой: работа в субботу здесь законна, и красная
+   колонка читалась бы как запрет. «Сегодня» остаётся сильнее выходного —
+   поэтому его правило стоит НИЖЕ и выигрывает при равной специфичности. */
+.ganttHeadWeekend { color: var(--text-dim); background: var(--surface); }
+.ganttHeadToday { color: var(--accent); font-weight: 700; }
+/* Пустая ячейка над колонкой подписей — та же липкая шапка, без текста */
+.ganttHeadLabel {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+/* Подпись строки прилипает слева: при прокрутке шкалы вправо полоса
+   без подписи не отвечает на вопрос «чья она» */
+.ganttLabel {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px var(--space-sm) 6px 0;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+  min-width: 0;
+}
+.ganttLabelTitle {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ganttLabelSub {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Дорожка дня под полосой: разлиновка, по которой читаются даты */
+.ganttTrack {
+  border-bottom: 1px solid var(--border-light);
+  border-left: 1px solid var(--border-light);
+  min-height: 34px;
+}
+.ganttTrackToday { background: var(--bg-info); }
+/* Сама полоса лежит В ТОЙ ЖЕ строке поверх дорожек */
+.ganttBar {
+  align-self: center;
+  height: 18px;
+  margin: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--type-label);
+  line-height: 18px;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ganttBarOverdue { background: var(--color-error); }
+.ganttBarOutsourced { background: var(--color-violet); }
+/* Догадка (дата взята у заказа или не задана вовсе) рисуется штриховкой:
+   выдавать её за план нельзя, а прятать — значит показать пустую диаграмму.
+
+   12.09: ШТРИХОВКА СМЯГЧЕНА. Прежняя — плотные полосы `--text-dim` по
+   прозрачному — давала чёрно-белую зебру, и на снимке обхода диаграмма,
+   где догадка почти каждая полоса (на проде плановые даты стоят у 3 этапов
+   из 172), читалась как разметка аварии, а не как оценка срока. Теперь
+   подложка акцентная и светлая, штрих — тонкий и нейтральный: полоса
+   по-прежнему ОТЛИЧАЕТСЯ от плановой с одного взгляда, но не кричит. */
+.ganttBarGuess {
+  background-color: var(--accent-light);
+  background-image: repeating-linear-gradient(
+    45deg, var(--border-mid) 0 2px, transparent 2px 6px
+  );
+  border: 1px solid var(--border-mid);
+  color: var(--text);
+}
+/* Хвост, уходящий за левый край периода */
+.ganttBarClipStart { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.ganttBarClipEnd { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+/* Компактная раскладка: сжатый Гант на 375px не читается вовсе, поэтому
+   вместо шкалы — карточка на ЗАКАЗ с текстовыми интервалами этапов.
+   Тот же приём, что у «Загрузки цехов» (`DeptLoadCard`). */
+.ganttCardStage {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--border-light);
+}
+.ganttCardDates { font-family: var(--mono); font-size: var(--type-label); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5)
+
+   Лента прокручивается САМА, а не вместе со страницей: композер обязан
+   оставаться на виду. Высота задана одним местом (`.chatFeed`), чтобы
+   «загружается», «пусто» и наполненная лента не двигали то, что ниже, —
+   то же правило, что у полосы мощности.
+   ───────────────────────────────────────────────────────────────────── */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+.chatScope { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+
+.chatFeed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 220px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: var(--space-xs);
+}
+.chatMore { align-self: center; }
+.chatSkeleton { display: flex; flex-direction: column; gap: var(--space-xs); }
+
+.chatMsg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  align-self: flex-start;
+  max-width: 88%;
+}
+/* Своё сообщение — справа и на другой поверхности: «кто это написал»
+   читается раньше подписи, с одного взгляда на ленту */
+.chatMsgMine { align-self: flex-end; background: var(--accent-light); }
+/* На какое сообщение отвечаем прямо сейчас */
+.chatMsgFocus { border-color: var(--accent); }
+
+.chatMsgHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.chatMsgAuthor { font-size: var(--type-body-sm); }
+.chatMsgTime { font-size: var(--type-label); color: var(--text-dim); }
+.chatMsgMention {
+  font-size: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-error-ink);
+}
+/* Действия сообщения — группой у правого края (вторая очередь чата).
+   `margin-left: auto` переехал сюда с самих кнопок: у каждой он растаскивал
+   соседей по ширине шапки, потому что auto-отступ делит свободное место */
+.chatMsgActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.chatMsgReply {
+  font-size: var(--type-label);
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.chatMsgBody { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+
+/* «изменено» — приписка, а не статус: тем же кеглем, что время, но тише */
+.chatMsgEdited { font-size: var(--type-label); color: var(--text-dim); }
+/* Удалённое читается как след, а не как текст: курсив и приглушённый цвет */
+.chatMsgDeleted { color: var(--text-dim); font-style: italic; }
+
+/* Правка на месте сообщения */
+.chatEdit { display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatEditArea {
+  width: 100%;
+  resize: vertical;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+.chatEditRow { display: flex; gap: var(--space-xs); }
+
+/* Реакции (вторая очередь чата): поставленные — пилюлями, набор — по кнопке */
+.chatReactions { display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; }
+.chatReaction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--text);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+}
+/* Своя реакция выделена рамкой и фоном акцента: «я это уже поставил» —
+   первое, что человек ищет глазами, прежде чем нажать второй раз */
+.chatReactionMine { border-color: var(--accent); background: var(--accent-light); }
+.chatReactionCount { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.chatReactionPick { position: relative; display: inline-flex; }
+.chatReactionAdd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.chatReactionMenu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  gap: 2px;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+}
+.chatReactionChoice {
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-xs);
+  font-size: var(--type-body-lg);
+  cursor: pointer;
+}
+.chatReactionChoice:hover { background: var(--bg2); }
+
+/* Поиск по переписке (вторая очередь чата) */
+.chatSearch {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-nav);
+  width: min(420px, calc(100vw - var(--space-md) * 2));
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.chatSearchRow { display: flex; gap: var(--space-xs); align-items: center; }
+.chatSearchInput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+}
+.chatSearchList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.chatSearchHit {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.chatSearchHit:hover { background: var(--bg2); }
+.chatSearchWho {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: baseline;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.chatSearchBody { font-size: var(--type-body-sm); overflow-wrap: break-word; }
+
+@media (pointer: coarse) {
+  /* Тач-цели: пилюля и выбор нажимаются пальцем, не целясь */
+  .chatReaction, .chatReactionAdd, .chatReactionChoice { min-height: 44px; }
+  .chatReactionAdd { min-width: 44px; }
+}
+
+/* Пальцем по кнопке действия надо попадать не целясь */
+@media (pointer: coarse) {
+  .chatMsgReply { min-height: 44px; display: inline-flex; align-items: center; }
+}
+
+.chatQuote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 3px solid var(--accent);
+  background: var(--bg2);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.chatQuoteAuthor { font-size: var(--type-label); color: var(--text-dim); }
+.chatQuoteBody { overflow-wrap: break-word; }
+
+.chatFiles { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chatFile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  color: var(--text);
+}
+.chatFileThumb { width: 28px; height: 28px; object-fit: cover; border-radius: var(--radius-sm); }
+
+.chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
+/*
+  ОКНО ЧАТА ПОВЕРХ ERP (правка 20.09, п. 4): «шириной примерно 760–960 px,
+  с возможностью развернуть».
+
+  Не модальное: под ним продолжают работать, поэтому оверлея нет, а окно
+  прижато к правому нижнему углу — туда, где оно не закрывает ни левое меню,
+  ни начало таблиц.
+
+  На телефоне разворачивается во весь экран: окно в 760 px там не помещается
+  вовсе, а половинчатое решение («узкое окно поверх узкого экрана») —
+  это два неудобства вместо одного.
+*/
+.chatFloat {          /* имя НЕ `chatWindow`: так называется поле стора,
+                         и сторож динамических классов справедливо считает
+                         совпадение риском — статически не видно, какое
+                         из двух имён окажется в `styles[...]` */
+  position: fixed;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  z-index: var(--z-drawer);
+  width: min(760px, calc(100vw - var(--space-md) * 2));
+  max-height: min(78vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+.chatFloatWide { width: min(960px, calc(100vw - var(--space-md) * 2)); max-height: 92vh; }
+.chatFloatHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* Опора для панели поиска: без неё `top: 100%` считался бы от ОКНА чата,
+     и панель уезжала бы под его нижний край (та же ловушка, что была
+     у центра уведомлений в шапке раздела) */
+  position: relative;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+}
+.chatFloatTitle {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: auto;
+}
+.chatNotify { display: flex; align-items: center; gap: var(--space-xs); }
+.chatNotifySelect {
+  font-size: var(--type-label);
+  background: var(--bg2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) 6px;
+  color: inherit;
+  /* Тач-цель: окно открывают и с планшета цеха */
+  min-height: 44px;
+}
+
+@media (max-width: 760px) {
+  .chatFloat,
+  .chatFloatWide {
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/*
+  «Прочитали N» под своим сообщением (правка 20.09, п. 4). Кегль подписи
+  и приглушённый цвет: это служебная строка, и конкурировать с текстом
+  сообщения она не должна.
+*/
+.chatReceiptWrap { position: relative; align-self: flex-end; }
+.chatReceipt {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+}
+/* «Прочитали N» — кнопка со списком; «Отправлено» — простой текст тем же
+   классом, и указатель на нём обещал клик, которого нет (п. 2) */
+button.chatReceipt { cursor: pointer; }
+.chatReceiptList {
+  position: absolute;
+  right: 0;
+  /* Над лентой, но ниже шапки: это подсказка внутри окна, а не слой поверх ERP */
+  z-index: var(--z-sticky);
+  margin: 2px 0 0;
+  padding: var(--space-sm);
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+  font-size: var(--type-body-sm);
+  white-space: nowrap;
+}
+
+/*
+  РАЗДЕЛИТЕЛИ ЛЕНТЫ (правка 20.09, п. 4): день и граница непрочитанного.
+
+  Линия через всю ширину с подписью по центру — а не просто текст: в ленте
+  из пузырей слева и справа одинокая строка теряется среди сообщений,
+  и «Сегодня» читается как чья-то реплика.
+*/
+.chatDay,
+.chatUnreadLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.chatDay::before, .chatDay::after,
+.chatUnreadLine::before, .chatUnreadLine::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-light);
+}
+/* Граница непрочитанного — акцентом: это не разметка времени, а место,
+   с которого человек продолжает читать */
+.chatUnreadLine { color: var(--accent); }
+
+/*
+  «Новые сообщения, N» (правка 20.09, п. 4) — полоса между лентой и формой.
+  Центрируется, а не прижимается к краю: она и есть кнопка перехода вниз,
+  и попадать в неё надо не целясь.
+*/
+.chatNewBelow {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xs) 0;
+}
+
+.chatUnreadLine::before, .chatUnreadLine::after { background: var(--accent); }
+
+/* Группа сообщений одного автора: внутри интервал меньше, чем между группами */
+.chatGroup { display: flex; flex-direction: column; gap: 2px; }
+
+/*
+  Зона приёма файла при перетаскивании (правка 20.09, п. 4). Пунктир, а не
+  заливка: заливка поверх набранного текста делает его нечитаемым ровно
+  в тот момент, когда человек проверяет, туда ли он тащит.
+*/
+.chatDropActive {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+.chatComposerRow { display: flex; align-items: flex-end; gap: var(--space-xs); }
+.chatInput {
+  flex: 1;
+  resize: vertical;
+  min-height: var(--control-h-lg);
+  font: inherit;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+}
+/* Скрепка — метка над скрытым input: своей кнопки не заводим, иначе
+   пришлось бы дублировать открытие диалога программно */
+.chatAttachBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-h-md);
+  min-height: var(--control-h-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.chatReplyBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+.chatReplyText { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chatReplyCancel { background: none; border: 0; cursor: pointer; color: var(--text-dim); }
+
+.chatUploads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.chatUpload {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+}
+.chatUploadError { color: var(--color-error-ink); }
+
+/* Упоминания: подсказка под полем ввода и подсветка в ленте */
+.chatInputWrap { position: relative; flex: 1; display: flex; }
+.mentionBox {
+  position: absolute;
+  bottom: calc(100% + var(--space-xs));
+  left: 0;
+  right: 0;
+  /* Ступени шкалы здесь нет намеренно: подсказка спорит только с соседями
+     ВНУТРИ панели чата, и взять глобальную ступень значило бы объявить,
+     что она перекрывает шторки и модалки (правило про значения между
+     ступенями — в корневом CLAUDE.md) */
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raise);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.mentionItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+}
+.mentionItemActive { background: var(--accent-light); }
+.mentionName { font-size: var(--type-body-sm); }
+.mentionEmail { font-size: var(--type-label); color: var(--text-dim); }
+.chatMention {
+  background: var(--accent-light);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   КАТАЛОГ SKU (правка 14.09, п. 6)
+
+   Сетка плиток, а не таблица: у модели главное — название и состояние,
+   а колонок, по которым её сравнивают построчно, здесь нет.
+   ───────────────────────────────────────────────────────────────────── */
+.skuGrid {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  display: grid;
+  /* Потолок числа колонок не нужен: плиток десятки, и ряд не разваливается
+     «4 + 2», как это было у шести плиток обзора */
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-sm);
+}
+.skuCardTile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.skuCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+.skuCardCode { font-family: var(--mono); font-size: var(--type-label); color: var(--text-dim); }
+
+/* Описание модели набирают абзацем — ему вся ширина сетки полей */
+.skuFullRow { grid-column: 1 / -1; }
+
+/* Файлы техпакета и история версий: один список на оба — строки одинаковы
+   по устройству (что · когда · чем это было), а два набора классов ради
+   одинаковых строк разъехались бы в первую же правку */
+.skuList { list-style: none; margin: var(--space-md) 0 0; padding: 0; }
+.skuListRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.skuListRow:last-child { border-bottom: 0; }
+
+/* Приёмка материалов в компактной раскладке: форма, а не таблица из трёх
+   колонок. Подпись, план справкой и поле ввода во всю ширину — на 768px
+   третья колонка с `input` высотой 44px сжималась в треть экрана */
+.receiptFields { display: flex; flex-direction: column; gap: 10px; }
+/* Шапка приёмки (правка 05.10, п. 4): материал, цвет, поставщик, заказано,
+   ранее принято — одной сеткой, а не таблицей «поле / план / факт» */
+.receiptSummary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm) var(--space-md); margin: 0;
+}
+.receiptSummary dd { margin: 0; font-weight: 600; }
+.receiptField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+.receiptField:last-child { border-bottom: 0; padding-bottom: 0; }
+.receiptFieldFact { margin-top: var(--space-xs); }
+/* Поле факта занимает ширину карточки: ради этого раскладку и меняли —
+   в таблице ему доставалась треть экрана */
+.receiptFieldFact input { width: 100%; }
+/* Форма приёмки (правка 05.10, п. 4) — колонка на всю ширину панели:
+   в общей строке с переносом блоки сжимались до содержимого, и на
+   планшете карточка рулона и «Сравнение с закупкой» занимали треть экрана */
+.acceptForm { flex-direction: column; flex-wrap: nowrap; }
+.acceptForm > * { width: 100%; }
+.receiptField input { width: 100%; }
+
+/* Матрица «цвет × размер» шире планшета: первая колонка остаётся на месте
+   при горизонтальной прокрутке, иначе, дойдя до XXL, цех теряет имя строки */
+.gridStickyFirst th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+}

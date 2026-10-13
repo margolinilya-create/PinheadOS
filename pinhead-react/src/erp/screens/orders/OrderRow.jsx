@@ -1,0 +1,191 @@
+import { useState, memo } from 'react';
+import { orderQty } from '../../utils/shipment';
+import { deptShortName } from '../../data/departments';
+import { deptById as deptsById } from '../../utils/deptMap';
+import { formatDateShort } from '../../utils/time';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../../utils/stageUi';
+import { OrderLink } from '../../components/OrderLink';
+import { hasOpenProcurement } from '../../utils/routes';
+import {
+  PRODUCTION_TYPE_LABELS,
+  BRANDING_METHOD_LABELS,
+  ORDER_STATUS_LABELS,
+  STAGE_STATUS_LABELS,
+} from '../../types';
+import styles from '../../styles';
+import { Badge } from '../../components/Badge';
+import { Icon } from '../../components/Icon';
+import { DueCell } from './DueCell';
+import { formatDateCell } from '../../utils/format';
+import { Button } from '../../components/Button';
+
+/** Строка таблицы заказов (десктоп ≥760px), раскрывается в позиции + чипы этапов */
+function OrderRowBase({ order, departments, now, onDelete, canDelete, onShip, shipping = false, chatUnread = 0 }) {
+  const [open, setOpen] = useState(false);
+  const deptById = deptsById(departments);
+  const totalQty = orderQty(order);
+  const ready = isOrderReadyToShip(order);
+  /**
+   * Готовность и ПРАВО отгрузить — разное. Признак «готов к отгрузке»
+   * видят все: цеху полезно знать, что заказ дособран. Кнопку показываем
+   * только тем, кому отгрузка разрешена (`onShip` приходит null без права),
+   * иначе она отвечала бы отказом стража заказа.
+   */
+  const canShip = ready && Boolean(onShip);
+
+  return (
+    <>
+      {/* `aria-expanded` на <tr> НЕ ставим: у роли `row` обычной таблицы этого
+          атрибута нет (он есть только у строки `treegrid`), и скринридер
+          получает противоречивую разметку. Состояние раскрытия несёт кнопка
+          в первой ячейке — она же делает жест доступным с клавиатуры. */}
+      <tr
+        className={styles.rowClickable}
+        onClick={() => setOpen(!open)}
+      >
+        <td>
+          <button
+            type="button"
+            className={styles.rowToggle}
+            aria-expanded={open}
+            aria-label={`${open ? 'Свернуть' : 'Развернуть'} заказ ${order.title}`}
+            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+          >
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
+          </button>
+          {order.bitrix_id || '—'}
+        </td>
+        <td>
+          <OrderLink
+            orderId={order.id}
+            className={styles.cellTitle}
+            title={order.title}
+          >
+            {order.title} <Icon name="externalLink" size={12} />
+          </OrderLink>
+          {/*
+            НЕПРОЧИТАННОЕ ПЕРЕПИСКИ (правка 20.09, п. 4): «в списке заказов
+            показывать число непрочитанных сообщений для текущего пользователя.
+            При нуле скрывать бейдж». Ноль здесь не значит «пусто» — он значит
+            «читать нечего», и пилюля с нулём просила бы внимания зря.
+          */}
+          {chatUnread > 0 && (
+            <Badge
+              variant="info"
+              title={`Непрочитанных сообщений: ${chatUnread}`}
+            >
+              <Icon name="comment" size={12} /> {chatUnread}
+            </Badge>
+          )}
+          {order.notes && order.notes !== 'imported' && (
+            <div className={styles.subText}>{order.notes}</div>
+          )}
+        </td>
+        <td>{order.manager || '—'}</td>
+        <td>{totalQty}</td>
+        <td>{formatDateShort(order.created_at) || '—'}</td>
+        <td><DueCell dueDate={order.due_date} completedAt={order.shipped_at || order.delivered_at} /></td>
+        {/*
+          «СЕЙЧАС» — где заказ и почему стоит (обход 04.09). Колонка «Статус»
+          справа отвечает про сам заказ («В работе» у десяти строк из
+          одиннадцати), а на вопрос, с которым менеджер и приходит в список,
+          не отвечала вовсе: за ним приходилось открывать карточку и листать
+          до таблицы этапов.
+        */}
+        <td className={styles.nowCell}>
+          {now && (
+            <>
+              <span className={styles.nowHead}>
+                <span className={styles.nowWhere} title={now.where}>{now.where}</span>
+                <Badge variant={now.variant}>{now.what}</Badge>
+              </span>
+              {now.why && <div className={styles.subText} title={now.why}>{now.why}</div>}
+            </>
+          )}
+        </td>
+        <td>
+          {ready ? (
+            <span className={`${styles.chip} ${styles.chipReady}`}>
+              <Icon name="checkCircle" size={13} /> Готов к отгрузке
+            </span>
+          ) : (
+            <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>
+              {ORDER_STATUS_LABELS[order.status]}
+            </span>
+          )}
+          {hasOpenProcurement(order.procurement_tasks) && (
+            <span className={`${styles.chip} ${styles.chipBlocked}`} title="Есть открытая задача дозакупки">
+              <Icon name="bell" size={13} /> дозакупка
+            </span>
+          )}
+          {order.shipped_at && (
+            <div className={styles.subText}>
+              отгружен {formatDateCell(order.shipped_at)}
+            </div>
+          )}
+        </td>
+        <td onClick={(e) => e.stopPropagation()}>
+          {/* Кнопка гаснет на время запроса: отгрузка необратима, а второй
+              клик по ней — самый дешёвый способ отгрузить дважды */}
+          {canShip && (
+            <Button
+              variant="primary"
+              className={styles.shipBtn}
+              disabled={shipping}
+              onClick={() => onShip(order)}
+            >
+              <Icon name="truck" size={14} /> Отгрузить
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              aria-label={`Удалить заказ ${order.title}`}
+              onClick={() => onDelete(order)}>
+              <Icon name="x" size={15} />
+            </Button>
+          )}
+        </td>
+      </tr>
+      {open && order.items.map((it) => (
+        <tr key={it.id}>
+          <td />
+          <td colSpan={7}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <strong>{it.product_type}</strong>
+              {it.variant && <span className={styles.subText}>{it.variant}</span>}
+              <span>× {it.qty}</span>
+              <span className={`${styles.chip} ${styles.chipNeutral}`}>
+                {PRODUCTION_TYPE_LABELS[it.production_type]}
+              </span>
+              {it.branding_methods.map((m) => (
+                <span key={m} className={`${styles.chip} ${styles.chipNeutral}`}>
+                  {BRANDING_METHOD_LABELS[m]}
+                </span>
+              ))}
+            </div>
+            <div className={`${styles.stageChips} ${styles.stageChipsRow}`}>
+              {it.stages.map((st) => (
+                <span
+                  key={st.id}
+                  className={`${styles.chip} ${styles[STAGE_CHIP_CLASS[st.status]]}`}
+                  title={`${deptById.get(st.department_id)?.name || '?'} · ${STAGE_STATUS_LABELS[st.status]}`}
+                >
+                  {(() => {
+                    const dd = deptById.get(st.department_id);
+                    return dd ? deptShortName(dd.code, dd.name) : '?';
+                  })()}
+                  {st.status === 'done' && <Icon name="check" size={12} />}
+                </span>
+              ))}
+            </div>
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+/** Элемент длинного списка: memo отсекает перерисовку при изменениях соседей
+    (канбан во время DnD, очередь цеха, таблица заказов). */
+export const OrderRow = memo(OrderRowBase);

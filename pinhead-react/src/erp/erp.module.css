@@ -1,0 +1,2588 @@
+/* ═══════════════════════════════════════════════════════════════
+   PINHEAD ERP — «бумага и краска» (06.09).
+   Тёплое бумажное поле, чернильная панель навигации (--nav-*),
+   фирменный ультрамарин #2B2BF0, Inter uppercase 11px/1.5px,
+   тонкие границы, Oswald для заголовков, Roboto Mono для цифр.
+   Тёмная тема — своим блоком ниже, в том же тёплом ряду.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══ Дизайн-система редизайна (по UI Kit заказчика) — ERP-scoped ═══
+   Токены переопределяются на корне .shell, чтобы Order Studio (ТЗ) не менялся.
+   Повышенная специфичность (html .shell / html[data-theme] .shell) гарантирует
+   победу над :root/тёмной темой index.css в обеих темах. */
+/* ═══ ПАЛИТРА РАЗДЕЛА: БУМАГА И КРАСКА (06.09) ═══
+   До 06.09 здесь стоял дефолтный набор Tailwind — blue-600 акцентом и
+   gray-50/gray-100 поверхностями. Две беды, и вторая тише первой:
+
+   1. Акцент #2563EB не имел отношения к продукту: у Pinhead есть свой
+      ультрамарин #2B2BF0, объявленный в `index.css` и работающий в Order
+      Studio. Раздел «Производство» подменял фирменный цвет служебным.
+
+   2. `--bg` (#F5F6F8, светлота 0.921) и `--surface` (#F3F4F6, 0.904)
+      различались на 0.017 — то есть НЕ РАЗЛИЧАЛИСЬ вовсе. «Поверхности»
+      были тремя названиями одного оттенка, и глубины на экране не
+      возникало ни от какой вёрстки: карточка на подложке, подложка на
+      поле — всё сливалось в одно молочное пятно, а работу делала
+      единственная тонкая рамка.
+
+   Теперь поле — ТЁПЛАЯ БУМАГА, лист карточки — белый (он ярче поля, а не
+   равен ему), подложка — заметная ступень вниз (0.906 / 1.0 / 0.836).
+   Нейтрали уведены в тёплый: холодный сине-серый на цеховом планшете под
+   жёлтым светом выглядит грязным, а типография — про бумагу и краску.
+
+   Сигнальные цвета (success/warning/error/…) НЕ трогаются: они отвечают
+   на другой вопрос — «что со сроком и статусом», — и их значения уже
+   выверены по контрасту. Менять их заодно значило бы перекрашивать
+   светофор, потому что стены покрасили. */
+:global(html) .shell {
+  --accent: #2B2BF0;
+  --accent-light: rgba(43, 43, 240, 0.07);
+  --accent-hover: #1E1ED4;
+  --btn-primary-bg: #2B2BF0;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #1E1ED4;
+  --btn-primary-active-bg: #1717AE;
+  --bg: #F4F1EA;
+  --card: #ffffff;
+  --surface: #EBE7DD;
+  --border-light: #E0DBCF;
+  --border-mid: #CDC6B5;
+  --text: #16130E;
+  --text-mid: #5A5348;
+  /* Было #6B7280 — 4.39:1 на --surface и 4.47:1 на --bg при норме 4.5 для
+     12–13px (аудит 03.09, пересчёт по WCAG 2.x). Затемнено до минимального
+     значения, проходящего AA на ВСЕХ трёх поверхностях: 4.68 / 4.76 / 5.15.
+     Сторожит матрица «текст × поверхность» по блоку .shell в contrast.test.ts —
+     до 03.09 она читала только index.css и палитру раздела не видела вовсе.
+     06.09 пересчитан под тёплую палитру: 4.96 / 5.59 / 4.60 на bg/card/surface.
+     Подложка стала темнее прежней (0.836 против 0.904), поэтому и приглушённый
+     текст ушёл темнее — иначе ступень поверхностей купилась бы ценой AA. */
+  --text-dim: #6A6357;
+  /* Граница ПОЛЯ ВВОДА и вторичной кнопки — не текст, норма 3:1 (WCAG 1.4.11).
+     Прежняя --border #E5E7EB давала 1.24:1, и это была единственная граница:
+     фон поля (--card #fff) отличается от фона страницы (--bg #F5F6F8) на 1.04.
+     На цеховом планшете под ярким светом не было видно, куда печатать.
+     Отдельный токен, а не общий --border: рамки карточек и таблиц к элементам
+     управления не относятся, и перекрашивать их незачем. */
+  --border-control: #8A8272;
+  --color-success: #10A34A;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #2563EB;
+  --color-violet: #8B5CF6;
+  --bg-success: #ECFDF3;
+  --bg-warning: #FFF7ED;
+  --bg-error: #FEF2F2;
+  --bg-info: #EFF6FF;
+  --bg-violet: #F5F3FF;
+  --bg-cyan: #ECFEFF;
+  /* Текст статусов на своей подложке. Красить текст тем же --color-*, что и заливку,
+     нельзя: в светлой теме «ожидает» давало 2.02:1, «готов» 3.13:1, «просрочен»
+     3.76:1 при норме 4.5:1 для 11.5px. Цвет статуса — единственный быстрый сигнал
+     для цеха, и на планшете под цеховым светом он читался как серый шум.
+     --color-* остаётся для заливок, рамок и точек, --color-*-ink — для текста. */
+  --color-success-ink: #067647;
+  --color-warning-ink: #B45309;
+  --color-error-ink:   #B42318;
+  --color-info-ink:    #1D4ED8;
+  --color-violet-ink:  #6D28D9;
+  --color-cyan-ink:    #0E7490;
+  /* `--border` РАЗДЕЛОМ БОЛЬШЕ НЕ ИСПОЛЬЗУЕТСЯ, и переопределения ему не нужно.
+     История: он подтягивался чёрным (#0A0A0A) из index.css, и 29 мест рисовали
+     чёрную рамку рядом с карточками редизайна. Починка 03.09 переопределила его
+     ЗДЕСЬ — то есть только внутри `.shell`, — и этого мало: `AdminScreen`
+     смонтирован и в Order Studio, вне оболочки, где токен снова становился
+     чёрным. Проверено в браузере 05.09: та же таблица прав давала
+     rgb(229,231,235) в разделе и rgb(10,10,10) в Order Studio.
+
+     Значение переопределения совпадало с `--border-light` в обеих темах, то
+     есть отдельного смысла у токена в разделе не было вовсе. Все 29 мест
+     переведены на `--border-light`, чей глобальный вид (#DCDCDC) от разделового
+     (#E5E7EB) почти не отличается — в отличие от чёрного. */
+  /* Тот же расчёт, что у --text-dim: это его алиас по смыслу */
+  --text-muted: #6A6357;
+  /* Заливка опасного действия. --color-error #EF4444 под белым текстом даёт
+     3.76:1 при 12–14px — ниже AA. Отдельный токен: --color-error остаётся
+     для точек, рамок и чипов, где он не несёт белого текста. */
+  --btn-danger-bg: #DC2626;
+  --btn-danger-fg: #ffffff;
+  /* Тень тёплая: серо-синяя на бумажном поле читается как грязь */
+  --shadow-card: 0 1px 2px rgba(36, 28, 16, 0.05), 0 1px 3px rgba(36, 28, 16, 0.08);
+
+  /* ─── ЧЕРНИЛЬНАЯ ПАНЕЛЬ НАВИГАЦИИ ───
+     Своими токенами, а не через --card/--text: сайдбар стал тёмной
+     плоскостью в светлой теме, и текстовые токены раздела на него
+     не годятся по построению — они рассчитаны на бумагу.
+
+     Зачем панель тёмная. До 06.09 сайдбар был белым (`--card`) на почти
+     белом поле (`--bg`), разделённые линией в 1px: у продукта не было
+     пространственного якоря — глаз не знал, где кончается инструмент
+     и начинается работа. Тёмная плоскость слева даёт этот якорь и
+     заодно тот самый контраст «краска / бумага», на котором построен
+     весь раздел.
+
+     Контраст проверен и сторожится (`contrast.test.ts`, блок «чернильная
+     панель»): 15.16 у основного текста, 5.96 у приглушённого, белый
+     на ультрамарине активного пункта — 7.76. Маркер активного пункта
+     берёт --nav-accent, а не --accent: фирменный ультрамарин на чернилах
+     даёт 2.39 при норме 3 для нетекстового индикатора. */
+  --nav-bg: #16130E;
+  --nav-ink: #EDE8DD;
+  /* Три ступени, а не две: заголовок группы («ЦЕХА») обязан быть тише
+     самих пунктов, иначе список читается как ровная стена одинаковых строк */
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #9A9184;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #7B7BFF;
+  --nav-border: rgba(255, 255, 255, 0.10);
+}
+/* Тёмная тема идёт за светлой: те же тёплые нейтрали, только перевёрнутые.
+   Оставить её сине-серой означало бы, что тумблер темы меняет не яркость,
+   а фирменный стиль. Поверхности снова разведены по светлоте (0.008 /
+   0.012 / 0.019) — в тёмной теме ступень мельче по абсолютной величине,
+   но глазом различима, потому что работает нижний конец шкалы. */
+:global(html[data-theme='dark']) .shell {
+  --accent: #8C8CFF;
+  --accent-light: rgba(140, 140, 255, 0.16);
+  --accent-hover: #A9A9FF;
+  --btn-primary-bg: #2B2BF0;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #4242F5;
+  --btn-primary-active-bg: #1E1ED4;
+  --bg: #14120E;
+  --card: #1D1A15;
+  --surface: #26221B;
+  --border-light: #302B23;
+  --border-mid: #403A30;
+  --text: #EDE8DE;
+  --text-mid: #B3AB9C;
+  --text-dim: #978E7F;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #F87171;
+  --color-info: #3B82F6;
+  --color-violet: #A78BFA;
+  --bg-success: #0E2A1B;
+  --bg-warning: #2A2210;
+  --bg-error: #2A1416;
+  --bg-info: #12233F;
+  --bg-violet: #211B3A;
+  --bg-cyan: #0C2A30;
+  /* Тёмная тема по контрасту изначально лучше светлой (7.33:1 против 2.02:1),
+     поэтому чернила почти везде совпадают с --color-*. Исключение — синий:
+     #3B82F6 на #12233F даёт 4.27:1, чуть ниже нормы. */
+  --color-success-ink: #22C55E;
+  --color-warning-ink: #F59E0B;
+  --color-error-ink:   #F87171;
+  --color-info-ink:    #60A5FA;
+  --color-violet-ink:  #A78BFA;
+  --color-cyan-ink:    #22D3EE;
+  /* `--border` — см. светлую тему выше: разделом не используется */
+  --text-muted: #978E7F;
+  /* Тёмная тема: текстовые токены проходят AA и так (5.19–8.44), правятся
+     только НЕтекстовые. Рамка контролов #313A4C давала 1.51:1 на карточке. */
+  --border-control: #7C7361;
+  /* В тёмной теме --color-error светлый (#F87171), и белый текст на нём —
+     2.77:1. Заливка опасной кнопки берётся своим токеном. */
+  --btn-danger-bg: #B91C1C;
+  --btn-danger-fg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+  /* Чернильная панель — см. светлую тему. В тёмной она чуть ТЕМНЕЕ поля,
+     а не светлее: панель остаётся той же плоскостью краски, к которой
+     прижата навигация, и в обеих темах узнаётся одинаково. */
+  --nav-bg: #100E0A;
+  --nav-ink: #EDE8DD;
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #948B7D;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #8C8CFF;
+  /* В ТЁМНОЙ ТЕМЕ ГРАНИЦА ПАНЕЛИ РАБОТАЕТ ЗА ДВОИХ.
+     Панель (#100E0A) и поле (#14120E) различаются на 0.006 светлоты — в светлой
+     теме этого хватает с запасом (там панель чернильная на бумаге), а в тёмной
+     плоскости просто сливаются: на снимке обхода сайдбар не читался как
+     отдельная поверхность вовсе, то есть пространственный якорь, ради которого
+     панель и сделана тёмной, в тёмной теме не работал. Тона не меняем —
+     они выверены по контрасту текста (`contrast.test.ts`); усилен РАЗДЕЛ. */
+  --nav-border: rgba(255, 255, 255, 0.16);
+}
+
+.shell {
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+/* ─── Правая колонка: header + прокручиваемый main ─── */
+.rightcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* ─── Header ─── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  /*
+    ОПОРА ДЛЯ ВЫПАДАЮЩИХ ПАНЕЛЕЙ ШАПКИ (центр уведомлений, всплывающие).
+    Без неё `top: calc(100% + 6px)` считается от НАЧАЛЬНОГО блока, то есть
+    от высоты окна, и панель уезжает под нижнюю границу экрана — кнопка
+    нажимается, а показывать нечего.
+  */
+  position: relative;
+  height: 60px;
+  flex-shrink: 0;
+  padding: 0 var(--space-xl);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+.spacer { flex: 1; }
+.iconBtn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text-mid);
+  cursor: pointer;
+  font-size: var(--type-title);
+}
+.iconBtn:hover { background: var(--surface); }
+.iconDot {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-error);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.themeToggle { }
+.userChip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: var(--space-md);
+  margin-left: var(--space-xs);
+  border-left: 1px solid var(--border-light);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.userRole {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* ─── Sidebar (вертикальная навигация, сгруппированная) ─── */
+/* Панель навигации — плоскость КРАСКИ (см. --nav-* в блоке токенов выше).
+   Все цвета внутри неё берутся из --nav-*, а не из палитры бумаги: смешивать
+   их нельзя, иначе первая же правка «текста на карточке» перекрасит меню. */
+.sidebar {
+  width: 236px;
+  flex-shrink: 0;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
+  color: var(--nav-ink);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  transition: width var(--dur-base) var(--ease-out);
+}
+.sidebarCollapsed { width: 64px; }
+/* Логотип — ссылка на главную ERP (правка 13): кликабелен весь блок, не только буква */
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--nav-border);
+  color: var(--nav-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.sidebarBrand:hover { background: var(--nav-hover); }
+/* Кольцо фокуса внутри панели — своим токеном: фирменный ультрамарин
+   (--accent) на чернилах даёт 2.39:1, то есть фокус был бы невидим ровно
+   там, где панель тёмная. Глобальное правило :focus-visible из forms-base
+   красит кольцо в --accent, поэтому здесь оно переопределяется адресно. */
+.sidebarBrand:focus-visible,
+.sidebar .navLink:focus-visible,
+.sidebar .collapseBtn:focus-visible {
+  outline: 2px solid var(--nav-accent);
+  outline-offset: -2px;
+}
+/* Знак: не скруглённый квадрат с буквой, а ОТТИСК — белая литера,
+   вырубленная в ультрамариновом поле. Квадрат намеренно не скруглён:
+   у печатной формы прямой угол, и на фоне сплошных 6px-радиусов
+   раздела он читается как знак, а не как ещё одна кнопка. */
+.sidebarLogo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--nav-active-bg);
+  transition: background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  color: var(--nav-active-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h4);
+  line-height: 1;
+  /* Смещение оттиска: край краски видно, как на приводке */
+  box-shadow: 2px 2px 0 rgba(123, 123, 255, 0.35);
+}
+.sidebarBrand:hover .sidebarLogo {
+  box-shadow: 3px 3px 0 rgba(123, 123, 255, 0.55);
+}
+.sidebarBrandText {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebarNav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-sm);
+  scrollbar-width: thin;
+}
+/**
+ * ДВА ЗАГЛАВНЫХ НАЧЕРТАНИЯ ERP — объявлены здесь и только здесь.
+ *
+ * Их было пять почти одинаковых: 12/600/0.8px, 12/600/1.2px, 11/600/1.2px,
+ * 10/600/1px — с разницей, которую никто не выбирал. `composes` тут не годится:
+ * он не работает на селекторе потомка (`.table th`), а именно там и жил один
+ * из вариантов. Групповое правило работает везде.
+ *
+ * Правило-источник обязано стоять ВЫШЕ всех, кто его уточняет: специфичность
+ * у них одинаковая, и спор решает порядок в файле. Ниже каждый класс
+ * объявляет ТОЛЬКО то, чем он осознанно отличается.
+ */
+.labelCaps,
+.navGroup,
+.fieldLabel,
+.table th,
+.deptTab,
+.dataCardGroup,
+.dataCardFieldLabel {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Крупный заголовок: другое начертание и другая задача — не подпись, а титул.
+   Вес 700, а не 900: у дисплейного начертания (Oswald) верх диапазона — 700,
+   и 900 браузер синтезировал бы утолщением контуров. Прежнее значение
+   ни на чём не сказывалось — до 06.09 начертание не применялось к русскому
+   тексту вовсе (см. шапку @font-face в index.css). Трекинг убран в ноль:
+   он добавлялся, чтобы разредить широкий Inter в верхнем регистре, а
+   condensed от него теряет ровно ту плотность, ради которой взят. */
+.pageTitle,
+.modalTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+/* Заголовки групп меню («ЦЕХА», «ОПЕРАЦИИ»): было 10px цветом --text-muted,
+   то есть 2.5:1 при кегле меньше собственного минимума.
+   Начертание — из .labelCaps выше, здесь только раскладка. */
+.navGroup {
+  padding: var(--space-lg) var(--space-md) var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  /* Цвет — свой: групповое правило .labelCaps выше красит подписи в
+     --text-dim, а он рассчитан на бумагу и на чернилах даёт 1.6:1.
+     Специфичность равна, спор решает порядок — это правило ниже. */
+  color: var(--nav-ink-dim);
+}
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 38px;
+  padding: 0 var(--space-md);
+  margin: 2px 0;
+  border-radius: var(--radius-md);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  color: var(--nav-ink-mid);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.navLink:hover { background: var(--nav-hover); color: var(--nav-ink); }
+/* Активный пункт — сплошная заливка краской, а не бледная подсветка.
+   Прежний вид (--accent-light, то есть 8% синего на белом) при чернильной
+   панели превратился бы в едва заметное пятно; здесь пункт становится
+   единственным цветным объектом панели, и найти его можно не глядя. */
+.navLinkActive,
+.navLinkActive:hover {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-ink);
+  font-weight: 600;
+}
+/* Место строки участка, пока состав цехов не приехал. Через composes, а не своей
+   высотой: в DOM окажутся оба класса, и переопределение под (pointer: coarse)
+   ниже по файлу применится к заглушке само — захардкоженные 38px промахнулись бы
+   ровно на планшете, ради которого резерв и делается. */
+.navLinkGhost {
+  composes: navLink;
+  cursor: default;
+}
+.navIcon {
+  width: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.navBadge {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  font-weight: 600;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--nav-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* На залитом краской пункте счётчик выворачивается: белая плашка,
+   цифра цветом заливки. Прежняя пара (--accent на --accent-light)
+   внутри сплошного ультрамарина была бы синим на синем */
+.navLinkActive .navBadge { background: var(--nav-active-ink); color: var(--nav-active-bg); }
+.sidebarFooter {
+  border-top: 1px solid var(--nav-border);
+  padding: var(--space-sm);
+  flex-shrink: 0;
+}
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-md);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  color: var(--nav-ink-dim);
+  font: inherit;
+  font-size: var(--type-label);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.collapseBtn:hover { background: var(--nav-hover); color: var(--nav-ink); }
+/* Свёрнутый режим: только иконки */
+.sidebarCollapsed .sidebarBrandText,
+.sidebarCollapsed .navGroup,
+.sidebarCollapsed .navLabel,
+.sidebarCollapsed .collapseLabel { display: none; }
+.sidebarCollapsed .navLink,
+.sidebarCollapsed .collapseBtn { justify-content: center; gap: 0; padding: 0; }
+.sidebarCollapsed .sidebarBrand { justify-content: center; padding: 0; }
+/* Счётчик заданий переживает сворачивание точкой поверх иконки: меню цехов
+   существует ради ответа «сколько где работы», а на планшете сайдбар свёрнут
+   по умолчанию — раньше он превращался в столбик эмодзи без единой цифры */
+.sidebarCollapsed .navLink { position: relative; }
+.sidebarCollapsed .navBadge {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-xs);
+  font-size: var(--type-label);
+  line-height: 16px;
+  text-align: center;
+  border-radius: var(--radius-pill);
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xl) 28px var(--space-3xl);
+}
+
+/* ─── Заголовок страницы (wizard-стиль) ─── */
+.pageHead { margin-bottom: 20px; }
+/* Начертание — из общего правила заголовков выше, здесь только размер и поля */
+/* Заголовок экрана растёт с шириной, но границы диапазона — СТУПЕНИ ШКАЛЫ,
+   а не два числа рядом: снизу заголовок модалки, сверху h1. До 12.09 здесь
+   стоял clamp(26px, 4vw, 34px), где 34px совпадало со значением показателя
+   KPI — то есть заголовок страницы и число на плитке были одной величиной
+   по случайности, а не по решению. */
+.pageTitle {
+  font-size: clamp(var(--type-h3), 4vw, var(--type-h1));
+  line-height: 1.05;
+  margin: 0;
+}
+.pageSub { color: var(--text-dim); margin-top: var(--space-xs); font-size: var(--type-body-sm); }
+
+/* ─── Заглушки ─── */
+/* Пустое состояние — базовый примитив: пунктирная рамка, центр, приглушённый текст */
+.emptyState {
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 46px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+/* Заглушка «Нет доступа» — тот же примитив, что .emptyState (различались 2px
+   паддинга). Соседи `.stub`, `.stubText` и `.stubPhase` сняты 07.09 вместе
+   с компонентом `Stub`, у которого не осталось вызывающих. А `.stubIcon`
+   ЖИВ и остаётся: его носитель — `ErpGuard` в `ErpApp.jsx`, единственная
+   уцелевшая заглушка раздела. Поймал это сторож `stylesResolve.test.ts`
+   («класс не объявлен — className станет undefined»), то есть ровно тот
+   отказ, от которого он и поставлен: разметка та же, поведение то же,
+   молча уезжает только вид. */
+.noAccess {
+  composes: emptyState;
+  padding: var(--space-3xl) var(--space-xl);
+}
+.stubIcon { margin-bottom: 10px; }
+
+/* ─── Таблицы ─── */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+/* Таблица заказов: ширины колонок из <colgroup> (объяснение — там же).
+   `fixed` обязателен: без него браузер всё равно пересчитает ширины
+   по содержимому, и colgroup останется пожеланием. */
+.ordersTable {
+  table-layout: fixed;
+  min-width: 900px;
+}
+/* Подпись колонки не переносится и не обрезается: ширины в colgroup рассчитаны
+   под неё, и перенос здесь означал бы, что расчёт разошёлся с вёрсткой —
+   это должно быть ВИДНО, а не спрятано многоточием */
+/* ─── ШИРИНЫ КОЛОНОК СПИСКА ЗАКАЗОВ ───
+   Девять `<col>` несли ширину инлайном (`style={{ width: 92 }}`), то есть
+   раскладка таблицы жила в разметке и не подчинялась ни теме, ни медиазапросу.
+   Колонка «Заказ» ширины не имеет намеренно: она забирает остаток —
+   это единственное место, где длина названия действительно нужна. */
+/* На проде в этой графе встречается ТЕКСТ, а не номер («тест вышивка 2»):
+   при ширине 92px он рвался на три строки и растягивал строку таблицы вдвое.
+   Перенос по словам оставлен (номер из цифр не рвётся никогда), но ячейка
+   получает свой минимум ширины и обрезает совсем длинное многоточием —
+   полное значение остаётся в `title` строки. */
+.colDeal    { width: 92px; }
+.ordersTable td:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.colManager { width: 104px; }
+.colQty     { width: 72px; }
+.colCreated { width: 88px; }
+.colDue     { width: 136px; }
+.colNow     { width: 152px; }
+.colStatus  { width: 96px; }
+.colAction  { width: 52px; }
+
+.ordersTable th { white-space: nowrap; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body-sm);
+}
+.table th {
+  text-align: left;
+  padding: 10px var(--space-md);
+  /* Отличие от .labelCaps: разрядка шире — шапка таблицы читается построчно */
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  background: var(--surface);
+}
+.table td {
+  padding: 10px var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+
+/* Подпись под полем даты: однозначное эхо выбранного значения (формат самого
+   нативного поля задаёт локаль браузера и может быть mm/dd/yyyy) + пресеты сроков */
+/* inline-flex, а не flex: в колоночном .field это отдельная строка под полем,
+   а в плотных однострочных формах (подряд, эксперим. цех) — рядом с полем */
+.dateHint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--space-xs);
+  font-size: var(--type-label);
+}
+.dateEcho { color: var(--text-dim); font-family: var(--mono); }
+.dateFormatHint { color: var(--text-muted); }
+
+/* Сортируемый заголовок: кнопка внутри th, чтобы работали фокус и Enter/Space.
+   Наследует типографику th целиком — иначе внутри появляется второй кегль. */
+.thSortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  text-align: left;
+}
+.thSortBtn:hover { color: var(--text); }
+.thSorted { color: var(--text); }
+/* Стрелка неактивной колонки бледная, но видимая: без неё о сортировке не догадаться */
+.thSortArrow { opacity: 0.45; font-size: var(--type-label); }
+.thSorted .thSortArrow { opacity: 1; color: var(--accent); }
+.table tr:last-child td { border-bottom: none; }
+/* Выбранная строка списка-навигации (мастер-деталь раздела «Закупка»,
+   правка 23.08, п. 1). Объявлена ЗДЕСЬ, рядом со своей базой `.table td`:
+   специфичность у них равна, спор решает порядок, а между CSS-чанками
+   порядка не существует. */
+.rowSelected td { background: var(--bg-info); }
+
+/* ─── Статус-чипы ───
+   11.5px — осознанное исключение из правила «мелкий текст ≥12px»: это не текст
+   для чтения, а пилюля-метка рядом со своим объектом, и она набрана 600-м весом
+   на цветной подложке с контрастом ≥4.5 (--color-*-ink). Поднимать её кегль
+   значит переверстать плотные строки очереди и таблицы плана. */
+/* Компактное поле инлайн-правок: раньше это был инлайн-стиль minHeight: 30/32,
+   который перебивал @media (pointer: coarse) и оставлял поля 30px на планшете */
+.inputXs {
+  min-height: 30px;
+  padding: 3px var(--space-sm);
+  font: inherit;
+  max-width: 200px;
+}
+.inputXsDate { max-width: 150px; padding: 2px 6px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: var(--type-label);
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.5;
+}
+/* Семантика статусов по макету: ожидает — амбер, в работе — синий, готово — зелёный */
+/* Чип-кнопка. Раньше на каждой кнопке висел инлайн `font: inherit` — шорткат,
+   который сбрасывал font-size и font-weight самого .chip, и фильтр-чипы
+   типографически не совпадали со статус-чипами рядом. */
+.chipBtn {
+  appearance: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chipWaiting  { background: var(--bg-warning); color: var(--color-warning-ink); }
+/* «Можно начинать» — БИРЮЗОВЫЙ, а не зелёный. Раньше объявление совпадало
+   с .chipDone до символа, и на доске «Готов к работе» отличался от «Готово»
+   одним лишь текстом — при том, что это противоположные концы шкалы.
+   Пара уже есть в палитре и уже проверена на контраст (contrast.test.ts);
+   декоративным вариантом `cyan` не пользовался ни один вызов. */
+.chipReady    { background: var(--bg-cyan); color: var(--color-cyan-ink); }
+.chipProgress { background: var(--bg-info); color: var(--color-info-ink); }
+.chipInfo     { background: var(--bg-info); color: var(--color-info-ink); }
+.chipDone     { background: var(--bg-success); color: var(--color-success-ink); }
+.chipBlocked  { background: var(--bg-error); color: var(--color-error-ink); }
+.chipSkipped  { background: transparent; color: var(--text-dim); text-decoration: line-through; }
+.chipNeutral  { background: var(--surface); color: var(--text-mid); }
+.chipDanger   { background: var(--bg-error); color: var(--color-error-ink); }
+.chipViolet   { background: var(--bg-violet); color: var(--color-violet-ink); }
+.chipCyan     { background: var(--bg-cyan); color: var(--color-cyan-ink); }
+.field { display: flex; flex-direction: column; gap: var(--space-xs); }
+/* Ярлык поля — 49 употреблений, самый частый мелкий текст формы. 10px нарушали
+   собственное правило ≥12px; letter-spacing уменьшен под больший кегль.
+   Отличий от .labelCaps нет — начертание целиком оттуда, своих объявлений
+   у класса не осталось. */
+.input, .select {
+  padding: 9px 11px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  min-width: 0;
+  min-height: var(--control-h-md);
+}
+.input:focus, .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.checkRow { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); align-items: center; }
+
+/* ─── Ширины полей формы заказа (вместо инлайн-стилей — управляются media query).
+   Составные селекторы (.input.xxx) — чтобы перебить глобальный
+   input[type="…"] { width: 100% } из forms-buttons.css ─── */
+.inputSm { min-height: var(--control-h-sm); }
+.input.customSizeInput { width: 140px; }
+.input.colorInput { width: 130px; }
+.input.qtyCellInput { width: 64px; }
+.input.mmInput { width: 70px; }
+.input.pantoneInput { width: 150px; }
+.input.printZoneInput { flex: 1; min-width: 160px; }
+.input.printNoteInput { flex: 1; min-width: 150px; }
+.input.searchInput { min-width: 260px; }
+.input.qtySmallInput { max-width: 84px; flex: 0 0 auto; }
+.fieldWide { grid-column: span 2; }
+/* Группа, занимающая строку сетки целиком. Нужна там, где поле — не поле,
+   а ряд плиток («Тип производства» в позиции заказа): в колонке 150px его
+   пять кнопок встают лесенкой. Соседка `.fieldWide` даёт две колонки —
+   ряду плиток этого мало. */
+.fieldFull { grid-column: 1 / -1; }
+.modalTitle {
+  font-size: var(--type-h3);
+}
+.deptTab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border-light);
+  padding: 0 var(--space-lg);
+  min-height: var(--dept-tab-h);
+  /* Отличия от .labelCaps: мельче, разрядка шире, цвет активнее — это вкладка */
+  font-size: var(--type-label);
+  letter-spacing: 1.2px;
+  color: var(--text-mid);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+  flex-shrink: 0;
+}
+.deptTab:last-child { border-right: none; }
+.deptTab:hover { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+.deptTab:hover .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
+.deptTabActive { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+.deptTabActive .deptTabCount { background: rgba(255,255,255,0.2); border-color: transparent; color: #fff; }
+.deptTabCount {
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  color: var(--text-mid);
+}
+.deptTabOverdue {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+}
+.deptTab:hover .deptTabOverdue, .deptTabActive .deptTabOverdue {
+  background: var(--color-error);
+  color: #fff;
+}
+.deptTabHot {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+.deptTab:hover .deptTabHot, .deptTabActive .deptTabHot { background: var(--signal); color: #fff; }
+/*
+  Будущая работа цеха (правка 30.08, п. 7). Намеренно приглушённее «горячего»
+  счётчика: это не повод бросать текущее, а ответ на «что придёт дальше».
+  Наследует вид `.deptTabCount` и меняет только начертание.
+*/
+/* Без `opacity`: она гасила уже приглушённый `--text-dim` до 4.3:1 на подложке
+   вкладки (axe, 06.09). Прозрачность у текста — это и есть контраст, а правило
+   проекта говорит прямо: иерархия ниже `--text-dim` выражается размером
+   и положением, а не контрастом. Разницу с активным счётчиком несёт вес. */
+.deptTabWaiting { font-weight: 400; }
+.overdue { color: var(--color-error-ink); font-weight: 700; }
+.subText { color: var(--text-dim); font-size: var(--type-label); }
+.progressCell {
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.queueGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-md);
+}
+
+/* ─── Компактная очередь: строки вместо крупных карточек (правка 2) ─── */
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.queueRow {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-sm) 10px;
+}
+/* Строка очереди НЕ подсвечивается при наведении (правка владельца, п. 2
+   «Подсветка нерабочих элементов»): строка целиком не кликается, задание
+   открывает название-ссылка. Рамка, загоравшаяся на всей строке, обещала
+   действие, которого нет. */
+.queueRowDragging { opacity: 0.45; }
+/* Метка места вставки при перетаскивании — приоритет меняется по месту, а не по цвету строки */
+.queueRowDropBefore { box-shadow: inset 0 3px 0 0 var(--accent); }
+.queueRowDropAfter { box-shadow: inset 0 -3px 0 0 var(--accent); }
+.queueRowMain {
+  display: grid;
+  /* приоритет · заказ · кол-во · срок · статус · готовность · действия.
+     Название заказа — самая широкая колонка: по нему цех и опознаёт работу.
+
+     КОЛОНОК СЕМЬ, А НЕ ВОСЕМЬ (06.09). Восьмая — «Исполнитель» — уехала
+     в строку признаков под названием: она забирала 96px из 966, а трека
+     на действия при этом НЕ ХВАТАЛО. `auto` сжимался до 84px под кнопки
+     шириной 182, и `justify-self: end` разворачивал их влево — прямо
+     поверх подписи прогресса. Это не «тесно», а наложение: «0%» и
+     «Открыть» печатались друг на друге.
+
+     Последний трек объявлен через minmax с ЯВНЫМ минимумом, а не `auto`:
+     `auto` в перегруженной сетке ужимается молча, и следующая колонка,
+     которую кто-нибудь добавит, воспроизведёт ту же поломку. Числа сходятся:
+     72+48+96+100+184 = 500 фиксированных, 96 на зазоры, остаток 370 делят
+     название (мин. 210) и статусы (мин. 150). */
+  grid-template-columns:
+    72px minmax(210px, 3fr) 48px 96px minmax(150px, 1.2fr) 100px minmax(184px, auto);
+  /* start, а не center: строка со срочной датой и двумя чипами растёт по высоте,
+     и при center содержимое разъезжалось по вертикали относительно соседей */
+  align-items: start;
+  gap: 10px var(--space-md);
+  min-width: 0;
+}
+/* Grid НЕ обрезает содержимое ячейки: всё, что не влезло в трек, рисуется поверх
+   соседней колонки. Именно так «31 июл · просрочен 31 дн.» (nowrap в колонке 124px)
+   наезжало на статусы, а чип «просрочен этап» — на исполнителя. Поэтому min-width: 0
+   обязателен КАЖДОЙ ячейке, а не только тем, где есть многоточие. */
+.queueRowMain > * { min-width: 0; }
+.queueRowPriority {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.queueRowTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Название задания — дисплейным начертанием, как заголовок карточки очереди
+   и карточки канбана: это одна и та же величина («что за работа»), и до 06.09
+   она в трёх местах выглядела по-разному только потому, что в строке
+   у ссылки не было объявлено вообще ничего.
+
+   Condensed здесь ещё и практичен: в те же 244px колонки помещается заметно
+   больше знаков названия, а обрезается оно многоточием — то есть чем уже
+   начертание, тем меньше работы прячется за «…». */
+.queueRowTitle .queueCardTitleLink {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.queueRowTitle > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queueRowQty {
+  font-family: var(--mono);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Дата и просрочка — двумя строками: вместе они шире любой разумной колонки,
+   а nowrap в одну строку выносил текст поверх соседней ячейки со статусами */
+.queueRowDue {
+  font-size: var(--type-label);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.queueRowDue > * { white-space: nowrap; }
+.queueRowStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs) 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+/* `.queueRowAssignee` удалён вместе с колонкой (06.09): носителей у класса
+   не осталось ни одного, а правило без носителя — то же осиротевшее правило,
+   что `.drawerTab` и `.kpiCardClickable` до него. */
+.queueRowProgress { display: flex; align-items: center; gap: var(--space-xs); }
+.queueRowActions { display: flex; align-items: center; gap: var(--space-xs); justify-self: end; }
+.queueRowNotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--space-md);
+  margin-top: 6px;
+  font-size: var(--type-label);
+}
+.queueRowPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-light);
+}
+@media (max-width: 1024px) {
+
+  .queueRowMain {
+    grid-template-columns: 46px minmax(150px, 2fr) 52px 96px minmax(140px, 1fr) auto;
+  }
+  .queueRowProgress { display: none; }
+}
+
+.queueCard {
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queueCardReady { border-left-color: var(--color-success); }
+.queueCardProgress { border-left-color: var(--color-warning); }
+.queueCardBlocked { border-left-color: var(--color-error); }
+.queueCardUrgent { border-color: var(--color-error); }
+.queueCardHead { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+/* Приоритет очереди и постановка в план на планшете (правка 03.09). Объявлен
+   ЗДЕСЬ, а не в screens.module.css: имя начинается с `.queueCard`, и правило
+   проекта (сторож `stylesResolve.test.ts`) требует держать уточнения базового
+   класса в одном чанке с ним — между чанками порядка не существует. */
+.queueCardOrder {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.queueCardTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.queueQty {
+  font-family: var(--mono);
+  font-size: var(--type-body);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.queueReason {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+}
+.queueActions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.queueActions :global(.btn) { min-height: 46px; flex: 1; }
+.queueActions :global(.btn-ghost) { flex: 0 0 auto; }
+.queueBlockForm { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.queueBlockForm .input { flex: 1; min-width: 170px; }
+
+/*
+  РАЗМЕРНЫЕ СТРОКИ РУЛОНА (правка 20.09, п. 7).
+
+  Строка, а не ячейка таблицы: закройщик её добавляет и удаляет, и на
+  планшете таблица из четырёх колонок с полями ввода жмётся в треть экрана
+  (на этом уже ловились с приёмкой материалов, сессия 62). Поэтому
+  `flex-wrap`: на узком экране селект размера, количество и кнопка
+  переносятся сами, без второго набора правил.
+*/
+.cutSizes { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.cutSizeRow {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.cutSizeRow .field { flex: 0 1 220px; min-width: 0; }
+.cutSizeRow .qtySmallInput { flex: 0 1 110px; }
+/* Правка 05.10, п. 5: поле количества размера — по своему содержимому,
+   а не на треть строки */
+.cutSizeRow .cutQtyField { flex: 0 0 auto; }
+
+/*
+  ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9). Плитки, а не таблица: величин
+  восемь, у каждой своя единица и своя оговорка про полноту данных —
+  в таблице оговорка не помещается никуда, кроме отдельной колонки,
+  которая на планшете уезжает за край.
+*/
+.economics { display: flex; flex-direction: column; gap: var(--space-md); }
+.metricGrid {
+  display: grid;
+  /* auto-fit: на телефоне одна колонка, на планшете две, на мониторе четыре —
+     без единого медиазапроса и без второго набора правил */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-sm);
+}
+.metricCard {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-md) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.metricCardAccent { border-color: var(--accent); }
+.metricLabel { font-size: var(--type-label); color: var(--text-dim); }
+.metricValue {
+  font-family: var(--mono);
+  font-size: var(--type-metric);
+  line-height: 1.1;
+}
+
+/*
+  ЦЕНТР УВЕДОМЛЕНИЙ В ШАПКЕ (правка 20.09, п. 4). Панель у колокола,
+  а не экран: «центр открывается из общей шапки ERP на любом экране» —
+  уводить человека с рабочего экрана ради строки «вас упомянули» и есть
+  то, от чего правка уходит.
+*/
+.noticeCenter {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-nav);
+  width: min(380px, calc(100vw - var(--space-md) * 2));
+  max-height: 70vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.noticeTabs { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.noticeTab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  cursor: pointer;
+  min-height: 44px;   /* тач-цель: шапка одна на планшет и монитор */
+}
+.noticeTabActive { border-color: var(--accent); color: var(--accent); }
+.noticeList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.noticeRow {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  color: inherit;
+}
+.noticeRow:hover { background: var(--bg2); }
+/* Непрочитанное выделяется фоном и точкой — как просит референс документа */
+.noticeUnread > .noticeRow { background: var(--accent-light); }
+.noticeTitle { font-weight: 600; }
+/* Ссылкой строка бывает у производственных поводов (`OrderLink`) */
+a.noticeRow { text-decoration: none; }
+/* Производственные поводы колокола — отдельным блоком над личными */
+.noticeSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+.noticeMore { font-size: var(--type-label); color: var(--accent); padding: 0 var(--space-sm); }
+.noticeSectionTitle {
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/*
+  ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (правка 20.09, п. 4).
+
+  Стоят ТАМ ЖЕ, где центр уведомлений, — под колоколом: всплывающее и есть
+  короткий пересказ того, что лежит в центре, и приучать глаз к двум разным
+  углам для одной сущности незачем. Пока центр открыт, карточек нет вовсе
+  (`ErpLayout`): человек уже смотрит в список, и полоса поверх него мешала бы.
+
+  Слой выше окна чата: уведомление приходит и тогда, когда окно открыто
+  на ДРУГОМ заказе, — спрятанное за ним, оно бесполезно.
+*/
+.noticePopups {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: min(360px, calc(100vw - var(--space-md) * 2));
+}
+.noticePopup {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+}
+.noticePopupBody {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;   /* тач-цель: уведомление приходит и на планшет цеха */
+}
+.noticePopupClose {
+  min-width: 44px;
+  min-height: 44px;   /* тач-цель: закрыть надо уметь пальцем, не промахнувшись */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.noticePopupClose:hover { background: var(--bg2); }
+
+/* Настройки уведомлений в центре (вторая очередь чата) */
+.noticeSettings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+.noticeToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+  min-height: 44px;   /* тач-цель: центр открывают и с планшета цеха */
+}
+
+/*
+  Список черновиков в разделе заказов (правка 20.09, п. 6). Свёрнут
+  по умолчанию: черновик — рабочее состояние одного человека, и разворачивать
+  его поверх списка заказов каждому, кто зашёл в раздел, незачем.
+*/
+.draftsBlock { margin: var(--space-sm) 0; }
+.draftsBlock > summary {
+  cursor: pointer;
+  min-height: 44px;           /* тач-цель: раздел открывают и с планшета */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+.draftsBlock[open] > summary { margin-bottom: var(--space-sm); }
+
+/*
+  Размеры внутри строки закупки (правка 20.09, п. 2). Сводка остаётся видимой
+  всегда, таблица разворачивается по требованию: в таблице закупки
+  четырнадцать колонок, и матрица «цвет × размер», раскрытая в каждой строке,
+  сделала бы экран нечитаемым.
+*/
+.purchaseSizes > summary {
+  cursor: pointer;
+  /* Тач-цель: строка сводки — единственный способ раскрыть таблицу с планшета */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.purchaseSizes[open] > summary { margin-bottom: 6px; }
+
+/* Сообщение об ошибке внутри ячейки таблицы результата (правка 20.09, п. 8).
+   `ink`, а не заливочный `--color-error`: на мелком кегле тот даёт 3.76:1
+   при норме 4.5 — то же решение, что у `.error` в Field.module.css. */
+.cellError {
+  font-size: var(--type-label);
+  color: var(--color-error-ink);
+  font-weight: 500;
+}
+
+.queueCardHeadText { flex: 1; min-width: 0; }
+
+/* Ссылка-заголовок карточки очереди → карточка заказа */
+.queueCardTitleLink {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.queueCardTitleLink:hover { color: var(--accent); }
+.queueCardTitleLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Документ ТЗ в PDF (волна 4): шапка + встроенный просмотрщик браузера */
+.tzDoc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  background: var(--surface);
+}
+.tzDocHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.tzDocIcon { flex-shrink: 0; }
+.tzDocName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.tzDocVersion { color: var(--accent); font-family: var(--mono); }
+.tzDocMeta { font-size: var(--type-body-sm); color: var(--text-muted); }
+.tzFrame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+/*
+  Файл, который браузер не показывает встроенным просмотрщиком (правка 12.09,
+  п. 4). Стоит НА МЕСТЕ рамки просмотра и повторяет её оформление: человек
+  ждёт документ и должен получить ответ, а не пустой прямоугольник.
+  Высоту не наследует — содержимого здесь одна строка и две кнопки.
+*/
+.tzNoPreview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.tzFullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.tzFullscreenBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.tzFullscreenName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50vw;
+}
+.tzFullscreenFrame { flex: 1; width: 100%; border: 0; background: #fff; }
+@media (max-width: 768px) {
+
+  .tzFrame { height: 320px; }
+  .tzDocName { max-width: 200px; }
+}
+
+.progressTrack {
+  /* min-width обязателен: flex-basis 0 внутри <td> схлопывал полосу в ноль,
+     и в таблице плана от прогресса оставались только цифры «NN%» */
+  flex: 1 1 auto;
+  min-width: 56px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.progressFill {
+  /* `display: block` обязателен: носитель — `<span>`, то есть строчный
+     элемент, а к строчному не применяются ни `width`, ни `height`. Полоса
+     прогресса в строке очереди цеха и в очереди закупки не рисовалась вовсе:
+     трек виден (он flex-item и блокифицируется), заливка внутри — нет.
+     `.routeBarFill` этот `display` уже нёс — то есть дефект чинили однажды
+     у одного носителя, не спросив, кто ещё читает тот же класс. */
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─── Карточка записи вместо строки таблицы (компактная раскладка) ───
+   Вид один на все списки раздела: заказы, задачи склада, строки закупки.
+   Заводился он для заказов (.orderCardM ниже), но ни одно его правило про
+   заказ не знает — а экраны пилота при этом рисовали на планшете таблицу
+   в 6 и 14 колонок. Источник объявлен ВЫШЕ потребителей: `composes`
+   требует такого порядка, и то же правило действует для уточнений. */
+.dataCardList { display: flex; flex-direction: column; gap: 10px; }
+.dataCard {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-md) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.dataCardHead { display: flex; justify-content: space-between; gap: var(--space-sm); align-items: flex-start; }
+.dataCardTitle {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 700;
+  line-height: 1.15;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* Подсветка — только у заголовка-ССЫЛКИ. Тот же класс носят простой текст
+   (черновики, остатки, позиции подряда), и `.dataCardTitle:hover` красил его
+   так же, как ссылку, хотя клик ничего не делал (правка владельца, п. 2). */
+a.dataCardTitle:hover { color: var(--accent); }
+.dataCardMeta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+/* Строка внутри карточки, отбитая от предыдущей: позиция заказа,
+   группа полей закупки, содержимое складской задачи */
+.dataCardRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  border-top: 1px dashed var(--border-light);
+  padding-top: var(--space-sm);
+}
+/* Пара «подпись — значение»; на узком экране подписи колонок исчезают
+   вместе с шапкой таблицы, и без них число теряет смысл.
+   Начертание подписей — из .labelCaps выше, здесь только раскладка. */
+.dataCardField { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Подпись группы полей: на планшете заменяет заголовок группы колонок
+   таблицы закупки («Потребность — задал менеджер» / «Факт — ведёт закупка»).
+   Разделение групп — записанное решение, и в карточке оно обязано выжить. */
+.dataCardGroup { width: 100%; padding-top: 2px; }
+/* Сетка полей карточки: подстраивается сама, поэтому своего брейкпоинта
+   не имеет — правило проекта «может подстроиться — порог не заводим» */
+.dataCardFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+  width: 100%;
+}
+
+/* ─── Список заказов карточками (мобильный, <760px) ─── */
+.orderCardList { composes: dataCardList; }
+.orderCardM { composes: dataCard; }
+.orderCardMHead { composes: dataCardHead; }
+.orderCardMTitle { composes: dataCardTitle; }
+.orderCardMMeta { composes: dataCardMeta; }
+.orderCardMItem { composes: dataCardRow; }
+@media (max-width: 768px) {
+
+  .userChip { display: none; }
+  .topbar { padding: 0 14px; gap: var(--space-sm); }
+  .main { padding: var(--space-lg) 14px var(--space-3xl); }
+  .queueGrid { grid-template-columns: 1fr; }
+  .searchInput { flex: 1; min-width: 0; }
+  .modalTitle { font-size: var(--type-h4); }
+
+  /* Канбан: жёсткий scroll-snap по колонкам на тач-экранах */
+  .kanbanBoard { scroll-snap-type: x mandatory; }
+}
+
+
+/* ─── Канбан цехов ─── */
+.kanbanBoard {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  padding-bottom: var(--space-lg);
+  align-items: flex-start;
+  scroll-snap-type: x proximity;
+  /* Прокрутка доски не «протекает» в страницу — иначе перетаскивание у края
+     уводило экран вместо доски (правка 4) */
+  overscroll-behavior: contain;
+}
+/* Во время перетаскивания страница не должна ездить: доска сама скроллит себя
+   у края (ErpKanban.onBoardDragOver), snap отключаем — он дёргает колонки */
+.kanbanBoardDragging {
+  scroll-snap-type: none;
+  touch-action: none;
+}
+.kanbanCol {
+  flex: 0 0 290px;
+  scroll-snap-align: start;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Колонка чужого цеха, куда можно перенести задание */
+.kanbanColDroppable {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: var(--accent-light);
+}
+.kanbanColHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  background: var(--card);
+  border-bottom: 2px solid var(--accent);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.kanbanLane { padding: var(--space-sm) 10px 10px; min-height: 52px; flex-shrink: 0; }
+.kanbanLane + .kanbanLane { border-top: 1px dashed var(--border-light); }
+.kanbanLaneTitle {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.kanbanLaneDroppable {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--radius-sm);
+}
+.kanbanLaneOver { background: var(--accent-light); }
+.kanbanLaneDisabled { opacity: 0.45; }
+.kanbanEmpty { color: var(--text-muted); text-align: center; font-size: var(--type-label); padding: var(--space-xs) 0 2px; }
+
+.kanbanCard {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  margin-bottom: 6px;
+  /* Курсор «рука» — только у карточки, которую ДЕЙСТВИТЕЛЬНО можно тащить
+     (`[draggable="true"]` ниже). Доска ЭКС отдаёт перетаскивание лишь
+     технологу и не у закрытой разработки, а `cursor: grab` стоял у всех
+     карточек — обещание действия, которого нет (правка владельца, п. 2). */
+  cursor: default;
+  /* без выделения текста — иначе попытка перетащить карточку выделяет текст (ERP-12) */
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+/* Карточка целиком открывает заказ (доска цехов) — указатель */
+.kanbanCardClickable { cursor: pointer; }
+.kanbanCard[draggable="true"] { cursor: grab; }
+.kanbanCard[draggable="true"]:active { cursor: grabbing; }
+.kanbanCardDragging { opacity: 0.4; border-style: dashed; }
+.kanbanCardBlocked { border-left: 3px solid var(--color-error); }
+/* flex-wrap обязателен: колонка канбана жёстко 290px, и строка «500 шт · брак 12 ·
+   3 ч · 🚫» без переноса вылезала за границы карточки */
+.kanbanCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.kanbanCardTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-body-lg);
+  line-height: 1.15;
+  color: inherit;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* Только ссылка: на доске ЭКС название изделия — обычный текст (п. 2) */
+a.kanbanCardTitle:hover { color: var(--accent); }
+.kanbanCardFoot {
+  display: flex;
+  gap: var(--space-xs) 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  font-size: var(--type-label);
+}
+.kanbanDue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  white-space: nowrap;
+  color: var(--text-mid);
+}
+.kanbanDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ─── Инлайн-правка ─── */
+.inlineEditBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 1px var(--space-xs);
+  margin: -1px -4px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.inlineEditBtn:hover { background: var(--surface); outline: 1px dashed var(--border-light); }
+.inlineEditBtn:disabled { cursor: default; }
+.inlineEditBtn:disabled:hover { background: none; outline: none; }
+.inlineEditPen { font-size: var(--type-label); opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+.inlineEditBtn:hover .inlineEditPen { opacity: 0.6; }
+
+/* ─── Степпер этапов ─── */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  padding: var(--space-xs) 0 var(--space-sm);
+}
+.stepperItem { display: flex; align-items: center; flex-shrink: 0; }
+.stepperDot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--type-label);
+  font-weight: 700;
+  border: 2px solid var(--border-light);
+  background: var(--card);
+  color: var(--text-dim);
+  cursor: default;
+}
+.stepperDotDone { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+/* Рамка и подсветка — заливочным токеном, ЦИФРА внутри — ink: номером текущей
+   стадии маршрута нельзя жертвовать, а --color-warning на белом это 2.15:1. */
+.stepperDotActive { border-color: var(--color-warning); color: var(--color-warning-ink); box-shadow: 0 0 0 4px var(--bg-warning); }
+.stepperDotBlocked { border-color: var(--color-error); color: var(--color-error-ink); }
+/* Пропущенный/не требующийся шаг — приглушён, но читаем: он часть маршрута,
+   и «его здесь нет» отличается от «его не было в плане» (правка 23.08, п. 7) */
+.stepperDotSkipped { border-style: dashed; color: var(--text-dim); }
+/* Состояние шага словами под его названием: «Завершено · 19.08», «В работе».
+   Документ требует показывать состояние каждого этапа, а не только текущего */
+.stepperText { display: flex; flex-direction: column; gap: 1px; margin: 0 var(--space-sm) 0 6px; }
+/* Внутри колонки боковые отступы задаёт она сама — иначе они удвоятся */
+.stepperText .stepperLabel, .stepperText .stepperSub { margin: 0; }
+.stepperSub {
+  margin: 0 var(--space-sm) 0 6px;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.stepperLabel {
+  margin: 0 var(--space-sm) 0 6px;
+  font-size: var(--type-label);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.stepperLine { width: 26px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: var(--space-sm); }
+.stepperLineDone { background: var(--color-success); }
+
+.inputError { border-color: var(--color-error); }
+.inputError:focus { outline-color: var(--color-error); }
+.fieldError { color: var(--color-error-ink); font-size: var(--type-label); }
+/* Предупреждение под полем: не ошибка (заполнено верно), но требует внимания —
+   поэтому цвет предупреждения, а не ошибки, и поле НЕ помечается aria-invalid. */
+.fieldHint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  color: var(--color-warning-ink);
+  font-size: var(--type-label);
+  line-height: 1.35;
+}
+@media (max-width: 480px) {
+
+  .main { padding: var(--space-md) 10px 40px; }
+  .navLink { padding: 0 10px; gap: 6px; }
+  .topbar :global(.btn) { padding: 0 var(--space-md); }
+  .fieldWide { grid-column: 1 / -1; }
+  .queueCardHead { flex-wrap: wrap; }
+
+  /* Ширины полей формы: строки нанесений и размерной сетки — в колонку/2 колонки */
+  .input.customSizeInput { width: 100%; }
+  .input.colorInput { width: 100%; flex: 1 1 100%; }
+  .input.pantoneInput { width: 100%; }
+  .input.printZoneInput, .input.printNoteInput { min-width: 0; }
+  /* Уточнение СВОЕГО класса: `.mmInput` объявлен выше, в этом же модуле.
+     Квалификатор `.mmLabel` снят — он из `screens.module.css`, а класс
+     другого модуля здесь становится чужим хешем (см. шапку файла). */
+  .input.mmInput { width: 100%; flex: 1; }
+}
+
+@media (pointer: coarse) {
+
+  /* `.input`/`.select`/`.inputSm` высоту здесь больше не задают: её держит
+     токен `--control-h-*`, переопределённый под `pointer: coarse` в index.css
+     рядом с объявлением. `.inputXs` остаётся в списке — это единственный
+     контрол вне шкалы (инлайн-правка в ячейке таблицы). */
+  .inputXs { min-height: 44px; }
+  /* .deptTab: высота из токена --dept-tab-h (index.css), он же переопределён
+     под (pointer: coarse) там же — второе число здесь развело бы вкладку
+     и резерв места под её ряд. Тач-размер остаётся 48px. */
+  .themeToggle { min-width: 44px; min-height: 44px; }
+  /* Кнопки-чипы: быстрые фильтры цеха, переключатель вида, чипы этапов на плане.
+     Статус-чипы (не кнопки) остаются мелкими — по ним не нажимают. */
+  button.chip { min-height: 44px; padding-inline: 14px; }
+  .navLink { min-height: 44px; height: auto; }
+  .collapseBtn { min-height: 44px; height: auto; }
+  .iconBtn { min-width: 44px; min-height: 44px; }
+  .sidebarBrand { min-height: 44px; }
+  .pageBtn { min-width: 44px; min-height: 44px; }
+  .drawerClose { width: 44px; height: 44px; }
+  .inlineEditBtn { min-height: 44px; }
+  .thSortBtn { min-height: 44px; }
+}
+
+
+/* ─── Подряд: нумерованный степпер-воронка готового изделия (редизайн PR6) ─── */
+.numStepper {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md) var(--space-lg);
+  margin: var(--space-xs) 0 14px;
+}
+.numStepperTitle {
+  display: block;
+  font-size: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.numStepperTrack {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  /* переносим на узких экранах, чтобы не обрезалась подпись последнего шага (ERP-07) */
+  flex-wrap: wrap;
+  row-gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.numStepperTrack::-webkit-scrollbar { display: none; }
+.numStep { display: flex; align-items: center; flex-shrink: 0; }
+.numStepDot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--type-label); font-weight: 700;
+  border: 2px solid var(--border-light);
+  background: var(--card); color: var(--text-dim);
+  flex-shrink: 0;
+}
+.numStepDotActive {
+  border-color: var(--accent); background: var(--accent); color: #fff;
+}
+.numStepText { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 var(--space-sm); }
+.numStepLabel {
+  font-size: var(--type-body-sm); color: var(--text); white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.numStepCount {
+  min-width: 20px; height: 20px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; font-size: var(--type-label); font-weight: 700;
+  background: var(--surface); color: var(--text-mid);
+}
+.numStepDotActive ~ .numStepText .numStepCount {
+  background: var(--bg-info); color: var(--accent);
+}
+.numStepBar { width: 30px; height: 2px; background: var(--border-light); flex-shrink: 0; margin-right: 10px; }
+
+/* Пайплайн фаз эксперим. цеха (`.pipeline`, `.pipeNode*`, `.pipeCount`,
+   `.pipeLabel`, `.pipeArrow`) удалён 12.08 вместе с фазовой моделью. */
+
+/* ─── Dashboard (редизайн, по макету) ─── */
+.dash { display: flex; flex-direction: column; gap: var(--space-lg); }
+/* Шесть плиток на 190px укладывались в 4 + 2, и вторая строка оставляла
+   половину ряда пустой — дыру видно на любом снимке обзора. 260px дают
+   ровно три колонки на десктопе (3 × 2), две на планшете и одну на
+   телефоне. Медиазапрос не нужен: сетка подстраивается сама — правило
+   проекта «если сетка может подстроиться, порог убирают, а не переносят».
+
+   ⚠️ 12.09: ПОРОГ, ПОДОБРАННЫЙ ПОД ОДНУ ШИРИНУ, ДЕРЖИТСЯ ТОЛЬКО НА НЕЙ.
+   Абзац выше писался на 1280px, где 260px и правда дают три колонки.
+   На 1440 колонок становится ЧЕТЫРЕ, и ряд снова разваливается на 4 + 2 —
+   ровно та дыра, которую он объявляет закрытой. Ширина главной области
+   у этого раздела не фиксирована и растёт с окном, поэтому единственный
+   порог её не опишет.
+
+   Решение — не третий подобранный порог, а ПОТОЛОК ЧИСЛА КОЛОНОК: плиток
+   шесть, значит ряд из трёх (3 × 2) — единственная раскладка, которая
+   не оставляет половину ряда пустой при любой ширине. Минимум 260px
+   продолжает работать вниз: на планшете ряд сам сложится в два, на
+   телефоне — в один. */
+.dashKpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(260px, calc((100% - 2 * 14px) / 3)), 1fr));
+  gap: 14px;
+}
+/* Плитка показателя — БИРКА НА ТАРЕ: цветная кромка слева отвечает
+   на «насколько это срочно», число набрано моноширинным (это
+   производственные данные), подпись — заглавной мелочью.
+
+   До 06.09 все шесть плиток были одинаковыми: белый прямоугольник,
+   цветной квадрат с иконкой, число 26px. «Просрочено 1» выглядело ровно
+   так же, как «Позиций в работе 5», — то есть экран, который человек
+   открывает, чтобы понять, куда бежать, не отвечал на этот вопрос
+   ничем, кроме чтения всех шести подписей подряд. */
+.kpiCard {
+  position: relative;
+  display: flex; align-items: flex-start; gap: var(--space-sm);
+  padding: 14px var(--space-lg) 15px 19px;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  text-decoration: none; color: inherit;
+  overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.kpiCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--border-mid);
+}
+/* Подъём при наведении — только у плитки-ссылки или кнопки. Плитки аналитики,
+   закупки и скелетона — `<div>`, и «приподнимались» под курсором, хотя клик
+   по ним ничего не делает (правка владельца, п. 2). */
+a.kpiCard:hover,
+button.kpiCard:hover { border-color: var(--border-mid); box-shadow: var(--shadow-raise); }
+/* ТОН ПОЯВЛЯЕТСЯ ТОЛЬКО ТОГДА, КОГДА ЕСТЬ НА ЧТО РЕАГИРОВАТЬ.
+   Классы вешает экран по значению (`> 0`), а не разметка навсегда: плитка
+   «Просрочено: 0» — это хорошая новость, и красная кромка на ней была бы
+   тревогой без повода. Тот же принцип, что у чипов состояния раздела:
+   цвет несёт смысл, а не украшает. */
+.kpiCardOk::before { background: var(--color-success); }
+.kpiCardWarn::before { background: var(--color-warning); }
+.kpiCardDanger::before { background: var(--color-error); }
+.kpiCardDanger {
+  background: var(--bg-error);
+  border-color: var(--color-error);
+}
+.kpiCardDanger .kpiCardValue { color: var(--color-error-ink); }
+/* Плитка-кнопка (склад): сбрасываем внешний вид кнопки, выравниваем текст */
+button.kpiCard { text-align: left; font: inherit; cursor: pointer; width: 100%; }
+/* Нажатая плитка-фильтр: подсветка ЛОЖИТСЯ НА ФОН КАРТОЧКИ, а не заменяет его.
+   `background: var(--accent-light)` (полупрозрачный акцент) убирал `--card`
+   целиком, и подсветка смешивалась с фоном СТРАНИЦЫ: композит выходил
+   #e4eaf7 вместо #eef3fd, и подпись плитки давала 4.26:1 при норме 4.5.
+   Поймано axe 03.09 — глазами такая разница не видна вовсе. Градиент из двух
+   одинаковых стопов — стандартный приём наложения слоя поверх своего фона. */
+button.kpiCard[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: linear-gradient(var(--accent-light), var(--accent-light)), var(--card);
+}
+/* Правил `.kpiCardClickable` и `.kpiCardActive` здесь больше нет (05.09):
+   НОСИТЕЛЕЙ У НИХ НЕ БЫЛО НИ ОДНОГО. Писались они «правкой 14» под
+   кликабельную плитку показателя, а плитки обзора кликабельны через
+   `<Link className={styles.kpiCard}>` — то есть про эти классы забыли.
+   Доступность от их отсутствия не страдает: кольцо фокуса ссылкам даёт
+   глобальное `a:focus-visible` в `styles/forms-base.css`, а высота плитки
+   (padding 16px + иконка 20px + две строки) и так далеко за 44px.
+   Разница только в подсветке при наведении — акцентная против нейтральной,
+   и это РЕШЕНИЕ О ВИДЕ: вернуть его владелец может одной строкой,
+   а мёртвое правило в файле — то же осиротевшее правило, что `.drawerTab`. */
+/* Иконка плитки — ТИХИЙ ЗНАК В УГЛУ, а не цветной квадрат 44×44.
+   Квадраты были самым заметным объектом плитки и при этом несли меньше
+   всех смысла: одинаковый вес у «заказов в работе» и у «просрочено»,
+   да ещё шесть разных заливок подряд — экран пестрел, а иерархии
+   не возникало. Теперь срочность несёт кромка плитки, а иконка только
+   называет предмет. `order` переставляет её вправо, не трогая разметку:
+   в DOM она идёт первой и первой же читается скринридером.
+
+   Всё семейство собрано ЗДЕСЬ, рядом с `.kpiCard` (06.09): до этого база
+   и «фиолетовый» жили в screens.module.css, а «ок / предупреждение /
+   опасность» — тут, то есть в разных чанках, между которыми порядка правил
+   не существует. Базовым файлом выбран этот, а не экранный: `PurchaseCard`
+   адресует варианты строкой (`cls: 'kpiIconOk'`). */
+.kpiIcon {
+  width: 22px; height: 22px; flex-shrink: 0;
+  order: 2;
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim);
+}
+.kpiIconViolet { color: var(--color-violet-ink); }
+.kpiIconOk { color: var(--color-success-ink); }
+.kpiIconWarn { color: var(--color-warning-ink); }
+.kpiIconDanger { color: var(--color-error-ink); }
+.kpiBody { display: flex; flex-direction: column; gap: 7px; min-width: 0; order: 1; flex: 1; }
+.kpiCardLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.kpiCardValue {
+  font-family: var(--mono); font-size: var(--type-metric); font-weight: 500;
+  color: var(--text); line-height: 1;
+  /* Табличные цифры: числа на шести плитках стоят в колонку, и пропорциональный
+     ноль сдвигал бы каждую строку относительно соседней */
+  font-variant-numeric: tabular-nums;
+}
+
+.dashRow { display: grid; gap: var(--space-lg); align-items: start; }
+/* auto-fit вместо фиксированных долей (1.9fr / 0.9fr / 1.15fr).
+   Доли задавали ширину независимо от содержимого: «Загрузка цехов» получала
+   узкую колонку и оставляла пустоту, а число колонок переключалось разом
+   на 1100px — то есть между 1024 и 1100 три виджета жались, а ниже сразу
+   разворачивались в один столбец. auto-fit подстраивается сам: сколько
+   помещается по 280px, столько и колонок, и отдельный медиазапрос не нужен. */
+/* Три виджета в ряд ТОЛЬКО когда каждому хватает места на свою таблицу.
+   При minmax(280px) на 1280px виджету доставалось 338px, а «Заказы в работе» —
+   таблица из шести колонок: колонка «Кол-во» срезалась (обход 04.09). Порог
+   считается от содержимого, а не от числа колонок: 380px — минимум, при котором
+   таблица помещается целиком; ниже ряд сам переходит на две колонки и одну. */
+.dashRow3 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.dashRow2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.widget {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-lg); min-width: 0;
+}
+/* Линейка под заголовком секции — как в наборной полосе. Она же решает
+   практическую задачу: у виджета с таблицей заголовок раньше висел в воздухе
+   и сливался с шапкой самой таблицы. */
+.widgetHead {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-md); gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+/* Заголовок виджета — это <h2>, а не span: страница должна читаться навигацией
+   по заголовкам. Сброс полей нужен, потому что браузерный h2 несёт свои.
+   Начертание дисплейное: до 06.09 оно было объявлено только у титула страницы,
+   и уровни заголовков различались одним кеглем — 34px против 15px, между ними
+   пусто. Теперь у секции свой голос, и «ОБЗОР ПРОИЗВОДСТВА» → «УВЕДОМЛЕНИЯ»
+   читается как иерархия, а не как два разных размера одного шрифта. */
+.widgetTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.widgetLink { font-size: var(--type-label); color: var(--accent); text-decoration: none; white-space: nowrap; }
+/**
+ * ССЫЛКА ВНУТРИ ТЕКСТА ОТЛИЧАЕТСЯ НЕ ТОЛЬКО ЦВЕТОМ (WCAG 1.4.1).
+ *
+ * Требование к такой ссылке не «пройти AA к фону», а иметь 3:1 К ОКРУЖАЮЩЕМУ
+ * ТЕКСТУ либо нецветовой признак. Фирменный ультрамарин (#2B2BF0) на
+ * приглушённом тексте (#6A6357) даёт 1.3:1 — то есть в связном тексте ссылка
+ * опознаётся только цветом, и дальтоник её не найдёт.
+ *
+ * Поймано сканером axe на CI 06.09, в состоянии «мощность не задана —
+ * настроить»: локально мок успевал отдать мощность, и эта ветка не рисовалась
+ * вовсе. Причина — обе правки этой сессии сразу: акцент стал насыщеннее,
+ * приглушённый текст теплее, и пара разошлась.
+ *
+ * Подчёркивание снимает требование к контрасту с окружающим текстом ЦЕЛИКОМ
+ * и переживёт следующую смену палитры — в отличие от подбора цвета, который
+ * пришлось бы пересчитывать каждый раз. Правило адресует КОНТЕЙНЕРЫ СВЯЗНОГО
+ * ТЕКСТА, а не все ссылки: самостоятельная «Смотреть все →» в шапке виджета
+ * подчёркивания не получает, потому что рядом с ней текста нет.
+ */
+.subText a,
+.warnBox a,
+.capacityNote a,
+.queueReason a { text-decoration: underline; }
+
+/* ─── Pagination (редизайн) ─── */
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap; margin-top: 14px;
+}
+.pager { display: flex; align-items: center; gap: var(--space-xs); }
+.pageBtn {
+  min-width: 32px; height: 32px; padding: 0 var(--space-sm);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  background: var(--card); color: var(--text-mid);
+  font: inherit; font-size: var(--type-body-sm); cursor: pointer;
+}
+.pageBtn:hover:not(:disabled) { background: var(--surface); }
+.pageBtn:disabled { opacity: 0.45; cursor: default; }
+.pageBtnActive, .pageBtnActive:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pageEllipsis { padding: 0 var(--space-xs); color: var(--text-dim); }
+
+/* ─── FilterBar (редизайн) ─── */
+.filterBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* Раскрывающийся блок фильтров заданий (правка 9) */
+.filterPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  padding: var(--space-md) 14px;
+  margin: -6px 0 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.filterPanel .field { min-width: 150px; }
+
+/* ─── Маршрут заказа со стадиями и прогрессом в штуках (правка 7) ─── */
+.routeProgress { display: flex; flex-direction: column; gap: 10px; }
+.routeTotal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.routeTotalLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.routeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.routeRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px var(--space-sm);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.routeRow:nth-child(odd) { background: var(--surface); }
+.routeRowCurrent {
+  outline: 1px solid var(--accent);
+  background: var(--accent-light);
+}
+/* Финальный шаг «Склад» — не этап цеха, а задачи склада: отделяем чертой,
+   чтобы человек не искал его в очереди участка */
+/* Предупреждение внутри формы: переносится по словам, в отличие от чипа —
+   чип обрезал список ненайденных тканей краем панели, а прочитать нужно все */
+.warnBox {
+  padding: var(--space-sm) 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  /* Был `var(--type-sm)` — токена с таким именем НЕТ, и всё объявление
+     браузер отбрасывал молча: размер шрифта у предупреждения не задавался */
+  font-size: var(--type-body-sm);
+  line-height: 1.4;
+}
+.routeRowFinal {
+  border-top: 1px dashed var(--border-light);
+  margin-top: 2px;
+  padding-top: 7px;
+}
+.routeName {
+  /* Правка 22.08 (п. 3.12): «статусы вида Склад, Ожида… не должны постоянно
+     отображаться обрезанными». Ширина была ЖЁСТКОЙ — 110px, — и обрезался
+     не только длинный подрядчик, но и обычный «Приёмка на складе Pinhead».
+     Теперь имя РАСТЁТ по месту, а 110px остаются минимумом, чтобы столбец
+     не прыгал от строки к строке. Полное значение всё равно дублируется
+     в `title`: подсказка даётся для того, что не видно. */
+  flex: 1 1 110px;
+  min-width: 110px;
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.routeQty {
+  flex: 0 0 72px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-mid);
+}
+/* Полоса маршрута — тот же примитив, что .progressTrack/.progressFill,
+   отличается только гибкостью по ширине. Раньше правила совпадали буквально. */
+.routeBar {
+  composes: progressTrack;
+  flex: 1 1 60px;
+  min-width: 40px;
+}
+.routeBarFill { composes: progressFill; display: block; }
+
+/* ─── Drawer (правая боковая панель, редизайн) ─── */
+.drawerOverlay {
+  position: fixed; inset: 0;
+  background: var(--overlay);
+  z-index: var(--z-modal);
+  display: flex; justify-content: flex-end;
+  animation: erpFade 0.18s ease;
+}
+.drawerPanel {
+  width: min(560px, 100%); height: 100%;
+  background: var(--card); border-left: 1px solid var(--border-light);
+  box-shadow: var(--shadow-modal);
+  display: flex; flex-direction: column;
+  animation: erpSlideIn 0.22s ease;
+}
+.drawerHead {
+  display: flex; align-items: flex-start; gap: var(--space-md);
+  padding: var(--space-lg) 18px; border-bottom: 1px solid var(--border-light);
+}
+.drawerHeadMain { flex: 1; min-width: 0; }
+.drawerTitle { font-size: var(--type-title); font-weight: 700; color: var(--text); }
+.drawerClose {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: none; background: none; cursor: pointer;
+  border-radius: var(--radius-md); color: var(--text-mid);
+}
+.drawerClose:hover { background: var(--surface); }
+/* Правил `.drawerTabs`/`.drawerTab`/`.drawerTabActive` здесь больше нет:
+   вкладочная ветка `Drawer` удалена 05.09 как мёртвая (см. её JSDoc).
+   Класс, оставшийся без единого носителя, — то же осиротевшее правило,
+   что и примитив без вызывающих. */
+.drawerBody { flex: 1; overflow-y: auto; padding: var(--space-lg) 18px; }
+/* Правка 05.10, пп. 4 и 8: широкая панель для форм с таблицей */
+.drawerPanelWide { width: min(1040px, 100%); }
+/* Закреплённый низ формы внутри тела: итог, ошибки, сохранение видны
+   без прокрутки до конца; отступ тела гасится, фон не даёт полям просвечивать */
+.drawerFooter {
+  position: sticky; bottom: calc(-1 * var(--space-lg)); z-index: 1;
+  margin: var(--space-md) -18px calc(-1 * var(--space-lg));
+  padding: var(--space-md) 18px;
+  background: var(--card); border-top: 1px solid var(--border-light);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md);
+}
+
+@keyframes erpFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes erpSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@media (max-width: 768px) {
+
+  .drawerPanel { width: 100%; border-left: none; }
+}
+
+
+/* Бургер нужен только там, где сайдбар стал оверлеем (правило ниже в медиазапросе) */
+.navToggle { display: none; }
+@media (max-width: 1024px), (pointer: coarse) {
+
+  .sidebar {
+    position: fixed;
+    z-index: var(--z-drawer);
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform var(--dur-base) var(--ease-out);
+    box-shadow: var(--shadow-modal);
+  }
+  .sidebarOpen { transform: translateX(0); }
+  /* В оверлее сворачивать нечего — показываем полный сайдбар */
+  .sidebarCollapsed { width: 236px; }
+  .sidebarCollapsed .sidebarBrandText,
+  .sidebarCollapsed .navGroup,
+  .sidebarCollapsed .navLabel,
+  .sidebarCollapsed .collapseLabel { display: revert; }
+  .sidebarCollapsed .navBadge { position: static; }
+  .sidebarCollapsed .navLink,
+  .sidebarCollapsed .collapseBtn { justify-content: flex-start; gap: 11px; padding: 0 var(--space-md); }
+  .sidebarScrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    background: var(--overlay);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .navToggle { display: inline-flex; }
+}
+
+
+/* ─── Липкая шапка таблиц ───
+   При «Показывать по: 50» заголовки уезжали за экран, и колонки приходилось
+   угадывать. Работает внутри .tableWrap, у которого есть свой скролл. */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+/* Кнопки приоритета в строке очереди — клавиатурная и тач-альтернатива DnD */
+.queueRowMoveBtns { display: inline-flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+@media (pointer: coarse) {
+
+  .queueRowMoveBtns { flex-direction: row; gap: var(--space-xs); }
+}
+
+
+
+/* ─── Подсказки горизонтальной прокрутки (ScrollHintBox) ─── */
+.scrollHintWrap { position: relative; min-width: 0; }
+/* Подсказка, а не занавес: 32px непрозрачного --card на краю закрывали первую
+   и последнюю колонку таблицы плана, а z-index 1 совпадал с липкой шапкой
+   (.table thead th) и перекрывал её. Уже 16px, полупрозрачный старт, слой ниже. */
+.scrollFade {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 16px;
+  pointer-events: none;
+  z-index: 0;
+}
+.scrollFadeL {
+  left: 1px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: linear-gradient(90deg, var(--card), transparent);
+}
+.scrollFadeR {
+  right: 1px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: linear-gradient(270deg, var(--card), transparent);
+}
+/* Вертикальная стопка полей мастера */
+.stack { display: flex; flex-direction: column; gap: 10px; }
+/*
+  Плотный стек — тот же столбец с меньшим зазором. Используется в тринадцати
+  местах (списки нанесений, журнал подряда, действия этапа, заметки заказа),
+  и всё это время класса НЕ СУЩЕСТВОВАЛО: `styles.stackTight` отдавал
+  undefined, разметка получала `className={undefined}`, и блоки шли без
+  зазора вовсе. Ни один тест такого не видит — падать нечему, меняется
+  только вид. Нашёл сторож `stylesResolve.test.ts`.
+*/
+.stackTight { composes: stack; gap: 6px; }
+
+/* Ячейка/строка «иконка + текст» */
+.cellWithIcon { display: inline-flex; align-items: center; gap: 6px; }
+/* Шеврон раскрытия: развёрнутое состояние — стрелка вверх */
+.chevronUp { transform: rotate(180deg); }
+/* Цвет по состоянию задачи (utils/planCard) */
+.planCard_planned { border-left-color: var(--border-mid); }
+.planCard_in_progress { border-left-color: var(--color-info); }
+.planCard_done { border-left-color: var(--color-success); }
+.planCard_partial { border-left-color: var(--color-warning); }
+.planCard_overdue { border-left-color: var(--color-error); }
+.planCard_awaiting_materials { border-left-color: var(--color-warning); background: var(--bg-warning); }
+.planFormRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  align-items: flex-end;
+}
+
+/* ─── Вкладки раздела «Производство» (Доска · План · Загрузка) ───
+   Кнопки-ссылки с aria-current от NavLink, а не role="tab": полноценный
+   таб-паттерн требует aria-controls, tabpanel и roving tabindex (utils/tabs),
+   а здесь это НАВИГАЦИЯ по трём адресам — каждая вкладка своя страница
+   со своим URL. Половина таб-паттерна хуже обычных ссылок (правило проекта). */
+.prodTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+}
+.prodTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-mid);
+  font-size: var(--type-body);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.prodTab:hover { color: var(--text); background: var(--surface); }
+.prodTab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.prodTabActive {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+@media (pointer: coarse) {
+
+  .prodTab { min-height: 44px; }
+}
+
+.notifDot_danger { background: var(--color-error); }
+.notifDot_warn { background: var(--color-warning); }
+.notifDot_neutral { background: var(--text-dim); }
+
+/* Свёрнутая пустая дорожка канбана: остаётся заголовок со счётчиком «0».
+   Разворачивается сама во время перетаскивания (см. ErpKanban) — иначе
+   у переноса не остаётся видимой цели. */
+.kanbanLaneEmpty {
+  min-height: 0;
+  padding-top: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  opacity: 0.6;
+}
+.kanbanLaneEmpty .kanbanLaneTitle { margin-bottom: 0; }
+/* Кнопки переноса в соседний цех на карточке канбана (правка 03.09).
+   Класс объявлен здесь: имя начинается с `.kanbanCard`, а уточнения базового
+   класса обязаны жить в одном чанке с ним (сторож `stylesResolve.test.ts`). */
+.kanbanCardMove {
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+/* ─── Загрузка производства против общей мощности (правки заказчика 10.08) ───
+   Одна полоса на трёх экранах: обзор, план, загрузка цехов. Заливка упирается
+   в 100 %, подпись — нет: перебор это ответ, а не ошибка отображения. */
+.capacityBar {
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  margin-bottom: var(--space-md);
+}
+.capacityHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px var(--space-md);
+  font-size: var(--type-body-sm);
+}
+/* Полоса-указатель: прямоугольная, не скруглённая, и в полную ширину блока —
+   это ШКАЛА, а не индикатор загрузки файла. Прямой угол здесь работает так же,
+   как у знака в сайдбаре: у измерительной шкалы нет капсульной формы. */
+.capacityTrack {
+  position: relative;
+  height: 10px;
+  margin: var(--space-sm) 0;
+  border-radius: 2px;
+  background: var(--surface);
+  overflow: hidden;
+}
+/*
+  МЕСТО ТРЕКА, КОГДА МОЩНОСТЬ НЕ ЗАДАНА. Полосы там нет намеренно (пустой трек
+  читался бы как «загрузка ноль», хотя знаменатель неизвестен), но и высота
+  не должна схлопываться: настройки приезжают после первой отрисовки, и
+  исчезновение трека тянуло вверх весь экран под ним. Сессия 44 закрыла этим
+  же приёмом состояние «загружается» — скелетоном; ветка «не задано» осталась
+  нулевой, и на замере `erp-cls` под нагрузкой это давало CLS 0.128 на `/plan`
+  при пороге 0.1. Высота и отступы — те же, что у трека; видимого ничего нет.
+*/
+.capacityTrackGhost {
+  height: 10px;
+  margin: var(--space-sm) 0;
+}
+.capacityFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.capacityFillOver { background: var(--color-error); }
+.capacityNote {
+  margin: 0;
+  font-size: var(--type-label);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/**
+ * Блок «только просмотр»: нативный fieldset[disabled] гасит все вложенные
+ * поля и кнопки разом — честно для клавиатуры и скринридера, в отличие от
+ * pointer-events. Собственное оформление у fieldset снимаем: он служит
+ * механизмом, а не рамкой.
+ */
+.readonlyFieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* ─── Конструктор маршрута позиции (правки заказчика 16.08, блок 2) ─── */
+.routeEditor { display: flex; flex-direction: column; gap: 10px; }
+.routeSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.routeStep {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.routeStepHead { display: flex; align-items: center; gap: var(--space-sm); }
+/* Номер шага — единственное, что связывает строку конструктора с текстом
+   ошибки под ним («Шаг 2: у подрядного этапа не указан подрядчик») */
+.routeStepNo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  flex-shrink: 0;
+}
+.routeStepRow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.routeStepRow .select { min-width: 130px; }
+.routeStepRow .input { flex: 1 1 160px; min-width: 120px; }
+.routeStepFoot { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Поля подрядного этапа: раскрываются под строкой шага и визуально к ней
+   привязаны — иначе на длинном маршруте непонятно, к какому этапу они. */
+.routeSubFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px 10px;
+  margin: 6px 0 2px var(--space-md);
+  padding-left: 10px;
+  border-left: 2px solid var(--border-light);
+}
+.routeIssues {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+.routeEditorFoot { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
+
+/* ─── Вложения блока формы: упаковка, техблок, лист закупки (правки 16.08) ─── */
+.attachBlock { display: flex; flex-direction: column; gap: var(--space-xs); }
+.attachList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.attachRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-body-sm);
+  min-width: 0;
+}
+/* Имя файла режется многоточием, но остаётся читаемым по title: в ключе объекта
+   оно транслитерировано, и человек опознаёт файл только по этой строке */
+.attachName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.attachThumbs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+/* Миниатюра фиксированной высоты: файлы приходят с телефона в любой пропорции,
+   и сетка, зависящая от снимка, рассыпается на первом же вертикальном фото */
+.attachThumb {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.attachThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* КОМПАКТНАЯ СТРОКА ПЛАНОВОЙ ДАТЫ (правка заказчика 16.09, п. 3).
+
+   «Подпись и поле даты выровнять по одной линии. Само поле сделать компактнее
+   и привести его высоту, отступы, рамку и типографику к остальным элементам
+   управления внутри карточки. Не добавлять отдельную плашку, фон или другие
+   декоративные элементы».
+
+   Отдельный класс, а не правка обёрток: строку плана рисуют шесть
+   мест (очередь цеха, страница задания, карточка плана, мастер брака, подряд,
+   разработка), и у каждого своя обёртка. Общий класс — единственный способ
+   не разъехаться им снова.
+
+   Поле сужено до содержимого: дата занимает фиксированную ширину, а растянутый
+   на всю строку `input[type=date]` оставлял справа пустое поле в половину
+   карточки — ровно та «лишняя визуальная нагрузка», на которую жалоба. */
+.planDateRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+  font-size: var(--type-label);
+}
+.planDateRow input[type='date'] {
+  width: auto;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  font-size: var(--type-body-sm);
+}

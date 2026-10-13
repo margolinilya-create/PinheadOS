@@ -5,15 +5,31 @@ const CACHE_KEY = 'pinhead_catalogs_v1';
 const CACHE_TTL = 30 * 60 * 1000; // 30 минут
 
 /**
+ * Незавершённая загрузка: кэш пишется только ПОСЛЕ ответа, поэтому без этого
+ * промиса-синглтона параллельные вызовы бьют в сеть каждый сам за себя.
+ * Реально это происходило: loadCatalogs() зовётся и из main.jsx, и из
+ * OrderStudioApp, а StrictMode дублирует эффекты — до 4 запросов на старте.
+ */
+let inFlight: Promise<Record<string, unknown>> | null = null;
+
+/**
  * Загружает все каталоги из таблицы catalog_config в Supabase.
  * Использует sessionStorage кэш с TTL 30 минут.
  * Возвращает объект { key: value, ... }
  */
-export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
+export function loadAllCatalogs(): Promise<Record<string, unknown>> {
   // Проверить кэш (sessionGet handles TTL expiry automatically)
   const cached = sessionGet<Record<string, unknown>>(CACHE_KEY);
-  if (cached) return cached;
+  if (cached) return Promise.resolve(cached);
 
+  if (!inFlight) {
+    // finally, а не then: при ошибке повторный вызов должен снова пойти в сеть
+    inFlight = fetchAllCatalogs().finally(() => { inFlight = null; });
+  }
+  return inFlight;
+}
+
+async function fetchAllCatalogs(): Promise<Record<string, unknown>> {
   // Загрузить из Supabase (catalog_config + app_config)
   const [catalogRes, appRes] = await Promise.all([
     supabase.from('catalog_config').select('key, value'),
@@ -57,4 +73,5 @@ export async function loadAllCatalogs(): Promise<Record<string, unknown>> {
  */
 export function clearCatalogsCache(): void {
   sessionRemove(CACHE_KEY);
+  inFlight = null;
 }

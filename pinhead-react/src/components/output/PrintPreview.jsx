@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { urgentLabel } from '../../utils/costRules';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES, ZONE_LABELS, SIZES, findColorEntry } from '../../data';
@@ -55,18 +56,18 @@ function getLabelLines(labelConfig) {
 export default function PrintPreview() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption,
+  const { items, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays,
     name: stateName, contact: stateContact, email: stateEmail, phone: statePhone,
     address: stateAddress, notes: stateNotes, deadline: stateDeadline,
     artworkPath, _editingOrderNumber } = useStore(
     useShallow(s => ({ items: s.items, fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog,
-      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, packType: s.packType || 'none', urgentOption: s.urgentOption,
+      extrasCatalog: s.extrasCatalog, usdRate: s.usdRate, packOption: s.packOption, packType: s.packType || 'none', urgentOption: s.urgentOption, urgentDays: s.urgentDays || (s.urgentOption ? 5 : 0),
       name: s.name, contact: s.contact, email: s.email, phone: s.phone,
       address: s.address, notes: s.notes, deadline: s.deadline,
       artworkPath: s.artworkPath,
       _editingOrderNumber: s._editingOrderNumber }))
   );
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption };
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays };
   const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
   const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);
 
@@ -332,7 +333,7 @@ export default function PrintPreview() {
           </div>
           <div className="pp-kv">
             {urgentOption && (
-              <div className="pp-kv-row"><span>Срочный заказ</span><span className="pp-kv-dots" /><b>Да (+20%)</b></div>
+              <div className="pp-kv-row"><span>Срочный заказ</span><span className="pp-kv-dots" /><b>Да ({urgentLabel(urgentDays)})</b></div>
             )}
             {packType && packType !== 'none' && (
               <div className="pp-kv-row"><span>Упаковка</span><span className="pp-kv-dots" /><b>{packType === 'zip' ? 'ЗИП пакет' : packType === 'bopp' ? 'БОПП пакет' : 'Да'}</b></div>

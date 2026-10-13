@@ -75,6 +75,48 @@ describe('loadAllCatalogs', () => {
   });
 });
 
+describe('loadAllCatalogs — дедупликация запросов', () => {
+  /**
+   * loadCatalogs() зовётся и из main.jsx, и из OrderStudioApp, а StrictMode
+   * дублирует эффекты. Кэш пишется только ПОСЛЕ ответа, поэтому без
+   * промиса-синглтона на холодном старте уходило до 4 параллельных запросов.
+   */
+  it('параллельные вызовы переиспользуют один запрос', async () => {
+    let release: (v: unknown) => void = () => {};
+    const pending = new Promise((res) => { release = res; });
+    mockCatalogSelect.mockReturnValue(pending);
+    mockAppSelect.mockReturnValue(pending);
+
+    const all = Promise.all([loadAllCatalogs(), loadAllCatalogs(), loadAllCatalogs()]);
+    // по одному select на таблицу, а не по три
+    expect(mockCatalogSelect).toHaveBeenCalledTimes(1);
+    expect(mockAppSelect).toHaveBeenCalledTimes(1);
+
+    release({ data: [], error: null });
+    await all;
+  });
+
+  it('после завершения следующий вызов идёт в сеть заново', async () => {
+    mockCatalogSelect.mockResolvedValue({ data: [], error: null });
+    mockAppSelect.mockResolvedValue({ data: [], error: null });
+
+    await loadAllCatalogs();
+    expect(mockCatalogSelect).toHaveBeenCalledTimes(1);
+
+    await loadAllCatalogs();
+    expect(mockCatalogSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it('после ошибки синглтон сбрасывается — повтор снова идёт в сеть', async () => {
+    mockCatalogSelect.mockResolvedValue({ data: null, error: { message: 'down' } });
+    mockAppSelect.mockResolvedValue({ data: null, error: { message: 'down' } });
+
+    await expect(loadAllCatalogs()).rejects.toBeTruthy();
+    await expect(loadAllCatalogs()).rejects.toBeTruthy();
+    expect(mockCatalogSelect).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('clearCatalogsCache', () => {
   it('removes session cache key', () => {
     clearCatalogsCache();

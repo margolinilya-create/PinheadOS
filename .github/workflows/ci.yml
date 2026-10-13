@@ -12,9 +12,16 @@ on:
         type: boolean
         default: false
 
+# Новый пуш в ту же ветку отменяет прогон предыдущего: результат по
+# устаревшему коммиту никому не нужен, а минуты раннера — общие
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: pinhead-react
@@ -22,54 +29,184 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
-      - run: npm run lint
-      - run: npm run test
 
+      # Гейт по critical. Не по high — сознательно: из оставшихся high один это
+      # advisory react-router про RSC-режим (GHSA-qwww-vcr4-c8h2), которого в этом
+      # SPA нет, а предлагаемый «фикс» — откат 7.18 → 7.11, то есть потеря семи
+      # минорных версий ради неприменимой дыры; второй — eslint, где уязвимым
+      # помечен весь 9.x и починка это мажорный прыжок на 10. Ставить сюда
+      # --audit-level=high значит получить вечно красный шаг, который все научатся
+      # игнорировать. Critical выполним и не бутафория: он поймал бы ту critical
+      # в vitest UI, что висела в дереве до 29.07.
+      - run: npm audit --audit-level=critical
+
+      - run: npm run lint
+      # Сверка с гайдбуком дизайна (токены вместо hex, шрифты через токены,
+      # покрытие prefers-reduced-motion, иконки stroke-only). В CI не стояла —
+      # и к 04.09 давала пять находок, ВСЕ ЛОЖНЫЕ: hex-коды внутри
+      # CSS-комментариев, объясняющих решения по контрасту, и «непокрытая»
+      # анимация визарда, покрытая универсальным блоком `*`, который скрипт
+      # не засчитывал из-за однопроходного обхода файлов. Скрипт падал с кодом 1
+      # и никем не запускался — то есть сторож был, а сторожа не было.
+      # Починен и проверен мутациями (настоящий hex ловится, снятие
+      # универсального блока ловится); отсюда и место в гейте.
+      - run: npm run audit
+      # Типы в гейте. До 03.08.2026 tsc не запускался ни разу: `strict` был
+      # выключен, и всё равно копилось 84 ошибки — то есть про несоответствие
+      # типов узнавали в рантайме. Теперь strict включён и ошибок ноль.
+      - run: npm run typecheck
+      - run: npm run test
+      # Билд в гейте: раньше сломанную сборку ловил только Vercel уже после мержа
+      - run: npm run build
+
+      # Бюджет критического пути. chart.js однажды уже уехал в modulepreload
+      # дефолтной ERP-оболочки (react/jsx-runtime не был перечислен в vendor-react,
+      # и Rollup приклеил его к vendor-charts) — 63 кБ gzip на каждой загрузке
+      # у всех, при том что в ERP нет ни одного графика. Симптом невидим глазами,
+      # поэтому проверяется машиной.
+      #
+      # Считает scripts/bundle-budget.mjs по манифесту сборки, а не по index.html.
+      # Прежняя версия жила прямо здесь и брала только файлы из HTML — то есть вход
+      # и его modulepreload. Оболочка ERP грузится динамическим импортом, в HTML её
+      # нет, и 60 кБ gzip (ErpApp + примитивы + их CSS) проходили мимо счётчика:
+      # страж рапортовал 207 кБ там, где человек скачивал 280.
+      - name: Бюджет критического пути
+        run: npm run bundle:budget
+
+  # Функциональные e2e. До этого из Playwright гонялся только visual.spec.ts,
+  # и то с continue-on-error, — остальные 8 спеков не запускались никогда,
+  # поэтому успели незаметно протухнуть. Здесь без continue-on-error: это гейт.
+  # Эталонные скриншоты сюда не входят, у них свой job ниже.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: pinhead-react
+    env:
+      VITE_SUPABASE_URL: https://mock.supabase.co
+      VITE_SUPABASE_ANON_KEY: mock-anon-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pinhead-react/package-lock.json
+      - run: npm ci
+      # Браузер — из кэша по версии @playwright/test (обзор 26.09, п. 16):
+      # скачивание Chromium стояло в двух джобах на каждом пуше. Системные
+      # пакеты ставятся всегда — их кэш не хранит
+      - name: Версия Playwright
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - run: npx playwright install --with-deps chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+      - run: npx playwright test --grep-invert "visual:"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-report
+          path: pinhead-react/test-results/
+          retention-days: 7
+
+  # Визуальная регрессия — ГЕЙТ, а не уведомление.
+  #
+  # Раньше здесь складывались три свойства, которые вместе давали дыру:
+  #   1) continue-on-error: true — расхождение эталонов не красило ни PR, ни main;
+  #   2) «эталонов нет ⇒ --update-snapshots» — то есть УДАЛЕНИЕ png было командой
+  #      «прими текущий рендер за норму», и такой прогон всегда зелёный;
+  #   3) коммит бота с [skip ci] уходил прямо в main, а Vercel деплоит на push
+  #      независимо от CI — то есть новая «норма» ехала в прод без единой проверки.
+  # Любой визуальный регресс (сломанная очередь цеха, невидимый чип статуса)
+  # узаконивался одним удалением файлов, и дальше всё было зелёным.
+  #
+  # Теперь: эталоны обновляются ТОЛЬКО явным workflow_dispatch с update_snapshots=true,
+  # и коммит идёт в ТЕКУЩУЮ ветку, а не в main. Обновление проходит ревью в своём PR.
   visual:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 20
     permissions:
       contents: write
-    env:
-      # Dummy values: supabase.ts throws without them; dev mode falls back to bundled catalogs
-      VITE_SUPABASE_URL: http://127.0.0.1:54321
-      VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
     defaults:
       run:
         working-directory: pinhead-react
+    # Visual гоняется против DEV-сервера: в dev срабатывает автологин
+    # («Dev Mode», admin), поэтому снимаются реальные экраны, а не форма логина.
+    # Supabase замокан в самом спеке (e2e/support/mockSupabase.ts) — реальная БД
+    # и секреты не нужны. Эти dummy-значения лишь дают приложению стартовать
+    # (lib/supabase.ts падает без VITE_SUPABASE_*); весь сетевой трафик перехватывает мок.
+    env:
+      VITE_SUPABASE_URL: https://mock.supabase.co
+      VITE_SUPABASE_ANON_KEY: mock-anon-key
+      # Один visual.spec.ts против dev-сервера: сборка dist-e2e для офлайн-
+      # и perf-спек здесь не нужна, а webServer в конфиге общий
+      E2E_SKIP_PREVIEW: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: pinhead-react/package-lock.json
       - run: npm ci
+      # Браузер — из кэша по версии @playwright/test (обзор 26.09, п. 16):
+      # скачивание Chromium стояло в двух джобах на каждом пуше. Системные
+      # пакеты ставятся всегда — их кэш не хранит
+      - name: Версия Playwright
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - run: npx playwright install --with-deps chromium
-      - run: npm run build && npm run preview &
-      - run: sleep 3
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+      # Dev-сервер поднимает сам Playwright (webServer в playwright.config.ts,
+      # команда `VITE_FEATURE_ORDER_STUDIO=1 npm run dev`).
+      # Пустая папка эталонов больше НЕ включает обновление: это была команда
+      # «узаконить текущий рендер», доступная любому, кто удалил png.
+      # Отсутствие эталонов теперь честно роняет job — их надо сгенерировать
+      # осознанным диспатчем, а не молчаливым self-heal.
+      - name: Проверить наличие эталонов
+        if: ${{ inputs.update_snapshots != true }}
+        run: |
+          if [ -z "$(ls e2e/visual.spec.ts-snapshots/*.png 2>/dev/null)" ]; then
+            echo "::error::Эталонов нет. Запустите workflow_dispatch с update_snapshots=true на своей ветке — снимки закоммитятся туда и пройдут ревью в PR."
+            exit 1
+          fi
       - run: |
           if [ "${{ inputs.update_snapshots }}" = "true" ]; then
-            npx playwright test e2e/visual.spec.ts --project=desktop --update-snapshots
+            npx playwright test e2e/visual.spec.ts --update-snapshots
           else
-            npx playwright test e2e/visual.spec.ts --project=desktop
+            npx playwright test e2e/visual.spec.ts
           fi
+      # Коммит в ТЕКУЩУЮ ветку, а не в main: новая «норма» обязана пройти ревью
+      # в своём PR. Раньше эталоны уезжали прямо в main с [skip ci], и Vercel
+      # выкатывал их в прод, потому что деплоит на push независимо от CI.
       - name: Commit updated snapshots
-        if: inputs.update_snapshots
+        if: ${{ inputs.update_snapshots == true }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add e2e/visual.spec.ts-snapshots
-          if git diff --cached --quiet; then
-            echo "Snapshots unchanged"
-          else
-            git commit -m "test(visual): update snapshots"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
+          git diff --cached --quiet && echo "Эталоны не изменились" && exit 0
+          git commit -m "test(visual): обновление эталонных скриншотов"
+          git push origin HEAD:${{ github.ref_name }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

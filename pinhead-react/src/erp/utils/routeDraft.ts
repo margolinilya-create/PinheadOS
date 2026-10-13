@@ -1,0 +1,624 @@
+import type { BrandingMethod, BrandingOn, ErpItemStage, ProductionType } from '../types';
+import { WAREHOUSE_DEPT_CODE, buildItemRoute, type RouteStage } from './routes';
+import { OUTSOURCE_DEPT_CODE, executorForDept } from './outsourcing';
+import { withUniqueCycles } from './routeCycles';
+
+/**
+ * Экспериментальный цех как УЧАСТОК МАРШРУТА (правка заказчика 24.08, п. 4.1).
+ *
+ * Код объявлен здесь, рядом с перечнем участков конструктора, а не в разделе
+ * ЭКС: маршрут — это то, что о нём знает вся система, а раздел лишь показывает
+ * очередь. Участок остаётся НЕпроизводственным осознанно — попади он в общие
+ * поверхности, работа технолога встала бы в очередь цехов, в план и в загрузку,
+ * то есть рабочий увидел бы в своих заданиях чужую разработку.
+ */
+export const EXPERIMENTAL_DEPT_CODE = 'experimental';
+
+/**
+ * Черновик маршрута — движок конструктора этапов (правки заказчика 16.08).
+ *
+ * ЧТО ПРОСИЛ ЗАКАЗЧИК: «маршрут не должен быть жёстко зафиксирован системой.
+ * Необходимо позволить добавлять этап, удалять этап, менять порядок, выбирать
+ * наш / подрядный исполнитель, добавлять несколько подрядных этапов, возвращать
+ * изделие после подрядчика обратно в наши цеха».
+ *
+ * ГЛАВНОЕ РЕШЕНИЕ — КАК ПРИМИРИТЬ ДОКУМЕНТ С МОДЕЛЬЮ. Документ описывает
+ * маршрут ЛИНЕЙНО: «Закупка → Наш крой → Подрядная печать → Наш пошив».
+ * Модель же — ГРАФ: `depends_on` у этапа, и ветки нанесения идут ПАРАЛЛЕЛЬНО
+ * (ДТФ и вышивка одновременно, швейка ждёт обеих). Ломать граф нельзя — на нём
+ * стоят готовность этапа, возврат брака и весь расчёт очереди.
+ *
+ * Поэтому конструктор работает не над этапами, а над ГРУППАМИ: строка списка —
+ * это шаг маршрута, внутри которого один этап (обычный случай) или несколько
+ * параллельных. Это не компромисс, а точное описание того, что `buildRoute`
+ * уже делает: ветки нанесения получают ОДИНАКОВЫЙ `sortOrder`, то есть образуют
+ * группу. `depends_on` пересчитывается механически — каждый шаг зависит от всех
+ * этапов предыдущей группы.
+ *
+ * ИНВАРИАНТ, КОТОРЫЙ ОБЯЗАН ДЕРЖАТЬСЯ: черновик, собранный из расчётного
+ * маршрута и не тронутый человеком, при линеаризации даёт РОВНО ТОТ ЖЕ набор
+ * `(departmentCode, dependsOnCodes, sortOrder)`, что `buildItemRoute`. Без него
+ * открытие конструктора без единой правки молча переписывало бы маршрут.
+ * Сторожит `routeDraft.test.ts`.
+ *
+ * `sort_order` остаётся `int` и перенумеровывается ЦЕЛИКОМ шагом 10. Numeric-шкала
+ * (как у `queue_position`) здесь не годится принципиально: параллельные этапы
+ * имеют ОДИНАКОВЫЙ порядок, и «середины между 30 и 30» не существует —
+ * то есть главный случай она не решает. Маршрут это 4–8 строк, перенумеровать
+ * их одной транзакцией дешевле второй шкалы.
+ */
+
+export interface RouteStep {
+  /** Существующий этап; null — этап, которого ещё нет в базе */
+  stageId: string | null;
+  /** Цех-владелец. Обязателен всегда, в том числе у подрядного этапа */
+  departmentCode: string;
+  executor: 'internal' | 'contractor';
+  contractor: string;
+  /** Имя операции, когда оно расходится с именем цеха (сублимация и т.п.) */
+  operation: string;
+  /**
+   * Проход позиции через этот цех. Значим там, где цех встречается дважды:
+   * разработка программы вышивки и сама вышивка — два НАШИХ этапа одного
+   * участка, и уникальность `(item_id, department_id, cycle)` требует разных
+   * значений (правка 12.09, п. 2).
+   */
+  cycle: number;
+  /**
+   * Этап ВНЕ цепочки: не ждёт предыдущую группу и не держит следующую.
+   * Единственный такой этап сегодня — разработка программы вышивки.
+   * Подробное обоснование — `routes.RouteStage.standalone`.
+   */
+  standalone: boolean;
+  /**
+   * Чем отчитывается этап: `''` — числами по схеме участка,
+   * `embroidery_program` — файлом программы вышивки (правка 12.09, баг 02).
+   * Хранится колонкой `erp_item_stages.result_kind`, поэтому переживает
+   * и правку маршрута, и переименование операции.
+   */
+  resultKind: '' | 'embroidery_program';
+  /**
+   * Поля ПОДРЯДНОГО этапа (правки заказчика 20.08): «если при построении
+   * маршрута менеджер выбирает этап "Подряд", внутри этапа открываются
+   * дополнительные поля».
+   *
+   * Живут они не на этапе, а на его спутнике `erp_subcontracting` — карточке
+   * подрядчика при этапе. Здесь они собираются вместе с маршрутом, потому что
+   * заполняются одним движением: выбрал «Подрядчик» — назвал, кому, что, когда
+   * и сколько. Разносить это по двум экранам значит гарантировать, что половина
+   * останется пустой.
+   *
+   * Строки — как в форме: пустая строка означает «не заполнено», и в базу
+   * уезжает NULL. Числа тоже строками: поле ввода отдаёт строку, а `0` и «не
+   * указано» здесь разные вещи.
+   */
+  qty: string;
+  /** Плановая дата ПЕРЕДАЧИ подрядчику */
+  sendPlan: string;
+  /** Плановая дата ВОЗВРАТА (в схеме — `planned_date`) */
+  returnPlan: string;
+  /** Ответственный со стороны Pinhead */
+  responsible: string;
+  /** Что передаём подрядчику: «сшитые худи», «полотно», «кепки» */
+  handover: string;
+  comment: string;
+  /**
+   * В этапе уже работали: переставить и удалить нельзя, только «Пропустить».
+   * Считается из факта, а не из статуса: этап, взятый в работу и возвращённый
+   * в очередь, тоже нельзя выбрасывать — его работа уже где-то учтена.
+   */
+  locked: boolean;
+}
+
+/** Шаг маршрута: один этап или несколько параллельных (ветки нанесения) */
+export type RouteGroup = RouteStep[];
+
+/**
+ * Участки, которые конструктор предлагает ПОМИМО производственных.
+ *
+ * Список короткий и ведётся руками намеренно: вписать сюда код — значит вслух
+ * ответить на вопрос «а где человек увидит этот этап». У закупки это очередь
+ * закупки, у подряда — раздел «Подряд», у экспериментального цеха — вид
+ * «Очередь участка» в его разделе, у склада — блок приёмки готового изделия
+ * (`screens/warehouse/FgIntakeQueue`); все четверо читают ЭТАПЫ. Участок без
+ * такой поверхности превращает заказ в невидимый — так 12.08 встали 33 заказа.
+ * Сверяет `routeReachable.test.ts`.
+ *
+ * СКЛАД ПОЯВИЛСЯ ЗДЕСЬ 12.09, И ЭТО СНЯТИЕ ЗАПИСАННОГО ЗАПРЕТА. Прежде его
+ * не пускали доводом «этап не появится нигде, и заказ встанет молча». Довод
+ * был верен ровно до 07.09: тогда у готового изделия появился ЭТАП приёмки
+ * склада (`routes.WAREHOUSE_DEPT_CODE`), а вместе с ним — экран, читающий
+ * этапы. То есть расчёт такой этап УЖЕ создавал, а конструктор предложить его
+ * не мог: удалив «Склад» из маршрута, вернуть его было нечем. Снимая запрет,
+ * проверяем не «надоел ли он», а изменился ли ВОПРОС — здесь изменился.
+ *
+ * Вычисляемый финальный шаг «Склад» (`utils/warehouseStep`) к этому отношения
+ * не имеет: он про КОНЕЦ маршрута и принадлежит заказу, а этот участок — про
+ * начало и принадлежит позиции. Два разных вопроса, и путать их нельзя.
+ */
+export const ROUTE_EXTRA_DEPT_CODES: readonly string[] = [
+  'supply', OUTSOURCE_DEPT_CODE, EXPERIMENTAL_DEPT_CODE, WAREHOUSE_DEPT_CODE,
+];
+
+export function emptyStep(departmentCode: string): RouteStep {
+  return {
+    stageId: null,
+    departmentCode,
+    // Исполнитель СЛЕДУЕТ из участка (правки 21.08): выбрал «Подряд» —
+    // этап подрядный. Отдельного переключателя нет, и одна точка ввода
+    // и есть то, о чём просил заказчик
+    executor: executorForDept(departmentCode),
+    contractor: '',
+    operation: '',
+    cycle: 0,
+    standalone: false,
+    resultKind: '',
+    qty: '',
+    sendPlan: '',
+    returnPlan: '',
+    responsible: '',
+    handover: '',
+    comment: '',
+    locked: false,
+  };
+}
+
+/**
+ * Черновик из РАСЧЁТНОГО маршрута (`buildItemRoute`) — предложение по умолчанию.
+ * Заказчик решил: автоматический расчёт остаётся и предлагает маршрут, человек
+ * его правит. Группируем по `sortOrder`, потому что именно им `buildRoute`
+ * помечает параллельные ветки.
+ */
+export function draftFromRoute(route: readonly RouteStage[]): RouteGroup[] {
+  const byOrder = new Map<number, RouteGroup>();
+  for (const r of route) {
+    const group = byOrder.get(r.sortOrder) ?? [];
+    // Поля расчёта переносятся ЦЕЛИКОМ: инвариант тождества требует, чтобы
+    // открытый и не тронутый конструктор отдавал ровно тот же маршрут,
+    // а операция и цикл — такая же его часть, как участок и порядок
+    group.push({
+      ...emptyStep(r.departmentCode),
+      operation: r.operation ?? '',
+      cycle: r.cycle ?? 0,
+      standalone: r.standalone ?? false,
+      resultKind: r.resultKind ?? '',
+    });
+    byOrder.set(r.sortOrder, group);
+  }
+  return [...byOrder.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, group]) => group);
+}
+
+/**
+ * Позиция формы создания — ровно те поля, из которых считается маршрут.
+ *
+ * Техники нанесения принимаются В ДВУХ ВИДАХ намеренно: в самой форме это
+ * блоки «Нанесение №N» под флагом `has_branding`, а в payload заказа —
+ * готовый список `branding_methods`. Одна функция обязана понимать оба,
+ * иначе она вернёт разный маршрут по разные стороны одного сабмита: в форме
+ * с нанесениями, в сторе без них — и заказ уедет мимо участков печати.
+ */
+export interface FormItemLike {
+  production_type?: string;
+  branding_on?: string;
+  material_source?: string;
+  /** Чьё готовое изделие (правки 07.09, п. 4) — см. `utils/garmentSource` */
+  garment_source?: string | null;
+  has_branding?: boolean;
+  prints?: { method?: string }[];
+  branding_methods?: string[];
+  route?: RouteGroup[];
+}
+
+/** Техники нанесения позиции, из какого бы вида она ни пришла */
+function methodsOf(it: FormItemLike): BrandingMethod[] {
+  const raw = it.branding_methods
+    ?? (it.has_branding ? (it.prints ?? []).map((p) => p.method) : []);
+  return raw
+    .filter((m): m is string => Boolean(m))
+    .filter((m, i, all) => all.indexOf(m) === i) as BrandingMethod[];
+}
+
+/**
+ * Маршрут позиции ФОРМЫ СОЗДАНИЯ: правка человека, если она есть, иначе расчёт.
+ *
+ * ЦЕЛИКОМ, ВКЛЮЧАЯ СБОРКУ АРГУМЕНТОВ РАСЧЁТА, и это главное. Читателей уже
+ * трое — превью ТЗ в форме, сам конструктор и сборка payload в `createOrder`, —
+ * и разойтись они могут не только правилом «правка или расчёт», но и тем, что
+ * подставлено в `buildItemRoute`. Второе тише: `materialSource`, взятый на одной
+ * стороне без проверки типа производства, вырезает из маршрута закупку — заказ
+ * создаётся не по тому маршруту, по которому считался гейт ТЗ, и обе стороны
+ * при этом «работают».
+ *
+ * Пустой массив трактуется как «не трогали»: маршрут без единого этапа —
+ * это не решение человека, а состояние, из которого он не вышел.
+ */
+export function formItemRoute(
+  it: FormItemLike,
+  /**
+   * Контекст ЗАКАЗА, а не позиции: «закупка не требуется» отмечается один раз
+   * на весь заказ. Необязателен — но передать его обязаны ВСЕ трое читателей,
+   * иначе заказ создастся не по тому маршруту, по которому считался гейт ТЗ.
+   * Ровно так уже расходились из-за `materialSource`.
+   */
+  order: { needsPurchase?: boolean } = {},
+): RouteGroup[] {
+  if (it.route && it.route.length > 0) return it.route;
+  return draftFromRoute(buildItemRoute({
+    needsPurchase: order.needsPurchase,
+    /**
+     * Приведение типов, а не проверка: в форме эти поля — свободные строки
+     * (их выбирают плитками и списками, но хранятся они как есть), а
+     * `buildItemRoute` объявлен на перечислениях. Значение вне перечисления
+     * маршрут не роняет — `buildRoute` разбирает его `switch`-ем с ветками
+     * по умолчанию, — поэтому санитайзер здесь был бы вторым местом, где
+     * решают, что считать допустимым типом производства.
+     */
+    productionType: it.production_type as ProductionType,
+    brandingMethods: methodsOf(it),
+    brandingOn: (it.branding_on ?? 'cut') as BrandingOn,
+    materialSource: it.production_type === 'outsource' ? (it.material_source || 'pinhead') : null,
+    /**
+     * Проверку «а тот ли это тип производства» здесь не делаем — её делает
+     * сам `garmentSourceOf`: вопрос «чьё изделие» задан только готовому,
+     * и значение, оставшееся от переключённой позиции, маршрут не меняет.
+     */
+    garmentSource: it.garment_source ?? null,
+  }));
+}
+
+interface StageLike extends Pick<
+  ErpItemStage, 'id' | 'sort_order' | 'status' | 'qty_done' | 'qty_rework' | 'started_at'
+> {
+  department_id: string;
+  executor?: string;
+  contractor?: string | null;
+  operation?: string | null;
+  /** Проход через цех: у позиции с вышивкой этапов этого участка два */
+  cycle?: number;
+  /** Чем отчитывается этап: файлом программы вышивки или числами участка */
+  result_kind?: string | null;
+}
+
+/**
+ * Этап уже нельзя выбросить из маршрута: в нём есть факт или он начат.
+ * Ровно это же условие стоит в RLS-политике удаления — гейт интерфейса
+ * и страж обязаны совпадать значением, иначе получится «кнопка есть,
+ * действие падает» либо, что хуже, стёртая работа.
+ */
+export function isStepLocked(stage: StageLike): boolean {
+  return (stage.qty_done ?? 0) > 0
+    || (stage.qty_rework ?? 0) > 0
+    || Boolean(stage.started_at)
+    || !['waiting', 'ready'].includes(stage.status);
+}
+
+/**
+ * Карточка подрядчика при этапе — ровно те поля, которые правит конструктор.
+ * Принимаем структурный тип, а не `ErpSubcontractOp`: реестр грузится лениво,
+ * и заставлять карточку заказа тянуть его тип ради шести строк незачем.
+ */
+export interface SubcontractSeed {
+  qty?: number | null;
+  send_plan_date?: string | null;
+  planned_date?: string | null;
+  responsible?: string | null;
+  materials_note?: string | null;
+  comment?: string | null;
+}
+
+/** Пустая строка вместо null — поле формы не должно становиться uncontrolled */
+function text(v: string | number | null | undefined): string {
+  return v === null || v === undefined ? '' : String(v);
+}
+
+/**
+ * Черновик из СУЩЕСТВУЮЩИХ этапов позиции — для карточки заказа.
+ *
+ * `subByStage` необязателен: реестр подряда грузится лениво, и до его загрузки
+ * конструктор обязан открываться — просто с пустыми подрядными полями, а не
+ * с ошибкой. Затирания при сохранении это не даёт: `erp_route_apply` пишет
+ * только присланные ключи.
+ */
+export function draftFromStages(
+  stages: readonly StageLike[],
+  deptCodeById: ReadonlyMap<string, string>,
+  subByStage?: ReadonlyMap<string, SubcontractSeed>,
+): RouteGroup[] {
+  const byOrder = new Map<number, RouteGroup>();
+  for (const s of [...stages].sort((a, b) => a.sort_order - b.sort_order)) {
+    // Пропущенный этап в конструкторе не показываем: он уже выведен из маршрута
+    if (s.status === 'skipped') continue;
+    const group = byOrder.get(s.sort_order) ?? [];
+    const sub = subByStage?.get(s.id);
+    group.push({
+      stageId: s.id,
+      departmentCode: deptCodeById.get(s.department_id) ?? '',
+      executor: s.executor === 'contractor' ? 'contractor' : 'internal',
+      contractor: s.contractor ?? '',
+      operation: s.operation ?? '',
+      /**
+       * Цикл берётся у САМОГО ЭТАПА: у позиции с вышивкой их два в одном цехе
+       * (разработка программы и сама вышивка, правка 12.09), и потеряв цикл,
+       * сохранение конструктора свело бы их в один — 23505 при первой правке
+       * маршрута.
+       */
+      cycle: s.cycle ?? 0,
+      /**
+       * `standalone` из этапа НЕ выводится и не хранится: он про то, как
+       * строился маршрут, а у существующего этапа связи уже записаны
+       * в `depends_on`. Конструктор их пересчитает по группам — ровно как
+       * делал всегда.
+       */
+      standalone: false,
+      /**
+       * А ВОТ ЭТО БЕРЁТСЯ У ЭТАПА, в отличие от `standalone`: признак хранится
+       * колонкой, и потеряв его, сохранение конструктора вернуло бы разработке
+       * программы поля «Вышито» и «Брак» — молча, без единой ошибки.
+       */
+      resultKind: s.result_kind === 'embroidery_program' ? 'embroidery_program' : '',
+      qty: text(sub?.qty),
+      sendPlan: text(sub?.send_plan_date),
+      returnPlan: text(sub?.planned_date),
+      responsible: text(sub?.responsible),
+      handover: text(sub?.materials_note),
+      comment: text(sub?.comment),
+      locked: isStepLocked(s),
+    });
+    byOrder.set(s.sort_order, group);
+  }
+  return [...byOrder.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, group]) => group);
+}
+
+// --- Правки черновика ---------------------------------------------------------
+
+/** Переставить группу. Группу с начатой работой не двигаем */
+export function moveGroup(draft: RouteGroup[], index: number, delta: number): RouteGroup[] {
+  const target = index + delta;
+  if (index < 0 || index >= draft.length) return draft;
+  if (target < 0 || target >= draft.length) return draft;
+  if (draft[index].some((s) => s.locked) || draft[target].some((s) => s.locked)) return draft;
+  const next = [...draft];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/** Вставить новый шаг маршрута ПОСЛЕ указанной позиции (-1 — в начало) */
+export function insertGroup(
+  draft: RouteGroup[],
+  afterIndex: number,
+  step: RouteStep,
+): RouteGroup[] {
+  const next = [...draft];
+  next.splice(afterIndex + 1, 0, [step]);
+  return next;
+}
+
+/** Добавить этап ПАРАЛЛЕЛЬНО существующему шагу (вторая ветка нанесения) */
+export function addParallel(
+  draft: RouteGroup[],
+  index: number,
+  step: RouteStep,
+): RouteGroup[] {
+  if (index < 0 || index >= draft.length) return draft;
+  return draft.map((g, i) => (i === index ? [...g, step] : g));
+}
+
+/** Убрать этап. Пустая группа исчезает целиком */
+export function removeStep(draft: RouteGroup[], gi: number, si: number): RouteGroup[] {
+  if (gi < 0 || gi >= draft.length) return draft;
+  if (draft[gi][si]?.locked) return draft;
+  return draft
+    .map((g, i) => (i === gi ? g.filter((_, j) => j !== si) : g))
+    .filter((g) => g.length > 0);
+}
+
+/**
+ * Правка одного этапа черновика.
+ *
+ * СМЕНА УЧАСТКА ПЕРЕСЧИТЫВАЕТ ИСПОЛНИТЕЛЯ, и правило живёт ЗДЕСЬ, а не в
+ * разметке. До 21.08 исполнителя выбирали вторым селектом, и обработчик этого
+ * селекта заодно чистил имя подрядчика; селект убран — но чистка нужна
+ * по-прежнему, потому что строка `erp_subcontracting` при уходе из подряда
+ * удаляется, и оставленное имя врало бы про исполнителя. Утилита — общее место
+ * обоих конструкторов (форма создания и карточка заказа), разметка — нет.
+ *
+ * Явно переданный `executor` в патче сильнее вывода из участка: так черновик
+ * из СУЩЕСТВУЮЩИХ этапов остаётся правимым — подрядный этап, заведённый
+ * до 21.08 на реальном цехе, не должен переставать быть подрядным от того,
+ * что человек поправил у него количество.
+ */
+export function patchStep(
+  draft: RouteGroup[],
+  gi: number,
+  si: number,
+  patch: Partial<RouteStep>,
+): RouteGroup[] {
+  const full: Partial<RouteStep> = patch.departmentCode !== undefined
+    && patch.executor === undefined
+    ? (() => {
+      const executor = executorForDept(patch.departmentCode as string);
+      return {
+        ...patch,
+        executor,
+        ...(executor === 'internal' ? { contractor: '' } : {}),
+      };
+    })()
+    : patch;
+  return draft.map((g, i) => (
+    i === gi ? g.map((s, j) => (j === si ? { ...s, ...full } : s)) : g));
+}
+
+// --- Линеаризация -------------------------------------------------------------
+
+export interface LinearStep {
+  step: RouteStep;
+  sortOrder: number;
+  /** Индексы этапов-предшественников В ЭТОМ ЖЕ массиве */
+  dependsOn: number[];
+  /** Координаты шага в черновике: группа и место внутри неё */
+  gi: number;
+  si: number;
+}
+
+/**
+ * Черновик → плоский список этапов с `sort_order` и `depends_on`.
+ *
+ * Зависимости считаются механически: каждый этап зависит от ВСЕХ этапов
+ * предыдущей группы. Это ровно тот граф, который сегодня строит `buildRoute`
+ * (швейка после нанесения ждёт все ветки нанесения).
+ *
+ * `depends_on` отдаётся ИНДЕКСАМИ, а не идентификаторами: у новых этапов их
+ * ещё нет, и сервер раскладывает индексы в uuid сам — тот же приём, что
+ * в `erp_create_order` и `erp_experimental_add_tasks`.
+ */
+export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
+  const out: LinearStep[] = [];
+  let prevIndices: number[] = [];
+  let sort = 10;
+
+  for (let gi = 0; gi < draft.length; gi += 1) {
+    const group = draft[gi];
+    const mine: number[] = [];
+    for (let si = 0; si < group.length; si += 1) {
+      const step = group[si];
+      /**
+       * ЭТАП ВНЕ ЦЕПОЧКИ (правка 12.09, п. 2) не участвует в связях с обеих
+       * сторон: не получает `depends_on` от предыдущей группы и не попадает
+       * в `mine`, то есть не становится предшественником следующей. Разработка
+       * программы вышивки не ждёт закупку и не держит крой — иначе забытая
+       * галочка вышивальщицы останавливала бы производство.
+       */
+      if (step.standalone) {
+        out.push({ step, sortOrder: sort, dependsOn: [], gi, si });
+        continue;
+      }
+      mine.push(out.length);
+      /**
+       * Координаты шага в черновике едут вместе с ним: по ним форма создания
+       * адресует файлы подрядного шага (`stage:<позиция>:<группа>:<шаг>`).
+       * Считать их отдельным обходом значило бы завести второй порядок этапов
+       * рядом с этим — и однажды они разойдутся.
+       */
+      out.push({ step, sortOrder: sort, dependsOn: [...prevIndices], gi, si });
+    }
+    if (mine.length > 0) {
+      prevIndices = mine;
+      sort += 10;
+    }
+  }
+  return withUniqueCycles(out);
+}
+
+/**
+ * Шаг черновика → поля этапа и его подрядного спутника для сервера.
+ *
+ * ОДНА функция на обоих писателей: `RouteEditor` (RPC `erp_route_apply`) и
+ * `createOrder` (секция `items[].stages` в `erp_create_order`). Правило проекта
+ * записано после того, как спутника подряда завели два места и разошлись бы
+ * в первую правку: сервер их уже держит одним выражением, клиент обязан тоже.
+ *
+ * Пустая строка превращается в `null`, а не в пустое значение: «не заполнено»
+ * и «заполнено пустым» на экране неразличимы, а в базе разные.
+ */
+export function stepPayload(step: RouteStep): {
+  executor: 'internal' | 'contractor';
+  contractor: string | null;
+  operation: string | null;
+  cycle: number;
+  result_kind: string | null;
+  qty: number | null;
+  send_plan_date: string | null;
+  planned_date: string | null;
+  responsible: string | null;
+  materials_note: string | null;
+  comment: string | null;
+} {
+  const contractor = step.executor === 'contractor';
+  const str = (v: string) => (v.trim() ? v.trim() : null);
+  const qty = Number(step.qty);
+  return {
+    executor: step.executor,
+    contractor: contractor ? str(step.contractor) : null,
+    operation: str(step.operation),
+    // Цикл едет НА СЕРВЕР: без него два наших этапа одного цеха упираются
+    // в уникальный индекс, и заказ не создаётся вовсе (правка 12.09, п. 2)
+    cycle: Number.isFinite(step.cycle) ? step.cycle : 0,
+    // Признак результата едет на сервер вместе с этапом: оба писателя
+    // (`erp_create_order` и `erp_route_apply`) пишут его в ту же колонку
+    result_kind: step.resultKind || null,
+    // Подрядные поля у нашего этапа не хранятся вовсе: спутника у него нет,
+    // и присланное значение молча пропало бы — хуже, чем не отправленное
+    qty: contractor && step.qty.trim() && Number.isFinite(qty) && qty > 0 ? qty : null,
+    send_plan_date: contractor ? str(step.sendPlan) : null,
+    planned_date: contractor ? str(step.returnPlan) : null,
+    responsible: contractor ? str(step.responsible) : null,
+    materials_note: contractor ? str(step.handover) : null,
+    comment: contractor ? str(step.comment) : null,
+  };
+}
+
+// --- Валидация ----------------------------------------------------------------
+
+export interface RouteIssue {
+  /** Индекс группы; null — проблема всего маршрута */
+  group: number | null;
+  text: string;
+}
+
+export function routeIssues(draft: readonly RouteGroup[]): RouteIssue[] {
+  const issues: RouteIssue[] = [];
+  if (draft.length === 0) {
+    issues.push({ group: null, text: 'В маршруте нет ни одного этапа' });
+  }
+  draft.forEach((group, gi) => {
+    group.forEach((step) => {
+      if (!step.departmentCode) {
+        issues.push({ group: gi, text: 'У этапа не выбран участок' });
+      }
+      /**
+       * Подрядчик обязателен: без имени подрядный этап не отличить от нашего
+       * ни в разделе «Подряд», ни в таблице «где заказ сейчас» — а это главный
+       * вопрос, ради которого раздел и существует.
+       */
+      if (step.executor === 'contractor' && !step.contractor.trim()) {
+        issues.push({ group: gi, text: 'У подрядного этапа не указан подрядчик' });
+      }
+      /**
+       * Операция у подряда ОБЯЗАТЕЛЬНА (правки 20.08). Документ строит на ней
+       * весь раздел: «название конкретной подрядной операции хранится внутри
+       * карточки подрядного этапа и используется для поиска и фильтрации»,
+       * и отдельных вкладок под варку и сублимацию не заводится именно потому,
+       * что различает их это поле. Без него строка раздела подписывается
+       * именем ЦЕХА — то есть «Цех ДТФ» там, где человек ищет «Сублимацию».
+       */
+      if (step.executor === 'contractor' && !step.operation.trim()) {
+        issues.push({ group: gi, text: 'У подрядного этапа не указана операция' });
+      }
+    });
+    // Один и тот же участок дважды в одном шаге — почти всегда промах руки
+    const codes = group.filter((s) => s.executor === 'internal').map((s) => s.departmentCode);
+    if (new Set(codes).size !== codes.length) {
+      issues.push({ group: gi, text: 'Один участок добавлен в шаг дважды' });
+    }
+  });
+  return issues;
+}
+
+/**
+ * Что удалить при сохранении: этапы, которые были в позиции, но из черновика
+ * исчезли. Пропущенные (`skipped`) в черновик не попадают ВОВСЕ, поэтому их
+ * надо исключить явно — иначе сохранение маршрута стирало бы историю пропуска.
+ */
+export function removedStageIds(
+  stages: readonly StageLike[],
+  draft: readonly RouteGroup[],
+): string[] {
+  const kept = new Set(draft.flat().map((s) => s.stageId).filter(Boolean));
+  return stages
+    .filter((s) => s.status !== 'skipped' && !kept.has(s.id))
+    .map((s) => s.id);
+}

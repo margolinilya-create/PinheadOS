@@ -1,9 +1,20 @@
 // E2E Test: Order Creation Wizard — Full Happy Path
-// Plan: tests/E2E-TEST-PLAN.md, scenario 2.1
 
 import { test, expect } from '@playwright/test';
 
 test.use({ actionTimeout: 15000 });
+
+/**
+ * Онбординг-тур (`OnboardingTips`) в свежем профиле накрывает страницу
+ * `.onboarding-backdrop` и перехватывает клики. В e2e профиль всегда чистый,
+ * поэтому гасим тур до загрузки страницы — иначе падает любой сценарий визарда.
+ */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('ph_onboarding_done', '1'); } catch { /* приватный режим */ }
+  });
+});
+
 
 test.describe('Order Creation Wizard', () => {
   test('should complete full order flow - tshirt with screen print', async ({ page }) => {
@@ -12,7 +23,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
 
     // 2. Select first SKU from garment list
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
 
     // 3. Wait for fabric section to appear, select first option
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
@@ -64,7 +75,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
 
     // Quick setup: select SKU + fabric + color + qty
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
     await page.locator('.fit-option').first().click();
     await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
@@ -94,7 +105,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
 
     // Select SKU to start wizard
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
     await page.locator('.fit-option').first().click();
     await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
@@ -107,7 +118,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ДИЗАЙН' })).toBeVisible();
 
     // Try to navigate away via header
-    await page.getByRole('button', { name: 'Заказы' }).click();
+    await page.getByRole('button', { name: 'Заказы', exact: true }).click();
 
     // Blocker dialog should appear
     await expect(page.getByText('Заказ не сохранён')).toBeVisible();
@@ -123,16 +134,18 @@ test.describe('Order Creation Wizard', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
 
-    // Progress fill bar should exist and start narrow
+    // Progress fill bar should exist and start narrow.
+    // На первом шаге ширина 0 — для Playwright это «hidden», поэтому проверяем
+    // наличие в DOM, а не видимость: смысл теста в росте ширины, а не в показе.
     const fillBar = page.locator('[class*="progress-fill-bar"]');
-    await expect(fillBar).toBeVisible();
+    await expect(fillBar).toBeAttached();
 
     const initialWidth = await fillBar.evaluate(el => {
       return parseFloat(getComputedStyle(el).width);
     });
 
     // Select garment, fabric, color, qty to enable Next
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
     await page.locator('.fit-option').first().click();
     await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });
@@ -156,7 +169,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.locator('.garment-row').first()).toBeVisible();
 
     const firstRow = page.locator('.garment-row').first();
-    await firstRow.click();
+    await firstRow.dblclick();
 
     // Row should get .selected class
     await expect(firstRow).toHaveClass(/selected/);
@@ -167,7 +180,7 @@ test.describe('Order Creation Wizard', () => {
     await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
 
     // Select garment, fabric, color, qty and go to step 2
-    await page.locator('.garment-row').first().click();
+    await page.locator('.garment-row').first().dblclick();
     await page.locator('.fit-option').first().waitFor({ state: 'visible' });
     await page.locator('.fit-option').first().click();
     await page.locator('.swatch:not(.hidden)').first().waitFor({ state: 'visible' });

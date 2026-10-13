@@ -9,8 +9,8 @@
   font-size: 12px;
 }
 .bar.active {
-  background: var(--bg-warning, #FFF8E1);
-  border-bottom: 2px solid var(--color-warning, #C87137);
+  background: var(--bg-warning);
+  border-bottom: 2px solid var(--color-warning);
 }
 .label {
   font-size: 11px;
@@ -36,9 +36,9 @@
   align-items: center;
   gap: 4px;
 }
-.btn:hover { background: var(--surface); border-color: var(--border-str); }
-.btn.current { background: var(--ink); color: var(--white, #fff); border-color: var(--ink); }
-.btn.preview { background: var(--color-warning, #C87137); color: var(--white, #fff); border-color: var(--color-warning, #C87137); }
+.btn:hover { background: var(--surface); border-color: var(--border-mid); }  /* был --border-str: токена нет, наведение не меняло рамку */
+.btn.current { background: var(--ink); color: var(--white); border-color: var(--ink); }
+.btn.preview { background: var(--color-warning); color: var(--white); border-color: var(--color-warning); }
 .own {
   font-size: 8px;
   letter-spacing: 0.5px;
@@ -50,12 +50,12 @@
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 600;
-  border: 0.5px solid var(--color-warning, #C87137);
+  border: 0.5px solid var(--color-warning);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-warning, #C87137);
+  color: var(--color-warning);
   cursor: pointer;
   transition: all 150ms ease-out;
   white-space: nowrap;
 }
-.exit:hover { background: var(--color-warning, #C87137); color: var(--white, #fff); }
+.exit:hover { background: var(--color-warning); color: var(--white); }

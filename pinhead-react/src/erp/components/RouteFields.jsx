@@ -1,0 +1,398 @@
+import { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
+import { useDictionary } from '../store/useDictionary';
+import { deptShortName, isProductionDept } from '../data/departments';
+import {
+  ROUTE_EXTRA_DEPT_CODES,
+  emptyStep,
+  insertGroup,
+  addParallel,
+  moveGroup,
+  removeStep,
+  patchStep,
+} from '../utils/routeDraft';
+import { Button } from './Button';
+import { Icon } from './Icon';
+import { DateField } from './DateField';
+import { DictionaryDatalist } from './DictionaryDatalist';
+import styles from '../erp.module.css';
+
+/**
+ * Разметка конструктора маршрута — общая для карточки заказа и формы создания.
+ *
+ * ПОЧЕМУ ОДИН КОМПОНЕНТ НА ДВА МЕСТА. Маршрут задаётся дважды: при создании
+ * заказа и при его правке, и это ОДНО И ТО ЖЕ решение — какие этапы, в каком
+ * порядке, чьими руками. Две реализации разошлись бы в первую же правку, причём
+ * молча: обе «работают», просто предлагают разное. Различие между местами не в
+ * разметке, а в том, куда уезжает результат — в RPC правки маршрута или в payload
+ * создания заказа, — поэтому состояние черновика держит вызывающий.
+ *
+ * СТРОКА — ШАГ, А НЕ ЭТАП. Документ описывает маршрут линейно, модель — граф
+ * с параллельными ветками нанесения. Шаг (группа) — ровно то, что `buildRoute`
+ * уже помечает одинаковым `sortOrder`.
+ *
+ * ОДНА ТОЧКА ВВОДА ПОДРЯДА (правки заказчика 21.08). Раньше подрядный этап
+ * заводился в два движения: выбрать участок-цех и переключить второй селект
+ * «Исполнитель» на «Подрядчик». Заказчик просит выбрать участок «Подряд» —
+ * и всё. Селекта исполнителя больше нет вовсе; правило «участок → исполнитель»
+ * живёт в `utils/routeDraft.patchStep`, а не здесь: конструктор монтируется
+ * в двух местах, и правило в разметке однажды разошлось бы с самим собой.
+ */
+
+/**
+ * Поле «Операция» с пополнением библиотеки (правки заказчика 20.08).
+ *
+ * ЧТО ПРОСИТ ДОКУМЕНТ: «если нужной операции нет, менеджер нажимает
+ * + Создать новую операцию; после сохранения операция используется в текущем
+ * маршруте, автоматически добавляется в библиотеку и становится доступна
+ * в следующих заказах. Добавление нового вида подрядных работ не должно
+ * требовать доработки ERP».
+ *
+ * Кнопка появляется, только когда набранное значение библиотеке НЕ известно:
+ * иначе она предлагала бы завести дубль того, что уже есть. Гейт — зеркало
+ * серверной политики (`catalog.edit` ИЛИ `order.manage` для этого вида).
+ */
+function OperationField({ step, gi, si, onPatch }) {
+  const items = useDictionary('route_operation');
+  const createDictionaryItem = useErpStore((s) => s.createDictionaryItem);
+  const { can } = useErpAccess();
+  const canAdd = can('catalog.edit') || can('order.manage');
+  const [saving, setSaving] = useState(false);
+
+  const value = step.operation.trim();
+  const known = items.some((d) => d.name.toLowerCase() === value.toLowerCase());
+  const showAdd = canAdd && !step.locked && value.length > 1 && !known;
+
+  const add = async () => {
+    setSaving(true);
+    await createDictionaryItem('route_operation', value);
+    setSaving(false);
+  };
+
+  return (
+    <>
+      <input
+        className={styles.input}
+        list="erp-route-operations"
+        value={step.operation}
+        disabled={step.locked}
+        placeholder={step.executor === 'contractor'
+          ? 'Операция подрядчика: варка, сублимация…'
+          : 'Операция (если не совпадает с участком)'}
+        onChange={(e) => onPatch(gi, si, { operation: e.target.value })}
+        aria-label="Операция"
+      />
+      {showAdd && (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="plus"
+          loading={saving}
+          onClick={add}
+          title="Операция сохранится в библиотеке и будет предлагаться в следующих заказах"
+        >
+          В библиотеку
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** Дополнительные поля подрядного этапа — раскрываются вместе с участком «Подряд» */
+function ContractorFields({ step, gi, si, onPatch, renderFiles }) {
+  const set = (patch) => onPatch(gi, si, patch);
+  return (
+    <div className={styles.routeSubFields}>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Количество</span>
+        <input
+          type="number"
+          min="0"
+          className={styles.input}
+          value={step.qty}
+          disabled={step.locked}
+          placeholder="150"
+          onChange={(e) => set({ qty: e.target.value.replace('-', '') })}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Передача, план</span>
+        <DateField
+          showFormatHint={false}
+          value={step.sendPlan}
+          disabled={step.locked}
+          onChange={(v) => set({ sendPlan: v })}
+          aria-label="Плановая дата передачи подрядчику"
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Возврат, план</span>
+        <DateField
+          showFormatHint={false}
+          value={step.returnPlan}
+          disabled={step.locked}
+          onChange={(v) => set({ returnPlan: v })}
+          aria-label="Плановая дата возврата от подрядчика"
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Ответственный Pinhead</span>
+        <input
+          className={styles.input}
+          value={step.responsible}
+          disabled={step.locked}
+          placeholder="кто ведёт передачу"
+          onChange={(e) => set({ responsible: e.target.value })}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Что передаём</span>
+        <input
+          className={styles.input}
+          value={step.handover}
+          disabled={step.locked}
+          placeholder="сшитые худи, полотно, кепки"
+          onChange={(e) => set({ handover: e.target.value })}
+        />
+      </label>
+      <label className={`${styles.field} ${styles.fieldWide}`}>
+        <span className={styles.fieldLabel}>Комментарий</span>
+        <input
+          className={styles.input}
+          value={step.comment}
+          disabled={step.locked}
+          placeholder="Stone Wash, допуски, особые условия"
+          onChange={(e) => set({ comment: e.target.value })}
+        />
+      </label>
+      {/*
+        ТЗ и файлы подрядного этапа — девятое поле подрядного шага (документ
+        20.08). Рендерит их ВЫЗЫВАЮЩИЙ: в форме создания файл уезжает в payload
+        и привязывается к этапу той же транзакцией, а в карточке заказа этап уже
+        существует, и файлы там прикладываются в разделе «Подряд». Одна разметка
+        с двумя способами хранения — это два разных ответа на «что будет,
+        если загрузка не прошла».
+      */}
+      {renderFiles && (
+        <div className={styles.fieldWide}>{renderFiles(gi, si, step)}</div>
+      )}
+    </div>
+  );
+}
+
+/** Один этап внутри шага маршрута */
+function StepRow({ step, gi, si, depts, onPatch, onRemove, canRemove }) {
+  /**
+   * Участок, уже стоящий в этапе, показываем ВСЕГДА, даже если он выпал
+   * из предлагаемых (стал непроизводственным, деактивирован, пришёл из старого
+   * маршрута). Иначе select не нашёл бы своего значения, показал бы «Участок…»
+   * и первое же сохранение молча перевесило бы этап в никуда.
+   */
+  const options = useMemo(() => {
+    if (!step.departmentCode || depts.some((d) => d.code === step.departmentCode)) return depts;
+    return [...depts, { code: step.departmentCode, name: step.departmentCode }];
+  }, [depts, step.departmentCode]);
+
+  return (
+    <div className={styles.routeStepRow}>
+      {/*
+        Единственный выбор в строке. Среди участков есть «Подряд» — выбрав его,
+        человек получает подрядный этап целиком: исполнителя проставляет
+        `patchStep`, поля подрядчика раскрываются ниже. Вернул обычный цех —
+        подряд снялся, и имя подрядчика стёрлось вместе с ним.
+      */}
+      <select
+        className={styles.select}
+        value={step.departmentCode}
+        disabled={step.locked}
+        onChange={(e) => onPatch(gi, si, { departmentCode: e.target.value })}
+        aria-label="Участок ответственности"
+      >
+        <option value="">Участок…</option>
+        {options.map((d) => (
+          <option key={d.code} value={d.code}>{deptShortName(d.code, d.name)}</option>
+        ))}
+      </select>
+
+      {step.executor === 'contractor' && (
+        <input
+          className={styles.input}
+          value={step.contractor}
+          disabled={step.locked}
+          placeholder="Подрядчик"
+          onChange={(e) => onPatch(gi, si, { contractor: e.target.value })}
+          aria-label="Подрядчик"
+        />
+      )}
+
+      {/* Операция уточняет, ЧТО делают, когда это расходится с именем цеха:
+          сублимацию принимает участок ДТФ, упаковку — склад готовой продукции.
+          Заводить их отдельными цехами нельзя — справочник участков перестанет
+          означать наши участки и потечёт в меню, очередь, план и загрузку. */}
+      <OperationField step={step} gi={gi} si={si} onPatch={onPatch} />
+
+      {step.locked ? (
+        <span className={styles.subText} title="В этапе уже есть работа — его можно только пропустить">
+          <Icon name="shield" size={13} /> в работе
+        </span>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="trash"
+          iconOnly
+          disabled={!canRemove}
+          onClick={() => onRemove(gi, si)}
+          aria-label="Убрать этап из маршрута"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * ПОДСКАЗКА У ПОЗИЦИИ-ОБРАЗЦА (правки заказчика 02.09, п. 1).
+ *
+ * Расчётный маршрут образца состоит из одной закупки, и без объяснения это
+ * читается как «маршрут не посчитался». Строка называет, где идёт остальная
+ * работа, — то же решение, что у пустых состояний экранов: «работы нет»
+ * и «работа в другом месте» обязаны различаться словами.
+ *
+ * ЗАПРЕТА НЕТ (решение владельца): правка человека сильнее расчёта — правило
+ * проекта, и конструктор по-прежнему предлагает все участки. Подсказка
+ * объясняет умолчание, а не отбирает возможность.
+ */
+function SampleRouteNotice() {
+  return (
+    <p className={styles.subText}>
+      Крой, пошив и финальный этап образца ведёт экспериментальный цех — в маршрут
+      они не входят. В обычные цеха у образца уходят только нанесения, и задачу
+      туда отправляет технолог, переводя карточку в этап «Нанесения».
+    </p>
+  );
+}
+
+export function RouteFields({
+  draft, onChange, renderStageFiles = null, productionType = null,
+}) {
+  const departments = useErpStore(useShallow((s) => s.departments));
+  /**
+   * Предлагаем только участки, у которых ЕСТЬ ПОВЕРХНОСТЬ с их открытыми
+   * этапами: производственные (очередь, канбан, план) и перечисленные в
+   * `ROUTE_EXTRA_DEPT_CODES` — закупка (своя очередь), «Подряд» (свой раздел),
+   * «Экспериментальный цех» (вид «Очередь участка», правка 24.08, п. 4.1)
+   * и «Склад» (блок приёмки готового изделия, правка 12.09, п. 1).
+   * Все четверо читают ЭТАПЫ, а не соседние данные — участок без такой
+   * поверхности прячет заказ целиком, ровно дефект 12.08 с 33 заказами.
+   * Логистика сюда по-прежнему не входит: своего экрана с этапами у неё нет.
+   *
+   * Признак берётся из данных (`isProductionDept`), а не из списка кодов:
+   * участок, заведённый директором в админке, обязан появляться сам.
+   */
+  const depts = useMemo(
+    () => departments
+      .filter((d) => d.active
+        && (isProductionDept(d) || ROUTE_EXTRA_DEPT_CODES.includes(d.code)))
+      .sort((a, b) => a.sort_order - b.sort_order),
+    [departments],
+  );
+
+  const patch = (gi, si, p) => onChange(patchStep(draft, gi, si, p));
+  const drop = (gi, si) => onChange(removeStep(draft, gi, si));
+
+  return (
+    <>
+      <DictionaryDatalist kind="route_operation" id="erp-route-operations" />
+      {productionType === 'samples' && <SampleRouteNotice />}
+
+      <ol className={styles.routeSteps}>
+        {draft.map((group, gi) => {
+          const locked = group.some((s) => s.locked);
+          return (
+            <li key={gi} className={styles.routeStep}>
+              <div className={styles.routeStepHead}>
+                <span className={styles.routeStepNo}>{gi + 1}</span>
+                {group.length > 1 && (
+                  <span className={`${styles.chip} ${styles.chipNeutral}`}>параллельно</span>
+                )}
+                <div className={styles.spacer} />
+                <Button
+                  variant="ghost" size="sm" icon="arrowUp" iconOnly
+                  disabled={gi === 0 || locked || draft[gi - 1].some((s) => s.locked)}
+                  onClick={() => onChange(moveGroup(draft, gi, -1))}
+                  aria-label={`Шаг ${gi + 1} выше`}
+                />
+                <Button
+                  variant="ghost" size="sm" icon="arrowDown" iconOnly
+                  disabled={gi === draft.length - 1 || locked || draft[gi + 1].some((s) => s.locked)}
+                  onClick={() => onChange(moveGroup(draft, gi, 1))}
+                  aria-label={`Шаг ${gi + 1} ниже`}
+                />
+              </div>
+
+              {group.map((step, si) => (
+                <div key={si}>
+                  <StepRow
+                    step={step} gi={gi} si={si} depts={depts}
+                    onPatch={patch} onRemove={drop}
+                    canRemove={draft.length > 1 || group.length > 1}
+                  />
+                  {/* Поля подрядчика раскрываются вместе с участком «Подряд»:
+                      документ требует заполнить их ЗДЕСЬ, одним движением
+                      с выбором участка, а не потом на другом экране */}
+                  {step.executor === 'contractor' && (
+                    <ContractorFields
+                      step={step}
+                      gi={gi}
+                      si={si}
+                      onPatch={patch}
+                      renderFiles={renderStageFiles}
+                    />
+                  )}
+                </div>
+              ))}
+
+              <div className={styles.routeStepFoot}>
+                <Button
+                  variant="ghost" size="sm" icon="plus"
+                  onClick={() => onChange(addParallel(draft, gi, emptyStep('')))}
+                >
+                  Параллельный этап
+                </Button>
+                <Button
+                  variant="ghost" size="sm" icon="plus"
+                  onClick={() => onChange(insertGroup(draft, gi, emptyStep('')))}
+                >
+                  Шаг после
+                </Button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      {draft.length === 0 && (
+        <Button
+          variant="secondary" size="sm" icon="plus"
+          onClick={() => onChange(insertGroup(draft, -1, emptyStep('')))}
+        >
+          Добавить первый этап
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** Перечень проблем маршрута под конструктором — общий вид для обоих мест */
+export function RouteIssues({ issues }) {
+  if (issues.length === 0) return null;
+  return (
+    <ul className={styles.routeIssues}>
+      {issues.map((p, i) => (
+        <li key={i}>{p.group === null ? p.text : `Шаг ${p.group + 1}: ${p.text}`}</li>
+      ))}
+    </ul>
+  );
+}

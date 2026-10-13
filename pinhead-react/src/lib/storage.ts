@@ -14,6 +14,39 @@ export function storageGet<T = unknown>(key: string, defaultValue: T | null = nu
   }
 }
 
+/**
+ * СЫРАЯ строка без `JSON.parse` — и это не дубль `storageGet`.
+ *
+ * Половина ключей ERP хранит именно строки: `'1'`/`'0'` у свёрнутого сайдбара,
+ * `'queue'`/`'plan'` у вида кабинета цеха, код участка у выбранного цеха.
+ * `storageGet` разбирает значение как JSON, и на `queue` он бросает, молча
+ * возвращая дефолт — то есть прямая замена одного на другой сломала бы
+ * запомненные настройки, ничего об этом не сказав.
+ *
+ * Заведено аудитом 03.09: до него интерфейс ходил в `localStorage` напрямую,
+ * без try/catch, тогда как стор свои обращения защищал. Обращение в теле
+ * компонента (`ErpLayout` читает свёрнутость в инициализаторе `useState`)
+ * исполняется при ОТРИСОВКЕ, и запрет доступа к хранилищу — приватный режим,
+ * политика устройства, переполнение — ронял всю оболочку белым экраном.
+ */
+export function storageGetRaw(key: string, defaultValue: string | null = null): string | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? defaultValue : raw;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/** Записать сырую строку (пара к `storageGetRaw`) */
+export function storageSetRaw(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // приватный режим или переполнение — настройка живёт до перезагрузки
+  }
+}
+
 export function storageSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -32,9 +65,39 @@ export function storageRemove(key: string): void {
 
 // ── Clear all app data (on logout) ──
 
-const APP_KEYS = [
+/**
+ * Ключи, которые чистятся при выходе. Список ведётся руками, поэтому его
+ * полноту сторожит тест (`storage.test.ts`): он собирает ключи из исходников и
+ * падает, если появился новый, не попавший ни сюда, ни в KEEP_ON_LOGOUT.
+ * Так `erp_order_draft` и был найден — черновик заказа с заказчиком и тиражом
+ * переживал смену пользователя на общем цеховом планшете.
+ */
+export const APP_KEYS = [
+  // Черновики: содержат данные клиента (заказчик, тираж, параметры нанесения)
   'pinhead_draft',
+  'erp_order_draft',
+  // Выбранный цех ERP: на общем цеховом планшете он переживал выход из системы,
+  // и следующий рабочий попадал в чужой цех, не заметив этого
+  'erp_my_dept',
+  /**
+   * Недописанные сообщения чата (правка 14.09, п. 5). Один ключ на все
+   * разговоры — россыпь `erp_chat_draft_<uuid>` пережила бы выход целиком:
+   * этот список перечисляет ключи ПОИМЁННО. В `APP_KEYS`, а не
+   * в `KEEP_ON_LOGOUT`: это переписка человека, а не настройка устройства.
+   */
+  'erp_chat_draft',
+  /**
+   * Уведомления ERP (правка 01.10, п. 4). `erp_notice_settings` — КЭШ личных
+   * настроек звука и окна браузера (источник — `erp_user_settings`), помечен
+   * учётной записью; `erp_notice_claims` — какие события эта и соседние
+   * вкладки уже объявили. Оба — про человека, а не про устройство: на общем
+   * планшете следующей смене чужой выбор звука не нужен.
+   */
+  'erp_notice_settings',
+  'erp_notice_claims',
+  // Кэш каталогов и цен — данные организации, а не устройства
   'ph_prices',
+  'ph_price_history',
   'ph_cb_rate',
   'ph_extras',
   'ph_hardware',
@@ -42,12 +105,46 @@ const APP_KEYS = [
   'ph_fabrics',
   'ph_trims',
   'ph_usd_rate',
+  'ph_category_rules',
+  'ph_zones',
+  // Подсказки новичку — состояние конкретного человека, не устройства
+  'ph_onboarding_done',
+];
+
+/**
+ * Ключи, которые выход НЕ трогает — настройки устройства, а не пользователя.
+ * Тема и раскладка планшета не должны сбрасываться от того, что сменилась смена.
+ */
+export const KEEP_ON_LOGOUT = [
+  'ph_theme',
+  'erp_board_view',
+  // Вид очереди цеха: очередь или план. Настройка устройства, а не человека —
+  // цех обычно работает в одном и том же виде смену за сменой
+  'erp_queue_view',
+  'erp_sidebar_collapsed',
+  /*
+   * Сколько строк резервировать под меню цехов, пока не приехал `erp_bootstrap`.
+   *
+   * Раскладка УСТРОЙСТВА, а не человека: это одно целое число, оно ничего
+   * не открывает и никуда не маршрутизирует (в отличие от `erp_my_dept`,
+   * который увозил бы рабочего в чужой цех и потому чистится). Состав меню
+   * по-прежнему целиком из `erp_departments` — запомнена только высота места.
+   *
+   * Именно KEEP_ON_LOGOUT, а не APP_KEYS: на общем цеховом планшете смена
+   * логинится заново каждый день, и в APP_KEYS резерв обнулялся бы перед
+   * каждой первой загрузкой — то есть починка была бы мёртвой ровно там,
+   * ради чего делалась.
+   */
+  'erp_dept_rows',
 ];
 
 export function storageClearAll(): void {
   for (const key of APP_KEYS) {
     storageRemove(key);
   }
+  // sessionStorage: кэш каталогов живёт до конца вкладки, а вкладка на общем
+  // планшете переживает смену пользователя
+  sessionRemove('pinhead_catalogs_v1');
 }
 
 // ── sessionStorage ──
@@ -131,11 +228,6 @@ export async function uploadSkuPhoto(code: string, file: File, index: number = 0
   return data.publicUrl;
 }
 
-export function getSkuPhotoUrl(path: string): string {
-  const { data } = supabase.storage.from(SKU_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
-}
-
 export async function deleteSkuPhotoByUrl(url: string): Promise<boolean> {
   const match = url.match(/sku-photos\/(.+)$/);
   if (!match) return false;
@@ -145,13 +237,4 @@ export async function deleteSkuPhotoByUrl(url: string): Promise<boolean> {
     return false;
   }
   return true;
-}
-
-export async function deleteSkuPhoto(code: string): Promise<void> {
-  const exts = ['jpg', 'jpeg', 'png', 'webp'];
-  const paths: string[] = [];
-  for (let i = 0; i < 4; i++) {
-    exts.forEach(ext => paths.push(`${code}_${i}.${ext}`));
-  }
-  await supabase.storage.from(SKU_BUCKET).remove(paths);
 }

@@ -3,7 +3,7 @@
 .pb-compact { padding: 8px 12px; }
 .pb-toggle {
   display: block; width: 100%; background: none; border: none;
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  font-family: var(--font-body); font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-mid);
   cursor: pointer; padding: 0; text-align: left; transition: color 150ms ease-out;
 }
@@ -12,12 +12,21 @@
 .pb-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: var(--text-mid); }
 .pb-name { font-weight: 500; }
 .pb-val { font-family: var(--mono); font-weight: 600; }
-.pb-row-discount .pb-val { color: var(--color-success, #34C759); }
-.pb-row-markup .pb-val { color: var(--color-success, #34C759); }
+.pb-row-markup .pb-val { color: var(--color-success); }
 .pb-row-markup .pb-name { color: var(--text-dim); font-size: 11px; }
-.pb-row-urgent .pb-val { color: var(--color-error, #FF3B30); }
-.pb-row-urgent .pb-name { color: var(--color-error, #FF3B30); }
+.pb-row-urgent .pb-val { color: var(--color-error); }
+.pb-row-urgent .pb-name { color: var(--color-error); }
 .pb-row-unit { font-weight: 600; }
 .pb-row-total { font-weight: 700; font-size: 13px; color: var(--text); }
 .pb-row-total .pb-val { color: var(--accent); }
 .pb-divider { border-top: 1px solid var(--border-light); margin: 4px 0; }
+
+.pb-row-sum .pb-name, .pb-row-sum .pb-val { font-weight: 600; }
+.pb-error {
+  margin-bottom: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-error);
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}

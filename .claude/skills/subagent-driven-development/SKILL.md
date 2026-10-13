@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use when a task is large (M or L size) and can be split into independent parts. Triggers on "большая задача", "разбей на части", "параллельно", "покупательский портал", "large task", "split task", "parallel".
+description: Use when a task is large (M or L size) and can be split into independent parts. Triggers on "большая задача", "разбей на части", "параллельно", "large task", "split task", "parallel".
 ---
 
 # Subagent-Driven Development — Pinhead Order Studio
@@ -15,25 +15,23 @@ description: Use when a task is large (M or L size) and can be split into indepe
 
 ## Паттерн разбивки для Pinhead
 
-### Пример: Покупательский портал (L)
+### Пример: новая сущность ERP (L)
 
-**Фаза 1 — Supabase и Store** (независимо от UI)
-- Создать `usePortalStore.js`
-- SQL если нужно
-- Тесты на store
-- → Review: store работает, тесты зелёные
+**Фаза 1 — Схема и сервер** (независимо от UI)
+- Миграция: таблица, RLS на команду, страж, если колонки под разными правами
+- Применить к `pinhead-os-v2` ДО мержа, файл + `APPLIED.json`
+- Сторож-тест, читающий миграцию (`migrations.testutil.ts`)
+- → Review: проверка от лица роли в откатываемой транзакции
 
-**Фаза 2 — UI компоненты** (после Фазы 1)
-- `PortalWizard.jsx`
-- `PortalStep1/2/3.jsx`
-- Тесты на компоненты
-- → Review: UI рендерится, навигация работает
+**Фаза 2 — Слайс стора** (после Фазы 1)
+- Слайс в `erp/store/slices/` + регистрация в `domainSlices.ts`
+- Тесты на слайс (`useErpStore.test.ts` как образец мока)
+- → Review: ошибки через `erpQuery`, удаления неоптимистичны
 
-**Фаза 3 — Интеграция** (после Фазы 1 и 2)
-- Подключить store к UI
-- Роут `/order` в App.jsx
-- E2E проверка
-- → Review: полный флоу работает
+**Фаза 3 — Экран** (после Фазы 1 и 2)
+- Экран через `lazyScreen`, гейт через `useErpAccess`
+- Клиентский гейт и страж — одним коммитом
+- → Review: lint, typecheck, build, e2e по экрану
 
 ---
 
@@ -43,9 +41,9 @@ description: Use when a task is large (M or L size) and can be split into indepe
 Задача: [описание]
 Размер: L
 
-Прочитай PINHEAD-SKILL.md и ACTION-PLAN.md.
+Прочитай CLAUDE.md, SESSION-STATE.md и нужный раздел docs/rules/INDEX.md.
 Разбей на фазы по принципу: каждая фаза независима и тестируема.
-После каждой фазы: npm test -- --run (722+ тестов зелёных).
+После каждой фазы: npm run test — тестов не меньше, чем было, все зелёные.
 НЕ переходи к следующей фазе пока текущая не завершена и тесты не зелёные.
 ```
 
@@ -54,7 +52,7 @@ description: Use when a task is large (M or L size) and can be split into indepe
 ## Review между фазами
 
 После каждой фазы проверь:
-1. Тесты: `npm test -- --run` — 722+ зелёных
+1. Тесты: `npm run test` — не меньше, чем было, все зелёные
 2. Линт: `npm run lint` — 0 ошибок
 3. Логика: функционал фазы работает как ожидается
 4. Откат: если фаза не работает — её можно удалить не сломав остальное

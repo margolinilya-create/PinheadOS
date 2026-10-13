@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { TYPE_NAMES, FABRIC_NAMES, TECH_NAMES } from '../../data';
 import { getDeadlineInfo } from '../../utils/deadline';
+import { parseDateLocal } from '../../utils/date';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { toast } from '../../store/useToastStore';
 import styles from './KanbanBoard.module.css';
@@ -109,10 +110,10 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
             <>
               <div className="kb-drawer-section-label">ДЕДЛАЙН</div>
               <div className={`kb-drawer-section-value ${styles.rowFlexGap8}`}>
-                {new Date(d.deadline).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {parseDateLocal(d.deadline)?.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }) ?? ''}
                 {dlInfo && (
                   <span
-                    className={`${styles.drawerDeadlineBadge}${dlInfo.color === '#888' ? ' ' + styles.drawerDeadlineBadgeMuted : ''}`}
+                    className={`${styles.drawerDeadlineBadge}${dlInfo.tone === 'ok' ? ' ' + styles.drawerDeadlineBadgeMuted : ''}`}
                     style={{ background: dlInfo.color }}
                   >
                     {dlInfo.label}

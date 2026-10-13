@@ -8,9 +8,37 @@ beforeEach(() => {
 });
 
 describe('ToastContainer', () => {
-  it('renders nothing when no toasts', () => {
-    const { container } = render(<ToastContainer />);
-    expect(container.innerHTML).toBe('');
+  it('live-регион существует ДО первого тоста и пуст', () => {
+    /**
+     * Раньше тест требовал пустого DOM, и контейнер честно возвращал `null`.
+     * Но `aria-live` так не работает: скринридер следит за изменениями внутри
+     * УЖЕ существующего региона, а регион, появившийся вместе с текстом,
+     * он не отслеживает. Разметка выглядела правильной, озвучивания не было.
+     */
+    render(<ToastContainer />);
+    const live = screen.getByRole('status');
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    expect(live).toBeEmptyDOMElement();
+  });
+
+  /**
+   * У РЕГИОНА ЕСТЬ ИМЯ, и это не украшение.
+   *
+   * `role="status"` на странице не один: `erp/components/StaleDataBar`
+   * объявляет им же «Обновляем данные…». Пока оба были безымянны, поиск
+   * по роли совпадал с обоими — и для скринридера это тоже два неразличимых
+   * «статуса». Сломалось это на e2e: проверка тоста падала strict mode
+   * violation ровно тогда, когда в этот момент шло переподключение realtime,
+   * то есть выглядела случайной. Имя — то, чем регион адресуется, поэтому
+   * сторож стоит здесь, у источника, а не только в спеке.
+   *
+   * Имя НЕ «Уведомления»: так подписан колокол производственных уведомлений
+   * в шапке ERP, и совпадение вернуло бы ту же неоднозначность.
+   */
+  it('живёт под собственным именем — регионов со статусом на странице несколько', () => {
+    render(<ToastContainer />);
+    expect(screen.getByRole('status', { name: 'Оповещения' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Уведомления' })).toBeNull();
   });
 
   it('renders success toast', () => {

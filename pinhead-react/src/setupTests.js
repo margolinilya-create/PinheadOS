@@ -12,6 +12,8 @@ vi.mock('../assets/garments/shopper.svg?raw', () => ({ default: '<svg>shopper</s
 const mockChain = {
   select: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
+  // `is('read_at', null)` — счётчик непрочитанных уведомлений колокола
+  is: vi.fn().mockReturnThis(),
   single: vi.fn().mockResolvedValue({ data: null, error: null }),
   upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
   insert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -25,6 +27,20 @@ const mockChain = {
 vi.mock('./lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => mockChain),
+    // Пакетные запросы (`erp_bootstrap`, `erp_order_detail`, `erp_create_order`)
+    // ходят через rpc, а не through from(). Без заглушки это не «нет данных»,
+    // а TypeError: supabase.rpc is not a function — то есть слайс падал бы
+    // в тестах по причине, которой в проде нет.
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    channel: vi.fn(() => {
+      const ch = { on: vi.fn(() => ch), subscribe: vi.fn(() => ch) };
+      return ch;
+    }),
+    // АСИНХРОННЫЙ, как настоящий: `removeChannel` возвращает промис, и код
+    // уборки обрабатывает его отказ (`realtimeSlice.dropChannel`). Мок,
+    // отдающий `undefined`, ронял бы отписку там, где в проде она работает, —
+    // правило проекта «мок обязан уметь то, что умеет клиент»
+    removeChannel: vi.fn(async () => 'ok'),
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),
@@ -43,23 +59,47 @@ vi.mock('./lib/supabase', () => ({
   },
 }));
 
-// Mock window.print
-window.print = vi.fn();
+/**
+ * DOM-МОКИ — ТОЛЬКО В jsdom (обзор 26.09, п. 14).
+ *
+ * Файлы-сторожа, которые читают миграции и исходники через `node:fs`,
+ * помечены `// @vitest-environment node`: им jsdom не нужен, а его подъём
+ * стоил ~230 с суммарного времени среды на прогон. В node-среде `window`
+ * нет, и обращение к нему здесь роняло бы каждый такой файл на setup.
+ * Мок Supabase выше остаётся общим: его импортируют и сторожа.
+ */
+if (typeof window !== 'undefined') {
+  // Mock window.print
+  window.print = vi.fn();
 
-// Mock navigator.clipboard
-Object.defineProperty(navigator, 'clipboard', {
-  value: { writeText: vi.fn().mockResolvedValue(undefined) },
-  writable: true,
-});
+  // Mock navigator.clipboard
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    writable: true,
+  });
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store = {};
-  return {
-    getItem: vi.fn((key) => store[key] || null),
-    setItem: vi.fn((key, value) => { store[key] = String(value); }),
-    removeItem: vi.fn((key) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
-  };
-})();
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+  // Mock localStorage
+  const localStorageMock = (() => {
+    let store = {};
+    return {
+      getItem: vi.fn((key) => store[key] || null),
+      setItem: vi.fn((key, value) => { store[key] = String(value); }),
+      removeItem: vi.fn((key) => { delete store[key]; }),
+      clear: vi.fn(() => { store = {}; }),
+    };
+  })();
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+  /**
+   * scrollIntoView — jsdom его НЕ РЕАЛИЗУЕТ вовсе (в нём нет раскладки, а значит
+   * и прокрутки), и любой вызов падает с «is not a function». Заглушка живёт
+   * здесь, а не проверкой `typeof` в компоненте: доступность метода — свойство
+   * СРЕДЫ, а не условие предметной области, и продуктовый код не должен носить
+   * в себе знание о том, чего не умеет тестовый рендерер.
+   *
+   * Понадобилось с 06.09: сайдбар доводит активный пункт до видимой области —
+   * до этого он мог оказаться ниже прокрутки, и человек видел меню без единой
+   * подсветки (см. комментарий в `erp/layout/Sidebar.jsx`).
+   */
+  Element.prototype.scrollIntoView = vi.fn();
+}

@@ -1,0 +1,2484 @@
+/**
+ * Типы ERP — зеркало схемы erp_* в Supabase
+ * (supabase/migrations/20260716140000_erp_phase1_core_schema.sql).
+ *
+ * Модель: заказ → позиции (изделие × вариант) → этапы (позиция × цех).
+ * Статус ready вычисляется из depends_on + материалов, см. docs/erp/spreadsheet-analysis.md.
+ */
+
+// --- Справочники значений ---------------------------------------------------
+
+export type ErpOrderStatus =
+  | 'active'
+  | 'done_on_time'
+  | 'done_late'
+  | 'done_early'
+  | 'cancelled';
+
+export type ErpShippedStatus = 'not_shipped' | 'partial' | 'shipped';
+
+/** Тип производства позиции (лист «Маршруты») */
+export type ProductionType =
+  | 'no_product'     // Без изделий (только нанесение на давальческое)
+  | 'ready_garment'  // Готовое изделие (закупаем готовое)
+  | 'cut'            // Крой (продаём крой)
+  | 'sewing'         // Пошив (полный цикл)
+  | 'samples'        // Образцы
+  | 'outsource';     // Подряд
+
+export type BrandingMethod =
+  | 'embroidery'     // Вышивка
+  | 'silkscreen'     // Шелкография
+  | 'dtf'            // ДТФ
+  /**
+   * DTG — прямая печать по изделию (заведён 20.08, участок снят 07.09, п. 17).
+   *
+   * ЗНАЧЕНИЕ ОСТАЁТСЯ, участка нет. На боевой базе есть заведённое нанесение
+   * с этим методом, и убери мы его из типа — карточка заказа и ТЗ цеха
+   * перестали бы его называть, а CHECK базы пришлось бы переписывать вместе
+   * с исторической строкой. Из ВЫБОРА метод убран
+   * (`BRANDING_METHOD_CHOICES`), этапа не создаёт (`BRANDING_DEPT.dtg = null`).
+   */
+  | 'dtg'
+  | 'heat_transfer'  // Термоперенос
+  | 'other';         // Прочие (пришив нашивок и т.п.)
+
+/** Нанесение на крое (до пошива) или на готовом изделии */
+export type BrandingOn = 'cut' | 'finished';
+
+export type StageStatus =
+  | 'waiting'      // ждёт зависимости (крой/нанесение/пошив/материалы)
+  | 'ready'        // готов к работе — можно ставить в календарь
+  | 'in_progress'  // в работе
+  | 'done'         // завершён
+  | 'skipped'      // не нужен для этой позиции
+  | 'blocked';     // ручная блокировка цехом (block_reason)
+
+/**
+ * `finished_good` — ГОТОВОЕ ИЗДЕЛИЕ (правка 16.09, п. 2): закупка, которая
+ * описывает не материал, а саму позицию заказа — «Футболка чёрная — 100 шт»
+ * с размерной разбивкой ВНУТРИ одной строки, вместо закупки на каждый размер.
+ *
+ * Вид, а не флаг рядом с видом: специализация участков уже выражена этим
+ * языком (`erp_departments.gate_material_kinds`), и флаг потребовал бы
+ * описывать гейт склада константой в коде.
+ */
+export type MaterialKind =
+  | 'fabric' | 'hardware' | 'labels' | 'packaging' | 'other' | 'finished_good';
+export type MaterialSource = 'purchase' | 'stock' | 'client' | 'none';
+/**
+ * Чьё готовое изделие — три сценария `ready_garment` (правки 07.09 п. 4,
+ * 14.09 п. 1). Соседство с `MaterialSource` обманчиво: та про ИСТОЧНИК
+ * МАТЕРИАЛА строки закупки (`erp_materials.source`), эта — про принадлежность
+ * самого изделия в позиции заказа. Правила чтения — `utils/garmentSource`.
+ *
+ * `stock` («Склад готовой продукции») заведён 14.09: изделие уже наше и уже
+ * на складе. Совпадение имени со значением `MaterialSource.stock` («со склада»)
+ * случайно — величины разные, и сводить их нельзя.
+ */
+export type GarmentSource = 'customer' | 'purchased' | 'stock';
+export type MaterialStatus =
+  | 'pending' | 'ordered' | 'in_transit' | 'received' | 'partial' | 'not_needed' | 'reserved';
+/** Статус приёмки складом (правка 3): результат сверки план/факт */
+export type MaterialAcceptStatus =
+  | 'accepted_full' | 'accepted_partial' | 'shortage' | 'mismatch' | 'rejected';
+/** Тип складской операции (правка 2): история сопровождения заказа складом */
+export type WarehouseOpType =
+  | 'material_receipt' | 'rework_receipt' | 'partial_receipt' | 'packaging' | 'shipment' | 'marking';
+
+/** Тип задачи склада (волна 4 + правка 4.2.1): заказ проходит склад несколько раз */
+export type WarehouseTaskType =
+  | 'material_receipt' | 'marking' | 'fg_receipt' | 'pack_ship'
+  /**
+   * ПЕРЕДАЧА подрядчику (правка 24.08, п. 3: «каждый новый выход к подрядчику
+   * должен проходить через складскую передачу… заказ не может получить статус
+   * "У подрядчика", пока склад не зафиксировал фактическую передачу»).
+   * Зеркальная половина приёмки: раньше была только вторая.
+   */
+  | 'subcontract_send'
+  | 'subcontract_receipt';
+/** Статусы задач склада по типам */
+export type MaterialReceiptStatus = 'awaiting' | 'accepted';
+export type SubcontractSendStatus = 'awaiting' | 'sent';
+export type MarkingStatus = 'new' | 'in_progress' | 'issued';
+/**
+ * «Упаковка и отгрузка» — ТРИ статуса и два действия (правка 23.08, п. 4).
+ *
+ * Прежние `awaiting_receipt`/`accepted` были недостижимы: задача заводится
+ * под условием `erp_can_pack_ship`, а та требует принятой приёмки ГП — то есть
+ * задача рождается уже принятой, и кнопки под этими статусами повторяли
+ * отдельную задачу «Приёмка ГП». `packed` и `ready_to_ship` означали одно
+ * событие. Схлопнуто миграцией 20260823170000 вместе с обоими писателями.
+ */
+export type PackShipStatus = 'packing' | 'ready_to_ship' | 'shipped';
+/** Приёмка готовой продукции от подрядчика (правка 4.2.1) */
+export type SubcontractReceiptStatus = 'awaiting_receipt' | 'accepted';
+/**
+ * Приёмка готовой продукции С ПРОИЗВОДСТВА (волна 3.4). Считается в ШТУКАХ
+ * и пишет отчёты в тот же `erp_stage_reports`, что и цеха: «сколько изделий
+ * приняли» не должно собираться из двух мест с разными правилами.
+ */
+export type FgReceiptStatus = 'awaiting' | 'accepted';
+export type WarehouseTaskStatus =
+  | MaterialReceiptStatus | MarkingStatus | PackShipStatus
+  | SubcontractReceiptStatus | FgReceiptStatus;
+
+export type SlotStatus = 'planned' | 'confirmed' | 'done' | 'moved' | 'cancelled';
+
+// --- Строки таблиц ----------------------------------------------------------
+
+/** Куда попадает число поля: в колонку журнала или в свободный `extra` */
+export type ResultFieldTarget =
+  | 'qty_good' | 'qty_defect' | 'qty_rework' | 'qty_extra' | 'extra';
+
+/** Одно поле отчёта участка (схема живёт в `erp_departments.result_fields`) */
+export interface ResultField {
+  code: string;
+  label: string;
+  unit?: string | null;
+  required?: boolean;
+  target: ResultFieldTarget;
+}
+
+export const RESULT_FIELD_TARGET_LABELS: Record<ResultFieldTarget, string> = {
+  qty_good: 'Сделано (идёт в прогресс этапа)',
+  qty_defect: 'Брак',
+  qty_rework: 'В переделку',
+  qty_extra: 'Сверх тиража',
+  extra: 'Только в журнал',
+};
+
+/**
+ * Строка журнала результатов (`erp_stage_reports`). Append-only: цех сдаёт
+ * работу частями, и каждая сдача — своя строка. Итог живёт в счётчиках этапа.
+ */
+/**
+ * Строка размерного результата этапа (`erp_stage_report_sizes`, правки 16.09,
+ * пп. 1, 4, 6): отчёт × ЦВЕТ × размер.
+ *
+ * Цвет, а не только размер: `erp_order_items.size_grid` — это
+ * `[{color, sizes}]`, и «XS» само по себе не адресует строку сетки
+ * у позиции с двумя цветами.
+ */
+export interface ErpStageReportSize {
+  id: string;
+  report_id: string;
+  /** С какого рулона скроены эти изделия; NULL — результат без рулонов */
+  report_roll_id?: string | null;
+  color: string;
+  size: string;
+  qty_good: number;
+  qty_defect: number;
+  qty_rework: number;
+  qty_extra: number;
+  created_at: string;
+}
+
+/**
+ * Расход ткани по одному рулону в отчёте закроя (`erp_stage_report_rolls`,
+ * правка 16.09, п. 4).
+ *
+ * Отдельно от размерных строк, потому что расход у рулона ОДИН, а размеров
+ * с него несколько: повтори его в каждой строке — и первый же `sum()`
+ * увеличит расход впятеро.
+ */
+export interface ErpStageReportRoll {
+  id: string;
+  report_id: string;
+  roll_id: string | null;
+  material_id: string | null;
+  /**
+   * Расход в килограммах. До 27.09 — введённый закройщиком (`qty_source =
+   * 'entered'`); с правки 27.09 п. 4 — РАСЧЁТНЫЙ из метров по коэффициенту
+   * рулона (`'calc'`), и `null`, когда коэффициента у рулона нет.
+   */
+  qty_used: number | null;
+  qty_source: 'entered' | 'calc' | null;
+  unit: string | null;
+  roll_finished: boolean;
+  created_at: string;
+  /**
+   * СНИМКИ ОПЕРАЦИИ (правка 27.09, п. 4): метры, коэффициент и его источник,
+   * цена за метр и стоимость — «изменение справочника материала не должно
+   * менять закрытые операции». `null` у строк, записанных в килограммах
+   * до правки: их пересчёт — только на чтении и с отметкой «Расчёт».
+   */
+  length_used_m: number | null;
+  kg_per_m: number | null;
+  kg_per_m_source: 'params' | 'measured' | 'refined' | null;
+  price_per_m: number | null;
+  cost: number | null;
+}
+
+/** Что уезжает в `erp_stage_submit_report` одной размерной строкой */
+export interface StageReportSizeInput {
+  color?: string | null;
+  size: string;
+  qty_good?: number;
+  qty_defect?: number;
+  qty_rework?: number;
+  qty_extra?: number;
+}
+
+export interface ErpStageReport {
+  id: string;
+  stage_id: string | null;
+  warehouse_task_id: string | null;
+  /** Снимок входа: сколько цех видел принятым (считает `utils/stageInput`) */
+  qty_in: number | null;
+  qty_good: number;
+  qty_defect: number;
+  qty_rework: number;
+  qty_extra: number;
+  comment: string | null;
+  extra: Record<string, unknown>;
+  author: string | null;
+  author_id: string | null;
+  /**
+   * Стоимость сборки единицы В ЭТОЙ СДАЧЕ (правка 20.09, п. 9). Колонка
+   * позиции `erp_order_items.assembly_cost_per_unit` остаётся итоговой —
+   * последняя сдача её затирает, — а средневзвешенную по партиям считать
+   * не из чего, кроме этой. Единственный писатель — `erp_stage_submit_report`.
+   */
+  assembly_cost_per_unit?: number | null;
+  /**
+   * Ключ попытки сдачи (правка 27.09, п. 4): повтор с тем же ключом не пишет
+   * второй отчёт и не списывает метры с рулона дважды. Тот же приём, что
+   * у приёмки склада.
+   */
+  client_key?: string | null;
+  created_at: string;
+}
+
+export interface ErpDepartment {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  sort_order: number;
+  is_branding: boolean;
+  active: boolean;
+  /** Руководитель цеха (правка 11) — закрепляется в админке */
+  head_employee_id?: string | null;
+  /** Нормативный срок этапа в днях (правка 12) — план завершения при «Взять в работу» */
+  norm_days?: number | null;
+  /**
+   * Производственный участок: своя очередь, колонка в канбане, требует ТЗ.
+   * Правится в админке — раньше набор был захардкожен, и новый цех не появлялся нигде.
+   */
+  is_production?: boolean;
+  /**
+   * Какие числа участок вносит по завершении работы (правки 10.08, P2).
+   *
+   * Набор полей у цехов РАЗНЫЙ, поэтому он берётся из данных, а не из кода:
+   * константа «у закроя такие-то поля» не дала бы участку, заведённому
+   * директором, никакого отчёта — ровно та же ошибка, что уже случилась
+   * с материальным гейтом. Пусто = отчёт не требуется (fail-open).
+   */
+  result_fields?: ResultField[];
+  /**
+   * Детализация результата участка (правка 16.09, пп. 4 и 6):
+   * `rolls` — по рулонам и размерам (закрой), `sizes` — по размерам (швейка),
+   * NULL — числом, как было. Свойство В ДАННЫХ рядом с `result_fields`
+   * и `gate_material_kinds`: константа «рулоны → закрой» в коде запрещена.
+   */
+  result_detail?: 'rolls' | 'sizes' | null;
+  /**
+   * Роль участка в себестоимости (правка 20.09, п. 9): `fabric` — расход
+   * полотна (закрой), `assembly` — стоимость сборки (швейка), NULL — участок
+   * в расчёт не входит. Свойство В ДАННЫХ, рядом с `result_detail`:
+   * переиспользовать `result_detail = 'sizes'` нельзя — ВТО и ОТК однажды
+   * тоже станут сдавать по размерам, и их отчёты молча попали бы в «пошив».
+   */
+  cost_role?: 'fabric' | 'assembly' | null;
+  /**
+   * Виды материалов, без которых этап участка не запускается (правка 2026-08-03).
+   * Пустой массив — участок материалами не гейтится. Правится в админке;
+   * раньше это была константа MATERIAL_GATE_DEPT в utils/routes.ts.
+   */
+  gate_material_kinds?: string[];
+  /**
+   * Участку разрешено сдавать БОЛЬШЕ, чем пришло на вход (правка 12.09,
+   * вторая порция, п. 4): «„плюсы" формируется только на этапе закроя».
+   *
+   * Свойство участка в данных, а не константа `code === 'cutting'` в коде —
+   * как материальный гейт и схема отчёта рядом. Опционально: у участков
+   * из старых фикстур и урезанных выборок колонки нет вовсе, и сравнивать
+   * её нужно строго с `true` (`utils/stageOverPlan`).
+   */
+  allows_over_plan?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErpOrder {
+  id: string;
+  bitrix_id: string | null;
+  title: string;
+  /** Клиент заказа — показывается в задании цеха и фильтруется (правки 5/9) */
+  customer?: string | null;
+  manager: string | null;
+  launch_date: string | null;
+  due_date: string | null;
+  buffer_days: number;
+  priority: number;
+  status: ErpOrderStatus;
+  shipped_status: ErpShippedStatus;
+  delivered_at: string | null;
+  /** Отгрузка (кнопка «Отгрузить»): когда и кто (uuid профиля; dev-режим — null) */
+  shipped_at?: string | null;
+  shipped_by?: string | null;
+  notes: string | null;
+  packaging?: PackagingType;
+  packaging_note?: string | null;
+  /**
+   * Размер выбранной упаковки в миллиметрах (правки 07.09, п. 16).
+   *
+   * ДВЕ ЧИСЛОВЫЕ КОЛОНКИ, а не строка: свободный `packaging_size` у позиции
+   * на боевой базе содержал «25*30см», «25*33», «30*40» — три записи, три
+   * написания, и отобрать по такому полю нельзя ничего.
+   */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
+  stickers?: StickersType;
+  stickers_note?: string | null;
+  no_chestny_znak?: boolean;
+  /**
+   * Требуется ли ТЗ в PDF (волна 4). Новые заказы — true (гейт на создании и на этапе).
+   * Заказы, заведённые до внедрения ТЗ, — false, иначе гейт застопорил бы производство.
+   */
+  tz_required?: boolean;
+  /**
+   * Связь с заказом Order Studio, из которого пришло ТЗ (правка 18.08).
+   * Выборка заказа везёт обе колонки звёздочкой — в типе их не было,
+   * то есть для `tsc` они не существовали, и переименование в миграции
+   * прошло бы молча.
+   */
+  tz_order_id?: string | null;
+  tz_number?: string | null;
+  /**
+   * Требуется ли закупка (правки заказчика 20.08). `false` — менеджер ЯВНО
+   * отметил «Закупка не требуется»: этап `supply` в маршрут не заводится,
+   * и заказ не появляется у закупщика. Хранится, а не выводится из пустого
+   * списка материалов: «закупать нечего» и «до закупки ещё не дошли» —
+   * разные состояния, и второе не должно молча закрывать заказу путь.
+   */
+  purchase_required?: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErpOrderItem {
+  id: string;
+  order_id: string;
+  product_type: string;
+  variant: string | null;
+  qty: number;
+  /**
+   * Сколько единиц позиции уже передано клиенту (правка 30.08, п. 6).
+   * Сумма журнала `erp_order_shipments`, её ведёт триггер
+   * `erp_order_shipments_rollup` — клиент колонку ТОЛЬКО ЧИТАЕТ. Остаток
+   * к отгрузке считается как `qty - qty_shipped`.
+   */
+  qty_shipped?: number;
+  production_type: ProductionType;
+  branding_methods: BrandingMethod[];
+  branding_on: BrandingOn | null;
+  notes: string | null;
+  size_grid?: SizeGridRow[] | null;
+  sort_order: number;
+  /** Подряд (волна 4.2): выбирается при создании заказа с типом «Подряд» */
+  subcontract_kind?: SubcontractOpType | null;
+  material_source?: SubcontractMaterialSource | null;
+  /**
+   * Чьё готовое изделие (правки 07.09 п. 4, 14.09 п. 1): `customer` —
+   * давальческое, `purchased` — закупаем мы, `stock` — берём со склада готовой
+   * продукции. NULL у позиций, заведённых до правки, и у всех, чей тип
+   * производства не «Готовое изделие»; читается как `purchased`.
+   * Разбор — `utils/garmentSource`, сравнением строго с КАЖДЫМ значением.
+   *
+   * НЕ ПУТАТЬ с `material_source`: та отвечает на вопрос ПОДРЯДА («чей
+   * материал у подрядчика») и читается только при `production_type='outsource'`.
+   */
+  garment_source?: GarmentSource | null;
+  /**
+   * Карточка модели из каталога ERP (правка 14.09, п. 6). ССЫЛКА рядом
+   * со снимком полей позиции, а не вместо них: правка карточки задним
+   * числом не имеет права переписать действующий заказ. Опциональная —
+   * у позиций из старых фикстур и урезанных выборок её нет вовсе.
+   */
+  sku_card_id?: string | null;
+  /**
+   * Технический блок изделия (правки заказчика 16.08). Свободные поля: цех
+   * читает их в задании, они же уходят в ТЗ. Порядок заполнения позиции по
+   * документу: Изделие → Цвет → Крой → Размер → Количество.
+   */
+  fit?: string | null;
+  /**
+   * Основное полотно (правка 22.08, п. 5.1). Отдельно от `trim_material`:
+   * у изделия бывает и основная ткань, и отделочная, а одно поле на двоих
+   * означает, что цех прочитает половину.
+   */
+  main_fabric?: string | null;
+  /**
+   * Цвет материала и поставщик одной строкой (правка 12.09, п. 3).
+   *
+   * НЕ цвет изделия: тот живёт в `variant` и в строках `size_grid`, где
+   * определяет раскладку по размерам. Здесь — «из чего и у кого берём»,
+   * и закупка называет эту пару вместе.
+   *
+   * ОПЦИОНАЛЬНО-ОБНУЛЯЕМОЕ: колонка дописана задним числом, и у позиций
+   * из старых заказов, урезанных выборок и фикстур её нет вовсе.
+   */
+  color_supplier?: string | null;
+  trim_material?: string | null;
+  cutting_note?: string | null;
+  sewing_note?: string | null;
+  labels_note?: string | null;
+  /**
+   * Упаковка ПОЗИЦИИ. `inherit` (значение по умолчанию) = брать из заказа;
+   * резолюция — `utils/packaging.itemPackaging`, второго места с этим правилом
+   * быть не должно. У позиций, заведённых до правки, колонки нет вовсе —
+   * это тоже читается как «как в заказе».
+   */
+  packaging?: ItemPackagingType;
+  /**
+   * Размер пакета, место стикера и место маркировки (документ 16.08, п. 1).
+   * Колонки есть в БД с 16.08, форма создания их пишет, `ORDER_LIST_SELECT` их
+   * просит, а `TzBlock` показывает цеху — но в типе их не было, и сверка
+   * `types/schema.test.ts` этого не видела: она проверяла только «нет ли
+   * в типе лишнего». Переименуй такую колонку миграция — тайпчек промолчал бы,
+   * а поле ТЗ опустело бы у цеха.
+   */
+  packaging_size?: string | null;
+  sticker_place?: string | null;
+  marking_place?: string | null;
+  packaging_note?: string | null;
+  /**
+   * Размер упаковки ПОЗИЦИИ, мм (правки 07.09, п. 16). Пусто — берётся размер
+   * заказа: упаковка живёт на двух уровнях, и правило разрешения одно —
+   * `utils/packaging`. Свободный `packaging_size` выше остаётся на чтение:
+   * его несут три заведённые позиции.
+   */
+  packaging_width_mm?: number | null;
+  packaging_height_mm?: number | null;
+  /**
+   * ФАКТИЧЕСКАЯ СТОИМОСТЬ СБОРКИ ЗА ЕДИНИЦУ (правка 16.09, п. 6).
+   *
+   * Живёт у ПОЗИЦИИ, а не у этапа и не в отчёте: документ просит «один раз
+   * на всю позицию». У этапа их бывает несколько (возврат брака заводит
+   * второй швейный этап со своим циклом), у отчёта — сколько угодно
+   * (сдача частями), и «один раз» там не держится.
+   *
+   * Единственный писатель — `erp_stage_submit_report`: страж позиции
+   * пропускает его по метке `erp.assembly_cost` и только при изменении
+   * ровно этих трёх колонок.
+   */
+  assembly_cost_per_unit?: number | null;
+  assembly_cost_set_at?: string | null;
+  assembly_cost_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Упаковка позиции: та же шкала, что у заказа, плюс «как в заказе» */
+export type ItemPackagingType = 'inherit' | PackagingType;
+
+/** Кто выполняет этап маршрута (правки заказчика 16.08) */
+export type StageExecutor = 'internal' | 'contractor';
+
+export interface ErpItemStage {
+  id: string;
+  item_id: string;
+  department_id: string;
+  /**
+   * Исполнитель этапа. `contractor` — работу делает подрядчик: этап НЕ попадает
+   * в очередь нашего цеха и в его загрузку, а ведётся в разделе «Подряд».
+   *
+   * `department_id` при этом остаётся и означает ЧЕЙ ЭТО УЧАСТОК
+   * ОТВЕТСТВЕННОСТИ — какой наш цех делал бы эту работу и куда она вернётся.
+   * Псевдо-цех «Подряд» завести было нельзя: он потёк бы во все поверхности,
+   * читающие цеха из данных, а уникальность (item_id, department_id, cycle)
+   * разрешила бы ровно один подрядный этап на позицию.
+   *
+   * Поле НЕОБЯЗАТЕЛЬНО в типе: у этапов, приехавших урезанным запросом или
+   * из старых фикстур, его нет, и правило обязано быть fail-open к `undefined` —
+   * сравнивать надо с `'contractor'`, а не с `!== 'internal'`.
+   */
+  executor?: StageExecutor;
+  /** Подрядчик свободным текстом — справочника на первом этапе не заводим */
+  contractor?: string | null;
+  /** Имя операции, когда оно расходится с именем цеха-владельца */
+  operation?: string | null;
+  /**
+   * ЧЕМ ОТЧИТЫВАЕТСЯ ЭТАП, когда схема участка не подходит (правка 12.09,
+   * вторая порция, баг 02). `embroidery_program` — результатом служит ФАЙЛ
+   * программы вышивки, а не «Вышито, шт» и «Брак, шт»: схема отчёта живёт
+   * у УЧАСТКА, и оба этапа цеха вышивки получали одну форму.
+   *
+   * Колонка, а не вывод из `operation`: имя операции — свободный текст,
+   * человек правит его в конструкторе, и опознание по строке перестало бы
+   * работать от первого переименования — молча.
+   */
+  result_kind?: StageResultKind | null;
+  depends_on: string[];
+  status: StageStatus;
+  qty_done: number;
+  qty_rework: number;
+  /**
+   * Этап изделий не выпускает и передаёт дальше свой вход (правка 05.10, п. 1):
+   * пропущенный, непроизводственный участок, файловый результат, старый
+   * закрытый с нулём. Ведёт триггер `erp_stage_passthrough`.
+   */
+  qty_passthrough?: boolean;
+  planned_start: string | null;
+  planned_end: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  assignee: string | null;
+  block_reason: string | null;
+  notes: string | null;
+  /** Порядок этапа в маршруте позиции (задаётся при создании, не меняется) */
+  sort_order: number;
+  /**
+   * Номер прохода позиции через ЭТОТ цех (волна 3, фундамент).
+   *
+   * 0 — обычное производство: позиция бывает в цехе один раз. 1+ — повторные
+   * заходы образца из экспериментального цеха, где «сшили → примерили →
+   * переделали → сшили снова» это нормальный ход разработки, а не брак.
+   * Входит в уникальность строки (`item_id, department_id, cycle`) — именно
+   * прежний `unique (item_id, department_id)` и мешал моделировать образцы
+   * этапами, из-за чего у эксп. цеха завелась вторая машина состояний.
+   */
+  cycle?: number;
+  /**
+   * Откуда работа (волна 3.6): `production` — серия, `experimental` — образец
+   * из экспериментального цеха. Даёт бейдж «Образец» и фильтр; в маршрутную
+   * логику НЕ входит — иначе цех работал бы с образцом по особым правилам,
+   * а он проходит те же гейты и те же переходы.
+   */
+  origin?: 'production' | 'experimental';
+  /**
+   * Приоритет задания в очереди своего цеха (волна 1, правка 3). Меньше — выше.
+   * numeric: перенос drag-and-drop пишет середину между соседями, без перенумерации.
+   * null — этап ещё не получил позицию (сортируется по сроку заказа).
+   */
+  queue_position?: number | null;
+  // Обработка просрочки (правка 8): комментарий причины задержки + время подтверждения
+  overdue_comment?: string | null;
+  overdue_ack_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Строка журнала приходов материала (`erp_material_receipts`, волна 3.3).
+ * Сумма по журналу лежит в `ErpMaterial.qty_received` — её ведёт триггер.
+ */
+export interface ErpMaterialReceipt {
+  id: string;
+  material_id: string;
+  qty: number;
+  unit: string | null;
+  accept_status: MaterialAcceptStatus;
+  invoice: string | null;
+  comment: string | null;
+  received_on: string;
+  author: string | null;
+  author_id: string | null;
+  /**
+   * Ключ идемпотентности приёмки (`utils/attemptKey`): его генерирует КЛИЕНТ
+   * и шлёт в `erp_material_accept`, а частичный уникальный индекс не даёт
+   * повтору удвоить приход. Тем удивительнее, что в типе поля не было.
+   *
+   * Опциональное — как и все колонки, дописанные в тип задним числом:
+   * у объектов из старых фикстур, урезанных выборок и кэша его нет вовсе.
+   * То же правило, по которому новая колонка сравнивается строго с новым
+   * значением, а не отрицанием старого.
+   */
+  client_key?: string | null;
+  /**
+   * Что пришло по размерам В ЭТОТ приход (правка 16.09, п. 2) — формат
+   * `SizeGridRow[]`, тот же, что у позиции заказа.
+   *
+   * Живёт в ЖУРНАЛЕ, а не в строке закупки, по той же причине, по которой
+   * там живёт `qty`: поставка бывает частичной, и вторая приёмка ДОБАВЛЯЕТ
+   * к первой. Итог по размерам — сумма журнала (`utils/sizeGrid.mergeGrids`).
+   */
+  size_grid?: SizeGridRow[] | null;
+  created_at: string;
+}
+
+/**
+ * РУЛОН ПРИНЯТОЙ ПАРТИИ (`erp_material_rolls`, правка 16.09, п. 5).
+ *
+ * Заводится приёмкой склада, дальше по нему отчитывается закрой: с какого
+ * рулона кроили, сколько ткани ушло и сколько изделий каждого размера
+ * получилось. Число рулонов нигде не хранится — это `count(*)`: колонка
+ * рядом была бы вторым писателем того же числа.
+ */
+export interface ErpMaterialRoll {
+  id: string;
+  material_id: string;
+  /** Каким приходом заведён — связь «закупка → партия → рулон» */
+  receipt_id: string | null;
+  /** Сквозной номер ВНУТРИ материала: вторая поставка продолжает нумерацию */
+  seq: number;
+  /** То, что цех произносит вслух: «Рулон №3» */
+  label: string;
+  /**
+   * ПЕРВОНАЧАЛЬНЫЙ вес рулона (правка 21.09, п. 2): «каждый рулон хранит свой
+   * первоначальный вес». Обнуляем: у сорока одного рулона, принятого до правки,
+   * веса нет вовсе — им его дозаполняет склад (`setRollWeights`), а до тех пор
+   * остаток по такому рулону не считается (fail-open).
+   */
+  qty: number | null;
+  /**
+   * Остаток: первоначальный вес минус фактический расход закроя. Ведёт СЕРВЕР
+   * (`erp_stage_submit_report`) — второй писатель разошёлся бы с расходом.
+   */
+  qty_left: number | null;
+  /**
+   * Решение закройщика по остатку (правка 21.09, п. 5). `usable` — «остаток
+   * пригоден», идёт в экономику и на склад; `scrap` — «малый остаток,
+   * не учитывать». NULL — по рулону ещё не решали. Автоматического порога
+   * в килограммах НЕТ: документ прямо просит его не задавать.
+   */
+  leftover_kind: 'usable' | 'scrap' | null;
+  /**
+   * Снимок закупочной цены материала на момент приёмки. По ней считается
+   * стоимость остатка — «по закупочной цене конкретного рулона». Ссылка
+   * на текущую цену материала переписала бы историю закрытых заказов.
+   */
+  price_per_unit: number | null;
+  unit: string | null;
+  status: 'in_stock' | 'in_use' | 'used';
+  created_at: string;
+  /**
+   * УЧЁТ В МЕТРАХ (правка 27.09, п. 4). Ширина и плотность — снимок
+   * с материала на момент приёмки, уточняемый для партии или рулона.
+   * Метраж (`length_m`) — рабочий: расчётный по весу и параметрам
+   * (`length_source = 'calc'`), по данным поставщика или замер.
+   * `length_calc_m` хранится отдельно и не стирается уточнением — «изменение
+   * метража не должно стирать исходный вес закупки», и расчёт тоже.
+   * Все величины ведёт сервер (`erp_roll_recalc`, `erp_material_roll_set_params`).
+   */
+  width_cm: number | null;
+  density_gsm: number | null;
+  length_calc_m: number | null;
+  length_m: number | null;
+  length_source: 'calc' | 'supplier' | 'measured' | null;
+  /**
+   * Коэффициент кг/м КОНКРЕТНОГО рулона: по ширине и плотности (`params`),
+   * по замеру (`measured`) или после сверки остатка (`refined`). Общего
+   * курса «кг → м» не существует — плотность у каждого артикула своя.
+   */
+  kg_per_m: number | null;
+  kg_per_m_source: 'params' | 'measured' | 'refined' | null;
+  /** Остаток в метрах: доступно на начало работы − расход; ведёт `erp_stage_submit_report` */
+  length_left_m: number | null;
+  length_left_source: 'calc' | 'supplier' | 'measured' | null;
+  /** Цена за метр = цена за кг × коэффициент; только для чтения, считает сервер */
+  price_per_m: number | null;
+  /** Место хранения (стеллаж, ячейка) — свободный текст склада (правка 28.09) */
+  location?: string | null;
+}
+
+/**
+ * Корректировка метража рулона (правка 27.09, п. 4): расхождение замера
+ * с расчётом, уточнение метража, списание малого остатка, остаточная
+ * стоимость при нулевом остатке. Пишется ТОЛЬКО сервером и не прибавляется
+ * к расходу: «не добавлять его автоматически в расход или брак».
+ */
+export interface ErpMaterialRollAdjustment {
+  id: string;
+  roll_id: string;
+  kind: 'length_refine' | 'leftover_measure' | 'scrap_writeoff' | 'cost_residual';
+  before_m: number | null;
+  after_m: number | null;
+  delta_m: number | null;
+  /** Деньги корректировки: списанный остаток, остаточная стоимость */
+  cost: number | null;
+  reason: string | null;
+  report_id: string | null;
+  item_id: string | null;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
+}
+
+export interface ErpMaterial {
+  id: string;
+  /**
+   * NULL — предварительная закупка: строку завели ДО заказа и привяжут позже
+   * (`20260816220000`, `materialsSlice.attachPreliminaryToOrder`). Тип держал
+   * `string` ещё месяц после того, как колонка стала обнуляемой, — сверка шла
+   * по именам колонок и обнуляемости не видела.
+   */
+  order_id: string | null;
+  item_id: string | null;
+  kind: MaterialKind;
+  name: string;
+  source: MaterialSource;
+  supplier: string | null;
+  /**
+   * Кто ведёт эту позицию закупки. Колонка есть с 03.08 и её пишет форма
+   * (`purchasing/PurchaseFields.ResponsibleField`), а в типе её не было:
+   * вызывающий на `.jsx`, и `Partial<ErpMaterial>` расхождения не показывал.
+   * Сверка со схемой тоже молчала — она проверяла «в типе нет лишнего»,
+   * а обратную сторону смотрела только у колонок, перечисленных
+   * в `ORDER_LIST_SELECT` поимённо; материалы приезжают звёздочкой.
+   */
+  responsible?: string | null;
+  // План материала (заводит закупка; на приёмке read-only для склада, правка 4.1.3)
+  role: string | null;
+  color: string | null;
+  article: string | null;
+  qty: string | null;
+  status: MaterialStatus;
+  eta_date: string | null;
+  received_at: string | null;
+  notes: string | null;
+  /**
+   * Разбивка ЗАКУПКИ по размерам (правка 16.09, п. 2): «Футболка чёрная —
+   * 100 шт: XS 10 / S 20 / M 30 / L 25 / XL 15» одной строкой закупки.
+   *
+   * Заполнена только у `kind: 'finished_good'`. При непустой сетке
+   * `qty_expected` СЧИТАЕТСЯ по ней триггером `erp_material_grid_qty` —
+   * сумма по размерам и «общая потребность» это одно число, и второй
+   * писатель дал бы приёмку по устаревшему плану.
+   */
+  size_grid?: SizeGridRow[] | null;
+  /**
+   * ФАКТИЧЕСКИ ЗАКАЗАНО У ПОСТАВЩИКА по размерам (правка 20.09, п. 2):
+   * «Фактическое количество — сколько реально заказали у поставщика
+   * по каждому размеру».
+   *
+   * Отдельно от `size_grid` намеренно: та — потребность из заказа, и по ней
+   * триггер считает `qty_expected`. Одна колонка на две величины означала бы,
+   * что после правки закупщиком сравнивать факт стало не с чем. Та же пара,
+   * что `qty_expected` / `qty_ordered` строкой ниже.
+   */
+  size_grid_ordered?: SizeGridRow[] | null;
+  // Приёмка складом (правка 3 + 4.1.3): числовая сверка план/факт + фактические атрибуты
+  qty_expected: number | null;
+  /**
+   * Принято всего — СУММА журнала `erp_material_receipts`, её ведёт триггер
+   * (волна 3.3). Клиент эту колонку только читает: прямая запись означала бы
+   * двух писателей, и первый же следующий приход затёр бы набранное вручную.
+   */
+  qty_received: number | null;
+  /**
+   * Единица измерения — МЕТКА для человека (кг, м, шт, уп), не коэффициент:
+   * пересчёта между единицами система не делает и делать не должна —
+   * плотность ткани у каждого артикула своя.
+   */
+  unit?: string | null;
+  /**
+   * Цена за единицу — снимок на момент выбора поставщика. Цена в справочнике
+   * меняется, а история закупки меняться не должна. Итоговая сумма НЕ хранится:
+   * хранить производную значит завести расхождение.
+   */
+  price_per_unit?: number | null;
+  /**
+   * Ширина полотна (см) и плотность (г/м²) — параметры ткани для учёта
+   * в метрах (правка 27.09, п. 4). Подставляются в рулоны при приёмке,
+   * где их можно уточнить для партии. Обнуляемые: черновик закупки
+   * заводится и без них, а закрой дозаполнит до записи расхода.
+   */
+  width_cm?: number | null;
+  density_gsm?: number | null;
+  // Факт приёмки (правка 4.1.3): что фактически поступило (пересорт/расхождение с планом)
+  fact_name: string | null;
+  fact_color: string | null;
+  fact_article: string | null;
+  accept_status: MaterialAcceptStatus | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  accept_comment: string | null;
+  /**
+   * Лист закупки (правки заказчика 16.08). Документ требует разделить поля
+   * менеджера и закупщика: «один показатель не должен заменять другой».
+   *
+   * `manager_note` — комментарий МЕНЕДЖЕРА при создании заказа, отдельно от
+   * `notes` закупщика. Раньше поле было одно, и обе роли писали в одну строку.
+   *
+   * `qty_ordered` — сколько закупщик фактически ЗАКАЗАЛ. Это ни план
+   * (`qty_expected`), ни приход (`qty_received`): «нужно было 100 м →
+   * закупили 110 м» — про разницу первого и этого.
+   */
+  manager_note?: string | null;
+  qty_ordered?: number | null;
+  ordered_on?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Варианты поставщиков (правка 10) — приходят вложенным select вместе с материалом */
+  suppliers?: ErpMaterialSupplier[];
+  /** Рулоны партии — приезжают вложенной выборкой в карточке заказа */
+  rolls?: ErpMaterialRoll[];
+}
+
+/**
+ * Вариант поставщика на позицию закупки (правка 10). Вариантов может быть несколько,
+ * выбранный (`is_selected`) дублируется в erp_materials.supplier — так он виден везде,
+ * где поставщик уже показывался, без правок тех экранов.
+ */
+export interface ErpMaterialSupplier {
+  id: string;
+  material_id: string;
+  supplier: string;
+  /** Цена за единицу закупки */
+  price: number | null;
+  /** Наличие — свободный текст: «200 кг на складе», «под заказ» */
+  availability: string | null;
+  /** Срок поставки, дней */
+  lead_days: number | null;
+  /** Минимальная партия — свободный текст: «от 50 кг» */
+  min_batch: string | null;
+  note: string | null;
+  is_selected: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Подписи колонок сравнения вариантов поставщика */
+export const SUPPLIER_OPTION_LABELS = {
+  supplier: 'Поставщик',
+  price: 'Цена',
+  availability: 'Наличие',
+  lead_days: 'Срок, дн',
+  min_batch: 'Мин. партия',
+  note: 'Примечание',
+} as const;
+
+// --- Технические задания в PDF (волна 4) ------------------------------------
+
+/**
+ * Документ ТЗ. «Личность» документа — `group_id`, версии живут внутри группы:
+ * замена файла добавляет строку version+1 и снимает `is_current` с прежней.
+ * Назначения ссылаются на `group_id`, поэтому все связанные цеха автоматически
+ * читают актуальную версию.
+ *
+ * `item_id === null` — общее ТЗ заказа: годится любой позиции.
+ */
+export interface ErpTzDocument {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  group_id: string;
+  /** Этап, к которому относится документ (подряд); NULL — документ позиции или заказа */
+  stage_id?: string | null;
+  version: number;
+  is_current: boolean;
+  file_path: string;
+  file_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  note: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/** Бакет ТЗ в Supabase Storage */
+export const TZ_BUCKET = 'erp-attachments';
+/**
+ * Ограничения загрузки ТЗ: до 20 МБ, формат ЛЮБОЙ (правка 12.09, п. 4;
+ * лимит поднят с 15 правкой 14.09).
+ *
+ * `TZ_MIME` остался и означает теперь не «что принимаем», а «чем считать
+ * документ, у которого браузер не определил тип»: у файла с незнакомым
+ * расширением `file.type` бывает пустым, а колонка `mime_type` описывает,
+ * чем документ является, и пустой она быть не должна.
+ */
+export const TZ_MIME = 'application/pdf';
+/** Зеркало `file_size_limit` бакета `erp-attachments` — см. `ATTACH_MAX_BYTES` */
+export const TZ_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Складская операция (правка 2): строка истории сопровождения заказа складом */
+export interface ErpWarehouseOp {
+  id: string;
+  order_id: string;
+  material_id: string | null;
+  op_type: WarehouseOpType;
+  qty: number | null;
+  note: string | null;
+  actor: string | null;
+  created_at: string;
+}
+
+/** Задача склада (волна 4): приёмка материалов / выпуск маркировки / упаковка и отгрузка */
+export interface ErpWarehouseTask {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  task_type: WarehouseTaskType;
+  /**
+   * Этап маршрута, к которому относится задача — заполнен у приёмки подряда
+   * (правки 20.08). У заказа подрядных этапов может быть несколько, и задача
+   * «одна на заказ» означала бы, что вторую приёмку склад не увидит вовсе.
+   * NULL — задача по заказу целиком (материалы, маркировка, упаковка).
+   */
+  stage_id?: string | null;
+  /**
+   * ПОЗИЦИЯ ЗАКУПКИ, которую принимает склад (правка 12.09, баг 01). Заполнен
+   * у вида `material_receipt`: задача заводится переходом ЭТОЙ позиции
+   * в статус «В пути», а не запуском закупки по заказу целиком.
+   *
+   * Опционально и обнуляемо: у задач других видов колонка пуста, а у приёмок,
+   * закрытых до правки, её нет вовсе — строгий тип соврал бы об истории.
+   */
+  material_id?: string | null;
+  status: WarehouseTaskStatus;
+  marking_type: string | null;
+  deadline: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Задачи закупки (возврат из закроя → дозакупка/замена) -------------------
+
+export type ProcurementCauseType =
+  | 'supplier_defect'         // брак поставщика
+  | 'wrong_consumption'       // неверно рассчитанный расход
+  | 'damaged_in_production'   // материал испорчен на производстве
+  | 'shortage'                // нехватка материала
+  | 'other';                  // прочая причина
+
+/** replacement = возврат/замена (брак поставщика); restock = дозакупка (внутренняя ошибка) */
+export type ProcurementTaskKind = 'replacement' | 'restock';
+
+export type ProcurementTaskStatus =
+  | 'new' | 'in_progress' | 'ordered' | 'done' | 'cancelled';
+
+export interface ErpProcurementTask {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  source_stage_id: string | null;
+  initiating_dept: string | null;
+  material_name: string;
+  rework_qty: number | null;
+  required_qty: string | null;
+  cause_type: ProcurementCauseType;
+  kind: ProcurementTaskKind;
+  reason: string | null;
+  supplier: string | null;
+  planned_date: string | null;
+  responsible: string | null;
+  status: ProcurementTaskStatus;
+  counts_as_purchase: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Подряд (операции, переданные внешним подрядчикам) -----------------------
+
+/**
+ * @deprecated Операцию подряда двигает `SubcontractPhase`, а не этот статус.
+ *
+ * Колонка `erp_subcontracting.status` осталась в схеме (`not null`) и пишется
+ * ЗЕРКАЛОМ из фазы — `utils/subcontractPhase.legacyStatusFromPhase`. Читать её
+ * не нужно нигде: значения вроде `awaiting_payment` волна 3.5 убрала из
+ * производственного потока, а `ready_to_ship`/`shipped_by_contractor` больше
+ * не выставляются как самостоятельные шаги. Тип держится ради типизации
+ * зеркала и снимется вместе с колонкой отдельной миграцией.
+ */
+export type SubcontractStatus =
+  // отдельная операция
+  | 'planned' | 'sent' | 'in_progress' | 'returned' | 'delayed' | 'cancelled'
+  // готовое изделие от подрядчика (волна 4.2)
+  | 'awaiting_payment' | 'awaiting_materials' | 'started'
+  | 'ready_to_ship' | 'shipped_by_contractor' | 'received_at_pinhead';
+
+/** Тип операции подряда: готовое изделие целиком или отдельная тех. операция */
+export type SubcontractOpType = 'finished_product' | 'operation';
+/**
+ * Кто предоставляет материалы: Pinhead (проходит закупку), подрядчик
+ * (не проходит) или смешанно — документ прямо называет третий вариант
+ * («часть материалов наша, часть подрядчика»). `mixed` ведёт себя как
+ * `pinhead`: раз хоть что-то наше, закупка и передача материалов нужны.
+ */
+export type SubcontractMaterialSource = 'pinhead' | 'contractor' | 'mixed';
+
+export interface ErpSubcontractOp {
+  id: string;
+  order_id: string;
+  item_id: string | null;
+  operation: string;
+  op_type: SubcontractOpType;
+  material_source: SubcontractMaterialSource;
+  /** Цех возврата после «отдельной операции» (null для готового изделия) */
+  return_dept: string | null;
+  contractor: string | null;
+  qty: number | null;
+  sent_date: string | null;
+  planned_date: string | null;
+  returned_date: string | null;
+  status: SubcontractStatus;
+  /**
+   * Этап маршрута, которым этот подряд является (волна 3.5). NULL — подряд
+   * «под ключ»: у него этапа нет вовсе, `buildItemRoute` вырезает даже закупку
+   * при материалах подрядчика. Одна таблица, две роли.
+   */
+  stage_id?: string | null;
+  /** Фаза внутри этапа. Единый статус — у этапа, см. SubcontractPhase */
+  phase?: SubcontractPhase;
+  /** Оплата: в производственных переходах НЕ участвует */
+  payment_status?: SubcontractPaymentStatus;
+  paid_amount?: number | null;
+  /** Суммы журнала перемещений — их ведёт триггер, клиент только читает */
+  qty_sent?: number;
+  qty_returned?: number;
+  qty_accepted?: number;
+  /**
+   * Брак, отмеченный ЯВНО (правка 22.08, п. 3.9). Тоже сумма журнала —
+   * писателя у неё ровно один, триггер `erp_subcontract_moves_rollup`.
+   */
+  qty_defect?: number;
+  /**
+   * Сколько единиц подрядчик должен произвести (правка 22.08, п. 3.8).
+   *
+   * ОТДЕЛЬНО ОТ `qty_sent`, и это главное в правке: подрядчик, печатающий
+   * 200 штук на СВОЁМ материале, не получает от нас ничего — «передано 0,
+   * в работе 200» это нормальное состояние, а не недостача. Величина
+   * не приращается журналом: это решение менеджера при запуске работы.
+   */
+  qty_in_work?: number | null;
+  /**
+   * Поля подрядного этапа из документа 20.08. Заполняются В МАРШРУТЕ, одним
+   * движением с выбором исполнителя «Подрядчик»: разносить их по двум экранам
+   * значит гарантировать, что половина останется пустой.
+   *
+   * `send_plan_date` — план ПЕРЕДАЧИ; `planned_date` в этой таблице означает
+   * возврат, и второго смысла ей не дают. `materials_note` — «что передаём»
+   * (поле было и значит ровно это). `comment` — свободный комментарий,
+   * отдельно от `delay_comment`: тот про задержку.
+   */
+  send_plan_date?: string | null;
+  /**
+   * Что и сколько передаём подрядчику. `materials_note` описан в комментарии
+   * выше с 20.08 — а самого поля в типе не было: комментарий пережил поле.
+   */
+  materials_qty?: string | null;
+  materials_note?: string | null;
+  materials_sent_on?: string | null;
+  /** Стоимость подрядных работ по операции */
+  cost?: number | null;
+  responsible?: string | null;
+  comment?: string | null;
+  delay_comment: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Присоединяется при загрузке (заголовок/№ заказа для таблицы) */
+  order?: { title: string; bitrix_id: string | null } | null;
+  /**
+   * Журнал перемещений, присоединяется при загрузке. Именно он, а не правка
+   * количеств руками, двигает `qty_sent`/`qty_returned`/`qty_accepted`:
+   * их ведёт триггер `erp_subcontract_moves_rollup`, а приёмка вдобавок
+   * приращает `qty_done` привязанного этапа — тем же серверным правилом,
+   * что и все остальные счётчики производства.
+   */
+  moves?: ErpSubcontractMove[];
+}
+
+// --- Экспериментальный цех (правка 6) --------------------------------------
+
+/**
+ * Разработка изделия в экспериментальном цехе.
+ *
+ * Фазовая модель (`ExperimentalPhase`, `ExperimentalOutcome`, `ErpExperimentalOp`)
+ * удалена вместе с колонками 12.08: разработка не линейна, работа ведётся
+ * набором задач, а состояние ВЫЧИСЛЯЕТСЯ (`utils/experimentalTasks.devState`).
+ * Хранится только исход.
+ */
+
+/**
+ * Статус задачи разработки — ровно пять из документа (п.12) плюс отмена.
+ *
+ * `waiting` — задача передана в цех и её ведёт триггер: клиент такую строку
+ * только читает, иначе у колонки два писателя.
+ */
+export type DevTaskStatus =
+  'todo' | 'in_progress' | 'waiting' | 'blocked' | 'done' | 'cancelled';
+
+export const DEV_TASK_STATUS_LABELS: Record<DevTaskStatus, string> = {
+  todo: 'Не начато',
+  in_progress: 'В работе',
+  waiting: 'Ожидает',
+  blocked: 'Заблокировано',
+  done: 'Готово',
+  cancelled: 'Отменено',
+};
+
+/**
+ * Исход разработки (ТЗ п.9). Это ФИНАЛЬНЫЙ СТАТУС, а не очередной этап
+ * маршрута.
+ *
+ * ПРОИЗВОДСТВЕННЫЙ ЗАКАЗ на серию по-прежнему заводит менеджер (решение
+ * заказчика). А вот сам ОБРАЗЕЦ с 30.08 (п. 4) уезжает на склад
+ * автоматически: «Готово к серии» заводит складскую задачу приёмки ГП
+ * и проставляет `handed_to_warehouse_at` (триггер
+ * `erp_dev_handoff_to_warehouse`). Это не отменяет прежнее решение — заказ
+ * и образец разные вещи: раньше готовый образец просто оставался в колонке
+ * «Финальный этап», и понятного действия, отдающего его складу, не было
+ * вовсе.
+ */
+export type DevOutcome =
+  'ready_for_serial' | 'needs_rework' | 'moved_to_production' | 'cancelled' | 'other';
+
+export const DEV_OUTCOME_LABELS: Record<DevOutcome, string> = {
+  ready_for_serial: 'Готово к серии',
+  needs_rework: 'Нужна доработка',
+  moved_to_production: 'Передано в основной цех',
+  cancelled: 'Отменено',
+  other: 'Другое',
+};
+
+export interface ErpExperimentalTask {
+  id: string;
+  experimental_id: string;
+  /** Код из справочника `experimental_task_type`; ввод свободный */
+  task_type: string;
+  title: string | null;
+  responsible: string | null;
+  due_date: string | null;
+  status: DevTaskStatus;
+  blocked_reason: string | null;
+  /** Зависимости на задачи ТОЙ ЖЕ разработки */
+  depends_on: string[];
+  /** Номер круга: повторная примерка — новая строка, а не счётчик на старой */
+  cycle: number;
+  sort_order: number;
+  qty: number | null;
+  comment: string | null;
+  result: string | null;
+  /** Заполнены, только когда задача передана в цех */
+  department_id: string | null;
+  stage_id: string | null;
+  done_on: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Вид вложения. `preview` — макет заказа, `attachment` — прочий файл; три
+ * последних заведены правкой заказчика 16.08 и отвечают на вопрос «в каком
+ * блоке карточки показывать»: без них файлы упаковки, техблока и листа закупки
+ * свалились бы во вкладку «Файлы» вперемешку.
+ */
+/** Чем этап отчитывается: пусто — числами по схеме участка */
+export type StageResultKind = 'embroidery_program';
+
+export type ErpAttachmentKind =
+  | 'preview' | 'attachment' | 'packaging' | 'tech' | 'purchase'
+  /** Лист закупки, приложенный менеджером при создании заказа (правки 20.08) */
+  | 'purchase_list'
+  /**
+   * Файлы ПОДРЯДНОГО ЭТАПА (правки 20.08): их отдают подрядчику. Не `tech`
+   * у позиции — адресат другой, и подрядных этапов у позиции бывает несколько;
+   * привязка идёт через `stage_id`.
+   */
+  | 'subcontract'
+  /**
+   * РЕЗУЛЬТАТ ЭТАПА МАРШРУТА (правка 12.09, вторая порция, баг 02): файл,
+   * который цех СДАЁТ, — сегодня это программа вышивки. Не `subcontract`:
+   * тот про файлы, которые подрядчику ОТДАЮТ, и права на удаление у них
+   * разные. Привязка та же — `stage_id`.
+   */
+  | 'stage_result'
+  /**
+   * Файл ЗАДАЧИ разработки (правка 24.08, п. 4.4: «название, комментарий,
+   * ответственный, срок, статус и файл при необходимости»). Привязан к задаче
+   * (`task_id`), а не к разработке целиком: задач у неё десяток, и «фото
+   * пробного нанесения» относится к одной из них.
+   */
+  | 'dev_task'
+  /**
+   * Финальный технический пакет разработки (правки 20.08). Файлы привязаны
+   * к РАЗРАБОТКЕ (`experimental_id`), а не к позиции: лекала и техпаспорт
+   * описывают модель, а не тот заказ, из которого она вышла.
+   */
+  | 'dev_pattern' | 'dev_passport' | 'dev_photo'
+  /**
+   * Макет КОНКРЕТНОГО нанесения и файл КОНКРЕТНОЙ бирки (правка 22.08,
+   * пп. 5.2–5.3). До неё макеты лежали общей кучей вида `tech` у позиции,
+   * и при трёх-четырёх нанесениях цех сам угадывал, какой к какому относится.
+   */
+  | 'print' | 'label'
+  /** Изображение заметки к заказу (правка 22.08, п. 5.8) */
+  | 'note'
+  /**
+   * РАБОЧИЙ ФАЙЛ ПРОИЗВОДСТВА (правка 14.09, п. 3): «внутри сделки создать
+   * отдельную папку „Файлы производства" для рабочих файлов, которыми
+   * пользуется непосредственно производство».
+   *
+   * Отдельный вид, а не `attachment`, потому что папки должны РАЗЛИЧАТЬСЯ:
+   * документ просит разделить «общие файлы сделки» и «рабочие производственные
+   * файлы». Не `print`/`label`: у тех есть адресат (`print_id`/`label_id`) —
+   * конкретное нанесение или бирка, и они уже видны цеху в задании. Сюда
+   * кладут то, у чего адресата нет: цветопробы, раскладки, исходники,
+   * присланные дизайнером «на всякий случай».
+   */
+  | 'production'
+  /**
+   * ФАЙЛ СООБЩЕНИЯ ЧАТА (правка 14.09, п. 5): «использовать существующее
+   * хранилище и ограничения файлов ERP» — своей таблицы у файлов переписки
+   * нет, есть вид и привязка к сообщению (`message_id`).
+   *
+   * В сводную DELETE-политику этот вид НЕ входит, и это решение: удаления
+   * сообщений в первой версии нет вовсе, а файл, удалённый из-под сообщения,
+   * оставил бы в переписке разговор о том, чего больше нет.
+   */
+  | 'chat';
+
+export interface ErpOrderAttachment {
+  id: string;
+  order_id: string;
+  /** Позиция, к которой относится файл. NULL — файл всего заказа */
+  item_id?: string | null;
+  /**
+   * Строка листа закупки, к которой относится файл (правки 16.08, п. 14).
+   * NULL — файл заказа или позиции. Референсы закупщика («фото материала,
+   * скрин позиции поставщика») относятся к КОНКРЕТНОЙ строке: свалить их
+   * в общую кучу значит отдать десяток картинок без ответа, к чему они.
+   */
+  material_id?: string | null;
+  /**
+   * Разработка, к которой относится файл (правки 20.08): лекала, техпаспорт,
+   * фото образца. NULL — обычное вложение заказа.
+   */
+  experimental_id?: string | null;
+  /**
+   * Задача разработки, к которой приложен файл (правка 24.08, п. 4.4).
+   * Заполняется ВМЕСТЕ с `experimental_id`: по нему работают политики
+   * и уборка файлов при удалении разработки.
+   */
+  task_id?: string | null;
+  /**
+   * Этап маршрута, которому принадлежит файл (документ 20.08 — файлы
+   * подрядного этапа; правка 12.09 — результат этапа, вид `stage_result`).
+   *
+   * Колонка есть в базе с 20.08, а в типе её не было: `erp_order_attachments`
+   * приезжает ЗВЁЗДОЧКОЙ и в `schema.test.ts` поимённо не сверяется, поэтому
+   * для `tsc` поля не существовало вовсе — ровно тот случай, что описан
+   * в правиле «односторонняя сверка типов ловит половину». Опциональная,
+   * как и все дописанные задним числом.
+   */
+  stage_id?: string | null;
+  /**
+   * Нанесение или бирка, которой принадлежит файл (правка 22.08, пп. 5.2–5.3).
+   * Связь именно со строкой, а не «где-то у позиции»: по каждому нанесению
+   * должно быть однозначно видно, какой макет использовать.
+   */
+  print_id?: string | null;
+  label_id?: string | null;
+  /** Заметка к заказу, которой принадлежит изображение (правка 22.08) */
+  note_id?: string | null;
+  /**
+   * Сообщение чата, к которому приложен файл (правка 14.09, п. 5). Строку
+   * заводит `erp_chat_send` вместе с самим сообщением: файл без сообщения
+   * был бы «ничьим» и попал бы под уборку `storage-gc`.
+   */
+  message_id?: string | null;
+  file_path: string;
+  file_name: string | null;
+  kind: ErpAttachmentKind;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+/**
+ * Карточка SKU разработки — то, что читается ТОЛЬКО вместе с разработкой
+ * (колонка `final_package jsonb`). В колонки вынесено лишь то, что ищут
+ * и показывают в списке: название и версия лекал, ценовая вилка.
+ *
+ * Обязательность полей проверяет `utils/finalPackage.missingFinalPackage`,
+ * и ровно то же — серверный страж `erp_dev_package_guard`.
+ */
+export interface DevFinalPackage {
+  description?: string | null;
+  /** Крой / посадка */
+  fit?: string | null;
+  /** Размерный ряд */
+  size_row?: string | null;
+  features?: string | null;
+  finishes?: string | null;
+  limits?: string | null;
+  /**
+   * Комментарии и особенности производства — «при необходимости» (п. 4.5),
+   * то есть поле есть, а обязательным не считается.
+   */
+  production_notes?: string | null;
+  /**
+   * Идёт ли модель в каталог SKU (переключатель финального этапа, п. 4.6).
+   * От него зависит, обязательны ли поля карточки SKU ниже; читается
+   * через `wantsSkuCard`, а не по месту.
+   */
+  add_to_sku?: boolean | null;
+  /**
+   * Ссылка на лекала. С правки 24.08 НЕ спрашивается и не проверяется («поле
+   * „Файл лекал или ссылка" не нужно»), но остаётся в типе: на проде она
+   * заполнена у двух разработок, и показ на чтение обязан работать.
+   * @deprecated ввода больше нет
+   */
+  pattern_link?: string | null;
+  /** Все утверждённые ткани, а не только ткань образца */
+  fabrics?: string[] | null;
+  /** Допустимые нанесения для SKU */
+  branding?: string[] | null;
+  /** Возможные модификации: длина, карманы, молния, фурнитура… */
+  modifications?: string[] | null;
+}
+
+export interface ErpExperimental {
+  id: string;
+  /**
+   * Сделка разработки. `null` — разработка «на полку» (правка 14.09): её ведут
+   * без заказа и привязывают позже (`attachOrderToDev` → RPC
+   * `erp_experimental_attach_order`). Обнуляемость повторяет колонку: в типе
+   * `string` она бы означала, что поле всегда заполнено, и `tsc` подтверждал
+   * бы это на данных, где приезжает NULL.
+   */
+  order_id: string | null;
+  /**
+   * Позиция заказа. Заменяет эвристику `items[0]`: передача задачи в цех
+   * создаёт этап именно этой позиции, а не первой попавшейся.
+   */
+  item_id?: string | null;
+  tech_name: string | null;
+  measurement_table: string | null;
+  has_3d: boolean;
+  constructor: string | null;
+  /** Проработчик. Код колонки не переименовывается — меняется только подпись */
+  technologist: string | null;
+  /**
+   * Образец утверждён (правки 20.08). ЕДИНСТВЕННОЕ хранимое решение по этапам:
+   * всё остальное — какой шаг идёт сейчас — вычисляется из задач
+   * (`utils/experimentalBoard`). Из статусов это не вывести: закрытая примерка
+   * одинаково означает и «принято», и «не принято», и разница жила
+   * в свободном тексте `result`, то есть не читалась ничем.
+   */
+  sample_approved_at?: string | null;
+  sample_approved_by?: string | null;
+  sample_approved_note?: string | null;
+  /**
+   * Колонка канбана, поставленная технологом ВРУЧНУЮ (правка 24.08, п. 4.2:
+   * «технолог сам вручную перетаскивает карточку… автоматическое движение
+   * по основным этапам не нужно»). `null` — не двигали, и колонка считается
+   * из задач по-прежнему. Значения — зеркало `DevStage` и CHECK
+   * `erp_experimental_board_stage_check`; разрешает вопрос читателям
+   * `utils/experimentalBoard.devBoardColumn`, а не каждый по месту.
+   */
+  board_stage?: string | null;
+  /**
+   * КОММЕНТАРИЙ ПО ПРОРАБОТКЕ (правка 13.09, п. 10) — необязательный результат
+   * этапа проработки. Технолог оставляет его при переносе карточки
+   * в «Нанесения», а читает цех нанесения в своём задании: «чтобы цех видел
+   * важные уточнения по образцу/нанесению».
+   *
+   * Опциональная, как и все дописанные задним числом: у объектов из старых
+   * фикстур, урезанных выборок и кэша колонки нет вовсе. Количественной
+   * логики и блокировок на ней нет и быть не должно — документ запрещает
+   * прямо.
+   */
+  branding_note?: string | null;
+  /**
+   * Образец передан на склад (правка 30.08, п. 4). МОМЕНТ, а не второй статус:
+   * исход разработки («Готово к серии») отвечает на «чем кончилось», а это —
+   * факт передачи, случившийся после него. Ставит триггер
+   * `erp_dev_handoff_to_warehouse` вместе со складской задачей приёмки ГП;
+   * клиент колонку только ЧИТАЕТ. Подпись «Передано на склад» выводится
+   * отсюда и не хранится.
+   */
+  handed_to_warehouse_at?: string | null;
+  /**
+   * Финальный технический пакет (правки 20.08). В колонки вынесено то, что
+   * ищут и показывают в списке; карточка SKU, ткани, нанесения и модификации
+   * читаются только вместе с разработкой и живут в `final_package`.
+   * Обязательность проверяют `utils/finalPackage` и страж `erp_dev_package_guard` —
+   * вместе и одинаково.
+   */
+  pattern_tech_name?: string | null;
+  pattern_version?: string | null;
+  price_min?: number | null;
+  price_max?: number | null;
+  final_package?: DevFinalPackage | null;
+  /**
+   * Артикул каталога, в который перенесён финальный пакет (решение 21.08).
+   * Пишет ТОЛЬКО `erp_sku_from_dev`; повторный перенос запрещён — иначе
+   * у модели появилось бы два артикула, то есть два источника правды о ней.
+   */
+  sku_code?: string | null;
+  /** Исход разработки; null — ещё идёт */
+  outcome?: DevOutcome | null;
+  outcome_comment?: string | null;
+  closed_at?: string | null;
+  owner?: string | null;
+  dev_type?: string | null;
+  priority?: number;
+  due_date?: string | null;
+  comment?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Присоединяются при загрузке */
+  tasks?: ErpExperimentalTask[];
+  attachments?: ErpOrderAttachment[];
+  order?: { title: string; bitrix_id: string | null; due_date?: string | null } | null;
+}
+
+/**
+ * Задача производственного плана: этап × день (таблица `erp_calendar_slots`).
+ * Руководитель производства раскладывает этапы по цехам и дням вручную, цех
+ * ежедневно вносит факт. Система план не составляет — только показывает отклонения.
+ */
+export interface ErpCalendarSlot {
+  id: string;
+  department_id: string;
+  stage_id: string | null;
+  work_date: string;
+  qty_planned: number;
+  qty_done: number | null;
+  assignee: string | null;
+  status: SlotStatus;
+  /** Комментарий руководителя производства при постановке задачи */
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Брак, зафиксированный цехом в этот день */
+  qty_defect: number;
+  /** Комментарий ответственного за цех при внесении факта */
+  fact_comment: string | null;
+  /** Почему сделали меньше плана — обязателен при недовыполнении */
+  deviation_reason: string | null;
+  fact_by: string | null;
+  fact_at: string | null;
+  created_by: string | null;
+  /** Очерёдность внутри дня (numeric-середина, как queue_position) */
+  sort_order: number;
+  priority: number;
+  /** Проблема по задаче дня. Блокировка самого этапа — в erp_item_stages.status */
+  problem_type: string | null;
+  problem_note: string | null;
+  problem_affects_due: boolean;
+  problem_needs_help: boolean;
+  problem_can_continue: boolean;
+}
+
+/** Сообщение в переписке по задаче плана */
+export interface ErpPlanComment {
+  id: string;
+  slot_id: string;
+  author: string;
+  /** Кто пишет: постановщик или цех — на карточке это разные значки */
+  side: 'manager' | 'shop';
+  text: string;
+  created_at: string;
+}
+
+// --- Подписи для UI (язык интерфейса — русский) ------------------------------
+
+export const PRODUCTION_TYPE_LABELS: Record<ProductionType, string> = {
+  no_product: 'Без изделий',
+  ready_garment: 'Готовое изделие',
+  cut: 'Крой',
+  sewing: 'Пошив',
+  samples: 'Образцы',
+  outsource: 'Подряд',
+};
+
+/**
+ * Порядок плиток «Тип производства» в форме создания заказа
+ * (правки заказчика 07.09, п. 3: «Перенести „Образцы“, „Подряд“ и „Пошив“
+ * в начало блока. Остальные варианты оставить после них»).
+ *
+ * ЯВНЫЙ МАССИВ, а не порядок ключей `PRODUCTION_TYPE_LABELS`: тот словарь —
+ * подписи, его читают полтора десятка поверхностей, и перестановка ключей
+ * ради вида одной формы связала бы две разные величины.
+ *
+ * «Подряда» в списке НЕТ — решение заказчика 20.08 («убрать „Подряд“ как
+ * отдельный тип производства») остаётся в силе: подряд задаётся исполнителем
+ * шага в маршруте, и вторая точка ввода того же решения однажды разошлась бы
+ * с первой. Значение `outsource` живёт в схеме и подписях ради заведённых
+ * заказов.
+ */
+export const PRODUCTION_TYPE_ORDER: ProductionType[] = [
+  'samples',
+  'sewing',
+  'ready_garment',
+  'cut',
+  'no_product',
+];
+
+export const BRANDING_METHOD_LABELS: Record<BrandingMethod, string> = {
+  embroidery: 'Вышивка',
+  silkscreen: 'Шелкография',
+  dtf: 'ДТФ',
+  dtg: 'DTG',        // участок снят 07.09; подпись нужна старым нанесениям
+  heat_transfer: 'Термоперенос',
+  other: 'Прочие',
+};
+
+/**
+ * Методы, ПРЕДЛАГАЕМЫЕ в форме заказа (правки 07.09, п. 17).
+ *
+ * Отличается от `BRANDING_METHOD_LABELS` ровно на `dtg`: участок убран,
+ * этап по нему больше не создаётся (`BRANDING_DEPT.dtg = null`), но само
+ * значение остаётся ЧИТАЕМЫМ — на боевой базе есть заведённое нанесение,
+ * и выбросив метод из типа, карточка заказа перестала бы его называть.
+ *
+ * Отдельный список, а не фильтр по месту: выбор техники рисуется в форме
+ * создания, и «отфильтровать там» означало бы, что следующая поверхность
+ * с тем же выбором про запрет не узнает.
+ */
+export const BRANDING_METHOD_CHOICES: BrandingMethod[] = [
+  'embroidery', 'silkscreen', 'dtf', 'heat_transfer', 'other',
+];
+
+export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
+  waiting: 'Ожидает',
+  ready: 'Готов к работе',
+  in_progress: 'В работе',
+  done: 'Готово',
+  skipped: 'Пропущен',
+  blocked: 'Заблокирован',
+};
+
+/** Виды материалов — для настройки материального гейта участка в админке */
+export const MATERIAL_KIND_LABELS: Record<MaterialKind, string> = {
+  fabric: 'ткань',
+  hardware: 'фурнитура',
+  labels: 'бирки',
+  packaging: 'упаковка',
+  other: 'прочее',
+  finished_good: 'готовое изделие',
+};
+
+export const MATERIAL_STATUS_LABELS: Record<MaterialStatus, string> = {
+  pending: 'Не заказано',
+  ordered: 'Заказано',
+  in_transit: 'В пути',
+  received: 'Пришло',
+  partial: 'Частично',
+  not_needed: 'Не требуется',
+  reserved: 'Доступен со склада',
+};
+
+export const MATERIAL_ACCEPT_LABELS: Record<MaterialAcceptStatus, string> = {
+  accepted_full: 'Принято полностью',
+  accepted_partial: 'Принято частично',
+  shortage: 'Недостача',
+  mismatch: 'Пересорт',
+  rejected: 'Не принято',
+};
+
+export const WAREHOUSE_OP_LABELS: Record<WarehouseOpType, string> = {
+  material_receipt: 'Приёмка материалов',
+  rework_receipt: 'Приёмка после дозакупки',
+  partial_receipt: 'Частичная приёмка',
+  packaging: 'Упаковка',
+  shipment: 'Отгрузка',
+  marking: 'Выпуск маркировки',
+};
+
+export const WAREHOUSE_TASK_TYPE_LABELS: Record<WarehouseTaskType, string> = {
+  material_receipt: 'Приёмка материалов',
+  marking: 'Выпуск маркировки',
+  fg_receipt: 'Приёмка готовой продукции',
+  pack_ship: 'Упаковка и отгрузка',
+  subcontract_send: 'Передача подрядчику',
+  subcontract_receipt: 'Приёмка продукции от подрядчика',
+};
+
+/** Статусы приёмки готовой продукции с производства (волна 3.4) */
+export const FG_RECEIPT_STATUS_LABELS: Record<FgReceiptStatus, string> = {
+  awaiting: 'Ожидает приёмки',
+  accepted: 'Принято на склад',
+};
+
+/**
+ * Передача подрядчику: ждём отгрузки со склада — передано (п. 3).
+ * Двух статусов достаточно: «сколько именно отдали» хранит журнал перемещений,
+ * а не статус задачи.
+ */
+export const SUBCONTRACT_SEND_STATUS_LABELS: Record<SubcontractSendStatus, string> = {
+  awaiting: 'Ожидает передачи',
+  sent: 'Передано подрядчику',
+};
+
+export const SUBCONTRACT_RECEIPT_STATUS_LABELS: Record<SubcontractReceiptStatus, string> = {
+  awaiting_receipt: 'Ожидает приёмки',
+  accepted: 'Продукция принята',
+};
+
+export const MARKING_STATUS_LABELS: Record<MarkingStatus, string> = {
+  new: 'Новая',
+  in_progress: 'В работе',
+  issued: 'Маркировка выпущена',
+};
+
+export const PACK_SHIP_STATUS_LABELS: Record<PackShipStatus, string> = {
+  packing: 'На упаковке',
+  ready_to_ship: 'Готово к отгрузке',
+  shipped: 'Отгружено',
+};
+
+export const PROCUREMENT_CAUSE_LABELS: Record<ProcurementCauseType, string> = {
+  supplier_defect: 'Брак поставщика',
+  wrong_consumption: 'Неверно рассчитанный расход',
+  damaged_in_production: 'Материал испорчен на производстве',
+  shortage: 'Нехватка материала',
+  other: 'Прочая причина',
+};
+
+export const PROCUREMENT_STATUS_LABELS: Record<ProcurementTaskStatus, string> = {
+  new: 'Новая',
+  in_progress: 'В работе',
+  ordered: 'Заказано',
+  done: 'Выполнено',
+  cancelled: 'Отменена',
+};
+
+export const PROCUREMENT_KIND_LABELS: Record<ProcurementTaskKind, string> = {
+  replacement: 'Возврат/замена',
+  restock: 'Дозакупка',
+};
+
+/** @deprecated Подписи устаревшего статуса — интерфейс показывает фазы (SUBCONTRACT_PHASE_LABELS) */
+export const SUBCONTRACT_STATUS_LABELS: Record<SubcontractStatus, string> = {
+  planned: 'Запланировано',
+  sent: 'Передано',
+  in_progress: 'В работе',
+  returned: 'Возвращено',
+  delayed: 'Задержка',
+  cancelled: 'Отменено',
+  // готовое изделие от подрядчика (волна 4.2)
+  awaiting_payment: 'Ожидает оплаты',
+  awaiting_materials: 'Ожидает материалов',
+  started: 'Начал работу',
+  ready_to_ship: 'Готово к отгрузке',
+  shipped_by_contractor: 'Отгружено подрядчиком',
+  received_at_pinhead: 'Поступило на производство',
+};
+
+/**
+ * Фаза подряда (волна 3.5) — детализация ВНУТРИ `in_progress` этапа, а не
+ * второй статус. Единый статус — `erp_item_stages.status`: его читают канбан,
+ * очередь, план и гейты, и вторая машина состояний рядом с ними была ровно
+ * тем, из-за чего подряд жил отдельной жизнью.
+ */
+export type SubcontractPhase =
+  | 'planned' | 'materials_ready' | 'sent' | 'at_contractor' | 'ready_at_contractor'
+  | 'returned' | 'rework' | 'accepted' | 'closed';
+
+/**
+ * Подписи приведены к семи состояниям документа 20.08. Хранимых фаз больше
+ * (девять), и это не расхождение: `sent` осталась от прежней модели и вручную
+ * не выставляется, а `accepted`/`closed` различают «склад принял» и «операция
+ * закрыта» — документ обе называет «Завершено», но складской гейт упаковки
+ * читает именно их, и схлопывать значения нельзя.
+ */
+export const SUBCONTRACT_PHASE_LABELS: Record<SubcontractPhase, string> = {
+  planned: 'Запланировано',
+  materials_ready: 'Готово к передаче',
+  sent: 'Передано подрядчику',
+  at_contractor: 'У подрядчика',
+  /**
+   * Восьмое состояние документа. Отличается от «У подрядчика» тем, КОМУ адресован
+   * вопрос: там работа идёт и ждать нужно подрядчика, здесь она сделана и ждут
+   * НАС — забрать. Без этой фазы забытая у подрядчика готовая партия неотличима
+   * от той, что ещё шьётся.
+   */
+  ready_at_contractor: 'Готово у подрядчика',
+  returned: 'Ожидает приёмки',
+  /**
+   * Седьмое состояние документа: «3 шт. можно отправить подрядчику
+   * на переделку, основные 97 при этом не блокируются». Это не «у подрядчика»:
+   * там идёт основная работа, здесь — исправление брака, и путать их значит
+   * не понимать, чего ждать и сколько.
+   */
+  rework: 'На переделке',
+  accepted: 'Принято складом',
+  closed: 'Завершено',
+};
+
+/**
+ * Оплата подряда. Финансовый признак НЕ участвует ни в одном производственном
+ * переходе: неоплаченный подряд не должен останавливать цех — прямое требование
+ * документа («оплата не должна быть первым производственным этапом»).
+ */
+export type SubcontractPaymentStatus = 'unpaid' | 'prepaid' | 'paid';
+
+export const SUBCONTRACT_PAYMENT_LABELS: Record<SubcontractPaymentStatus, string> = {
+  unpaid: 'Не оплачено',
+  prepaid: 'Аванс',
+  paid: 'Оплачено',
+};
+
+/**
+ * Перемещение по подряду: передали / вернулось / приняли / брак.
+ *
+ * `defect` заведён правкой 22.08 (п. 3.9). До неё брак ВЫВОДИЛСЯ как
+ * «вернулось − принято», и сразу после возврата экран показывал «брак: 200»
+ * при том, что изделия просто ещё не проходили приёмку. Брак обязан
+ * появляться только после того, как человек ЯВНО отметил количество, —
+ * значит у него должна быть своя запись журнала, как у всех остальных
+ * количеств подряда.
+ */
+export type SubcontractMoveKind = 'send' | 'return' | 'accept' | 'defect';
+
+export const SUBCONTRACT_MOVE_LABELS: Record<SubcontractMoveKind, string> = {
+  send: 'Передано подрядчику',
+  return: 'Вернулось от подрядчика',
+  accept: 'Принято складом',
+  defect: 'Отмечено браком',
+};
+
+export interface ErpSubcontractMove {
+  id: string;
+  subcontract_id: string;
+  kind: SubcontractMoveKind;
+  qty: number;
+  moved_on: string;
+  comment: string | null;
+  author: string | null;
+  author_id: string | null;
+  created_at: string;
+}
+
+export const SUBCONTRACT_OP_TYPE_LABELS: Record<SubcontractOpType, string> = {
+  finished_product: 'Готовое изделие',
+  operation: 'Отдельная операция',
+};
+
+export const SUBCONTRACT_MATERIAL_SOURCE_LABELS: Record<SubcontractMaterialSource, string> = {
+  pinhead: 'Материалы Pinhead',
+  contractor: 'Материалы подрядчика',
+  mixed: 'Материалы смешанно',
+};
+
+
+
+
+
+export const ORDER_STATUS_LABELS: Record<ErpOrderStatus, string> = {
+  active: 'В работе',
+  done_on_time: 'Сдан вовремя',
+  done_late: 'Сдан с опозданием',
+  done_early: 'Сдан заранее',
+  cancelled: 'Отменён',
+};
+
+export const SHIPPED_STATUS_LABELS: Record<ErpShippedStatus, string> = {
+  not_shipped: 'Не отгружено',
+  partial: 'Отгружено частично',
+  shipped: 'Отгружено',
+};
+
+// --- Сотрудники и аудит (блок улучшений) -------------------------------------
+
+/**
+ * Цеховая роль сотрудника.
+ *
+ * Коды НЕ переименовываются под новые названия из документа заказчика (10.08):
+ * код роли зашит в CHECK-констрейнт, в матрицу `erp_role_permissions`, в серверное
+ * зеркало `erp_role_of_caller()` и в сторожевые тесты. Меняются подписи
+ * (`EMPLOYEE_ROLE_LABELS`) — их и видит человек.
+ */
+export type EmployeeRole =
+  | 'worker' | 'foreman' | 'dispatcher' | 'purchaser'
+  | 'storekeeper' | 'hr' | 'manager' | 'director'
+  /** Ведёт недельный и ежедневный план производства (правка менеджера 2026-08-03) */
+  | 'production_head'
+  /** Отвечает за экспериментальный цех и разработку образцов (правки 10.08) */
+  | 'technologist'
+  /**
+   * Роли участков нанесения (правки 10.08). Роль `dtg` снята 07.09 вместе
+   * с участком — сотрудников с ней не было ни одного. По правам они
+   * не различаются между собой — различает их привязка
+   * `erp_employees.department_id`. Заведены отдельно, потому что заказчик
+   * перечислил их как самостоятельные роли команды.
+   */
+  | 'dtf' | 'silkscreen' | 'embroidery'
+  /**
+   * Дизайнер (правка 14.09, п. 3). Готовит файлы для DTF, шелкографии
+   * и прочих нанесений и сам ведёт папку «Файлы производства».
+   *
+   * Роль заведена именно в ERP, а не взята из профиля Order Studio: там
+   * `designer` резолвится в `worker` (`PROFILE_ROLE_FALLBACK`), и выдать право
+   * на файлы значило бы выдать его ВСЕМ рабочим цеха. В `DEPT_BOUND_ROLES`
+   * дизайнер не входит: он не принадлежит участку, и привязка заперла бы ему
+   * работу целиком (та же ошибка, что ловили у ролей нанесения 22.08).
+   */
+  | 'designer'
+  /**
+   * Заведён, должность не назначена — ЕДИНСТВЕННАЯ роль без единого права
+   * (кроме `hr`, но та означает должность, а не состояние).
+   *
+   * С неё начинается каждая самостоятельная регистрация: её ставит триггер
+   * `handle_new_user`. Без строки сотрудника `erp_role_of_caller()` выводит
+   * роль из профиля и делает новичка менеджером — и «Подтвердить» в админке
+   * выдавало заодно правку любого заказа, ТЗ и перенос этапов между цехами,
+   * причём по всей фабрике: `manager` — роль сквозная, и ограничение по цеху
+   * на человека без цеха для неё не действует (`canActInDept` fail-open).
+   * Ролям участка пустая привязка с 22.08 закрывает действия целиком.
+   */
+  | 'pending';
+
+export interface ErpEmployee {
+  id: string;
+  full_name: string;
+  role: EmployeeRole;
+  department_id: string | null;
+  extra_department_ids: string[];
+  profile_id: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Приглашение по ссылке (`erp_invites`) — основной путь появления сотрудника.
+ *
+ * Код несёт РОЛЬ и ЦЕХ: человек, перешедший по ссылке, заводится сразу
+ * одобренным и с правами, а админ делает ровно одно действие. Проверяет
+ * и гасит код серверный триггер регистрации — клиент код только показывает.
+ */
+export interface ErpInvite {
+  /** Секрет ссылки. uuid перебору недоступен, отдельного пароля у ссылки нет */
+  code: string;
+  /** Роль профиля Order Studio */
+  profile_role: string;
+  /** Цеховая роль ERP — вход в матрицу прав */
+  employee_role: EmployeeRole;
+  department_id: string | null;
+  /** Привязка к адресу; null — ссылкой воспользуется любой, кому её дали */
+  email: string | null;
+  note: string | null;
+  expires_at: string;
+  used_at: string | null;
+  used_by: string | null;
+  /** Отзыв, а не удаление: журнал «кто, кого и куда звал» остаётся */
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ErpStageEvent {
+  id: string;
+  stage_id: string;
+  order_id: string;
+  actor: string | null;
+  from_status: string | null;
+  to_status: string;
+  qty_done: number | null;
+  qty_rework: number | null;
+  comment: string | null;
+  created_at: string;
+}
+
+/**
+ * Подписи ролей — по фактической структуре команды (документ заказчика 10.08).
+ * Мастер цеха отвечает сразу за закрой и швейку, менеджер сопровождения ведёт
+ * заказ и связывает производство с заказчиком.
+ */
+export const EMPLOYEE_ROLE_LABELS: Record<EmployeeRole, string> = {
+  worker: 'Сотрудник цеха',
+  foreman: 'Мастер цеха',
+  dispatcher: 'Диспетчер',
+  purchaser: 'Закупщик',
+  storekeeper: 'Кладовщик',
+  hr: 'HR',
+  manager: 'МС — менеджер сопровождения',
+  director: 'Директор',
+  production_head: 'Руководитель производства',
+  /**
+   * Решение заказчика 12.08: разработку ведут технолог И конструктор, и это
+   * ОДНА цеховая роль — та, у которой есть `experimental.manage`. Подпись
+   * названа обеими профессиями, чтобы в админке было видно, кого назначать:
+   * без роли человек, вписанный в поле «Конструктор» карточки разработки,
+   * видел бы её только на чтение.
+   *
+   * Код роли (`technologist`) НЕ переименовывается — он зашит в CHECK
+   * `erp_employees.role`, в матрицу `erp_role_permissions`, в
+   * `erp_role_of_caller()` и в сторожевые тесты. Заказчику нужны НАЗВАНИЯ,
+   * и они живут здесь (правило проекта).
+   *
+   * Поле `erp_experimental.technologist` — не про эту роль: там «Проработчик»,
+   * ответственный за конкретную разработку. Совпадение имён случайно.
+   */
+  technologist: 'Конструктор / технолог',
+  dtf: 'ДТФ',
+  silkscreen: 'Шелкография',
+  embroidery: 'Вышивка',
+  designer: 'Дизайнер',
+  /** Подпись называет СОСТОЯНИЕ, а не должность: это и есть смысл роли */
+  pending: 'Без доступа — должность не назначена',
+};
+
+// --- Матрица прав (ядро правки 11) ------------------------------------------
+
+/**
+ * Перечисление прав переехало в `./permissionKeys` — его импортирует ОБОЛОЧКА,
+ * и тянуть ради него весь этот файл со словарями подписей незачем
+ * (см. комментарий там). Здесь остаётся реэкспорт: экранный код по-прежнему
+ * берёт `ErpPermission` и `ERP_PERMISSIONS` из `types`.
+ */
+import type { ErpPermission } from './permissionKeys';
+
+export type { ErpPermission } from './permissionKeys';
+export { ERP_PERMISSIONS } from './permissionKeys';
+
+export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
+  'analytics.view': 'Смотреть аналитику производства',
+  'stage.take': 'Брать задания в работу',
+  'stage.progress': 'Записывать результат',
+  'stage.complete': 'Завершать этап',
+  'stage.block': 'Сообщать о проблеме',
+  'stage.defect': 'Оформлять брак',
+  'stage.priority': 'Менять приоритеты',
+  'stage.move_department': 'Переносить между цехами',
+  'order.manage': 'Создавать и править заказы',
+  'tz.manage': 'Вести ТЗ (загрузка и замена)',
+  'material.receive': 'Отмечать поступление материалов',
+  'warehouse.manage': 'Вести склад (приёмка, маркировка, упаковка)',
+  'plan.manage': 'Вести производственный план',
+  'plan.fact': 'Вносить факт по плану',
+  'catalog.edit': 'Править справочники',
+  'experimental.manage': 'Вести экспериментальный цех',
+  'bypass.manage': 'Аварийно снимать блокировки',
+  'staff.invite': 'Приглашать сотрудников ссылкой',
+  'files.manage': 'Вести файлы заказа и папку производства',
+  'sku.view': 'Смотреть каталог моделей',
+  'sku.edit': 'Править карточку модели',
+  'sku.publish': 'Выпускать модель в прайс',
+  'sku.archive': 'Архивировать модель',
+  'stage.force_complete': 'Завершать этап принудительно',
+  'economics.view': 'Смотреть экономику позиции',
+};
+
+// --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------
+
+/**
+ * Что именно снято. Зависимости этапов сюда не входят: «этап ждёт предыдущий» —
+ * это маршрут, а не проверка; для застрявшего маршрута есть пропуск этапа.
+ */
+export type BypassKind = 'material_gate' | 'tz_gate' | 'ship_gate';
+
+export const BYPASS_KINDS: BypassKind[] = ['material_gate', 'tz_gate', 'ship_gate'];
+
+export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
+  material_gate: 'Запуск без материалов',
+  tz_gate: 'Запуск без ТЗ',
+  ship_gate: 'Отгрузка без готовности',
+};
+
+/** Что человек увидит рядом с галочкой — последствие, а не название механики */
+export const BYPASS_KIND_HINTS: Record<BypassKind, string> = {
+  material_gate: 'Цех сможет взять задание, пока склад не принял материал',
+  tz_gate: 'Этап запустится, даже если у позиции нет ТЗ',
+  ship_gate: 'Заказ можно будет отгрузить с незакрытыми этапами',
+};
+
+export interface ErpBypass {
+  id: string;
+  kind: BypassKind;
+  /** null — снято для всей системы; иначе только для этого заказа */
+  order_id: string | null;
+  reason: string;
+  created_by: string | null;
+  created_by_id: string | null;
+  created_at: string;
+  restored_by: string | null;
+  restored_by_id: string | null;
+  /** null — снятие действует */
+  restored_at: string | null;
+}
+
+/**
+ * Вид персонального уведомления. Перечисление закрытое и дословно повторяет
+ * CHECK таблицы: вид, заведённый в одном месте из двух, даёт 23514 на вставке —
+ * в проекте на этом уже ловились с видами вложений.
+ *
+ * `chat_message` добавлен правкой 20.09 (п. 4) вместе с режимами подписки:
+ * до неё уведомление получали только упомянутые и автор цитируемого, то есть
+ * режим «Упоминания и ответы» был зашит в код и выбрать «Все сообщения»
+ * человек не мог.
+ */
+export type ErpNotificationKind = 'chat_mention' | 'chat_reply' | 'chat_message';
+
+/**
+ * ПЕРСОНАЛЬНОЕ уведомление — факт «систему позвала конкретного человека»,
+ * в отличие от вычисляемых поводов вмешаться (`utils/notifications`),
+ * одинаковых для всех и пересчитываемых из заказов.
+ *
+ * Текст ЗАМОРОЖЕН в момент события: заказ можно переименовать, а уведомление
+ * обязано остаться правдой о том, что произошло тогда.
+ */
+export interface ErpNotification {
+  id: string;
+  /** Адресат — учётная запись (`profiles.id`), а не карточка сотрудника */
+  user_id: string;
+  kind: ErpNotificationKind;
+  /** Заказ, о котором речь; null — уведомление вне заказа */
+  order_id: string | null;
+  title: string;
+  body: string | null;
+  /** Путь внутри раздела, куда ведёт нажатие */
+  link: string | null;
+  /**
+   * Сообщение, о котором уведомление (правка 14.09, п. 5). Уникальность
+   * `(user_id, message_id)` и делает требование «упоминание и ответ одному
+   * человеку — одно уведомление» ограничением базы, а не свойством кода.
+   * null — уведомление не о сообщении (других источников пока нет).
+   */
+  message_id?: string | null;
+  created_at: string;
+  /** null — не прочитано; счётчик колокола спрашивает именно это */
+  read_at: string | null;
+}
+
+/**
+ * ЧАТ ВНУТРИ СДЕЛКИ (правка 14.09, п. 5).
+ *
+ * Сообщения приезжают ТОЛЬКО из `erp_chat_page`: прямого чтения таблицы
+ * у клиента нет. Поэтому здесь описан не снимок строки, а ответ функции —
+ * со свёрнутой цитатой и вложениями, которые она собирает без N+1.
+ */
+export interface ErpChatAttachment {
+  id: string;
+  file_path: string;
+  file_name: string | null;
+}
+
+/** Короткая цитата исходного сообщения — приезжает вместе с ответом */
+export interface ErpChatQuote {
+  id: string;
+  author_id: string;
+  /** Обрезан сервером до 140 символов: это подпись, а не второе сообщение */
+  body: string;
+  /**
+   * Исходное сообщение удалено автором (вторая очередь чата). Признак приходит
+   * С СЕРВЕРА: тело удалённого затёрто, и без него цитата была бы пустой
+   * полоской вместо честного «Сообщение удалено».
+   */
+  deleted?: boolean;
+}
+
+/** Одна реакция в сводке сообщения */
+export interface ErpChatReaction {
+  emoji: string;
+  count: number;
+  /** Стоит ли МОЯ — по ней рисуется выделение и решается, снимать или ставить */
+  mine: boolean;
+}
+
+export interface ErpChatMessage {
+  id: string;
+  thread_id: string;
+  /**
+   * ПОСТОЯННЫЙ идентификатор автора, а не имя текстом. Имя резолвится через
+   * `chatDirectory` при отрисовке — тогда переименование сотрудника меняет
+   * подпись во всей ленте разом. Этим чат и отличается от `erp_order_comments`,
+   * где автор заморожен строкой в момент отправки.
+   */
+  author_id: string;
+  body: string;
+  item_id: string | null;
+  stage_id: string | null;
+  experimental_id: string | null;
+  reply_to: string | null;
+  created_at: string;
+  mentions: string[];
+  attachments: ErpChatAttachment[];
+  reply: ErpChatQuote | null;
+  /**
+   * Сколько человек прочитало (правка 20.09, п. 4) — для «Прочитали N»
+   * у СВОИХ сообщений. Имена и время грузятся отдельно, по нажатию:
+   * страница ленты это полсотни сообщений, и список читателей у каждого
+   * означал бы полсотни лишних выборок.
+   */
+  read_count?: number;
+  /**
+   * Сводка реакций (вторая очередь чата): `{emoji, count, mine}`. Именно
+   * сводка, а не список людей — имена приезжают по наведению отдельным
+   * вызовом, иначе страница ленты означала бы полсотни лишних выборок.
+   */
+  reactions?: ErpChatReaction[];
+  /**
+   * Правка автором (вторая очередь чата): null — не правили. Показывается
+   * подписью «изменено» — правка задним числом без следа вводила бы
+   * в заблуждение тех, кто читал прежний текст.
+   */
+  edited_at?: string | null;
+  /**
+   * Удалено автором. Строка остаётся ради цитат и порядка ленты, а `body`
+   * СЕРВЕР затирает: иначе «Сообщение удалено» было бы косметикой поверх
+   * доступного текста.
+   */
+  deleted_at?: string | null;
+}
+
+/**
+ * Кого можно упомянуть и как называть автора — ответ `erp_chat_directory()`.
+ * Один источник на ленту и на подсказку упоминаний: две таблицы имён
+ * разошлись бы в первую же правку.
+ */
+export interface ErpChatPerson {
+  user_id: string;
+  name: string;
+  email: string | null;
+  /** Должность в ERP; null — у человека нет карточки сотрудника */
+  role: EmployeeRole | null;
+  department_id: string | null;
+}
+
+/**
+ * Контекст сообщения внутри сделки. Все поля пустые — «вся сделка».
+ * Это ВИД, а не право: видимость решает участие в разделе (решение владельца
+ * 14.09), а контекст лишь сужает показанное и считает свой счётчик.
+ */
+export interface ChatContext {
+  itemId?: string | null;
+  stageId?: string | null;
+  experimentalId?: string | null;
+}
+
+/** Непрочитанное сделки: общее число и разбивка по этапам (`erp_chat_unread`) */
+export interface ChatUnread {
+  total: number;
+  byStage: Record<string, number>;
+  /**
+   * Непрочитанные УПОМИНАНИЯ отдельно (правка 20.09, п. 4): документ просит
+   * «упоминания дополнительно выделять значком @», а значок без числа
+   * не отвечает на «сколько их».
+   */
+  mentions?: number;
+}
+
+/** Кто и когда прочитал сообщение — для «Прочитали N» (правка 20.09, п. 4) */
+export interface ChatReadReceipt {
+  message_id: string;
+  user_id: string;
+  name: string | null;
+  read_at: string;
+}
+
+/**
+ * Находка поиска по переписке (`erp_chat_search`). Тело приходит ЦЕЛИКОМ:
+ * подсветку и обрезку делает тот, кто знает, сколько у него места, — обрезка
+ * на сервере однажды отдала бы кусок без найденного слова.
+ */
+export interface ChatSearchHit {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  item_id: string | null;
+  stage_id: string | null;
+  experimental_id: string | null;
+}
+
+/** Кто поставил реакцию — ответ `erp_chat_reaction_people()` */
+export interface ChatReactionPerson {
+  emoji: string;
+  user_id: string;
+  name: string;
+}
+
+/**
+ * КАТАЛОГ SKU В ERP (правка 14.09, п. 6) — карточка изделия: техпакет, файлы,
+ * версии, связь с разработкой и заказами.
+ *
+ * НЕ ПУТАТЬ с прайс-каталогом визарда (`app_config.sku_catalog`): тот считает
+ * ЦЕНУ заказа, а этот описывает, КАК ИЗДЕЛИЕ ШЬЁТСЯ. Связь между ними —
+ * по `code`, и «выпущен ли артикул в прайс» спрашивается у самого прайса.
+ */
+export type SkuCardStatus = 'draft' | 'active' | 'archived';
+
+/**
+ * ПОДПИСИ СТАТУСОВ И РОЛЕЙ ФАЙЛОВ ЖИВУТ В `utils/skuCardLabels`, А НЕ ЗДЕСЬ.
+ *
+ * `types.ts` попадает в чанк ОБОЛОЧКИ, и словарь, нужный двум экранам
+ * каталога, ехал бы каждому, кто открыл обзор производства. Ровно тот же
+ * довод, по которому 10.08 из него вынесли перечень прав в `permissionKeys`.
+ * Сами типы (`SkuCardStatus`, `SkuCardFileRole`) остаются — они стираются
+ * при сборке и веса не имеют.
+ */
+
+export interface ErpSkuCard {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  fit: string | null;
+  pattern_tech_name: string | null;
+  /** Версия ЛЕКАЛ — величина, отличная от версии карточки (требование документа) */
+  pattern_version: string | null;
+  /** Версию карточки ведёт система; клиент её только читает */
+  card_version: number;
+  status: SkuCardStatus;
+  experimental_id: string | null;
+  source_item_id: string | null;
+  final_package: DevFinalPackage | null;
+  price_min: number | null;
+  price_max: number | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Снимок карточки после правки — историю пишет триггер */
+export interface ErpSkuCardVersion {
+  id: string;
+  card_id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changed_fields: string[];
+  author_id: string | null;
+  created_at: string;
+}
+
+export type SkuCardFileRole = 'pattern' | 'passport' | 'photo' | 'other';
+
+/**
+ * Файл карточки. Рядом со ссылкой на вложение лежит СНИМОК пути и имени:
+ * разработку могут удалить, а техпакет модели обязан её пережить.
+ */
+export interface ErpSkuCardFile {
+  id: string;
+  card_id: string;
+  attachment_id: string | null;
+  role: SkuCardFileRole;
+  file_path: string;
+  file_name: string | null;
+  version: number;
+  superseded_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Строка матрицы прав (таблица erp_role_permissions) */
+export interface ErpRolePermission {
+  role: EmployeeRole;
+  permission: ErpPermission;
+  allowed: boolean;
+  updated_at: string;
+  /**
+   * Кто последним менял это право (§5 обхода 04.09). Ставит триггер
+   * `erp_role_permission_touch` из `auth.uid()` — клиент прислал бы что угодно,
+   * а вопрос «кто снял галочку» про личность, а не про поле формы.
+   * `null` у строк, записанных сидами миграций (service_role): выдуманный
+   * автор был бы хуже пустоты.
+   */
+  updated_by?: string | null;
+}
+
+// --- Справочники админки (правка 12) ----------------------------------------
+
+/**
+ * Виды редактируемых справочников. Статусы (этапов, заказов, материалов, склада,
+ * подряда) сюда не входят: они зашиты в CHECK-констрейнты и стейт-машины —
+ * в админке показаны только для чтения.
+ */
+export type DictionaryKind =
+  'block_reason' | 'problem_type' | 'product_type' | 'supplier' | 'unit'
+  | 'experimental_task_type' | 'route_operation' | 'label_type' | 'print_effect';
+
+export const DICTIONARY_LABELS: Record<DictionaryKind, string> = {
+  block_reason: 'Причины блокировок',
+  problem_type: 'Типы проблем',
+  product_type: 'Типы изделий',
+  supplier: 'Поставщики',
+  unit: 'Единицы измерения',
+  experimental_task_type: 'Задачи разработки',
+  route_operation: 'Операции маршрута',
+  label_type: 'Типы бирок',
+  print_effect: 'Спецэффекты нанесения',
+};
+
+/** Подсказка под заголовком справочника — где значение всплывает в работе */
+export const DICTIONARY_HINTS: Record<DictionaryKind, string> = {
+  block_reason: 'Быстрый выбор в форме «Проблема» у задания цеха.',
+  problem_type: 'Быстрый выбор при оформлении брака и переделки.',
+  product_type: 'Подсказки в поле «Изделие» при создании заказа.',
+  unit: 'Подсказки в поле единицы измерения материала (кг, м, шт).',
+  supplier: 'Подсказки в поле «Поставщик» в закупке и материалах заказа.',
+  experimental_task_type:
+    'Типы задач в карточке разработки экспериментального цеха (лекала, подбор материала, примерка).',
+  route_operation:
+    'Подсказки в поле «Операция» у подрядного этапа маршрута (сублимация, спецоперация) — когда название расходится с именем цеха.',
+  label_type:
+    'Подсказки в блоке «Бирки» позиции заказа (размерник, составник, брендовая, по уходу).',
+  print_effect:
+    'Подсказки в поле «Эффекты» у нанесения шелкографией (каменная база, Puff-эффект, металлик, флюор, вытравка).',
+};
+
+export interface ErpDictionaryItem {
+  id: string;
+  kind: DictionaryKind;
+  code: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  meta: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Поля ТЗ (docs/erp/tz-format-analysis.md) --------------------------------
+
+export type PackagingType = 'none' | 'bopp' | 'zip' | 'other';
+export type StickersType = 'none' | 'blank' | 'other';
+
+export const PACKAGING_LABELS: Record<PackagingType, string> = {
+  none: 'Нет',
+  bopp: 'БОПП-пакет',
+  zip: 'ZIP-пакет',
+  other: 'Другое',
+};
+
+/**
+ * Шкала упаковки ПОЗИЦИИ (правка заказчика 16.08). «Как в заказе» стоит первым
+ * и служит значением по умолчанию: пустого значения нет намеренно — «не
+ * заполняли» и «эту позицию не упаковывать» обязаны различаться, иначе забытая
+ * позиция уедет в отгрузку без упаковки, и никто этого не заметит.
+ */
+export const ITEM_PACKAGING_LABELS: Record<ItemPackagingType, string> = {
+  inherit: 'Как в заказе',
+  none: 'Нет',
+  bopp: 'БОПП-пакет',
+  zip: 'ZIP-пакет',
+  other: 'Другое',
+};
+
+export const STICKERS_LABELS: Record<StickersType, string> = {
+  none: 'Нет',
+  blank: 'Бланк',
+  other: 'Другое',
+};
+
+/** Размерная сетка позиции: цвет × размер → шт */
+export interface SizeGridRow {
+  color: string;
+  sizes: Record<string, number>;
+}
+
+/** Нанесение с параметрами (страницы «Нанесение №N» ТЗ) */
+export interface ErpItemPrint {
+  id: string;
+  item_id: string;
+  seq: number;
+  method: BrandingMethod;
+  fabric: string | null;
+  zone: string | null;
+  width_mm: number | null;
+  height_mm: number | null;
+  offset_note: string | null;
+  pantone: string | null;
+  /**
+   * Спецэффект нанесения (правки 07.09, п. 10: «В шелкографии добавить поле
+   * „Эффекты“»). Колонка заведена ещё 17.07 вместе с таблицей и до 07.09 была
+   * ПУСТА у всех 54 нанесений: ни форма, ни `erp_create_order` её не писали.
+   * Значения подсказывает справочник `print_effect` — ввод свободный.
+   */
+  special: string | null;
+  /**
+   * Тип изделия для вышивки (правки 07.09, п. 11). Закрытый список из трёх
+   * значений — `EMBROIDERY_GARMENT_KINDS`, зеркало CHECK базы. Не справочник:
+   * это классификация технологии, от которой зависит маршрут (шеврон —
+   * отдельное изделие, а не нанесение на чужом). У прочих техник `null`.
+   */
+  garment_kind: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+/**
+ * Тип изделия в вышивке (правки 07.09, п. 11). Дословно из документа;
+ * коды — зеркало CHECK `erp_item_prints_garment_kind_check`.
+ */
+export const EMBROIDERY_GARMENT_KINDS: { value: string; label: string }[] = [
+  { value: 'cut', label: 'Вышивка на крое и полотне' },
+  { value: 'finished', label: 'Вышивка на готовых изделиях' },
+  { value: 'chevron', label: 'Изготовление шевронов (нашивок)' },
+];
+
+/**
+ * Бирка позиции (правка 22.08, п. 5.3).
+ *
+ * ПОВТОРЯЕМЫЙ БЛОК, как нанесения: в заказе обычно размерник, составник,
+ * брендовая и бирка по уходу, у каждой своё расположение и макет. Раньше
+ * всё это лежало в ОДНОМ текстовом поле `labels_note` — оно осталось
+ * в схеме ради заведённых заказов и показывается как «старое поле»,
+ * пока не опустеет.
+ *
+ * Макет бирки — вложение с `label_id`, тем же приёмом, что макет нанесения.
+ */
+export interface ErpItemLabel {
+  id: string;
+  item_id: string;
+  seq: number;
+  /** Код из справочника `label_type`; ввод свободный */
+  label_type: string | null;
+  place: string | null;
+  size: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+/**
+ * Черновик формы создания заказа (правка 22.08, п. 5.5).
+ *
+ * ЭТО НЕ ЗАКАЗ. Снимок формы в JSON, своя таблица, никакой связи
+ * с `erp_orders`: заказ со статусом «черновик» потребовал бы фильтра
+ * в полутора десятках производственных поверхностей, и один забытый фильтр
+ * отправил бы незаконченный заказ в цех.
+ */
+export interface ErpOrderDraft {
+  id: string;
+  author_id: string;
+  /** Название заказа или № сделки — то, по чему человек узнаёт черновик */
+  title: string | null;
+  payload: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Заметка к заказу (правка 22.08, п. 5.8).
+ *
+ * То, что НЕЛЬЗЯ разложить по структурным полям: фото фурнитуры, референсы,
+ * пояснения по биркам, нестандартные инструкции. Структурные поля она
+ * не заменяет — документ говорит это прямо, иначе заметки станут свалкой,
+ * из которой цех будет вычитывать ТЗ.
+ *
+ * Принадлежит ЗАКАЗУ, а не позиции. Изображения — вложения с `note_id`
+ * и видом `note`: у каждого своя подпись, поэтому картинка привязана
+ * к конкретной заметке.
+ */
+export interface ErpOrderNote {
+  id: string;
+  order_id: string;
+  seq: number;
+  text: string | null;
+  author: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MaterialRole =
+  | 'main' | 'trim' | 'lining' | 'hardware' | 'labels' | 'packaging' | 'other';
+
+export const MATERIAL_ROLE_LABELS: Record<MaterialRole, string> = {
+  main: 'Основное полотно',
+  trim: 'Отделочное',
+  lining: 'Подклад',
+  hardware: 'Фурнитура',
+  labels: 'Бирки/этикетки',
+  packaging: 'Упаковка',
+  other: 'Прочее',
+};

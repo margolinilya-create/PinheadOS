@@ -1,0 +1,560 @@
+import { useEffect, useMemo } from 'react';
+import { orderQty } from '../utils/shipment';
+import { Link, useLocation } from 'react-router-dom';
+import { OrderLink } from '../components/OrderLink';
+import { useShallow } from 'zustand/react/shallow';
+import { PageHead } from '../components/PageHead';
+import { Badge } from '../components/Badge';
+import { DashboardSkeleton } from '../components/ErpSkeletons';
+import { ScrollHintBox } from '../components/ScrollHintBox';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
+import { Icon } from '../components/Icon';
+import { useErpStore, openWarehouseTaskCount } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
+import { isStageReady, materialsForItem, isStageAwaitingProcurement } from '../utils/routes';
+import { materialsAfterBypass, isBypassed } from '../utils/bypass';
+import { scrollIntoViewSafely } from '../utils/scrollIntoViewSafely';
+import { stageMissingTz } from '../utils/tz';
+import { isOrderReadyToShip, isOrderOverdue, orderOverdueDays } from '../utils/stageUi';
+import { daysLeft, isUrgent, formatDateShort } from '../utils/time';
+import { isProductionDept } from '../data/departments';
+import { myDeptCode } from '../utils/myDept';
+import { overdueBucket, OVERDUE_BUCKET_SHORT } from '../utils/format';
+import {
+  groupNotices, orderNotices, personalNotices, urgentCount,
+} from '../utils/notifications';
+import { CapacityBar } from '../components/CapacityBar';
+import DeptBindingNotice from '../components/DeptBindingNotice';
+import { monthCapacityReport, monthLabel } from '../utils/capacity';
+import { factoryToday, parseDateLocal } from '../../utils/date';
+import styles from '../styles';
+import { dueLabel } from '../utils/format';
+
+/**
+ * Обзор производства (редизайн, по макету): KPI-плитки, заказы в работе, загрузка цехов,
+ * ближайшие дедлайны, быстрые действия, уведомления. Всё на реальных данных стора
+ * (в ERP нет выручки/исторической динамики — эти виджеты макета заменены на реальные метрики).
+ */
+
+const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+/**
+ * Ярлыки обзора. «Очередь» СЧИТАЕТСЯ, а не стоит константой: адреса `/queue`
+ * без кода участка больше нет (правки 07.09, п. 18), и вести ярлык некуда,
+ * пока неизвестен участок. Своего участка нет — ярлыка тоже нет: ссылка,
+ * ведущая в никуда, хуже её отсутствия, а все участки перечислены в меню слева.
+ */
+function quickActions(deptCode) {
+  return [
+    { to: '/orders?new=1', icon: 'plus', label: 'Новый заказ' },
+    { to: '/board', icon: 'board', label: 'Канбан' },
+    ...(deptCode ? [{ to: `/queue/${deptCode}`, icon: 'queue', label: 'Очередь' }] : []),
+    { to: '/purchasing', icon: 'truck', label: 'Закупки' },
+    { to: '/warehouse', icon: 'box', label: 'Приёмка' },
+    { to: '/subcontracting', icon: 'users', label: 'Подрядчики' },
+    { to: '/experimental', icon: 'flask', label: 'Образцы' },
+    { to: '/admin', icon: 'settings', label: 'Настройки' },
+  ];
+}
+
+/** Текущий этап заказа (для колонки «Цех/этап») */
+function currentStageName(order, deptById) {
+  for (const it of order.items) {
+    const st =
+      it.stages.find((s) => s.status === 'in_progress') ||
+      it.stages.find((s) => s.status === 'ready' || s.status === 'waiting') ||
+      it.stages.find((s) => s.status !== 'done' && s.status !== 'skipped');
+    if (st) return deptById.get(st.department_id)?.name || '—';
+  }
+  return 'Готово';
+}
+
+/** Статус заказа для бейджа */
+function orderStatus(order) {
+  // Готовность проверяется первой и в `isOrderOverdue` тоже: готовый заказ
+  // ждёт логистики, а не производства, и «Просрочено» на нём вводит в заблуждение.
+  if (isOrderReadyToShip(order)) return { variant: 'ready', label: 'Готово' };
+  if (isOrderOverdue(order, daysLeft(order.due_date))) return { variant: 'blocked', label: 'Просрочено' };
+  if (isUrgent(order.due_date)) return { variant: 'waiting', label: 'Срочно' };
+  return { variant: 'progress', label: 'В работе' };
+}
+
+/**
+ * Строка виджета уведомлений.
+ *
+ * ДВА АДРЕСАТА ПЕРЕХОДА, И ЭТО НЕ ДУБЛЬ. Вычисляемый повод («просрочен заказ»)
+ * ведёт в карточку заказа — там его и разбирают. Персональное уведомление
+ * зовёт в КОНКРЕТНОЕ место (`to`): в переписку на нужном сообщении, а не
+ * «куда-то в заказ, поищите сами».
+ *
+ * Не по показу (виджет видят мельком на каждой загрузке) и с 01.10, п. 4,
+ * не по переходу к сообщению: его гасит показ в ленте (`erp_chat_mark_seen`).
+ * Переход гасит лишь уведомление без адреса — другого «увидел» у него нет.
+ */
+function NoticeRow({ notice, tone, onRead }) {
+  const read = () => {
+    if (notice.notificationId && !notice.to) void onRead([notice.notificationId]);
+  };
+  const body = (
+    <>
+      <span className={styles.notifText}>
+        {notice.text}
+        {notice.sub && <span className={styles.notifSub}> · {notice.sub}</span>}
+      </span>
+      {notice.overdueDays > 0 && (
+        <Badge variant={tone === 'danger' ? 'blocked' : 'neutral'}>
+          {notice.overdueDays} дн.
+        </Badge>
+      )}
+    </>
+  );
+  if (notice.to) {
+    return (
+      <Link to={notice.to} className={styles.notifItem} onClick={read}>
+        {body}
+      </Link>
+    );
+  }
+  /**
+   * Персональное уведомление без адреса всё равно остаётся ссылкой на заказ,
+   * если он известен: строка, по которой некуда идти, — тот самый тупик,
+   * ради устранения которого у уведомлений вообще появились ссылки.
+   */
+  return (
+    <OrderLink orderId={notice.orderId} className={styles.notifItem} onClick={read}>
+      {body}
+    </OrderLink>
+  );
+}
+
+export default function ErpDashboard() {
+  const {
+    orders, departments, loaded, loadError, loadAll, capacity, capacityLoaded, loadSettings,
+    bypasses, myDeptId, myDeptLoaded, notifications, markNotificationsRead,
+  } = useErpStore(
+    useShallow((s) => ({
+      bypasses: s.bypasses,
+      notifications: s.notifications,
+      markNotificationsRead: s.markNotificationsRead,
+      orders: s.orders,
+      departments: s.departments,
+      myDeptId: s.myDeptId,
+      /* До приезда пакета `resolveErpRole` отдаёт `worker`, а привязки ещё нет:
+         без этого флага нормально заведённому рабочему полсекунды показывали бы,
+         что его профиль не настроен (записанное правило сессии 44) */
+      myDeptLoaded: s.myDeptLoaded,
+      loaded: s.loaded,
+      loadError: s.loadError,
+      loadAll: s.loadAll,
+      capacity: s.capacity,
+      capacityLoaded: s.capacityLoaded,
+      loadSettings: s.loadSettings,
+    })),
+  );
+  /**
+   * ЛОКАЛЬНАЯ дата, а не UTC. `toISOString()` в UTC+3 в 01:00 первого сентября
+   * отдаёт «31 августа»: обзор показывал бы августовскую мощность и подпись
+   * «август» на первой смене сентября, тогда как вкладка мощности в админке
+   * (она считает через `factoryToday`) в тот же момент показывает сентябрь.
+   */
+  const access = useErpAccess();
+  const today = factoryToday();
+  const myCode = useMemo(() => myDeptCode(departments, myDeptId), [departments, myDeptId]);
+
+  useEffect(() => {
+    if (!loaded) loadAll();
+  }, [loaded, loadAll]);
+  useEffect(() => { if (!capacityLoaded) loadSettings(); }, [capacityLoaded, loadSettings]);
+
+  // Колокол в шапке ведёт на /#notifications — проскроллить к виджету «Уведомления» (ERP-16),
+  // когда данные загружены (виджет рендерится только при loaded).
+  const location = useLocation();
+  useEffect(() => {
+    if (loaded && location.hash === '#notifications') {
+      scrollIntoViewSafely(document.getElementById('notifications'), { block: 'start' });
+    }
+  }, [loaded, location.hash]);
+
+  const data = useMemo(() => {
+    const deptById = new Map(departments.map((d) => [d.id, d]));
+    const active = orders.filter((o) => o.status === 'active');
+    let itemsInWork = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    const deptLoad = new Map(
+      departments.map((d) => [d.id, { dept: d, ready: 0, inProgress: 0, blocked: 0 }]),
+    );
+    const burning = [];
+    /**
+     * Строки виджета. Имя `notices`, а не `notifications`: с 14.09 рядом
+     * лежит СПИСОК ПЕРСОНАЛЬНЫХ уведомлений из стора под именем
+     * `notifications`, и одинаковые имена для «строк виджета» и «строк
+     * таблицы» разошлись бы в первой же правке.
+     */
+    const notices = [];
+    // Ступени просрочки: «47» одним числом не отвечает на вопрос «что делать»
+    const overdueByBucket = { none: 0, week: 0, month: 0, stale: 0 };
+
+    for (const order of active) {
+      const d = daysLeft(order.due_date);
+      const lateDays = orderOverdueDays(order, d);
+      if (lateDays > 0) overdue += 1;
+      else if (isUrgent(order.due_date)) dueSoon += 1;
+      if (d !== null && d <= 3) burning.push({ order, days: d });
+
+      // Что считать поводом вмешаться — одно правило на виджет и на колокол
+      // в шапке (`utils/notifications.orderNotices`)
+      notices.push(...orderNotices(order, lateDays));
+      if (lateDays > 0) overdueByBucket[overdueBucket(lateDays)] += 1;
+
+      for (const item of order.items) {
+        itemsInWork += 1;
+        for (const stage of item.stages) {
+          const slot = deptLoad.get(stage.department_id);
+          if (!slot) continue;
+          if (stage.status === 'in_progress') slot.inProgress += 1;
+          else if (stage.status === 'blocked') slot.blocked += 1;
+          /**
+           * ГОТОВНОСТЬ СЧИТАЕТСЯ ТАК ЖЕ, КАК В ОЧЕРЕДИ И НА ДОСКЕ (правка 03.09).
+           *
+           * Здесь жёстко уходил `blockedByProcurement = false`. Ровно это чинили
+           * 30.08 на доске производства — и комментарий там прямо говорит
+           * «раньше в ОБЕ функции уходил false», — но до виджета «Загрузка
+           * цехов» починка не доехала: этап, ждущий дозакупку после брака,
+           * на обзоре числился готовым, а в очереди того же цеха стоял
+           * в ожидании. Аварийные снятия учитываются по той же причине.
+           */
+          else if (stage.status === 'waiting' && isStageReady(
+            stage, item.stages,
+            materialsAfterBypass(
+              materialsForItem(order.materials, item.id), order.id, bypasses,
+            ),
+            slot.dept,
+            isStageAwaitingProcurement(order.procurement_tasks, stage.id),
+            stageMissingTz(order, item.id, slot.dept)
+              && !isBypassed('tz_gate', order.id, bypasses))) {
+            slot.ready += 1;
+          }
+        }
+      }
+    }
+    burning.sort((a, b) => a.days - b.days);
+
+    const loadRows = [...deptLoad.values()]
+      .map((s) => ({ dept: s.dept, load: s.ready + s.inProgress + s.blocked }))
+      .filter((s) => isProductionDept(s.dept) && s.load > 0)
+      .sort((a, b) => b.load - a.load);
+    const maxLoad = Math.max(1, ...loadRows.map((r) => r.load));
+
+    const inWork = [...active]
+      .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'))
+      .slice(0, 6)
+      .map((o) => ({
+        order: o,
+        product: o.items[0]?.product_type || '—',
+        stage: currentStageName(o, deptById),
+        qty: orderQty(o),
+        status: orderStatus(o),
+      }));
+
+    return {
+      activeOrders: active.length,
+      itemsInWork,
+      readyToShip: active.filter((o) => isOrderReadyToShip(o)).length,
+      overdue,
+      dueSoon,
+      warehouseOpen: openWarehouseTaskCount(orders),
+      loadRows,
+      maxLoad,
+      burning: burning.slice(0, 5),
+      inWork,
+      overdueByBucket,
+      // Группы, а не срез: срез показывал шесть случайных из сорока семи
+      // и молчал о том, что их сорок семь
+      /**
+       * ДВА ИСТОЧНИКА, ОДИН ВИДЖЕТ (14.09). Вычисляемые поводы («производство
+       * встало») и персональные уведомления («позвали лично вас») приходят
+       * в `groupNotices` одним списком: сама группировка, счётчики и колокол
+       * не менялись вовсе — поменялось только то, из чего собран список.
+       */
+      noticeGroups: groupNotices([...personalNotices(notifications), ...notices]),
+      capacity: monthCapacityReport(orders, today, capacity),
+    };
+  }, [orders, departments, capacity, today, bypasses, notifications]);
+
+  // Число для шапки виджета: сумма срочных групп, а не всех уведомлений
+  const urgent = urgentCount(data.noticeGroups);
+
+  return (
+    <>
+      <PageHead
+        title="Обзор производства"
+        sub="Где какой заказ, загрузка цехов, горящие сроки — всё в одном месте."
+      />
+
+      {/*
+        НЕЗАКОНЧЕННОЕ ЗАВЕДЕНИЕ СОТРУДНИКА НАЗЫВАЕТ СЕБЯ И ЗДЕСЬ (правки 07.09,
+        п. 18). Пока существовал «Мой цех», рабочий без привязки приземлялся
+        на его заглушку и читал причину там. Теперь посадочная оставляет такого
+        человека на обзоре — цеха, в который вести, нет, — и без этой строки
+        он видел бы сводку по фабрике без единой своей задачи и без объяснения.
+        Текст один на все три поверхности: `DeptBindingNotice`.
+      */}
+      {myDeptLoaded && access.needsDeptBinding && <DeptBindingNotice />}
+
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="обзор производства" />}
+      {!loadError && !loaded && <DashboardSkeleton />}
+
+      {loaded && (
+        <div className={styles.dash}>
+          {/* KPI */}
+          <div className={styles.dashKpis}>
+            <Link to="/orders" className={styles.kpiCard}>
+              <span className={styles.kpiIcon}><Icon name="orders" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Заказов в работе</span>
+                <span className={styles.kpiCardValue}>{data.activeOrders}</span>
+              </span>
+            </Link>
+            <Link to="/board" className={styles.kpiCard}>
+              <span className={styles.kpiIcon}><Icon name="board" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Позиций в работе</span>
+                <span className={styles.kpiCardValue}>{data.itemsInWork}</span>
+              </span>
+            </Link>
+            {/* ТОН ПЛИТКИ — ОТ ЗНАЧЕНИЯ, А НЕ ОТ РАЗМЕТКИ.
+                Кромка окрашивается только тогда, когда за ней есть работа:
+                «Просрочено: 0» — хорошая новость, и красная полоса на ней
+                была бы тревогой без повода, то есть шумом, от которого
+                через неделю перестают отличать настоящую. */}
+            <Link
+              to="/orders?filter=ready"
+              className={`${styles.kpiCard}${data.readyToShip > 0 ? ` ${styles.kpiCardOk}` : ''}`}
+            >
+              <span className={`${styles.kpiIcon} ${styles.kpiIconOk}`}><Icon name="checkCircle" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Готовы к отгрузке</span>
+                <span className={styles.kpiCardValue}>{data.readyToShip}</span>
+              </span>
+            </Link>
+            <Link
+              to="/orders?filter=urgent"
+              className={`${styles.kpiCard}${data.dueSoon > 0 ? ` ${styles.kpiCardWarn}` : ''}`}
+            >
+              <span className={`${styles.kpiIcon} ${styles.kpiIconWarn}`}><Icon name="clock" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Срок ≤ 3 дней</span>
+                <span className={styles.kpiCardValue}>{data.dueSoon}</span>
+              </span>
+            </Link>
+            <Link
+              to="/orders?filter=overdue"
+              className={`${styles.kpiCard}${data.overdue > 0 ? ` ${styles.kpiCardDanger}` : ''}`}
+            >
+              <span className={`${styles.kpiIcon} ${styles.kpiIconDanger}`}><Icon name="alert" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Просрочено</span>
+                <span className={styles.kpiCardValue}>{data.overdue}</span>
+                {/* Разбивка по ступеням прямо на плитке: «47» одним числом
+                    не отвечает на вопрос «сколько из этого горит сегодня».
+                    На боевых данных 03.08.2026 это 6 / 39 / 2. */}
+                {data.overdue > 0 && (
+                  <span className={styles.kpiBreakdown}>
+                    {data.overdueByBucket.week > 0 && (
+                      <span className={styles.kpiBreakdownHot}>
+                        {OVERDUE_BUCKET_SHORT.week}: {data.overdueByBucket.week}
+                      </span>
+                    )}
+                    {data.overdueByBucket.month > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.month}: {data.overdueByBucket.month}</span>
+                    )}
+                    {data.overdueByBucket.stale > 0 && (
+                      <span>{OVERDUE_BUCKET_SHORT.stale}: {data.overdueByBucket.stale}</span>
+                    )}
+                  </span>
+                )}
+              </span>
+            </Link>
+            <Link to="/warehouse" className={styles.kpiCard}>
+              <span className={`${styles.kpiIcon} ${styles.kpiIconViolet}`}><Icon name="box" size={20} /></span>
+              <span className={styles.kpiBody}>
+                <span className={styles.kpiCardLabel}>Задач на складе</span>
+                <span className={styles.kpiCardValue}>{data.warehouseOpen}</span>
+              </span>
+            </Link>
+          </div>
+
+          {/*
+            «ЧТО ГОРИТ» — СРАЗУ ПОД ПОКАЗАТЕЛЯМИ (§2.4 обхода 04.09).
+
+            Блок стоял ПОСЛЕДНИМ из семи: шесть плиток → полоса мощности →
+            «Заказы в работе» → «Задачи по цехам» → «Ближайшие дедлайны» →
+            «Быстрые действия» → и только потом единственный блок, отвечающий
+            «что делать сейчас». На 1280×800 это полтора экрана прокрутки,
+            на планшете — два с половиной, и колокол в шапке вёл именно сюда.
+
+            Порядок теперь отвечает на вопросы в том порядке, в каком их
+            задают: «всё ли в порядке» (плитки) → «что горит» (здесь) →
+            «влезаем ли в месяц» → «что в работе».
+          */}
+          <div id="notifications" className={styles.widget} style={{ scrollMarginTop: 16 }}>
+            <div className={styles.widgetHead}>
+              <h2 className={styles.widgetTitle}>Уведомления</h2>
+              {urgent > 0 && (
+                <span className={styles.subText}>требуют действия сейчас: {urgent}</span>
+              )}
+            </div>
+            {data.noticeGroups.length === 0 ? (
+              <EmptyState icon="checkCircle" title="Всё спокойно — уведомлений нет." />
+            ) : (
+              data.noticeGroups.map((g) => (
+                /* Группа — <details>: сворачивание нативное, значит работает
+                   с клавиатуры и читается скринридером без единой строки JS.
+                   Срочные группы открыты (`open`), давняя просрочка свёрнута
+                   со счётчиком: она важна, но это не сегодняшняя работа. */
+                <details key={g.key} className={styles.notifGroup} open={g.open}>
+                  <summary className={styles.notifSummary}>
+                    <span className={`${styles.notifDot} ${styles[`notifDot_${g.tone}`]}`} aria-hidden="true" />
+                    <Icon name={g.icon} size={15} />
+                    <span className={styles.notifGroupTitle}>{g.title}</span>
+                    <span className={styles.notifCount}>{g.items.length}</span>
+                  </summary>
+                  <p className={styles.notifHint}>{g.hint}</p>
+                  {g.items.slice(0, 8).map((n) => (
+                    // Алерт без ссылки — тупик: пользователь читал «Просрочен
+                    // заказ №1042» и шёл искать его руками, хотя id лежит рядом
+                    <NoticeRow
+                      key={n.id}
+                      notice={n}
+                      tone={g.tone}
+                      onRead={markNotificationsRead}
+                    />
+                  ))}
+                  {g.items.length > 8 && (
+                    // Никаких тихих лимитов: сколько показано и сколько всего
+                    <Link to="/orders?filter=overdue" className={styles.notifMore}>
+                      Показаны 8 из {g.items.length} → все в списке заказов
+                    </Link>
+                  )}
+                </details>
+              ))
+            )}
+          </div>
+
+          {/* Загрузка производства против общей мощности (правки заказчика 10.08).
+              Стоит над блоками цехов сознательно: «влезаем ли мы в месяц» —
+              вопрос раньше, чем «какой цех занят сильнее». */}
+          <CapacityBar
+            report={data.capacity}
+            periodLabel={monthLabel(today)}
+            loading={!capacityLoaded}
+          />
+
+          {/* Заказы в работе / Задачи по цехам / Дедлайны */}
+          {/*
+            ТАБЛИЦЕ — СВОЙ РЯД (обход 04.09). «Заказы в работе» стоял третьим
+            в ряду из трёх: на 1280px виджету доставалось ~338px, а таблица
+            в нём шестиколоночная, и «Кол-во» со «Статусом» уезжали за край.
+            Соседи по ряду — списки в две колонки, им ширина не нужна;
+            здесь она и есть содержимое.
+          */}
+          <div className={styles.dashRow}>
+            <div className={styles.widget}>
+              <div className={styles.widgetHead}>
+                <h2 className={styles.widgetTitle}>Заказы в работе</h2>
+                <Link to="/orders" className={styles.widgetLink}>Смотреть все →</Link>
+              </div>
+              {data.inWork.length === 0 ? (
+                <EmptyState icon="orders" title="Активных заказов нет." />
+              ) : (
+                <ScrollHintBox className={styles.tableWrap} label="Заказы в работе">
+                  <table className={styles.table}>
+                    <thead>
+                      <tr><th>№</th><th>Изделие</th><th>Цех/этап</th><th>Кол-во</th><th>Срок</th><th>Статус</th></tr>
+                    </thead>
+                    <tbody>
+                      {data.inWork.map(({ order, product, stage, qty, status }) => (
+                        <tr key={order.id}>
+                          <td><OrderLink orderId={order.id}>{order.bitrix_id || '—'}</OrderLink></td>
+                          <td><span className={styles.cellTitle} title={product}>{product}</span></td>
+                          <td>{stage}</td>
+                          <td>{qty} шт</td>
+                          <td>{formatDateShort(order.due_date) || '—'}</td>
+                          <td><Badge variant={status.variant}>{status.label}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollHintBox>
+              )}
+            </div>
+          </div>
+
+          <div className={`${styles.dashRow} ${styles.dashRow2}`}>
+            <div className={styles.widget}>
+              {/* «Задачи по цехам», а не «Загрузка цехов» (решение заказчика 10.08):
+                  блок считает ЭТАПЫ, а экран /load — штуки. Одно слово на две разные
+                  величины заставляло сверять цифры, которые сойтись не могут. */}
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Задачи по цехам</h2></div>
+              {data.loadRows.length === 0 ? (
+                <EmptyState icon="check" title="Цеха свободны." />
+              ) : (
+                data.loadRows.map(({ dept, load }) => (
+                  <div key={dept.id} className={styles.loadRow}>
+                    <span className={styles.loadName} title={dept.name}>{dept.name}</span>
+                    <span className={styles.loadTrack}>
+                      <span className={styles.loadFill} style={{ width: `${Math.round((load / data.maxLoad) * 100)}%` }} />
+                    </span>
+                    <span className={styles.loadVal}>{load}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className={styles.widget}>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Ближайшие дедлайны</h2></div>
+              {data.burning.length === 0 ? (
+                <EmptyState icon="calendar" title="Горящих сроков нет." />
+              ) : (
+                data.burning.map(({ order, days }) => {
+                  const dt = parseDateLocal(order.due_date);
+                  const label = dueLabel(days);
+                  return (
+                    <OrderLink key={order.id} orderId={order.id} className={styles.deadlineItem} style={{ textDecoration: 'none' }}>
+                      <span className={styles.deadlineDate}>
+                        <span className={styles.deadlineDay}>{dt ? dt.getDate() : '—'}</span>
+                        <span className={styles.deadlineMon}>{dt ? MONTHS[dt.getMonth()] : ''}</span>
+                      </span>
+                      <span className={styles.deadlineBody}>
+                        <span className={styles.deadlineName} title={order.title}>{order.title}</span>
+                        <span className={styles.deadlineMeta}>№{order.bitrix_id || '—'} · {order.manager || '—'}</span>
+                      </span>
+                      <Badge variant={days < 0 ? 'blocked' : days <= 1 ? 'waiting' : 'neutral'}>{label}</Badge>
+                    </OrderLink>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Быстрые действия — последними: это ярлыки, а не работа */}
+          <div className={styles.dashRow}>
+            <div className={styles.widget}>
+              <div className={styles.widgetHead}><h2 className={styles.widgetTitle}>Быстрые действия</h2></div>
+              <div className={styles.quickGrid}>
+                {quickActions(myCode).map((a) => (
+                  <Link key={a.to} to={a.to} className={styles.quickAction}>
+                    <span className={styles.quickIcon}><Icon name={a.icon} size={18} /></span>
+                    {a.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

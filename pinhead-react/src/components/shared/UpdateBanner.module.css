@@ -1,0 +1,73 @@
+/* Плашка «Вышло обновление приложения» — снизу, над тостами по слою не спорит:
+   тосты справа, плашка слева, и обе на одном слое. Цвет — предупреждение
+   (то же, что у полосы «данные могли устареть»): это не ошибка, а состояние. */
+.bar {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  max-width: 560px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  box-shadow: var(--shadow-raise);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  line-height: 1.4;
+  animation: update-in var(--dur-base) var(--ease-out);
+}
+
+/* Пустой регион живёт в DOM всегда (aria-live), но не занимает места и не ловит клики */
+.hidden {
+  position: fixed;
+  height: 0;
+  pointer-events: none;
+}
+
+.text { flex: 1 1 260px; }
+.text strong { color: var(--text); }
+
+.actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex: none;
+}
+
+.primary,
+.ghost {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary {
+  border: 1px solid var(--color-warning-ink);
+  background: var(--color-warning-ink);
+  color: #fff;
+}
+.ghost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-warning-ink);
+}
+.ghost:hover { border-color: var(--color-warning); }
+.primary:focus-visible,
+.ghost:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+@keyframes update-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 480px) {
+  .bar { left: 16px; right: 16px; bottom: 16px; max-width: none; }
+}

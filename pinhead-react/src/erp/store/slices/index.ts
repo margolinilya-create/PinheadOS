@@ -1,0 +1,24 @@
+/** Баррель слайсов ERP-стора (композиция — в ../useErpStore.ts) */
+export { bootstrapSlice } from './bootstrapSlice';
+export { ordersSlice } from './ordersSlice';
+export { ordersOnDemandSlice } from './ordersOnDemandSlice';
+export { stagesSlice } from './stagesSlice';
+export { materialsSlice } from './materialsSlice';
+export { warehouseSlice } from './warehouseSlice';
+export { procurementSlice } from './procurementSlice';
+export { subcontractingSlice } from './subcontractingSlice';
+export { orderDraftsSlice } from './orderDraftsSlice';
+export { chatSlice } from './chatSlice';
+export { skuSlice } from './skuSlice';
+export { employeesSlice } from './employeesSlice';
+export { invitesSlice } from './invitesSlice';
+export { permissionsSlice } from './permissionsSlice';
+export { dictionariesSlice } from './dictionariesSlice';
+export { experimentalSlice } from './experimentalSlice';
+export { tzSlice } from './tzSlice';
+export { planSlice } from './planSlice';
+export { bypassSlice } from './bypassSlice';
+export { notificationsSlice } from './notificationsSlice';
+export { settingsSlice } from './settingsSlice';
+export { analyticsSlice } from './analyticsSlice';
+export { realtimeSlice } from './realtimeSlice';

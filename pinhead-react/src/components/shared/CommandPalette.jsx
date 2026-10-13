@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const COMMANDS = [
   { id: 'wizard', label: 'Новый заказ', desc: 'Открыть визард', path: '/', icon: '+' },
   { id: 'orders', label: 'Заказы', desc: 'Kanban-доска', path: '/orders', icon: '☰' },
+  { id: 'sales', label: 'Заказы v4', desc: 'Расчёт и КП — пилот', path: '/sales', icon: '₽', admin: true },
   { id: 'express', label: 'Экспресс калькулятор', desc: 'Быстрый расчёт', path: '/express', icon: '⚡' },
   { id: 'sku', label: 'Каталог SKU', desc: 'Управление изделиями', path: '/sku', icon: '📦' },
   { id: 'prices', label: 'Цены нанесений', desc: 'Матрицы цен', path: '/sku?tab=pricing', icon: '💰' },
@@ -16,6 +18,8 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('');
   const inputRef = useRef(null);
   const navigate = useNavigate();
+  // Команды с `admin: true` — только admin/director, как и их маршруты
+  const isAdmin = useAuthStore((s) => ['admin', 'director'].includes(s.previewRole || s.user?.role));
 
   useEffect(() => {
     const handler = (e) => {
@@ -44,7 +48,8 @@ export default function CommandPalette() {
 
   const q = query.toLowerCase();
   const filtered = COMMANDS.filter(c =>
-    c.label.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q)
+    (!c.admin || isAdmin) &&
+    (c.label.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q))
   );
 
   const handleSelect = (cmd) => {

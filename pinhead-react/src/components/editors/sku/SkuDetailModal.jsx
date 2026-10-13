@@ -5,6 +5,7 @@ import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { uploadSkuPhoto, deleteSkuPhotoByUrl } from '../../../lib/storage';
 import { getGarmentSVG } from '../../../utils/mockup';
 import { toast } from '../../../store/useToastStore';
+import { skuCost } from '../../../utils/costRules';
 import { getEffectiveRules, getAvailableZonesForSku } from '../../../utils/skuRules';
 import { TECH_TABS } from '../../../utils/pricing';
 import { MEDASTEX_COLORS, COLOR_GROUPS, SIZES } from '../../../data';
@@ -151,20 +152,16 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
 
   // Economics: cost breakdown for this SKU
   const economics = useMemo(() => {
-    const fabric = fabricsCatalog.find(f => (f.forCategories || []).includes(sku.category));
-    const fabricCost = fabric ? Math.round(sku.mainFabricUsage * fabric.priceUSD * usdRate) : 0;
-    const trim = trimCatalog.find(t => t.code === sku.trimCode);
-    const trimCost = trim ? Math.round((sku.trimUsage || 0) * trim.priceUSD * usdRate) : 0;
-    const sewingCost = sku.sewingPrice || 0;
+    // Та же функция, что в визарде (правка 13.10): ₽ за метр, воротник — за штуку
+    const c = skuCost(sku, { fabricCode: null, fabricsCatalog, trimCatalog, usdRate });
+    const fabric = fabricsCatalog.find(f => f.code === c.fabricCode);
+    const trim = trimCatalog.find(t => t.code === c.trimCode);
     return {
-      sewingCost,
-      fabricCost,
-      fabricName: fabric?.name || '—',
-      trimCost,
-      trimName: trim?.name || '—',
-      total: sewingCost + fabricCost + trimCost,
+      sewingCost: c.sewing, fabricCost: Math.round(c.fabric), trimCost: Math.round(c.trim),
+      fabricName: fabric ? [fabric.name, fabric.supplier].filter(Boolean).join(' · ') : '—',
+      trimName: trim?.name || '—', extraMaterials: c.extraMaterials, total: Math.round(c.base),
     };
-  }, [sku.sewingPrice, sku.mainFabricUsage, sku.trimCode, sku.trimUsage, sku.category, fabricsCatalog, trimCatalog, usdRate]);
+  }, [sku, fabricsCatalog, trimCatalog, usdRate]);
 
   // Resolved rules for this SKU (category rules + per-SKU overrides)
   const resolvedRules = useMemo(
@@ -354,6 +351,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
                 <span className="econ-value">{economics.fabricCost} &#8381;</span>
                 <span className="econ-label">Отделка ({economics.trimName})</span>
                 <span className="econ-value">{economics.trimCost} &#8381;</span>
+                {economics.extraMaterials > 0 && <><span className="econ-label">Доп. материалы</span><span className="econ-value">{economics.extraMaterials} &#8381;</span></>}
                 <span className="econ-label econ-total">Итого</span>
                 <span className="econ-value econ-total">{economics.total} &#8381;</span>
               </div>

@@ -67,11 +67,17 @@ describe('StepDesign', () => {
   });
 
   it('renders all zones for hoodie SKU', () => {
-    useStore.setState({ sku: { code: 'H-001', name: 'Худи', zones: ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'] } });
+    useStore.setState({ sku: { code: 'H-001', name: 'Худи', category: 'hoodies', hasHood: true, zones: ['front', 'back', 'sleeve-l', 'sleeve-r', 'hood'] } });
     render(<StepDesign />);
     const zoneCards = document.querySelectorAll('.zone-card');
     // 5 zones + 1 "Без нанесения" = 6
     expect(zoneCards.length).toBe(6);
+  });
+
+  it('капюшон — только у модели с капюшоном; рукава штанам не положены (13.10)', () => {
+    useStore.setState({ sku: { code: 'SW-001', name: 'Свитшот', category: 'sweatshirts', zones: ['front', 'back', 'hood'] } });
+    render(<StepDesign />);
+    expect(document.querySelectorAll('.zone-card').length).toBe(3); // перед, спина + «Без нанесения»
   });
 
   it('calls toggleZone when clicking available zone', () => {

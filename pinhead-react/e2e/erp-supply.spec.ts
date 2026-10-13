@@ -1,0 +1,417 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, buildStages, FX_CREATED } from './support/mockSupabase';
+
+/**
+ * Закупка видит РАБОТУ, а не только материалы (правки заказчика 12.08).
+ *
+ * ЧТО ЭТО СТОРОЖИТ. Раздел «Закупка» был реестром строк `erp_materials`
+ * и об этапах маршрута не знал вовсе. Заказ, у которого закупка стоит первым
+ * этапом, а материалы ещё не заведены, не показывался НИГДЕ: в разделе
+ * закупки — потому что показывать было нечего, в очереди и на канбане —
+ * потому что участок непроизводственный и вырезан у всех потребителей.
+ * На боевой базе так стояли 33 этапа.
+ *
+ * Unit-стороже (`routeReachable`, `supply`) проверяют правило; здесь проверяется
+ * то, чего они по построению не видят: доходит ли заказ до ЭКРАНА и говорит ли
+ * строка вслух, что материалов нет. Дефект был именно такой — правило можно
+ * было прочитать в миграции, а экран его не исполнял.
+ *
+ * Заказы свои: базовые четыре держат visual-снапшоты и счётчики соседних спек.
+ */
+
+const FIXED_TIME = new Date('2026-07-20T09:00:00');
+
+/** Главный случай дефекта: закупка открыта, материалов НЕТ вовсе */
+const ORDER_NO_MATERIALS = {
+  id: 'ord-e',
+  bitrix_id: '55301',
+  title: 'Платки тест закупка',
+  customer: 'ООО «Ромашка»',
+  manager: 'Анна',
+  launch_date: '2026-07-18',
+  due_date: '2026-07-28',
+  buffer_days: 1,
+  priority: 0,
+  status: 'active',
+  shipped_status: 'not_shipped',
+  delivered_at: null,
+  shipped_at: null,
+  shipped_by: null,
+  notes: null,
+  packaging: 'none',
+  packaging_note: null,
+  stickers: 'none',
+  stickers_note: null,
+  no_chestny_znak: false,
+  created_by: null,
+  created_at: FX_CREATED,
+  updated_at: FX_CREATED,
+  items: [
+    {
+      id: 'ord-e-i1',
+      order_id: 'ord-e',
+      product_type: 'Платок',
+      variant: 'шёлк',
+      qty: 100,
+      production_type: 'cut',
+      branding_methods: [],
+      branding_on: 'cut',
+      notes: null,
+      size_grid: null,
+      sort_order: 10,
+      created_at: FX_CREATED,
+      updated_at: FX_CREATED,
+      stages: buildStages('ord-e-i1', [
+        { code: 'supply', status: 'ready' },
+        { code: 'cutting', status: 'waiting', deps: [0] },
+      ]),
+      prints: [],
+    },
+  ],
+  materials: [],
+  attachments: [],
+};
+
+/** Закупка взята в работу, материалы заведены частично */
+const ORDER_PARTIAL = {
+  ...ORDER_NO_MATERIALS,
+  id: 'ord-f',
+  bitrix_id: '55302',
+  title: 'Худи корпоратив «Вектор»',
+  due_date: '2026-07-31',
+  items: [
+    {
+      ...ORDER_NO_MATERIALS.items[0],
+      id: 'ord-f-i1',
+      order_id: 'ord-f',
+      product_type: 'Худи',
+      qty: 60,
+      stages: buildStages('ord-f-i1', [
+        { code: 'supply', status: 'in_progress' },
+        { code: 'cutting', status: 'waiting', deps: [0] },
+      ]),
+    },
+  ],
+  materials: [
+    {
+      id: 'ord-f-m1', order_id: 'ord-f', item_id: null, kind: 'fabric',
+      name: 'Футер петля, серый', source: 'purchase', qty: '90 кг',
+      // Приёмка склада обязательна: с 04.09 один `received` «на месте»
+      // не означает — `erp_material_accept` ставит его при любом исходе
+      qty_expected: 90, status: 'received', accept_status: 'accepted_full',
+      eta_date: null, received_at: FX_CREATED,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+    {
+      id: 'ord-f-m2', order_id: 'ord-f', item_id: null, kind: 'labels',
+      name: 'Бирки картонные', source: 'purchase', qty: '60 шт',
+      qty_expected: 60, status: 'pending', eta_date: '2026-07-25', received_at: null,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+    {
+      // Обратная связь склад → закупка (обход 04.09): приёмка ставит
+      // `received` при ЛЮБОМ исходе, и до правки строка показывала «Пришло»
+      // и при недостаче, и при отказе
+      id: 'ord-f-m3', order_id: 'ord-f', item_id: null, kind: 'hardware',
+      name: 'Молния витая', source: 'purchase', qty: '60 шт',
+      qty_expected: 60, qty_received: 45, status: 'received',
+      accept_status: 'shortage', accept_comment: 'привезли 45 из 60',
+      eta_date: null, received_at: FX_CREATED,
+      notes: null, created_at: FX_CREATED, updated_at: FX_CREATED,
+    },
+  ],
+};
+
+const EXTRA = { orders: [ORDER_NO_MATERIALS, ORDER_PARTIAL] };
+
+test.beforeEach(async ({ page }) => {
+  await installSupabaseMock(page, EXTRA);
+  await page.clock.setFixedTime(FIXED_TIME);
+});
+
+/**
+ * Строка ИМЕННО очереди закупки.
+ *
+ * Область обязательна: ниже на том же экране стоит таблица закупочных строк,
+ * и в ней у того же заказа своя строка на каждый материал. Проверка без области
+ * находила три элемента и падала на strict mode — но хуже другое: она могла бы
+ * пройти на строке ТАБЛИЦЫ МАТЕРИАЛОВ, то есть на том самом реестре, из-за
+ * которого заказ без материалов и был невидим.
+ */
+/**
+ * Строка очереди закупки — В ЛЮБОЙ РАСКЛАДКЕ.
+ *
+ * С правки 03.09 ниже 1024px (и на тач-экране) список рисуется карточками:
+ * шесть колонок с «Открыть» последней уезжали за правый край планшета.
+ * Локатор по `row` после этого находил бы пустоту, то есть спека молча
+ * перестала бы проверять мобильную половину — а гонится она и там.
+ * Поэтому берём объединение: строка таблицы ИЛИ карточка списка.
+ */
+const supplyList = (page: import('@playwright/test').Page, label: string) =>
+  page.getByRole('region', { name: label }).or(page.getByRole('list', { name: label }));
+
+const supplyRow = (
+  page: import('@playwright/test').Page,
+  title: string,
+  label = 'Заказы в закупке',
+) => supplyList(page, label).getByRole('row').filter({ hasText: title })
+  .or(supplyList(page, label).getByRole('listitem').filter({ hasText: title }));
+
+/** «Открыть» в таблице, «Открыть закупку» в карточке: подпись без шапки полнее */
+const OPEN = { name: /^Открыть/ };
+
+/**
+ * ЕДИНСТВЕННЫЙ ЗАКАЗ ОТКРЫВАЕТСЯ САМ (обход 04.09).
+ *
+ * Экран встречал закупщика подсказкой «Выберите заказ в списке выше» даже
+ * тогда, когда выбирать было не из чего: первый экран не показывал работу,
+ * а требовал лишнего действия перед ней.
+ *
+ * Своя фикстура из ОДНОГО заказа: базовые две — это как раз тот случай,
+ * когда выбирать должен человек, и на них правило нечем нарушить.
+ */
+test.describe('Закупка: единственный заказ', () => {
+  test.beforeEach(async ({ page }) => {
+    await installSupabaseMock(page, { orders: [ORDER_PARTIAL] });
+    await page.clock.setFixedTime(FIXED_TIME);
+  });
+
+  test('карточка закупки открыта сразу, без лишнего выбора', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await expect(page.getByRole('heading', { name: 'Закупка' })).toBeVisible();
+
+    // Выбор виден в адресе — ссылку по-прежнему можно переслать
+    await expect.poll(() => new URL(page.url()).searchParams.get('supply')).toBeTruthy();
+    await expect(page.getByText('Выберите заказ в списке выше')).toHaveCount(0);
+  });
+});
+
+test.describe('Очередь закупки (правка 12.08)', () => {
+  test('заказ БЕЗ материалов виден и говорит об этом прямо', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    const block = page.getByRole('heading', { name: /Заказы в закупке/ });
+    await expect(block).toBeVisible();
+
+    // Это и есть дефект: раньше такого заказа не было ни на одном экране
+    const row = supplyRow(page, 'Платки тест закупка');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('материалы не заведены');
+  });
+
+  test('строка списка — ЗАКАЗ, а не этап и не материал', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    // У заказа одна позиция → один этап закупки. Строка обязана быть одна,
+    // а число этапов — отдельной колонкой: заказ из трёх позиций дал бы
+    // три одинаковые строки с одним и тем же списком материалов
+    const rows = supplyRow(page, 'Платки тест закупка');
+    await expect(rows).toHaveCount(1);
+    // Число позиций в закупке переехало в карточку вместе с работой (п. 1.1):
+    // в списке остались только ключевые поля навигации
+    await rows.first().getByRole('button', OPEN).click();
+    await expect(page.getByText(/1 позиция в закупке/)).toBeVisible();
+  });
+
+  test('состояние закупки различает «ожидает» и «в работе»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+
+    await expect(supplyRow(page, 'Платки тест закупка')).toContainText('Ожидает');
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('В работе');
+  });
+
+  test('материалы показаны прогрессом «N из M»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    // Три позиции, «на месте» одна: вторая ещё не пришла, третью склад
+    // принял с недостачей — то есть закупка по ней не закончена
+    await expect(supplyRow(page, 'Худи корпоратив')).toContainText('1 из 3');
+  });
+
+  /**
+   * §3.3 обхода 04.09: результат приёмки склада закупщику не был виден НИГДЕ.
+   * Недостача, пересорт, отказ и комментарий кладовщика не показывались
+   * в строке материала и не считались плиткой «Проблемы» — обратной связи
+   * склад → закупка не существовало вовсе.
+   */
+  test('вердикт склада виден в карточке закупки и считается «Проблемой»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0&supply=ord-f');
+    const card = page.getByRole('region', { name: /Закупка по заказу/ })
+      .or(page.locator('main'));
+    await expect(card.getByText('Недостача').first()).toBeVisible();
+    await expect(card.getByText(/привезли 45 из 60/).first()).toBeVisible();
+    // Сводка строкой (правка 05.10, п. 6) — та же величина, что и вердикт:
+    // считает `supplyMaterialSummary`
+    await expect(page.getByText(/проблемы 1/)).toBeVisible();
+  });
+
+  /**
+   * РАБОЧИХ ДЕЙСТВИЙ В СПИСКЕ НЕТ (п. 1.2): «не держать россыпью в общем
+   * списке — они доступны после открытия конкретной закупки». Сторожим
+   * отсутствие поимённо: вернувшаяся кнопка восстановила бы вторую рабочую
+   * зону молча.
+   */
+  test('список — только навигация, действия в карточке', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const row = supplyRow(page, 'Платки тест закупка');
+    for (const name of ['Печать', '+ Материал', 'Взять в работу', 'Завершить закупку']) {
+      await expect(row.getByRole('button', { name })).toHaveCount(0);
+    }
+    await expect(row.getByRole('button', OPEN)).toBeVisible();
+  });
+
+  /**
+   * Сводка статусов видна сразу (п. 1.3) — с правки 05.10 (п. 6) одной
+   * строкой в ШИРОКОЙ ПАНЕЛИ, а не плитками в блоке под списком.
+   */
+  test('карточка закупки открывается панелью со сводкой строкой', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Платки тест закупка')
+      .getByRole('button', OPEN).click();
+    // Выбор живёт в адресе — ссылкой на закупку можно поделиться
+    await expect(page).toHaveURL(/supply=/);
+    const panel = page.getByRole('dialog', { name: 'Карточка закупки' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/^Материалов 0/)).toBeVisible();
+    await expect(page.locator('[class*="kpiCardLabel"]')).toHaveCount(0);
+  });
+
+  /** Таблица материалов помещается в панель: статус и действие без прокрутки вбок */
+  test('таблица материалов без горизонтальной прокрутки', async ({ page }) => {
+    await page.goto('/purchasing?studio=0&supply=ord-f');
+    const panel = page.getByRole('dialog', { name: 'Карточка закупки' });
+    // На любой ширине: таблица на десктопе, карточки на планшете и телефоне
+    await expect(panel.getByLabel('Статус Бирки картонные')).toBeVisible();
+    const body = panel.locator('[class*="drawerBody"]');
+    const overflow = await body.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test('досрочное закрытие требует причины — иначе этап закрыт молча', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Платки тест закупка')
+      .getByRole('button', OPEN).click();
+    await page.getByRole('button', { name: 'Завершить закупку' }).click();
+
+    // У заказа нет ни одного материала → закрытие досрочное и с объяснением.
+    // Диалог подтверждения — ПОВЕРХ панели закупки (правка 05.10, п. 6),
+    // поэтому берём его по тексту, а не единственным `dialog` на странице
+    const dialog = page.getByRole('dialog').filter({ hasText: 'Завершить закупку досрочно' });
+    await expect(dialog).toContainText('не заведено ни одного материала');
+    const input = dialog.getByLabel('Почему закупка завершена');
+    await expect(input).toBeVisible();
+
+    // Подтвердить без причины нельзя: через неделю «почему» должно отвечать
+    // не расследование, а история этапа
+    await expect(dialog.getByRole('button', { name: 'Завершить' })).toBeDisabled();
+    await input.fill('Материалы давальческие');
+    await expect(dialog.getByRole('button', { name: 'Завершить' })).toBeEnabled();
+  });
+
+  /**
+   * АРХИВ ЗАВЕРШЁННЫХ ЗАКУПОК (правка заказчика 24.08, п. 2).
+   *
+   * Жалоба была тройная: завершённые заказы «раскрыты и мешают», внутри
+   * архива второй раз стоит заголовок «Заказы в закупке», а статус у них
+   * «Ожидает». Unit-стороже проверяют список и `supplyState`; здесь —
+   * то, чего они не видят: что блок стоит ПОСЛЕ рабочей области экрана
+   * и что раскрытый архив не заводит второй такой же заголовок.
+   */
+  test('архив свёрнут, стоит после рабочей области и не дублирует заголовок',
+    async ({ page }) => {
+      await page.goto('/purchasing?studio=0');
+      const active = page.getByRole('heading', { name: /Заказы в закупке/ });
+      await expect(active).toBeVisible();
+
+      const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
+      // Свёрнут по умолчанию: содержимое в аккессибилити-дерево не попадает
+      await expect(archive.getByRole('button', OPEN)).toHaveCount(0);
+
+      // Внизу страницы: заголовок активной очереди выше архива по документу
+      const order = await active.evaluate(
+        (el, arc) => el.compareDocumentPosition(arc!) & Node.DOCUMENT_POSITION_FOLLOWING,
+        await archive.elementHandle(),
+      );
+      expect(order, 'архив обязан стоять ниже рабочей области').toBeGreaterThan(0);
+
+      await archive.locator('summary').click();
+      await expect(archive.getByRole('button', OPEN).first()).toBeVisible();
+      // Второго «Заказы в закупке» не появилось — ни заголовком, ни именем области
+      await expect(active).toHaveCount(1);
+      await expect(supplyList(page, 'Заказы в закупке')).toHaveCount(1);
+    });
+
+  test('завершённая закупка помечена «Завершено», а не «Ожидает»', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const archive = page.locator('details').filter({ hasText: 'Завершённые закупки' }).first();
+    await archive.locator('summary').click();
+    const rows = supplyList(page, 'Завершённые закупки').getByRole('row')
+      .or(supplyList(page, 'Завершённые закупки').getByRole('listitem'));
+    // Шапка таблицы тоже строка — берём первую с кнопкой «Открыть»
+    const row = rows.filter({ has: page.getByRole('button', OPEN) }).first();
+    await expect(row).toContainText('Завершено');
+    await expect(row).not.toContainText('Ожидает');
+  });
+
+  /**
+   * ТРИ КОЛИЧЕСТВА (правка 05.10, п. 6): «при создании есть „фактическое
+   * количество", хотя приёмки ещё не было». В форме — «Нужно по заказу»
+   * и необязательное «Заказано поставщику»; принятое ведёт только склад.
+   * Заказ уже выбран: форма открыта из закупки заказа.
+   */
+  test('в форме «Нужно по заказу» и «Заказано поставщику», заказ выбран',
+    async ({ page }) => {
+      await page.goto('/purchasing?studio=0');
+      await supplyRow(page, 'Худи корпоратив')
+        .getByRole('button', OPEN).click();
+      await page.getByRole('button', { name: '+ Материал' }).click();
+
+      const modal = page.getByRole('dialog', { name: 'Новая закупка' });
+      await expect(modal.getByLabel('Заказ', { exact: true })).toHaveValue('ord-f');
+      await expect(modal.getByLabel('Нужно по заказу')).toBeVisible();
+      await expect(modal.getByLabel('Заказано поставщику')).toBeVisible();
+      await expect(modal.getByLabel(/Фактическое/)).toHaveCount(0);
+
+      await modal.getByLabel('Нужно по заказу').fill('100');
+      await modal.getByLabel('Заказано поставщику').fill('110');
+      await expect(modal.getByLabel('Нужно по заказу')).toHaveValue('100');
+      await expect(modal.getByLabel('Заказано поставщику')).toHaveValue('110');
+    });
+
+  /**
+   * СЦЕНАРИЙ ЗАКУПКИ ЦЕЛИКОМ ВЫБИРАЕТСЯ РУКАМИ (правка 12.09, п. 8):
+   * «Не заказано» → «Заказано» → «В пути».
+   *
+   * С 24.08 «Заказано» было погашено («ставится по факту оформления»),
+   * заказчик это решение отменил. Вместо него погашены «Пришло» и «Частично»:
+   * приход фиксирует склад приёмкой, а не закупщик выбором. Пункты остаются
+   * видимыми — исчезнувшая строка списка читается как поломка.
+   */
+  test('основной сценарий выбирается, приёмочные статусы — нет', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    await supplyRow(page, 'Худи корпоратив')
+      .getByRole('button', OPEN).click();
+    /**
+     * Берём НЕПРИНЯТЫЙ материал («Бирки картонные», `pending`). У принятого
+     * пункт «Пришло» доступен намеренно — он показывает СВОЁ значение,
+     * иначе селект открылся бы пустым и соврал о состоянии строки.
+     */
+    const select = page.getByLabel('Статус Бирки картонные');
+    await expect(select).toBeVisible();
+    // `exact: true`: «Заказано» — подстрока «Не заказано», и без этого
+    // локатор находит два пункта сразу
+    await expect(select.getByRole('option', { name: 'Не заказано', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: 'Заказано', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: 'В пути', exact: true })).toBeEnabled();
+    await expect(select.getByRole('option', { name: /^Пришло/ })).toBeDisabled();
+    await expect(select.getByRole('option', { name: /^Частично/ })).toBeDisabled();
+  });
+
+  test('бейдж «Закупка» в меню считает заказы, ждущие закупки', async ({ page }) => {
+    await page.goto('/purchasing?studio=0');
+    const link = page.getByRole('complementary').getByRole('link', { name: /Закупка/ });
+    await expect(link).toBeVisible();
+    // Два заказа с открытым этапом supply; дозакупок из брака в фикстуре нет.
+    // Раньше счётчик считал ТОЛЬКО дозакупки — и в разделе никто не появлялся
+    await expect(link).toContainText('2');
+  });
+});

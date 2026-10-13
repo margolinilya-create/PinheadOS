@@ -1,49 +1,96 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit -m ':*)",
-      "Edit(/.claude/skills/test-driven-development/**)",
-      "Edit(/.claude/skills/finishing-a-development-branch/**)",
-      "Edit(/.claude/skills/software-architecture/**)",
-      "Edit(/.claude/skills/subagent-driven-development/**)",
-      "Edit(/.claude/skills/using-git-worktrees/**)",
-      "Edit(/.claude/skills/changelog-generator/**)",
-      "Bash(xargs -I {} basename {})",
-      "Bash(npx eslint:*)",
-      "Bash(npx playwright:*)",
-      "Bash(NO_PROXY=localhost npx playwright test e2e/wizard-flow.spec.ts --project=desktop --reporter=line)",
-      "Bash(npx vite:*)",
+      "Edit(/.claude/skills/**)",
+
       "Bash(npm run:*)",
-      "Bash(grep -E \"\\\\.sql$\")",
-      "Bash(wc -l /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/store/slices/*.js)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5175/)",
-      "Bash(lsof -ti:5174,5175)",
-      "Bash(curl -s http://localhost:5175/)",
-      "Bash(node --input-type=module --experimental-vm-modules)",
-      "Bash(wc -l src/components/*.jsx src/store/*.js src/data/*.js)",
-      "Bash(grep -c '<style' src/components/*.jsx src/store/*.js)",
-      "Bash(grep -v ':0$')",
-      "Read(//Users/margolinilya/PinheadOS/**)",
-      "Bash(wc -l /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/components/*/*.jsx /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/components/*/*.css)",
-      "Bash(git -C /Users/margolinilya/PinheadOS/PinheadOS log --oneline)",
-      "Bash(find /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/styles -type f -name \"*.css\" -exec wc -l {} \\\\;)",
-      "Read(//Users/margolinilya/PinheadOS/PinheadOS/**)",
-      "Bash(find /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/types -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -l {} \\\\;)",
-      "Bash(find /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src -maxdepth 1 -type f -name \"*.test.js\" -exec wc -l {} \\\\;)",
-      "Bash(wc -l /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/e2e/*.spec.ts /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/tests/E2E-TEST-PLAN.md)",
+      "Bash(npm test:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npx vite:*)",
+      "Bash(node -e :*)",
+      "Bash(git commit -m ':*)",
+
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__list_tables",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__list_migrations",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__list_extensions",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__list_projects",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__get_project",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__get_project_url",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__get_advisors",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__generate_typescript_types",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__search_docs",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__list_edge_functions",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__get_edge_function",
+      "mcp__fe7ebbe9-686b-4a7a-bde7-b888b638f3a9__query_logs",
+
+      "mcp__github__pull_request_read",
+      "mcp__github__list_pull_requests",
+      "mcp__github__search_pull_requests",
+      "mcp__github__get_file_contents",
+      "mcp__github__list_commits",
+      "mcp__github__get_commit",
+      "mcp__github__list_branches",
+      "mcp__github__search_code",
+      "mcp__github__get_me",
+      "mcp__github__actions_list",
+      "mcp__github__actions_get",
+      "mcp__github__get_job_logs",
+      "mcp__github__get_check_run",
+      "mcp__github__issue_read",
+      "mcp__github__list_issues",
+
+      "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_take_screenshot",
       "mcp__playwright__browser_navigate",
-      "Bash(git commit -m 'chore: delete dead lib/api.ts \\(supaQuery unused\\):*)",
-      "Bash(git commit -m 'fix\\(css\\): standardize orphan 600px breakpoint to 768px \\(#55\\):*)",
-      "Bash(node -e ':*)",
-      "Bash(grep -l 'kb-drawer-section' /Users/margolinilya/PinheadOS/PinheadOS/pinhead-react/src/styles/*.css)",
-      "Bash(echo \"Exit: $?\")",
-      "Bash(git -C /Users/margolinilya/PinheadOS/PinheadOS rm pinhead-react/src/store/useStore.js)",
-      "Bash(git -C /Users/margolinilya/PinheadOS/PinheadOS add pinhead-react/src/store/useStore.ts)",
-      "Bash(git -C /Users/margolinilya/PinheadOS/PinheadOS commit -m ':*)"
-    ],
-    "additionalDirectories": [
-      "/Users/margolinilya/PinheadOS/PinheadOS/.claude/skills"
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_select_option",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_close"
     ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "extraKnownMarketplaces": {
+    "buildwithclaude": {
+      "source": {
+        "source": "github",
+        "repo": "davepoon/buildwithclaude"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "ecc": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/everything-claude-code",
+        "ref": "v2.2.3"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "agents-design-experience@buildwithclaude": true,
+    "supabase@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "semgrep@claude-plugins-official": true,
+    "ecc@ecc": true
   }
 }

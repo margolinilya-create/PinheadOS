@@ -40,11 +40,18 @@ describe('SKU Catalog', () => {
 });
 
 describe('Fabrics Catalog', () => {
-  it('has 38 fabrics', () => {
-    expect(FABRICS_CATALOG_DEFAULT).toHaveLength(38);
+  it('has 48 fabrics (13.10: + Медас 160 отдельно, «Пич», 9 тканей шопперов)', () => {
+    expect(FABRICS_CATALOG_DEFAULT).toHaveLength(48);
   });
-  it('has 7 trims', () => {
-    expect(TRIM_CATALOG_DEFAULT).toHaveLength(7);
+  it('has 15 trims: рибана и кашкорсе по 5 поставщикам, 2 воротника, 3 legacy', () => {
+    expect(TRIM_CATALOG_DEFAULT).toHaveLength(15);
+  });
+  it('every fabric and trim is priced in rubles per unit, not per kg', () => {
+    [...FABRICS_CATALOG_DEFAULT, ...TRIM_CATALOG_DEFAULT].forEach(m => {
+      expect(m.priceRub).toBeGreaterThan(0);
+      expect(['m', 'pcs']).toContain(m.unit);
+      expect(m.priceUSD).toBe(0);
+    });
   });
   it('every fabric has priceUSD and forCategories', () => {
     FABRICS_CATALOG_DEFAULT.forEach(f => {
@@ -174,6 +181,7 @@ describe('Constants', () => {
   it('Layer types defined', () => {
     expect(LAYER1_TYPES).toEqual(['tshirts', 'longsleeves', 'polo']);
     expect(LAYER2_TYPES.length).toBeGreaterThan(0);
-    expect(FABRIC_SUPPLIERS).toEqual(['Медас', 'ТД Коттон', 'ТониТекс']);
+    expect(FABRIC_SUPPLIERS.slice(0, 3)).toEqual(['Медас', 'ТД Коттон', 'ТониТекс']);
+    FABRICS_CATALOG_DEFAULT.forEach(f => expect(FABRIC_SUPPLIERS).toContain(f.supplier));
   });
 });

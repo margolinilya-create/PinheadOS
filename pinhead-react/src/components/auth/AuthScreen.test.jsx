@@ -11,6 +11,14 @@ beforeEach(() => {
     login: vi.fn(),
     register: vi.fn(),
     clearError: vi.fn(),
+    awaitingEmailConfirm: null,
+    resendingConfirm: false,
+    resendConfirmation: vi.fn(),
+    clearEmailConfirm: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    sendingReset: false,
+    resetSentTo: null,
+    clearPasswordReset: vi.fn(),
   });
 });
 
@@ -73,7 +81,7 @@ describe('AuthScreen', () => {
   });
 
   it('shows pending screen after successful registration', async () => {
-    const register = vi.fn().mockResolvedValue(true);
+    const register = vi.fn().mockResolvedValue('signed_in');
     useAuthStore.setState({ register });
     render(<AuthScreen />);
     fireEvent.click(screen.getByText('Регистрация'));
@@ -87,5 +95,97 @@ describe('AuthScreen', () => {
     await vi.waitFor(() => {
       expect(screen.getByText('Ожидание подтверждения')).toBeInTheDocument();
     });
+  });
+});
+
+/**
+ * Незаконченная регистрация: адрес почты не подтверждён.
+ *
+ * Экран поднимается и после регистрации, и при попытке войти в неподтверждённый
+ * аккаунт. Раньше первый случай выдавали за ожидание администратора (который был
+ * ни при чём и мог уже всё одобрить), а второй — за красную строку «Email
+ * не подтверждён» без единой подсказки, что делать дальше.
+ */
+describe('AuthScreen — подтверждение адреса почты', () => {
+  it('называет адрес и объясняет, что нужно открыть письмо', () => {
+    useAuthStore.setState({ awaitingEmailConfirm: 'marika@example.com' });
+    render(<AuthScreen />);
+
+    expect(screen.getByText('Подтвердите адрес почты')).toBeInTheDocument();
+    expect(screen.getByText('marika@example.com')).toBeInTheDocument();
+    expect(screen.getByText(/ссылку из письма/)).toBeInTheDocument();
+    // и это не форма входа: пароль спрашивать не о чем
+    expect(screen.queryByText('Войти')).toBeNull();
+  });
+
+  it('письмо отправляется повторно — встроенный SMTP охотно теряет первое', () => {
+    const resendConfirmation = vi.fn();
+    useAuthStore.setState({ awaitingEmailConfirm: 'marika@example.com', resendConfirmation });
+    render(<AuthScreen />);
+
+    fireEvent.click(screen.getByText('Отправить письмо повторно'));
+
+    expect(resendConfirmation).toHaveBeenCalled();
+  });
+
+  it('на время отправки кнопка заблокирована', () => {
+    useAuthStore.setState({ awaitingEmailConfirm: 'marika@example.com', resendingConfirm: true });
+    render(<AuthScreen />);
+
+    expect(screen.getByText('Отправляем...')).toBeDisabled();
+  });
+
+  it('«Вернуться ко входу» снимает экран', () => {
+    const clearEmailConfirm = vi.fn();
+    useAuthStore.setState({ awaitingEmailConfirm: 'marika@example.com', clearEmailConfirm });
+    render(<AuthScreen />);
+
+    fireEvent.click(screen.getByText('Вернуться ко входу'));
+
+    expect(clearEmailConfirm).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Забытый пароль.
+ *
+ * Восстановления не было ВООБЩЕ: человек упирался в «Неверный email или пароль»
+ * и не имел ни одного выхода — повторная регистрация отвечает «адрес уже
+ * заведён», а сменить пароль некому. В эту дыру попал сотрудник, которому
+ * выписали приглашение на существующий адрес: две неудачные попытки входа
+ * и девять попыток регистрации подряд.
+ */
+describe('AuthScreen — восстановление пароля', () => {
+  it('«Забыли пароль?» отправляет ссылку на введённый адрес', () => {
+    const requestPasswordReset = vi.fn();
+    useAuthStore.setState({ requestPasswordReset });
+    render(<AuthScreen />);
+
+    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
+      target: { value: 'za@pnhd.ru' },
+    });
+    fireEvent.click(screen.getByText('Забыли пароль?'));
+
+    expect(requestPasswordReset).toHaveBeenCalledWith('za@pnhd.ru');
+  });
+
+  it('без адреса не шлёт запрос, а просит его ввести', () => {
+    const requestPasswordReset = vi.fn();
+    useAuthStore.setState({ requestPasswordReset });
+    render(<AuthScreen />);
+
+    fireEvent.click(screen.getByText('Забыли пароль?'));
+
+    expect(requestPasswordReset).not.toHaveBeenCalled();
+    expect(screen.getByText(/Введите email/)).toBeInTheDocument();
+  });
+
+  it('после отправки экран называет адрес, а не гасит сообщение через три секунды', () => {
+    useAuthStore.setState({ resetSentTo: 'za@pnhd.ru' });
+    render(<AuthScreen />);
+
+    expect(screen.getByText('Ссылка отправлена')).toBeInTheDocument();
+    expect(screen.getByText('za@pnhd.ru')).toBeInTheDocument();
+    expect(screen.queryByText('Войти')).toBeNull();
   });
 });

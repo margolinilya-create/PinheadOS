@@ -1,0 +1,498 @@
+/**
+ * Слайс realtime: точечное применение postgres_changes + подписка на канал.
+ * Вынесен из useErpStore.ts (рефакторинг по плану аудита). Таймер debounce полной
+ * перезагрузки держится локально в модуле (реассайнится, чистится при отписке).
+ */
+
+import type { StateCreator } from 'zustand';
+import { supabase } from '../../../lib/supabase';
+import type { ErpItemStage, ErpOrder } from '../../types';
+import {
+  _pendingMutations,
+  REALTIME_DEFER_MS,
+  REALTIME_DEFER_ATTEMPTS,
+} from '../shared';
+import {
+  clearRealtimeTimers,
+  scheduleExperimentalReload,
+  scheduleFullReload,
+  scheduleOrderReload,
+  schedulePing,
+} from '../realtimeCoalesce';
+import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
+import { resyncRealtime } from './realtimeResync';
+import type { ErpStore, RealtimeSlice } from '../types';
+import { dropChannel, upsertChildRow } from '../realtimeHelpers';
+import {
+  clearReconnect, isLive, markLive, scheduleReconnect,
+} from '../realtimeReconnect';
+
+/**
+ * Переподключение канала.
+ *
+ * До 22.08 у `.subscribe()` не было обработчика статуса ВООБЩЕ: `CHANNEL_ERROR`
+ * и `TIMED_OUT` не ловились ничем, а слушателей `visibilitychange`/`online`/
+ * `focus` в проекте не было ни одного. Планшет цеха, ушедший в сон или
+ * потерявший Wi-Fi, возвращался с молча устаревшей очередью — и распознать
+ * это человек не мог в принципе: экран выглядит рабочим, просто показывает
+ * позавчерашнюю работу.
+ *
+ * Шаги, таймер и метка живого канала — в `realtimeReconnect` (там же
+ * разбор зацикливания 28.09). Шаги реэкспортируются для тестов.
+ */
+export { RECONNECT_STEPS_MS } from '../realtimeReconnect';
+
+/**
+ * Таблицы, на которые подписан канал. Подписка и обработчик в
+ * `applyRealtimeEvent` заводятся ВМЕСТЕ — расхождение сторожит
+ * `realtimeCoverage.test.ts`. Форма `{ table: '…' }` — та, которую он читает.
+ */
+const REALTIME_TABLES = [
+  { table: 'erp_item_stages' },
+  { table: 'erp_orders' },
+  { table: 'erp_materials' },
+  { table: 'erp_procurement_tasks' },
+  { table: 'erp_subcontracting' },
+  { table: 'erp_warehouse_ops' },
+  { table: 'erp_warehouse_tasks' },
+  { table: 'erp_experimental' },
+  // Задачи разработки: их статус пишет триггер при закрытии этапа цехом
+  { table: 'erp_experimental_tasks' },
+  { table: 'erp_tz_documents' },
+  { table: 'erp_bypasses' },
+  /**
+   * Персональные уведомления: человека зовут СЕЙЧАС, и «увидит при
+   * следующей загрузке» здесь означает «не увидит вовсе» — вкладку
+   * в цеху держат открытой сменами. Фильтра по адресату в подписке нет:
+   * его ставит RLS (`user_id = auth.uid()`), и дублировать это условие
+   * в клиенте значило бы завести вторую формулу видимости.
+   */
+  { table: 'erp_notifications' },
+  /**
+   * Чат: «новые сообщения должны появляться без перезагрузки страницы
+   * не позднее чем через 10 секунд» (требование документа). Подписка
+   * одна — на сообщения: упоминания и вложения приезжают вместе с ними
+   * через `erp_chat_page`, а отметка прочтения личная и чужих вкладок
+   * не касается. Реакции — единственное в переписке, что меняется ЧУЖИМИ
+   * РУКАМИ без нового сообщения; строк мало, событий — по одному на нажатие.
+   */
+  { table: 'erp_chat_messages' },
+  { table: 'erp_chat_reactions' },
+  { table: 'erp_order_items' },
+  /**
+   * Производственный план: план ставит руководитель, факт вносит цех —
+   * двое разных людей на одной доске. Без подписки каждый видел только
+   * свои записи до перезагрузки страницы.
+   */
+  { table: 'erp_calendar_slots' },
+];
+
+/** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
+export type ChildKey =
+  | 'materials' | 'procurement_tasks' | 'warehouse_ops' | 'warehouse_tasks'
+  | 'tz_documents' | 'developments' | 'items';
+const TABLE_TO_CHILD: Record<string, ChildKey> = {
+  erp_materials: 'materials',
+  erp_procurement_tasks: 'procurement_tasks',
+  erp_warehouse_ops: 'warehouse_ops',
+  erp_warehouse_tasks: 'warehouse_tasks',
+  // ТЗ: замена файла должна долетать до открытого задания цеха
+  erp_tz_documents: 'tz_documents',
+  /**
+   * ПОЗИЦИИ ЗАКАЗА (правка 03.09). Их `qty_shipped` ведёт триггер отгрузки,
+   * а событие `erp_orders` UPDATE обрабатывается мержем полей ЗАКАЗА и массив
+   * `items` не трогает вовсе. Из-за этого после частичной отгрузки второй
+   * кладовщик в своей вкладке продолжал видеть прежний остаток к отгрузке
+   * (`utils/shipment.shipmentTotals` считает по `items`) — и мог отдать его
+   * второй раз. От повтора спасал только ключ идемпотентности, а он привязан
+   * к одной попытке одного устройства.
+   *
+   * Слияние безопасно: существующая строка патчится полями события
+   * (`{ ...r, ...row }`), то есть вложенные `stages` сохраняются.
+   */
+  erp_order_items: 'items',
+};
+
+/**
+ * Дочерние таблицы, изменение которых может СДЕЛАТЬ этап готовым к запуску
+ * (материальный гейт, гейт закупки, гейт ТЗ). Только для них имеет смысл считать
+ * «в вашем цехе появилась новая работа»: пересчёт обходит все заказы дважды,
+ * и вешать его на складские события — чистая трата на каждом переходе этапа.
+ */
+const AFFECTS_READINESS = new Set<ChildKey>(['materials', 'procurement_tasks', 'tz_documents']);
+
+export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set, get) => ({
+  /**
+   * Живой ли канал. `true` по умолчанию — до первой подписки говорить «связи
+   * нет» неправда, а полоса «данные могли устареть» на пустом экране пугает
+   * там, где ничего ещё не грузилось.
+   */
+  realtimeLive: true,
+
+  /** Идёт перечитывание после разрыва — полоса говорит «обновляем», а не «всё плохо» */
+  realtimeResyncing: false,
+
+  // Перечитывание после разрыва — `realtimeResync` (вынесено по ратчету размера, 01.10)
+  resyncRealtime: resyncRealtime(set, get),
+
+  applyRealtimeEvent: (ev) => {
+    const row = (ev.eventType === 'DELETE' ? ev.old : ev.new) ?? {};
+    const id = row.id as string | undefined;
+
+    // Последний fallback: точечно применить нельзя — одна полная перезагрузка на серию
+    const fullReload = () => scheduleFullReload(() => {
+      void withNewWorkToast(get, () => get().loadAll());
+    });
+    if (!id) {
+      fullReload();
+      return;
+    }
+
+    // Материалы/закупка/склад: точечный upsert в массив заказа, БЕЗ полного loadOne
+    // (loadOne затирал бы оптимистичные мутации этапов — «откат»/«перескок»).
+    const childKey = TABLE_TO_CHILD[ev.table];
+    if (childKey) {
+      const orderId = (row.order_id ?? null) as string | null;
+      if (orderId && get().orders.some((o) => o.id === orderId)) {
+        const apply = () => {
+          set((s) => ({
+            orders: s.orders.map((o) =>
+              o.id === orderId
+                ? upsertChildRow(o, childKey, row as Record<string, unknown>, id, ev.eventType)
+                : o),
+          }));
+        };
+        // Материалы/закупка/ТЗ влияют на готовность этапов → проверяем, не появилась ли
+        // работа. Складские таблицы на готовность не влияют — комментарий говорил это
+        // и раньше, но код всё равно гонял двойной обход всех заказов на каждое их
+        // событие, а триггер складских задач шлёт события на КАЖДОМ переходе этапа.
+        if (AFFECTS_READINESS.has(childKey)) void withNewWorkToast(get, apply);
+        else apply();
+      }
+      return;
+    }
+    if (ev.table === 'erp_subcontracting') {
+      // Раздел, посеянный пакетом оболочки (строки есть, флага нет), тоже перечитывается — иначе бейдж застывает
+      if (get().subcontractingLoaded || get().subcontracting.length > 0) void get().loadSubcontracting();
+      return;
+    }
+    /**
+     * Разработка, её задачи и старые операции.
+     *
+     * `erp_experimental_tasks` подписаны обязательно: статус задачи, ушедшей
+     * в цех, ведёт ТРИГГЕР — цех закрывает этап у себя, и без подписки
+     * открытая карточка разработки показывала бы старое состояние до
+     * перезагрузки руками. Это ровно тот дефект, который чинится всей волной.
+     */
+    /**
+     * СЛОТЫ ПРОИЗВОДСТВЕННОГО ПЛАНА (правка 03.09).
+     *
+     * Патчим массив, а не перечитываем: `loadPlan(from, to)` требует диапазон,
+     * а стор его не помнит. Вставку принимаем только в пределах уже
+     * загруженных дат — иначе на экране недели появилась бы карточка чужой
+     * недели, а очередь цеха показала бы её в общем списке. За пределами
+     * диапазона данные подтянет обычная загрузка при следующем открытии.
+     */
+    if (ev.table === 'erp_calendar_slots') {
+      if (!get().planLoaded) return;
+      const slots = get().planSlots;
+      const known = slots.some((s2) => s2.id === id);
+      if (ev.eventType === 'DELETE') {
+        set({ planSlots: slots.filter((s2) => s2.id !== id) });
+        return;
+      }
+      if (known) {
+        set({
+          planSlots: slots.map((s2) => (s2.id === id
+            ? { ...s2, ...(row as Record<string, unknown>) } : s2)),
+        });
+        return;
+      }
+      const date = (row.work_date ?? null) as string | null;
+      const dates = slots.map((s2) => s2.work_date);
+      if (!date || dates.length === 0) return;
+      const from = dates.reduce((a, b) => (a < b ? a : b));
+      const to = dates.reduce((a, b) => (a > b ? a : b));
+      if (date >= from && date <= to) {
+        set({ planSlots: [...slots, row as never] });
+      }
+      return;
+    }
+
+    if (ev.table === 'erp_experimental' || ev.table === 'erp_experimental_tasks') {
+      /**
+       * ЭМБЕД РАЗРАБОТКИ В ЗАКАЗЕ — ВТОРАЯ КОПИЯ ТЕХ ЖЕ СТРОК (правки 02.09).
+       *
+       * `loadExperimental()` перечитывает `s.experimental`, а гейт отгрузки
+       * (`utils/stageUi.openDevelopments`) судит по `order.developments` —
+       * эмбеду, который приезжает с самим заказом. Без этой строки кладовщик
+       * в открытой вкладке продолжал бы видеть «разработка не завершена»
+       * после того, как её завершили, и кнопка отгрузки не появилась бы
+       * до перезагрузки руками.
+       *
+       * Патч стоит ЗДЕСЬ, а не в `TABLE_TO_CHILD`: та ветка выше и делает
+       * `return` — доска ЭКС перестала бы обновляться вовсе.
+       */
+      if (ev.table === 'erp_experimental') {
+        const orderId = (row.order_id ?? null) as string | null;
+        if (orderId && get().orders.some((o) => o.id === orderId)) {
+          set((st) => ({
+            orders: st.orders.map((o) => (o.id === orderId
+              ? upsertChildRow(
+                o, 'developments', row as Record<string, unknown>, id, ev.eventType)
+              : o)),
+          }));
+        }
+      }
+      // Серия событий задач одной разработки — одно перечитывание доски
+      if (get().experimentalLoaded || get().experimental.length > 0) {
+        scheduleExperimentalReload(() => { void get().loadExperimental(); });
+      }
+      return;
+    }
+
+    /**
+     * Защита от race (п.29): по сущности идёт мутация — отложить событие и применить,
+     * когда ключ снят (иначе состояние выправит ответ сервера).
+     *
+     * Попыток несколько, а не одна. Прежде отсрочка была одноразовой: если через
+     * секунду запрос ещё не вернулся — а на цеховом Wi-Fi это обычное дело, —
+     * событие ПРОПАДАЛО навсегда. Своя мутация такое переживает (её ответ и так
+     * запишется в стор), а вот чужая правка того же этапа тихо терялась, и на
+     * экране оставалось состояние, которого в базе уже нет, до следующего события.
+     */
+    const key = ev.table === 'erp_item_stages' ? `stage:${id}` : `order:${id}`;
+    // Маршрут применяется под ключом ПОЗИЦИИ (`route:<item>`), а его этапы приезжают
+    // INSERT-ами со своими id — без этой проверки заказ перечитывался ДО ответа сервера
+    const itemKey = ev.table === 'erp_item_stages' && ev.new?.item_id
+      ? `route:${ev.new.item_id as string}` : null;
+    const pending = () => _pendingMutations.has(key) || (itemKey !== null && _pendingMutations.has(itemKey));
+    if (pending()) {
+      // Повтор проверяет ОБА ключа — иначе отложенное маршрутом событие заходило бы с полным запасом попыток
+      const attempt = (left: number) => {
+        setTimeout(() => {
+          if (!pending()) get().applyRealtimeEvent(ev);
+          else if (left > 0) attempt(left - 1);
+        }, REALTIME_DEFER_MS);
+      };
+      attempt(REALTIME_DEFER_ATTEMPTS - 1);
+      return;
+    }
+
+    if (ev.table === 'erp_item_stages') {
+      if (ev.eventType === 'UPDATE') {
+        // Точечная замена этапа; этап незагруженного (архивного) заказа — мимо
+        if (!findStage(get().orders, id)) return;
+        void withNewWorkToast(get, () => {
+          set((s) => ({ orders: patchStageIn(s.orders, id, row as Partial<ErpItemStage>) }));
+        });
+        return;
+      }
+      if (ev.eventType === 'DELETE') {
+        const found = findStage(get().orders, id);
+        if (!found) return;
+        set((s) => ({
+          orders: s.orders.map((o) =>
+            o.id !== found.order.id
+              ? o
+              : {
+                  ...o,
+                  items: o.items.map((it) => ({
+                    ...it,
+                    stages: it.stages.filter((st) => st.id !== id),
+                  })),
+                }),
+        }));
+        return;
+      }
+      // INSERT этапа: точечно не применить — перезагрузим один заказ, если позиция наша
+      // (этапы новых заказов придут вместе с INSERT erp_orders → loadOne там)
+      const itemId = (ev.new?.item_id ?? null) as string | null;
+      const order = itemId
+        ? get().orders.find((o) => o.items.some((it) => it.id === itemId))
+        : null;
+      // Маршрут из N этапов — N событий, но одно перечитывание заказа
+      if (order) {
+        scheduleOrderReload(order.id, () => {
+          void withNewWorkToast(get, () => get().loadOne(order.id));
+        });
+      }
+      return;
+    }
+
+    if (ev.table === 'erp_orders') {
+      if (ev.eventType === 'DELETE') {
+        set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
+        return;
+      }
+      const existing = get().orders.find((o) => o.id === id);
+      if (ev.eventType === 'UPDATE' && existing) {
+        // merge полей заказа — вложенные items/materials/attachments не затираются
+        void withNewWorkToast(get, () => {
+          set((s) => ({
+            orders: s.orders.map((o) =>
+              o.id === id ? { ...o, ...(row as Partial<ErpOrder>) } : o),
+          }));
+        });
+        return;
+      }
+      // INSERT нового заказа (или UPDATE незагруженного) → перезагрузка одного по id.
+      // Незагруженный неактивный заказ при незагруженном архиве не тянем — не нужен.
+      const status = (ev.new?.status ?? 'active') as string;
+      if (status === 'active' || get().archiveLoaded) {
+        void withNewWorkToast(get, () => get().loadOne(id));
+      }
+      return;
+    }
+
+    /**
+     * Аварийно снятые блокировки (правки 10.08).
+     *
+     * Снятие и возврат проверки обязаны доходить до цеха немедленно: человек
+     * в цехе смотрит на очередь и должен увидеть, что задание запустилось —
+     * или что проверку вернули и работать по обходному сценарию больше нельзя.
+     * Список маленький, поэтому перечитываем его целиком, а не патчим точечно.
+     */
+    if (ev.table === 'erp_bypasses') {
+      void get().loadBypasses();
+      return;
+    }
+
+    /**
+     * ПЕРСОНАЛЬНЫЕ УВЕДОМЛЕНИЯ — «ЗВОНОК, А НЕ ПИСЬМО».
+     *
+     * Из события берётся только факт «что-то пришло», а список перечитывается
+     * целиком. Читать строку из `ev.new` нельзя: тогда видимость решалась бы
+     * ДВАЖДЫ — фильтром realtime и политикой чтения, — а две формулы одной
+     * величины в этом проекте расходились уже не раз. Список короткий,
+     * перечитать его дешевле, чем однажды показать человеку чужое.
+     */
+    if (ev.table === 'erp_notifications') {
+      void get().loadNotifications();
+      return;
+    }
+
+    /**
+     * СООБЩЕНИЕ ЧАТА — ТОЖЕ ЗВОНОК. Здесь у этого правила есть вторая
+     * причина, сильнее первой: `erp_chat_page` собирает сообщение вместе
+     * с упоминаниями, вложениями и цитатой, а событие несёт одну строку
+     * таблицы. Дописать её в ленту значило бы показать сообщение без файла
+     * и без того, на что оно отвечает.
+     *
+     * Счётчик, а не вызов действия: `refreshChat` живёт в ДОМЕННОМ слайсе,
+     * и до открытия первого экрана его в сторе нет вовсе. Подписка при этом
+     * работает с первой секунды — она в оболочке. Окно чата смонтировано
+     * только вместе с доменным чанком, поэтому читатель у звонка всегда есть.
+     */
+    if (ev.table === 'erp_chat_messages') {
+      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      return;
+    }
+
+    /**
+     * Реакция — тот же звонок, что сообщение, и по той же причине: сводка
+     * `{emoji, count, mine}` считается СЕРВЕРОМ внутри `erp_chat_page`,
+     * и дописать её из события значило бы завести вторую реализацию счёта
+     * (а `mine` в событии вообще нет — оно про чужую строку).
+     */
+    if (ev.table === 'erp_chat_reactions') {
+      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      return;
+    }
+
+    // Неизвестная таблица — старый путь
+    fullReload();
+  },
+
+  subscribeRealtime: () => {
+    // Уникальное имя канала (паттерн kontora24); события применяются точечно (п.27)
+    const forward = (table: string) => (payload: {
+      eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+      new: Record<string, unknown>;
+      old: Record<string, unknown>;
+    }) => {
+      get().applyRealtimeEvent({
+        table,
+        eventType: payload.eventType,
+        new: payload.new ?? null,
+        old: payload.old ?? null,
+      });
+    };
+
+    /**
+     * Живой канал — ровно один. Пересоздание при разрыве открывает новый
+     * и лишь потом закрывает прежний, а обработчик статуса сверяет свою
+     * метку с живой: статусы закрытого нами канала (`CLOSED` от собственной
+     * отписки, запоздалая ошибка, эхо `SUBSCRIBED`) — не наша связь.
+     * Без этой сверки собственная отписка запускала следующее переподключение,
+     * и каналы плодились по одному на круг (разбор — `realtimeReconnect`).
+     */
+    let current: ReturnType<typeof supabase.channel> | null = null;
+    const open = () => {
+      const token = Symbol('erp-live');
+      const channel = supabase.channel(`erp-live-${crypto.randomUUID()}`);
+      for (const { table } of REALTIME_TABLES) {
+        channel.on('postgres_changes', { event: '*', schema: 'public', table }, forward(table));
+      }
+      current = channel;
+      markLive(token);
+      /**
+       * Обработчик статуса. Его здесь не было вовсе, и это главный пробел
+       * реалтайма: разрыв канала не давал ни события, ни признака — экран
+       * просто переставал обновляться.
+       */
+      channel.subscribe((status: string) => {
+        if (!isLive(token)) return;
+        if (status === 'SUBSCRIBED') {
+          const wasDown = !get().realtimeLive;
+          clearReconnect();
+          set({ realtimeLive: true });
+          // Пока канала не было, в базе что-то произошло — событий об этом
+          // не придёт никогда, их можно только запросить заново
+          if (wasDown) void get().resyncRealtime();
+          return;
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          set({ realtimeLive: false });
+          scheduleReconnect(() => {
+            // Канал пересоздаётся целиком: у оборванного `subscribe()` повторно
+            // не вызывают — supabase-js держит его в терминальном состоянии.
+            // Сначала новый, потом отписка старого: его CLOSED уже не наш
+            open();
+            dropChannel(channel);
+          });
+        }
+      });
+    };
+    open();
+
+    /**
+     * Возврат к экрану и появление сети — те же «нас не было»: канал мог
+     * пережить сон вкладки, а мог и нет, и полагаться на его статус нельзя.
+     * Слушателей `visibilitychange`/`online`/`focus` в проекте не было ни
+     * одного, поэтому планшет после сна показывал устаревшую очередь молча.
+     *
+     * Ставятся ОДИН РАЗ на подписку, а не на каждое пересоздание канала:
+     * иначе они копились с каждым переподключением.
+     */
+    // `focus` не слушается: у возврата вкладки он приходит ВМЕСТЕ
+    // с `visibilitychange`, и два слушателя давали два полных loadAll
+    const onWake = () => { void get().resyncRealtime(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', onWake);
+      document.addEventListener('visibilitychange', onWake);
+    }
+
+    return () => {
+      clearRealtimeTimers();
+      clearReconnect();
+      markLive(null);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', onWake);
+        document.removeEventListener('visibilitychange', onWake);
+      }
+      // Канал мог быть пересоздан переподключением — отписываем ТОТ, что живёт
+      if (current) dropChannel(current);
+    };
+  },
+});

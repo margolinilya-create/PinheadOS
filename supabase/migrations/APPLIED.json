@@ -1,0 +1,2451 @@
+{
+  "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
+  "project": "pinhead-os-v2",
+  "capturedAt": "2026-10-13",
+  "preJournalFiles": [
+    "20260101000000_baseline_order_studio.sql",
+    "20260101000100_order_templates.sql",
+    "20260320_order_audit_log.sql",
+    "20260410120000_soft_delete_profiles.sql"
+  ],
+  "preJournalNote": "Базовая схема Order Studio: применена до того, как завели журнал (первая его запись — 20260415202746). Файлы есть, записей в журнале нет и не будет.",
+  "migrations": [
+    {
+      "version": "20260415202746",
+      "name": "20260530_hr_role_and_payroll_close",
+      "files": [
+        "20260415202746_hr_role_and_payroll_close.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260511165444",
+      "name": "copy_catalog_config_extras_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165515",
+      "name": "copy_catalog_config_fabrics_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165527",
+      "name": "copy_catalog_config_labels_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165544",
+      "name": "copy_catalog_config_prices_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165554",
+      "name": "copy_catalog_config_trim_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165613",
+      "name": "copy_catalog_config_fabricsCatalog_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165700",
+      "name": "copy_app_config_extras_hardware_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511165915",
+      "name": "copy_app_config_sku_catalog_from_shared",
+      "files": [],
+      "noFile": true,
+      "note": "перенос данных каталога из общей базы при переезде"
+    },
+    {
+      "version": "20260511170014",
+      "name": "create_sku_photos_bucket_and_policies",
+      "files": [
+        "20260511170014_create_sku_photos_bucket_and_policies.sql"
+      ]
+    },
+    {
+      "version": "20260511170055",
+      "name": "temp_anon_write_sku_photos",
+      "files": [],
+      "noFile": true,
+      "note": "временная политика записи для anon, снята следующей же миграцией"
+    },
+    {
+      "version": "20260511170125",
+      "name": "drop_temp_anon_write_sku_photos",
+      "files": [],
+      "noFile": true,
+      "note": "снятие той временной политики"
+    },
+    {
+      "version": "20260515104159",
+      "name": "20260515_security_hardening_post_cutover",
+      "files": [
+        "20260515104159_security_hardening_post_cutover.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260515104329",
+      "name": "20260515_revoke_anon_from_rls_helpers",
+      "files": [
+        "20260515104329_revoke_anon_from_rls_helpers.sql"
+      ],
+      "note": "имя в журнале несёт другую дату"
+    },
+    {
+      "version": "20260716201440",
+      "name": "drop_legacy_erp_redesign_v2",
+      "files": [
+        "20260716120000_drop_legacy_erp_redesign_v2.sql"
+      ]
+    },
+    {
+      "version": "20260716203545",
+      "name": "erp_phase1_core_schema",
+      "files": [
+        "20260716140000_erp_phase1_core_schema.sql"
+      ]
+    },
+    {
+      "version": "20260716210757",
+      "name": "erp_drop_department_capacity",
+      "files": [
+        "20260716170000_erp_drop_department_capacity.sql"
+      ]
+    },
+    {
+      "version": "20260716214149",
+      "name": "erp_employees_and_stage_events",
+      "files": [
+        "20260716200000_erp_employees_and_stage_events.sql"
+      ]
+    },
+    {
+      "version": "20260717043231",
+      "name": "erp_order_audit_and_comments",
+      "files": [
+        "20260717090000_erp_order_audit_and_comments.sql"
+      ]
+    },
+    {
+      "version": "20260717045413",
+      "name": "erp_attachments",
+      "files": [
+        "20260717110000_erp_attachments.sql"
+      ]
+    },
+    {
+      "version": "20260717050725",
+      "name": "erp_employees_profile_unique",
+      "files": [
+        "20260717130000_erp_employees_profile_unique.sql"
+      ]
+    },
+    {
+      "version": "20260717061539",
+      "name": "erp_tz_fields",
+      "files": [
+        "20260717150000_erp_tz_fields.sql"
+      ]
+    },
+    {
+      "version": "20260717081011",
+      "name": "erp_stage_qty_done",
+      "files": [
+        "20260717170000_erp_stage_qty_done.sql"
+      ]
+    },
+    {
+      "version": "20260717101803",
+      "name": "erp_create_order_rpc",
+      "files": [
+        "20260717190000_erp_create_order_rpc.sql"
+      ]
+    },
+    {
+      "version": "20260717110902",
+      "name": "erp_order_shipping",
+      "files": [
+        "20260718090000_erp_order_shipping.sql"
+      ]
+    },
+    {
+      "version": "20260717153436",
+      "name": "erp_stage_plan_audit",
+      "files": [
+        "20260718100000_erp_stage_plan_audit.sql"
+      ]
+    },
+    {
+      "version": "20260719130024",
+      "name": "erp_procurement_tasks",
+      "files": [
+        "20260719120000_erp_procurement_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260719130910",
+      "name": "erp_material_reserved",
+      "files": [
+        "20260719130000_erp_material_reserved.sql"
+      ]
+    },
+    {
+      "version": "20260719131613",
+      "name": "erp_subcontracting",
+      "files": [
+        "20260719140000_erp_subcontracting.sql"
+      ]
+    },
+    {
+      "version": "20260720060433",
+      "name": "erp_procurement_derive_trigger",
+      "files": [
+        "20260720120000_erp_procurement_derive_trigger.sql"
+      ]
+    },
+    {
+      "version": "20260720070514",
+      "name": "erp_procurement_rls_roles",
+      "files": [
+        "20260720130000_erp_procurement_rls_roles.sql"
+      ]
+    },
+    {
+      "version": "20260720181952",
+      "name": "erp_subcontracting_types",
+      "files": [
+        "20260721120000_erp_subcontracting_types.sql"
+      ]
+    },
+    {
+      "version": "20260720183511",
+      "name": "erp_material_acceptance",
+      "files": [
+        "20260721130000_erp_material_acceptance.sql"
+      ]
+    },
+    {
+      "version": "20260720183521",
+      "name": "erp_warehouse_ops",
+      "files": [
+        "20260721140000_erp_warehouse_ops.sql"
+      ]
+    },
+    {
+      "version": "20260720185801",
+      "name": "erp_stage_overdue_ack",
+      "files": [
+        "20260721150000_erp_stage_overdue_ack.sql"
+      ]
+    },
+    {
+      "version": "20260720190709",
+      "name": "erp_experimental",
+      "files": [
+        "20260721160000_erp_experimental.sql"
+      ]
+    },
+    {
+      "version": "20260720190721",
+      "name": "erp_experimental_ops",
+      "files": [
+        "20260721170000_erp_experimental_ops.sql"
+      ]
+    },
+    {
+      "version": "20260720193812",
+      "name": "erp_realtime_publication",
+      "files": [
+        "20260721180000_erp_realtime_publication.sql"
+      ]
+    },
+    {
+      "version": "20260721094256",
+      "name": "erp_warehouse_tasks",
+      "files": [
+        "20260722120000_erp_warehouse_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260721094308",
+      "name": "erp_warehouse_task_derive",
+      "files": [
+        "20260722130000_erp_warehouse_task_derive.sql"
+      ]
+    },
+    {
+      "version": "20260721095936",
+      "name": "erp_subcontract_at_creation",
+      "files": [
+        "20260722140000_erp_subcontract_at_creation.sql"
+      ]
+    },
+    {
+      "version": "20260721095959",
+      "name": "erp_create_order_subcontract",
+      "files": [
+        "20260722150000_erp_create_order_subcontract.sql"
+      ]
+    },
+    {
+      "version": "20260722135031",
+      "name": "erp_material_article_fact",
+      "files": [
+        "20260722160000_erp_material_article_fact.sql"
+      ]
+    },
+    {
+      "version": "20260722135045",
+      "name": "erp_warehouse_subcontract_receipt",
+      "files": [
+        "20260722170000_erp_warehouse_subcontract_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260722215209",
+      "name": "security_authz_hardening",
+      "files": [
+        "20260722215209_security_authz_hardening.sql"
+      ]
+    },
+    {
+      "version": "20260722215558",
+      "name": "security_onboarding_pending_profile",
+      "files": [
+        "20260722215558_security_onboarding_pending_profile.sql"
+      ]
+    },
+    {
+      "version": "20260722215651",
+      "name": "security_predicate_revoke_anon",
+      "files": [
+        "20260722215651_security_predicate_revoke_anon.sql"
+      ]
+    },
+    {
+      "version": "20260727151924",
+      "name": "erp_stage_queue_and_customer",
+      "files": [
+        "20260727120000_erp_stage_queue_and_customer.sql"
+      ]
+    },
+    {
+      "version": "20260727151937",
+      "name": "erp_role_permissions",
+      "files": [
+        "20260727130000_erp_role_permissions.sql"
+      ]
+    },
+    {
+      "version": "20260727162142",
+      "name": "erp_dictionaries",
+      "files": [
+        "20260727150000_erp_dictionaries.sql"
+      ]
+    },
+    {
+      "version": "20260727170539",
+      "name": "erp_material_suppliers",
+      "files": [
+        "20260727170000_erp_material_suppliers.sql"
+      ]
+    },
+    {
+      "version": "20260727172030",
+      "name": "erp_tz_documents",
+      "files": [
+        "20260727190000_erp_tz_documents.sql"
+      ]
+    },
+    {
+      "version": "20260727172100",
+      "name": "erp_create_order_tz",
+      "files": [
+        "20260727190000_erp_tz_documents.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260727182156",
+      "name": "erp_material_suppliers_rls",
+      "files": [
+        "20260727200000_erp_material_suppliers_rls.sql"
+      ]
+    },
+    {
+      "version": "20260727184343",
+      "name": "erp_departments_is_production",
+      "files": [
+        "20260727210000_erp_departments_is_production.sql"
+      ]
+    },
+    {
+      "version": "20260727184917",
+      "name": "fk_indexes",
+      "files": [
+        "20260727220000_fk_indexes.sql"
+      ]
+    },
+    {
+      "version": "20260727185154",
+      "name": "orderstudio_rls_perf",
+      "files": [
+        "20260727230000_orderstudio_rls_perf.sql"
+      ]
+    },
+    {
+      "version": "20260729071216",
+      "name": "is_admin_respects_soft_delete",
+      "files": [
+        "20260729100000_is_admin_respects_soft_delete.sql"
+      ]
+    },
+    {
+      "version": "20260729071508",
+      "name": "close_read_policies_true",
+      "files": [
+        "20260729110000_close_read_policies_true.sql"
+      ]
+    },
+    {
+      "version": "20260729071635",
+      "name": "storage_policies_and_limits",
+      "files": [
+        "20260729120000_storage_policies_and_limits.sql"
+      ]
+    },
+    {
+      "version": "20260803104926",
+      "name": "erp_material_gate_and_receive",
+      "files": [
+        "20260803120000_erp_material_gate_and_receive.sql"
+      ]
+    },
+    {
+      "version": "20260803105240",
+      "name": "erp_production_planning",
+      "files": [
+        "20260803140000_erp_production_planning.sql"
+      ]
+    },
+    {
+      "version": "20260803114209",
+      "name": "erp_permissions_server_side",
+      "files": [
+        "20260803160000_erp_permissions_server_side.sql"
+      ]
+    },
+    {
+      "version": "20260803114300",
+      "name": "erp_calendar_guard_service_role_bypass",
+      "files": [
+        "20260803160000_erp_permissions_server_side.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260803121814",
+      "name": "erp_stage_guard",
+      "files": [
+        "20260803180000_erp_stage_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803133541",
+      "name": "erp_calendar_upsert_fix",
+      "files": [
+        "20260803200000_erp_calendar_upsert_fix.sql"
+      ]
+    },
+    {
+      "version": "20260803142632",
+      "name": "erp_material_guard",
+      "files": [
+        "20260803220000_erp_material_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803143213",
+      "name": "erp_stage_guard_planned_dates",
+      "files": [
+        "20260803230000_erp_stage_guard_planned_dates.sql"
+      ]
+    },
+    {
+      "version": "20260803143905",
+      "name": "erp_audit_by_trigger",
+      "files": [
+        "20260803240000_erp_audit_by_trigger.sql"
+      ]
+    },
+    {
+      "version": "20260803150610",
+      "name": "erp_revoke_trigger_functions",
+      "files": [
+        "20260803250000_erp_revoke_trigger_functions.sql"
+      ]
+    },
+    {
+      "version": "20260803150825",
+      "name": "erp_revoke_trigger_functions_rest",
+      "files": [
+        "20260803250000_erp_revoke_trigger_functions.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260803150930",
+      "name": "erp_stage_events_actor_index",
+      "files": [
+        "20260803240000_erp_audit_by_trigger.sql"
+      ],
+      "note": "индекс erp_stage_events_actor_idx заведён там же"
+    },
+    {
+      "version": "20260803161027",
+      "name": "erp_order_summary",
+      "files": [],
+      "noFile": true,
+      "note": "представление erp_order_summary заведено…"
+    },
+    {
+      "version": "20260803161312",
+      "name": "erp_order_summary_drop_unused",
+      "files": [],
+      "noFile": true,
+      "note": "…и снято следом: потребителя не нашлось. Итог — пусто"
+    },
+    {
+      "version": "20260803170404",
+      "name": "erp_orders_is_demo",
+      "files": [
+        "20260803260000_erp_orders_is_demo.sql"
+      ]
+    },
+    {
+      "version": "20260803173639",
+      "name": "erp_bootstrap_rpc",
+      "files": [
+        "20260803270000_erp_bootstrap_rpc.sql"
+      ]
+    },
+    {
+      "version": "20260803182520",
+      "name": "erp_order_guard",
+      "files": [
+        "20260803280000_erp_order_guard.sql"
+      ]
+    },
+    {
+      "version": "20260803182937",
+      "name": "erp_revoke_anon_predicates",
+      "files": [
+        "20260803290000_erp_revoke_anon_predicates.sql"
+      ]
+    },
+    {
+      "version": "20260803183003",
+      "name": "erp_revoke_anon_predicates_fix",
+      "files": [
+        "20260803290000_erp_revoke_anon_predicates.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260805053304",
+      "name": "erp_stage_atomic_ops_and_guard",
+      "files": [
+        "20260805120000_erp_stage_atomic_ops_and_guard.sql"
+      ]
+    },
+    {
+      "version": "20260805053317",
+      "name": "erp_attachments_cleanup_own",
+      "files": [
+        "20260805130000_erp_attachments_cleanup_own.sql"
+      ]
+    },
+    {
+      "version": "20260805053518",
+      "name": "erp_stage_item_qty_invoker",
+      "files": [
+        "20260805140000_erp_stage_item_qty_invoker.sql"
+      ]
+    },
+    {
+      "version": "20260810091728",
+      "name": "erp_tz_gate_and_storage_read",
+      "files": [
+        "20260810120000_erp_tz_gate_and_storage_read.sql"
+      ]
+    },
+    {
+      "version": "20260810114719",
+      "name": "erp_roles_by_team_structure",
+      "files": [
+        "20260810130000_erp_roles_by_team_structure.sql"
+      ]
+    },
+    {
+      "version": "20260810115217",
+      "name": "erp_qc_department_off",
+      "files": [
+        "20260810140000_erp_qc_department_off.sql"
+      ]
+    },
+    {
+      "version": "20260810115840",
+      "name": "erp_stage_guard_skip",
+      "files": [
+        "20260810150000_erp_stage_guard_skip.sql"
+      ]
+    },
+    {
+      "version": "20260810115952",
+      "name": "erp_stage_guard_skip_full_text",
+      "files": [
+        "20260810150000_erp_stage_guard_skip.sql"
+      ],
+      "note": "подлинный текст стража доложен той же миграцией"
+    },
+    {
+      "version": "20260810121230",
+      "name": "erp_bypasses",
+      "files": [
+        "20260810160000_erp_bypasses.sql"
+      ]
+    },
+    {
+      "version": "20260810130123",
+      "name": "erp_settings_capacity",
+      "files": [
+        "20260810170000_erp_settings_capacity.sql"
+      ]
+    },
+    {
+      "version": "20260810154923",
+      "name": "erp_stage_cycle_and_qty_math",
+      "files": [
+        "20260810180000_erp_stage_cycle_and_qty_math.sql"
+      ]
+    },
+    {
+      "version": "20260810155641",
+      "name": "erp_stage_reports",
+      "files": [
+        "20260810190000_erp_stage_reports.sql"
+      ]
+    },
+    {
+      "version": "20260810160945",
+      "name": "erp_material_receipts_and_units",
+      "files": [
+        "20260810200000_erp_material_receipts_and_units.sql"
+      ]
+    },
+    {
+      "version": "20260810162206",
+      "name": "erp_subcontract_as_stage",
+      "files": [
+        "20260810210000_erp_subcontract_as_stage.sql"
+      ]
+    },
+    {
+      "version": "20260810163341",
+      "name": "erp_warehouse_fg_receipt",
+      "files": [
+        "20260810220000_erp_warehouse_fg_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260810164026",
+      "name": "erp_experimental_stages",
+      "files": [
+        "20260810230000_erp_experimental_stages.sql"
+      ],
+      "note": "слаг совпадает с более поздней миграцией 20.08 — соответствие задано явно"
+    },
+    {
+      "version": "20260810164320",
+      "name": "erp_experimental_permission",
+      "files": [
+        "20260810240000_erp_experimental_permission.sql"
+      ]
+    },
+    {
+      "version": "20260810165959",
+      "name": "erp_pack_ship_requires_fg_receipt",
+      "files": [
+        "20260810250000_erp_pack_ship_requires_fg_receipt.sql"
+      ]
+    },
+    {
+      "version": "20260810173118",
+      "name": "erp_subcontracting_uses_matrix",
+      "files": [
+        "20260810260000_erp_subcontracting_uses_matrix.sql"
+      ]
+    },
+    {
+      "version": "20260810173634",
+      "name": "erp_procurement_gate_matches_rule",
+      "files": [
+        "20260810270000_erp_procurement_gate_matches_rule.sql"
+      ]
+    },
+    {
+      "version": "20260810173900",
+      "name": "erp_experimental_uses_matrix",
+      "files": [
+        "20260810280000_erp_experimental_uses_matrix.sql"
+      ]
+    },
+    {
+      "version": "20260810181720",
+      "name": "erp_warehouse_permission",
+      "files": [
+        "20260810290000_erp_warehouse_permission.sql"
+      ]
+    },
+    {
+      "version": "20260810185056",
+      "name": "erp_review_fix_stage_guard_skip_order",
+      "files": [
+        "20260810300000_erp_stage_guard_skip_order.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810185139",
+      "name": "erp_review_fix_pack_ship_and_rollup",
+      "files": [
+        "20260810310000_erp_pack_ship_single_condition.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810185226",
+      "name": "erp_review_fix_partial_fg_receipt",
+      "files": [
+        "20260810320000_erp_warehouse_journal_gate.sql"
+      ],
+      "note": "erp_warehouse_submit_report переопределён позже — живая версия совпадает с репозиторной"
+    },
+    {
+      "version": "20260810191453",
+      "name": "erp_warehouse_journal_gate",
+      "files": [
+        "20260810320000_erp_warehouse_journal_gate.sql"
+      ]
+    },
+    {
+      "version": "20260810192552",
+      "name": "erp_order_guard_shipping",
+      "files": [
+        "20260810330000_erp_order_guard_shipping.sql"
+      ]
+    },
+    {
+      "version": "20260810193717",
+      "name": "erp_security_review_fixes",
+      "files": [
+        "20260810340000_erp_security_review_fixes.sql"
+      ]
+    },
+    {
+      "version": "20260810193752",
+      "name": "erp_stage_guard_move_scope",
+      "files": [
+        "20260821130000_erp_stage_guard_contractor_block.sql"
+      ],
+      "note": "erp_stage_guard переопределён позже — живая версия совпадает с репозиторной"
+    },
+    {
+      "version": "20260810195148",
+      "name": "erp_procurement_matches_screen_audience",
+      "files": [
+        "20260810350000_erp_screens_open_by_permission.sql"
+      ],
+      "note": "то же изменение под другим именем"
+    },
+    {
+      "version": "20260810205422",
+      "name": "erp_local_calendar_date",
+      "files": [
+        "20260810360000_erp_local_calendar_date.sql"
+      ]
+    },
+    {
+      "version": "20260811052906",
+      "name": "erp_stage_finished_at_invariant",
+      "files": [
+        "20260811100000_erp_stage_finished_at_invariant.sql"
+      ]
+    },
+    {
+      "version": "20260812123338",
+      "name": "erp_purchaser_closes_supply",
+      "files": [
+        "20260812100000_erp_purchaser_closes_supply.sql"
+      ]
+    },
+    {
+      "version": "20260812134504",
+      "name": "erp_experimental_task_types",
+      "files": [
+        "20260812110000_erp_experimental_task_types.sql"
+      ]
+    },
+    {
+      "version": "20260812135254",
+      "name": "erp_experimental_tasks",
+      "files": [
+        "20260812120000_erp_experimental_tasks.sql"
+      ]
+    },
+    {
+      "version": "20260812135322",
+      "name": "erp_experimental_tasks_rpc",
+      "files": [
+        "20260812120000_erp_experimental_tasks.sql"
+      ],
+      "note": "применено отдельной версией, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812135338",
+      "name": "erp_experimental_tasks_backfill",
+      "files": [],
+      "noFile": true,
+      "note": "разовый бэкфилл задач разработки"
+    },
+    {
+      "version": "20260812142143",
+      "name": "erp_experimental_insert_by_order_manage",
+      "files": [
+        "20260812130000_erp_experimental_insert_by_order_manage.sql"
+      ]
+    },
+    {
+      "version": "20260812143851",
+      "name": "erp_drop_legacy_experimental_part1",
+      "files": [
+        "20260812140000_erp_drop_legacy_experimental.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812143941",
+      "name": "erp_create_order_without_tz_assignments",
+      "files": [
+        "20260812140000_erp_drop_legacy_experimental.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260812145237",
+      "name": "erp_bootstrap_without_experimental_ops",
+      "files": [
+        "20260812150000_erp_bootstrap_without_experimental_ops.sql"
+      ]
+    },
+    {
+      "version": "20260812152438",
+      "name": "erp_revoke_trigger_functions_sweep",
+      "files": [
+        "20260812160000_erp_revoke_trigger_functions_sweep.sql"
+      ]
+    },
+    {
+      "version": "20260813061312",
+      "name": "erp_stage_guard_ready",
+      "files": [
+        "20260812200000_erp_stage_guard_ready.sql"
+      ]
+    },
+    {
+      "version": "20260813061338",
+      "name": "erp_catalog_edit_policies",
+      "files": [
+        "20260812210000_erp_catalog_edit_policies.sql"
+      ]
+    },
+    {
+      "version": "20260813061353",
+      "name": "erp_guards_and_grants",
+      "files": [
+        "20260812230000_erp_guards_and_grants.sql"
+      ]
+    },
+    {
+      "version": "20260813105811",
+      "name": "backfill_profiles_without_row",
+      "files": [],
+      "noFile": true,
+      "note": "разовый бэкфилл профилей без строки"
+    },
+    {
+      "version": "20260814080833",
+      "name": "erp_pending_role_for_new_signups",
+      "files": [
+        "20260814090000_erp_pending_role_for_new_signups.sql"
+      ]
+    },
+    {
+      "version": "20260814082328",
+      "name": "erp_invites",
+      "files": [
+        "20260814100000_erp_invites.sql"
+      ]
+    },
+    {
+      "version": "20260816170631",
+      "name": "erp_item_tech_block_part1",
+      "files": [
+        "20260816120000_erp_item_tech_block.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816170726",
+      "name": "erp_create_order_tech_block",
+      "files": [
+        "20260816120000_erp_item_tech_block.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173208",
+      "name": "erp_stage_executor_schema",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173251",
+      "name": "erp_stage_executor_guard",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816173959",
+      "name": "erp_stage_guard_authentic_shape",
+      "files": [
+        "20260816130000_erp_stage_executor.sql"
+      ],
+      "note": "применено тремя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260816175015",
+      "name": "erp_route_apply",
+      "files": [
+        "20260816140000_erp_route_apply.sql"
+      ]
+    },
+    {
+      "version": "20260816192903",
+      "name": "erp_route_subcontract_companion",
+      "files": [
+        "20260816150000_erp_route_subcontract_companion.sql"
+      ]
+    },
+    {
+      "version": "20260816193757",
+      "name": "erp_stage_unique_internal_only",
+      "files": [
+        "20260816160000_erp_stage_unique_internal_only.sql"
+      ]
+    },
+    {
+      "version": "20260816194929",
+      "name": "erp_create_order_executor",
+      "files": [
+        "20260816170000_erp_create_order_executor.sql"
+      ]
+    },
+    {
+      "version": "20260816195011",
+      "name": "erp_item_material_source_mixed",
+      "files": [
+        "20260816180000_erp_item_material_source_mixed.sql"
+      ]
+    },
+    {
+      "version": "20260816202440",
+      "name": "erp_attachment_material",
+      "files": [
+        "20260816190000_erp_attachment_material.sql"
+      ]
+    },
+    {
+      "version": "20260816203627",
+      "name": "erp_item_packaging_details",
+      "files": [
+        "20260816200000_erp_item_packaging_details.sql",
+        "20260816210000_erp_create_order_packaging.sql"
+      ],
+      "note": "применено одной версией, в репозитории разложено на два файла"
+    },
+    {
+      "version": "20260816203938",
+      "name": "erp_preliminary_purchase",
+      "files": [
+        "20260816220000_erp_preliminary_purchase.sql"
+      ]
+    },
+    {
+      "version": "20260818203320",
+      "name": "erp_fit_from_catalog",
+      "files": [
+        "20260818203320_erp_fit_from_catalog.sql"
+      ]
+    },
+    {
+      "version": "20260818203338",
+      "name": "erp_dtg_method_and_department",
+      "files": [
+        "20260818203338_erp_dtg_method_and_department.sql"
+      ]
+    },
+    {
+      "version": "20260818203459",
+      "name": "erp_order_from_tz",
+      "files": [
+        "20260818203459_erp_order_from_tz.sql"
+      ]
+    },
+    {
+      "version": "20260820171412",
+      "name": "erp_dtg_invite_role_and_operation",
+      "files": [
+        "20260820100000_erp_dtg_department.sql"
+      ],
+      "note": "CHECK erp_invites и операция маршрута заведены там же"
+    },
+    {
+      "version": "20260820171422",
+      "name": "erp_dictionaries_by_permission",
+      "files": [
+        "20260820110000_erp_dictionaries_by_permission.sql"
+      ]
+    },
+    {
+      "version": "20260820171608",
+      "name": "erp_subcontract_stage_fields_create_order",
+      "files": [
+        "20260820120000_erp_subcontract_stage_fields.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820171650",
+      "name": "erp_subcontract_stage_fields_route_apply",
+      "files": [
+        "20260820120000_erp_subcontract_stage_fields.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820172833",
+      "name": "erp_subcontract_receipt_per_stage",
+      "files": [
+        "20260820130000_erp_subcontract_receipt_per_stage.sql"
+      ]
+    },
+    {
+      "version": "20260820173026",
+      "name": "erp_subcontract_apply",
+      "files": [
+        "20260820140000_erp_subcontract_apply.sql"
+      ]
+    },
+    {
+      "version": "20260820174732",
+      "name": "erp_purchase_list_file_columns",
+      "files": [
+        "20260820150000_erp_purchase_list_file.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820174833",
+      "name": "erp_purchase_list_file_create_order",
+      "files": [
+        "20260820150000_erp_purchase_list_file.sql"
+      ],
+      "note": "применено двумя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820181726",
+      "name": "erp_experimental_stages",
+      "files": [
+        "20260820160000_erp_experimental_stages.sql"
+      ],
+      "note": "слаг совпадает с более ранней миграцией 10.08 — соответствие задано явно"
+    },
+    {
+      "version": "20260820183605",
+      "name": "erp_dev_final_package",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ]
+    },
+    {
+      "version": "20260820183647",
+      "name": "erp_dev_attachment_delete",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820184302",
+      "name": "erp_dev_package_guard_revoke",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820193110",
+      "name": "erp_dev_package_guard_array_append",
+      "files": [
+        "20260820170000_erp_dev_final_package.sql"
+      ],
+      "note": "применено четырьмя версиями, в репозитории — одним файлом"
+    },
+    {
+      "version": "20260820195244",
+      "name": "erp_subcontract_receipt_revoke",
+      "files": [
+        "20260820180000_erp_subcontract_receipt_revoke.sql"
+      ]
+    },
+    {
+      "version": "20260820201553",
+      "name": "erp_route_apply_new_stage_fields",
+      "files": [
+        "20260820190000_erp_route_apply_new_stage_fields.sql"
+      ]
+    },
+    {
+      "version": "20260820210100",
+      "name": "erp_stage_attachments",
+      "files": [
+        "20260820200000_erp_stage_attachments.sql"
+      ]
+    },
+    {
+      "version": "20260820210747",
+      "name": "erp_create_order_stage_files",
+      "files": [
+        "20260820210000_erp_create_order_stage_files.sql"
+      ]
+    },
+    {
+      "version": "20260821043217",
+      "name": "erp_att_delete_single_policy",
+      "files": [
+        "20260821100000_erp_att_delete_single_policy.sql"
+      ]
+    },
+    {
+      "version": "20260821044956",
+      "name": "erp_subcontract_receipt_guard",
+      "files": [
+        "20260821110000_erp_subcontract_receipt_guard.sql"
+      ]
+    },
+    {
+      "version": "20260821054216",
+      "name": "erp_sku_from_dev",
+      "files": [
+        "20260821120000_erp_sku_from_dev.sql"
+      ]
+    },
+    {
+      "version": "20260821060758",
+      "name": "erp_stage_guard_contractor_block",
+      "files": [
+        "20260821130000_erp_stage_guard_contractor_block.sql"
+      ]
+    },
+    {
+      "version": "20260821104013",
+      "name": "erp_outsource_department",
+      "files": [
+        "20260821140000_erp_outsource_department.sql"
+      ]
+    },
+    {
+      "version": "20260822120653",
+      "name": "erp_dept_bound_roles",
+      "files": [
+        "20260822100000_erp_dept_bound_roles.sql"
+      ]
+    },
+    {
+      "version": "20260822120713",
+      "name": "erp_dtg_result_fields",
+      "files": [
+        "20260822110000_erp_dtg_result_fields.sql"
+      ]
+    },
+    {
+      "version": "20260822120745",
+      "name": "erp_material_accept",
+      "files": [
+        "20260822120000_erp_material_accept.sql"
+      ]
+    },
+    {
+      "version": "20260822120811",
+      "name": "erp_material_accept_idempotent",
+      "files": [
+        "20260822130000_erp_material_accept_idempotent.sql"
+      ]
+    },
+    {
+      "version": "20260822173552",
+      "name": "erp_subcontract_qty_split",
+      "files": [
+        "20260823100000_erp_subcontract_qty_split.sql"
+      ]
+    },
+    {
+      "version": "20260822181321",
+      "name": "erp_item_fabric_labels_prints",
+      "files": [
+        "20260823110000_erp_item_fabric_labels_prints.sql"
+      ]
+    },
+    {
+      "version": "20260822181523",
+      "name": "erp_create_order_labels_prints",
+      "files": [
+        "20260823120000_erp_create_order_labels_prints.sql"
+      ]
+    },
+    {
+      "version": "20260822182827",
+      "name": "erp_order_drafts",
+      "files": [
+        "20260823130000_erp_order_drafts.sql"
+      ]
+    },
+    {
+      "version": "20260822184640",
+      "name": "erp_order_notes",
+      "files": [
+        "20260823140000_erp_order_notes.sql"
+      ]
+    },
+    {
+      "version": "20260822184816",
+      "name": "erp_create_order_notes",
+      "files": [
+        "20260823150000_erp_create_order_notes.sql"
+      ],
+      "note": "к базе применена перегенерация функции из её же pg_get_functiondef (правило «подлинный текст»); файл несёт полный текст получившейся функции"
+    },
+    {
+      "version": "20260822195404",
+      "name": "erp_attachment_kinds_print_label_note",
+      "files": [
+        "20260823160000_erp_attachment_kinds_print_label_note.sql"
+      ],
+      "note": "найдено проверкой на живой базе: виды print/label/note были только в ErpAttachmentKind, CHECK отвечал 23514 и ронял создание заказа целиком. Сторож — attachmentKinds.test.ts"
+    },
+    {
+      "version": "20260823214022",
+      "name": "erp_pack_ship_three_statuses",
+      "files": [
+        "20260823214022_erp_pack_ship_three_statuses.sql"
+      ],
+      "note": "к базе применён тот же текст, но без длинных пояснений — обоснование целиком живёт в файле репозитория. Оба серверных писателя pack_ship пересозданы из их же pg_get_functiondef (правило «подлинный текст»)"
+    },
+    {
+      "version": "20260824163953",
+      "name": "erp_dev_package_optional_sku",
+      "files": [
+        "20260824163953_erp_dev_package_optional_sku.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_dev_package_guard пересоздан из его же pg_get_functiondef (сверен с репозиторием — совпал)"
+    },
+    {
+      "version": "20260824174548",
+      "name": "erp_dev_board_stage",
+      "files": [
+        "20260824174548_erp_dev_board_stage.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260824180748",
+      "name": "erp_dev_branding_advance",
+      "files": [
+        "20260824180748_erp_dev_branding_advance.sql"
+      ],
+      "note": "запись добавлена 31.08: миграцию применили и файл завели, а в снимок не вписали. Сторож этого не заметил — файл выглядел как «написан, но ещё не выложен», а таких допускается до пяти"
+    },
+    {
+      "version": "20260824185639",
+      "name": "erp_dev_task_files",
+      "files": [
+        "20260824185639_erp_dev_task_files.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260824191611",
+      "name": "erp_subcontract_send_task",
+      "files": [
+        "20260824191611_erp_subcontract_send_task.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория. erp_warehouse_task_derive пересоздана из её же pg_get_functiondef (сверена с базой — совпала), добавлена одна ветка"
+    },
+    {
+      "version": "20260825192607",
+      "name": "erp_stage_guard_route_columns",
+      "files": [
+        "20260825192607_erp_stage_guard_route_columns.sql"
+      ],
+      "note": "ФАЙЛ ВОССТАНОВЛЕН 31.08 из pg_get_functiondef: применили к проду 25.08, в репозиторий не завели. Шесть дней latestDefining читал текст от 21.08, то есть сторожа прав сверялись с определением, которого в базе нет. Совпадение проверено по md5 pg_proc.prosrc"
+    },
+    {
+      "version": "20260825192628",
+      "name": "erp_material_accept_atomic_key",
+      "files": [
+        "20260825192628_erp_material_accept_atomic_key.sql"
+      ],
+      "note": "ФАЙЛ ВОССТАНОВЛЕН 31.08 из pg_get_functiondef: в репозитории оставался не только старый код, но и комментарий, утверждавший обратное действующему поведению. Совпадение проверено по md5 pg_proc.prosrc"
+    },
+    {
+      "version": "20260825192641",
+      "name": "baseline_fk_matches_prod",
+      "fileLost": true,
+      "files": [],
+      "note": "ФАЙЛ ПОТЕРЯН: применено к проду 25.08, в репозиторий не заведено, и восстановить подлинный текст нечем — в отличие от двух соседних миграций это не определение функции, а выравнивание внешних ключей, и pg_get_functiondef тут не поможет. Писать файл «по смыслу» нельзя: он выполнялся бы при реплее на чистое окружение, а его содержимое было бы догадкой. Реплей поэтому воспроизводит прод НЕ полностью — это и есть цена потери, и она записана, а не спрятана"
+    },
+    {
+      "version": "20260830142221",
+      "name": "erp_dev_no_default_task",
+      "files": [
+        "20260830120000_erp_dev_no_default_task.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142233",
+      "name": "erp_dev_handoff_to_warehouse",
+      "files": [
+        "20260830130000_erp_dev_handoff_to_warehouse.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142301",
+      "name": "erp_partial_shipment",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "к базе применён тот же текст без длинных пояснений — обоснование целиком в файле репозитория"
+    },
+    {
+      "version": "20260830142613",
+      "name": "erp_shipment_rollup_guard_pass",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "ОТДЕЛЬНАЯ ЗАПИСЬ ЖУРНАЛА, но в репозитории тот же файл частичной отгрузки: дефект нашла проверка прав на живой базе уже ПОСЛЕ применения основной миграции — кладовщик не мог отгрузить ничего, потому что rollup правит erp_order_items.qty_shipped, а erp_order_item_guard требует order.manage. Починка (метка транзакции erp.shipment_rollup вокруг update + ветка в страже) — часть той же правки, и разносить её на два файла значило бы, что реплей на чистое окружение на минуту воспроизводит заведомо нерабочее состояние"
+    },
+    {
+      "version": "20260830143243",
+      "name": "erp_order_shipments_item_idx",
+      "files": [
+        "20260830140000_erp_partial_shipment.sql"
+      ],
+      "note": "индекс по item_id дописан в тот же файл частичной отгрузки: rollup на каждой вставке считает sum(qty) по позиции, и отсутствие индекса нашёл advisor сразу после применения. Отдельным файлом это было бы описание системы, которой никогда не существовало Версия исправлена 31.08: в снимке стояла 20260830143512, в журнале прода — 20260830143243. Опечатка в снимке делает сверку с базой ложной в обе стороны сразу."
+    },
+    {
+      "version": "20260830220413",
+      "name": "erp_ship_order_op",
+      "files": [
+        "20260830150000_erp_ship_order_op.sql"
+      ],
+      "note": "п. 6 документа 30.08 требует «зафиксировать факт отгрузки и количество». Журнал erp_order_shipments это делал, но его никто не читал: карточка склада показывает историю из erp_warehouse_ops, и отгрузка туда не писала — зафиксированный факт, которого не видно. Вид op_type 'shipment' заведён в CHECK с первой волны склада и до сих пор не использовался ни разу. Вставка стоит ВНУТРИ ветки идемпотентности: повтор той же попытки не должен давать две «Отгрузки» на одно действие"
+    },
+    {
+      "version": "20260830220433",
+      "name": "erp_dev_package_sample",
+      "files": [
+        "20260830160000_erp_dev_package_sample.sql"
+      ],
+      "note": "п. 4: «разработку считать завершённой после того, как ОБРАЗЕЦ ОТШИТ и внесена техдокументация». Условий два, гейт проверял только второе — разработку закрывали, ни разу не собрав образец, а складская задача приёмки ГП заводится автоматически, то есть склад начинал ждать вещь, которой нет. Доказательство «отшит» — sample_approved_at (проверка образца): фото образца отвечает на другой вопрос и уже стоит в перечне отдельной строкой. Слова отказа дословно совпадают с utils/finalPackage.missingFinalPackage"
+    },
+    {
+      "version": "20260901053949",
+      "name": "erp_dev_board_stage_materials",
+      "files": [
+        "20260901053949_erp_dev_board_stage_materials.sql"
+      ],
+      "note": "п. 1 документа 01.09: между «Построением лекал» и «Кроем» появляется собственный шаг «Ожидает материалы». До правки выход с лекал при незавершённой закупке блокировался ЦЕЛИКОМ (devMoveIntent, ветка materials) — карточка стояла в «Лекалах» вместе с уже сделанной работой. Ключ materials, а не awaiting_materials: последнее занято ДОРОЖКОЙ внутри колонки, и одноимённые колонка с дорожкой читались бы как одно и то же. Бэкфилла нет: шаг необязательный, заказ без закупки идёт «Лекала → Крой» напрямую. Стража последовательности на сервере нет осознанно — board_stage пишет обладатель experimental.manage, то есть сам технолог"
+    },
+    {
+      "version": "20260901114501",
+      "name": "erp_dev_stage_reuse",
+      "files": [
+        "20260901114501_erp_dev_stage_reuse.sql"
+      ],
+      "note": "п. 2 документа 01.09 (вторая итерация): экспериментальный цех задваивал этапы. buildRoute заводил этап цеха нанесения при создании заказа, а вход карточки в шаг «Нанесения» звал erp_experimental_task_send, и та ВСЕГДА вставляла новый этап, подбирая свободный cycle — уникальный индекс (item_id, department_id, cycle) бессилен по построению. На проде семь пар, и в каждой этап маршрута навсегда остался waiting, а работа шла на втором: заказ не закрылся бы никогда. Теперь функция переиспользует ОТКРЫТЫЙ этап этого цеха, а свой заводит только когда открытого нет — повторный заход образца в тот же цех обязан получить новый цикл, ради чего cycle и заведён. Тем же коммитом снято условие new.origin = 'experimental' у триггера erp_experimental_task_sync: задача теперь висит на этапе МАРШРУТА, и со старым условием закрытие цехом до неё не доходило бы, то есть гейт п. 1 не разблокировался бы никогда"
+    },
+    {
+      "version": "20260901114658",
+      "name": "erp_dev_route_cleanup",
+      "files": [
+        "20260901114658_erp_dev_route_cleanup.sql"
+      ],
+      "note": "разовая чистка маршрутов образцов, заведённых до правок 01.09 (решение владельца). Семь пар дублей нанесения схлопнуты: задачи разработки перепривязаны на этап маршрута ДО удаления дубля (FK on delete set null — обратный порядок молча оборвал бы связь), факт перенесён, статус done тоже, а ready/in_progress НЕ переносится: это решает граф зависимостей. Не начатые этапы ВТО у образцов удалены (п. 4); начатый и закрытый не тронуты — это факт работы. Проверено транзакцией с откатом: дубли 7 → 0, ВТО 11 → 0, задач без этапа 0, повторный прогон не находит ничего"
+    },
+    {
+      "version": "20260902002826",
+      "name": "erp_order_done_without_due",
+      "files": [
+        "20260902002826_erp_order_done_without_due.sql"
+      ],
+      "note": "ВОССТАНОВЛЕНО 03.09 аудитом. Применено к проду 02.09 через MCP, файл не заведён и запись в снимок не попала — третий случай того же отказа (13.08, 18.08, 02.09). Подлинный текст взят из supabase_migrations.schema_migrations.statements, дословно. Правка: заказ, отгруженный без due_date, закрывается статусом done («Сдан»), а не done_on_time — отсутствие срока это «неизвестно», а не «вовремя»; CHECK статуса расширен значением done, бэкфилл перевёл уже закрытые без срока. Ссылка внутри самого файла на 20260902003000_erp_order_done_without_due.sql висячая: такого файла в репозитории нет и в прод он не применялся."
+    },
+    {
+      "version": "20260902084052",
+      "name": "erp_sample_warehouse_gate",
+      "files": [
+        "20260902084052_erp_sample_warehouse_gate.sql"
+      ],
+      "note": "пп. 2 и 4 документа 02.09: складские задачи образца заводились раньше срока. Маршрут образца вёл НАСТОЯЩИЕ этапы cutting и sewing обычных цехов, а триггер origin не читает вовсе — отсюда «Маркировка» (ветка sewing → in_progress) и «Приёмка готовой продукции» (закрытие последнего этапа заказа, которым оказывался пошив образца, закрываемый переносом карточки по доске ЭКС). На проде это видно дословно: «Тест экс цех 2» — board_stage='sewing', outcome=null, а заказ уже done с fg_receipt:accepted и pack_ship:shipped. Приёмка ГП и упаковка теперь не заводятся, пока у заказа есть разработка с outcome is null; гейт по outcome, а не по handed_to_warehouse_at — забракованная разработка на склад не передаётся, и гейт по факту передачи запер бы такой заказ навсегда. material_receipt не гейтится: приёмка закупленного — шаг 3 эталонного маршрута, она идёт ПРИ открытой разработке. Маркировка не заводится позициям production_type = samples (решение владельца). Проверено на живой базе транзакциями с откатом: у образца маркировок 0, приёмок ГП при открытой разработке 0, после outcome='ready_for_serial' — 1; у серийного заказа обе задачи заводятся как раньше"
+    },
+    {
+      "version": "20260902084729",
+      "name": "erp_dev_warehouse_gate_release",
+      "files": [
+        "20260902084729_erp_dev_warehouse_gate_release.sql"
+      ],
+      "note": "вторая половина п. 2 документа 02.09: гейт без второго писателя — тупик, а не починка. erp_warehouse_task_derive висит на смене статуса ЭТАПА, а снимается гейт закрытием РАЗРАБОТКИ — события, которого этот триггер не видит. Для исхода «готово к серии» приёмку ГП заводит erp_dev_handoff_to_warehouse, а у любого другого («Отменено», «Нужна доработка», «Передано в основной цех») писателя не осталось бы ни одного: этапы закрыты, новых переходов нет, и заказ повис бы навсегда. Условие вынесено в erp_ensure_order_finish_tasks и зовётся ОБОИМИ писателями; предикат erp_order_has_open_dev — дословное зеркало клиентской utils/stageUi.openDevelopments. Триггер AFTER, а не BEFORE: внутри BEFORE-триггера erp_dev_handoff_to_warehouse чтение outcome вернуло бы старое значение, и гейт отказал бы ровно в тот момент, ради которого снимается. Бэкфилла нет — триггер ловит переход. Проверено на живой базе транзакциями с откатом: при открытой разработке приёмок ГП 0, после исхода «Отменено» 1, после «готово к серии» 1; у серийного заказа маркировка и приёмка ГП заводятся как раньше"
+    },
+    {
+      "version": "20260902085643",
+      "name": "erp_sample_route_cleanup",
+      "files": [
+        "20260902085643_erp_sample_route_cleanup.sql"
+      ],
+      "note": "разовая чистка маршрутов образцов, заведённых до правок 02.09 (решение владельца). Маршрут строит клиент, поэтому новые образцы поедут правильно от одной правки BASE_CHAIN, а заведённые этапы правка кода не трогает — и это не косметика: приёмка ГП заводится только когда у заказа не осталось этапов вне done/skipped, а незакрытый крой образца, которого никто не делает, не закроется никогда. Удалено 24 этапа обычных цехов без факта, без привязанной задачи разработки, без журнала, плана, складской задачи и карточки подрядчика — 9 «Закрой», 11 «Швейка», 3 «Вышивка», 1 «Шелкография». Этап с фактом не тронут (предикат дословно повторяет RLS erp_item_stages_delete), этап нанесения с задачей разработки тоже: его туда отправил технолог, и цех эту работу видит; нанесение БЕЗ задачи заведётся заново при входе в шаг «Нанесения». depends_on вычищен ДО удаления — на кандидатов ссылались 15 этапов, и этим чистка отличается от 01.09, где зависимых было ноль. Статусы не переписываются: опустевший depends_on сам отдаёт этап цеху через isStageReady. Проверено транзакцией с откатом до применения: зависимостей 15 → 0, удалено 24, повтор находит 0; после применения на проде — 20 этапов у образцов, 0 висячих зависимостей"
+    },
+    {
+      "version": "20260903203310",
+      "name": "erp_stage_report_completion_gate",
+      "files": [
+        "20260903203310_erp_stage_report_completion_gate.sql"
+      ],
+      "note": "блокер Б1 аудита 03.09: отчёт цеха по схеме участка закрывал этап МИМО гейта закупки. Гейт 30.08 стоял только в интерфейсе и перечислял точки закрытия руками — их было три, а путей больше: submitStageReport идёт в erp_stage_submit_report, а тот сам ставит done при добранном тираже. Цена прямая: result_fields засеяны закрою и швейке (20260810190000) — ровно тем двум участкам, у которых непустой gate_material_kinds (20260803120000), то есть гейт молчал именно там, ради чего писался. Заведена erp_stage_completion_block — дословное зеркало клиентской utils/supply.materialsBlockingCompletion, включая аварийные снятия (erp_bypasses, kind material_gate), которых прежний клиентский гейт завершения не учитывал вовсе: директор снимал проверку, цех брал задание в работу и не мог его закрыть. Гейт поставлен в саму RPC, а НЕ в erp_stage_guard: страж висит на каждом обновлении этапа, включая rollup журнала подряда, применение брака и передачу разработки, и материальный гейт задел бы потоки, к закупке отношения не имеющие. Проверено на живой базе транзакциями с откатом до применения (пять веток: полное закрытие при ordered — отказ с именами материалов, частичная сдача — проходит, аварийное снятие — отпускает, материал received — проходит, участок без gate_material_kinds — проходит) и после применения на боевых строках: закрой с двумя неприехавшими кулирками отказывает, он же частично проходит, швейка без незакрытых материалов проходит. Затронуто на момент применения 3 этапа, все в waiting — идущая работа не остановлена. Клиентская половина: гейт переехал из трёх точек интерфейса к писателям (stagesSlice.completionBlockFor), сторож store/stageCompletionGate.test.ts проверяет поведение каждого писателя и проверен четырьмя мутациями"
+    },
+    {
+      "version": "20260904061100",
+      "name": "erp_subcontract_send_revoke_rest",
+      "files": [
+        "20260904061100_erp_subcontract_send_revoke_rest.sql"
+      ],
+      "note": "находка прогона 04.09: erp_ensure_subcontract_send — security definer без внутреннего гейта — была вызываема любым вошедшим через /rest/v1/rpc и заводила складскую задачу мимо гейта warehouse.manage/order.manage. Проверено на живой базе: worker получал 42501 на прямой вставке и успешно создавал ту же задачу через функцию. Грант authenticated был выписан 24.08 по шаблону правила про функции В ПРЕДИКАТАХ RLS, но эта в предикатах не стоит — её зовут два триггера, оба security definer, и грант им не нужен. Отзыв, а не гейт внутри: внутренняя проверка сломала бы цеховой путь, ради которого функция и сделана definer"
+    },
+    {
+      "version": "20260904061108",
+      "name": "erp_att_delete_single_policy_again",
+      "files": [
+        "20260904061108_erp_att_delete_single_policy_again.sql"
+      ],
+      "note": "регрессия решения 21.08: миграция 20260824185639 воссоздала erp_att_delete_dev, которую 20260821100000 намеренно удаляла ради правила «одна политика на команду». Предикаты успели разойтись — dev_task был только в воскресшей, в сводной его не было, то есть ужесточение сводной ничего бы не ужесточило. Сведено обратно в одну политику, dev_task дописан; права равны объединению двух действовавших предикатов"
+    },
+    {
+      "version": "20260904180307",
+      "name": "erp_completion_gate_acceptance",
+      "files": [
+        "20260904180307_erp_completion_gate_acceptance.sql"
+      ],
+      "note": "обход 04.09: «материал на месте» считался ДВУМЯ формулами. Гейт запуска цеха (routes.isMaterialPending) с 22.07 спрашивает вердикт приёмки, гейт завершения этапа — и клиентский supply.isMaterialSettled, и это зеркало — спрашивали одну колонку status, а erp_material_accept ставит received при ЛЮБОМ исходе, включая недостачу, пересорт и отказ. На живой базе шесть позиций стоят received без годной приёмки (в их числе «Кулирка 100хб 250гр», принятая с недостачей 40 из 42), и у всех шести закупка уже закрыта автозакрытием по той же формуле; на заказе 60448 закрой закрыт целиком 75/75, 50/50, 75/75 при трёх непринятых позициях — этап, который цех не смог бы ВЗЯТЬ в работу, он смог ЗАКРЫТЬ. Условие приведено к дословному зеркалу routes.materialPending: reserved/not_needed годны без приёмки, received — только при accepted_full/accepted_partial. Текст отказа изменён вместе с клиентским («придут и склад их примет»): прежний описывал половину условия и человеку с пришедшим материалом читался как ошибка системы. Клиентская половина того же коммита: isMaterialSettled выведена из isMaterialPending (одна формула), вердикт склада показан в строке закупки и считается в плитке «Проблемы»"
+    },
+    {
+      "version": "20260904181542",
+      "name": "erp_material_receipt_task_on_supply_start",
+      "files": [
+        "20260904181542_erp_material_receipt_task_on_supply_start.sql"
+      ],
+      "note": "блокер Б5 обхода 04.09: складская задача «Приёмка материалов» заводилась только при ЗАКРЫТИИ этапа закупки, а материалы приходят по частям — весь период поставок кладовщику некуда было записать приход, и единственный законный путь лежал через чужой экран «Материал поступил» в очереди цеха. На живой базе пять активных заказов с закупкой in_progress и без задачи. Заодно снимает тупик, который открыла бы 20260904180307: с ней закупка не закрывается без приёмки, а приёмка требовала задачи, появлявшейся только после закрытия закупки — гейт без второго писателя (правило 02.09). Условие расширено до in_progress|done, а не заменено: done остаётся ради закупок, закрывающихся минуя in_progress; дубль по-прежнему сторожит not exists. Текст функции подлинный из 20260902084729 с одной заменой"
+    },
+    {
+      "version": "20260904181622",
+      "name": "erp_material_receipt_task_backfill",
+      "files": [
+        "20260904181622_erp_material_receipt_task_backfill.sql"
+      ],
+      "note": "бэкфилл к 20260904181542: триггер ловит переход, а закупка этих заказов уже стоит в in_progress — задача не завелась бы никогда. В отличие от 30.08 и 02.09 бэкфилл здесь нужен: без задачи кладовщику некуда записать поставку. Затронуто 5 активных заказов, проверено после применения (заказов с закупкой в работе и без задачи — ноль)"
+    },
+    {
+      "version": "20260904193031",
+      "name": "erp_role_permissions_updated_by",
+      "files": [
+        "20260904193031_erp_role_permissions_updated_by.sql"
+      ],
+      "note": "§5 обхода 04.09: правка матрицы прав не оставляла следа — таблица хранила updated_at, но не автора, и «кто снял у роли право» узнать было негде. Автора ставит триггер из auth.uid(), а не клиент: вопрос про личность, а не про поле формы. Полной истории нет и не подразумевается — строка одна на пару роль×право, то есть виден последний писатель каждой пары; на экране так и подписано. Строки сидов (service_role, пустой auth.uid()) остаются без подписи: выдуманный автор хуже пустоты. Клиентская половина того же коммита: права сгруппированы по пяти разделам с фолбэком «Прочее», появилась отмена последней правки и блок «Кто менял права»"
+    },
+    {
+      "version": "20260904194006",
+      "name": "erp_role_permission_touch_revoke",
+      "files": [
+        "20260904194006_erp_role_permission_touch_revoke.sql"
+      ],
+      "note": "отзыв EXECUTE у триггерной функции, заведённой предыдущей миграцией. Обход 20260812160000 закрывает то, что было на момент применения; у функции, заведённой позже, обязан быть свой revoke — правило проекта, и оба сторожа (triggerFunctionsRevoked, permissionsCoverage) покраснели ровно на ней. Отзыв полный (public, anon, authenticated): право приходит от PUBLIC и anon его наследует. Триггеру грант не нужен — он исполняется от лица владельца функции"
+    },
+    {
+      "version": "20260904203307",
+      "name": "erp_subcontract_receive_with_return",
+      "files": [
+        "20260904203307_erp_subcontract_receive_with_return.sql"
+      ],
+      "note": "§3.5 обхода 04.09: возврат от подрядчика фиксировал только менеджер, и склад, к которому партия физически приехала, отметить приход не мог — карточка приёмки считает доступное как «вернулось − принято − брак», при неотмеченном возврате там ноль. На живой базе такое состояние есть: операция cd080e1f, передано 4670, вернулось 0. Возврат теперь пишется тем же вызовом, что приёмка, одной транзакцией — разделять нельзя по той же причине, по которой 22.08 свели «принято» и «брак». Прежняя сигнатура снята явно: параметр с умолчанием создаёт новую функцию, старая осталась бы рядом и PostgREST выбирал бы из двух. Проверено на живой базе от лица временного кладовщика транзакцией с откатом: вернулось 105, принято 100, брак 5 одним вызовом"
+    },
+    {
+      "version": "20260906193413",
+      "name": "erp_audit_live_columns",
+      "files": [
+        "20260906193413_erp_audit_live_columns.sql"
+      ],
+      "note": "ПРОПУСК В СНИМКЕ, найден сверкой migrations:verify 07.09: применена к проду 06.09 через MCP, файл в репозиторий не завели и в снимок не записали — третий такой случай (13.08, 18.08). Файл восстановлен по подлинному тексту из supabase_migrations.schema_migrations.statements, а не написан заново по смыслу. Содержимое: триггеры аудита переведены на живую колонку erp_subcontracting.phase вместо deprecated status и дополнены величинами, ради которых журнал заведён (qty_sent/qty_returned/qty_defect у подряда, qty_ordered/ordered_on/price у материала)"
+    },
+    {
+      "version": "20260907180055",
+      "name": "erp_packaging_mm_print_effect_garment_kind",
+      "files": [
+        "20260907180055_erp_packaging_mm_print_effect_garment_kind.sql"
+      ],
+      "note": "правки заказчика 07.09, пп. 10, 11, 16 — одной миграцией, потому что все три дописывают колонки в те же два INSERT-а erp_create_order: две миграции подряд означали бы два полных пересоздания функции на 350 строк, и вторая переписывала бы первую. Размер упаковки — ДВЕ числовые колонки у заказа и у позиции, а не строка: свободный packaging_size на проде содержит «25*30см», «25*33», «30*40» — три записи, три написания. Эффекты шелкографии легли в СУЩЕСТВУЮЩУЮ колонку special (заведена 17.07, пуста у всех 54 нанесений — ни форма, ни RPC её не писали); значения — справочник print_effect, а не CHECK: набор эффектов растёт. Тип изделия вышивки, наоборот, CHECK из трёх значений: это классификация технологии, от которой зависит маршрут (шеврон — отдельное изделие). erp_order_guard пересоздан: он разбирает изменение поимённо, и колонка, не вписанная в v_fields, не охраняется ничем. Текст erp_create_order подлинный — сверен с prosrc боевой базы посимвольно (расхождение только в порядке объявления v_nt_idx)"
+    },
+    {
+      "version": "20260907181542",
+      "name": "erp_storekeeper_stage_rights",
+      "files": [
+        "20260907181542_erp_storekeeper_stage_rights.sql"
+      ],
+      "note": "правки 07.09, п. 9: приёмка готового изделия стала ЭТАПОМ участка warehouse, и запрет 12.08 («кладовщику stage.complete не даём — этапа в маршруте у склада нет, право было бы декоративным») снят, потому что изменился вопрос. Без пары прав кладовщик упирался бы в 42501 от erp_stage_guard на работе, ради которой этап и заведён. Ограничение остаётся цеховым: storekeeper в DEPT_BOUND_ROLES, производственных этапов у склада нет"
+    },
+    {
+      "version": "20260907182524",
+      "name": "erp_dtg_off",
+      "files": [
+        "20260907182524_erp_dtg_off.sql"
+      ],
+      "note": "правки 07.09, п. 17 «полностью убрать DTG из ERP». Граница правки проведена по живым данным: участок деактивирован, а не удалён (на него ссылаются два ЗАКРЫТЫХ этапа тестовых заказов — DELETE упёрся бы во внешний ключ, приём тот же, что у ОТК 10.08); роль снята из обоих CHECK, потому что носителей ноль; CHECK erp_item_prints.method НЕ тронут — значение несёт одно заведённое нанесение, и метод убран из ВЫБОРА на клиенте (BRANDING_METHOD_CHOICES) плюс перестал создавать этап (BRANDING_DEPT.dtg = null). Значение справочника операций отключено, а не удалено — правило раздела"
+    },
+    {
+      "version": "20260907192853",
+      "name": "erp_revoke_definer_helpers",
+      "files": [
+        "20260907192853_erp_revoke_definer_helpers.sql"
+      ],
+      "note": "техдолг: отзыв EXECUTE у authenticated на erp_can_act_in_dept и erp_can_pack_ship. Тот же класс, что чинили 04.09 у erp_ensure_subcontract_send: тогда закрыли одну функцию поимённо, две соседние остались. Найдено вопросом к схеме (все prosecdef без предиката RLS, без внутреннего гейта и с authenticated в ACL), а не грепом по именам. Обе только читают и зовутся лишь триггерами-definer с владельцем postgres; клиент их не вызывает. Проверено на живой базе: прямой вызов даёт 42501, путь цеха через erp_stage_guard продолжает работать. Версия в имени файла приведена к ФАКТИЧЕСКОЙ записи журнала (apply_migration ставит своё время применения) — расхождение поймала та же сверка"
+    },
+    {
+      "version": "20260907203932",
+      "name": "erp_garment_source",
+      "files": [
+        "20260907203932_erp_garment_source.sql"
+      ],
+      "note": "правки 07.09, п. 4 «разделить „Готовое изделие“ на два сценария». Ось назвал владелец: ЧЬЁ ИЗДЕЛИЕ — клиента (давальческое) или наше. Колонка у ПОЗИЦИИ, а не у заказа: механизм «закупать нечего» уже есть на заказе (purchase_required), но на бое один заказ несёт ДВЕ позиции ready_garment, и отметка на заказе сняла бы закупку у обеих разом. Не material_source — та отвечает на вопрос подряда и читается только при production_type='outsource'. NULL читается как «закупаем мы» (сравнение строгое с 'customer', как с executor='contractor'), бэкфилла нет: чьё изделие в сданных заказах — догадка. erp_create_order пересоздана целиком по подлинному тексту (md5 тела до правки 53b8ab85… совпал побайтово с prosrc)"
+    },
+    {
+      "version": "20260910124240",
+      "name": "erp_materials_audit_price_column",
+      "files": [
+        "20260910124240_erp_materials_audit_price_column.sql"
+      ],
+      "note": "починка дефекта прода: аудит-триггер erp_materials_audit следил за колонкой price, которой в erp_materials нет и не было (цена за единицу — price_per_unit, заведена 20260810200000; price живёт в соседней erp_material_suppliers). Занесена 20260906193413. erp_log_changes читает поле динамически (execute format '($1).%I') и ДО сравнения old/new, поэтому падал КАЖДЫЙ UPDATE строки erp_materials с непустым order_id: правка листа закупки, приёмка складом (erp_material_accept) и роллап журнала приёмок, а с ним и вставка в сам журнал. В erp_order_audit за всё время не появилось ни одной записи material.%. Поле не убрано, а названо верно: журнал 06.09 расширяли ради «сколько заказали, когда и почём». Бэкфилла нет — восстанавливать нечего, ни один материал ни разу не обновился. Сторож auditCoverage.test.ts переписан тем же коммитом: читал одну захардкоженную миграцию и существование колонок не проверял вовсе"
+    },
+    {
+      "version": "20260912135420",
+      "name": "erp_drop_is_demo",
+      "files": [
+        "20260912135420_erp_drop_is_demo.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 6: функционал тестовых заказов снят целиком. Колонка erp_orders.is_demo удалена, частичный индекс erp_orders_not_demo_idx снят явно (drop column снёс бы его каскадом молча), вместо него заведён полный erp_orders_status_due_idx под списочные запросы. erp_order_guard пересоздан по подлинному тексту 20260907180055 без ветки is_demo; поимённый список v_fields и ветка отгрузки не тронуты. Разметка снятия сделана по ЖИВЫМ ДАННЫМ: демо-заказов на проде НОЛЬ при 15 заказах, то есть DROP ничего не показывает задним числом. Сторожа перевёрнуты тем же коммитом (schema.test.ts требует отсутствия колонки, serverPermissions.test.ts — отсутствия ветки и кнопки), иначе вернуть снятое можно было бы молча"
+    },
+    {
+      "version": "20260912140138",
+      "name": "erp_item_color_supplier",
+      "files": [
+        "20260912140138_erp_item_color_supplier.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 3: поле «Цвет / поставщик» в техблоке позиции. erp_order_items.color_supplier — цвет МАТЕРИАЛА и поставщик одной строкой, как их называет закупка; не путать с цветом ИЗДЕЛИЯ (variant и size_grid[].color). Свободный текст: справочник поставщиков есть у строки закупки, а на момент создания заказа поставщик часто ещё предположение. erp_create_order пересобрана из pg_get_functiondef двумя проверяемыми заменами (каждая обязана встречаться ровно один раз, иначе исключение) — по памяти такую функцию не переписывают, и подлинный текст тот, что в БАЗЕ. Тип объявлен опционально-обнуляемым: у позиций старых заказов колонки нет вовсе"
+    },
+    {
+      "version": "20260912140639",
+      "name": "erp_attachments_any_mime",
+      "files": [
+        "20260912140639_erp_attachments_any_mime.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 4: файлы ТЗ и макетов принимаются в любом формате. У бакета erp-attachments снят allowed_mime_types (был ['application/pdf','image/*'], поставлен 20260729120000). Ограничение стояло в ЧЕТЫРЁХ слоях, и этот — самый незаметный: сними три клиентских и оставь его, получишь отказ Storage ПОСЛЕ выбора файла, то есть интерфейс показывает файл приложенным, а в бакете его нет. Заодно чинится расхождение с 20.08: лист закупки предлагал выбрать .xlsx/.csv, а бакет их отклонял — файл молча вставал в error. file_size_limit (15 МБ) и политики записи под erp_is_member() НЕ тронуты — это и есть названные в правке «стандартные проверки безопасности». sku-photos не тронут: там image/* — требование к содержимому каталога, а не ограничение рабочего файла. Цена названа вслух: участник ERP может положить в публичный на чтение бакет файл любого типа"
+    },
+    {
+      "version": "20260912142715",
+      "name": "erp_dev_package_optional",
+      "files": [
+        "20260912142715_erp_dev_package_optional.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 9: финальный пакет разработки перестал держать завершение. Тело erp_dev_package_guard стало пустым (return new), функция и триггер СОХРАНЕНЫ — возврат требования это пересоздание одной функции по тексту 20260830160000, а не сборка триггера, прав и порядка заново. Данные не тронуты: sample_approved_at, pattern_tech_name/version, вложения dev_passport/dev_photo пишутся и читаются как раньше. Клиентская половина снята ТЕМ ЖЕ коммитом (флаг devFinalPackageRequired, по умолчанию выключен) — одна половина дала бы «кнопка есть, действие падает» у технолога с текстом 23514. Цена названа вслух: на переходе в ready_for_serial висит erp_dev_handoff_to_warehouse, и без проверки образца склад может получить задачу «Приёмка ГП» на вещь, которой физически нет (дефект, ради которого делалась правка 30.08). Сторож сверки половин переведён на latestMatching по тексту правила: latestDefining отдавал бы теперь пустую функцию и был бы зелен при любом расхождении"
+    },
+    {
+      "version": "20260912143920",
+      "name": "erp_stage_cycle_from_route",
+      "files": [
+        "20260912143920_erp_stage_cycle_from_route.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 2: маршрут передаёт цикл этапа. Отдельная задача «Разработка программы вышивки» — это ЭТАП (документ просит ту же механику: статус, план, проблема, завершение, результат), значит у позиции с вышивкой этапов цеха становится ДВА. Уникальность наших этапов — частичный индекс (item_id, department_id, cycle) where executor='internal' (20260816160000), а оба писателя — erp_create_order и erp_route_apply — cycle не передавали вовсе: без миграции вторая вставка падает 23505 и НЕ СОЗДАЁТСЯ ВЕСЬ ЗАКАЗ (позиции, нанесения, ТЗ и материалы пишет та же транзакция). Обе функции пересобраны из pg_get_functiondef проверяемыми заменами (каждая точка вставки обязана встречаться ровно один раз). У СУЩЕСТВУЮЩЕГО этапа цикл не трогается: в erp_route_apply он попадает только в ветку INSERT — смена цикла живого этапа переписала бы историю прохода цеха. Проверено на живой базе транзакцией с откатом: два этапа одного цеха, циклы {0,1}"
+    },
+    {
+      "version": "20260912144802",
+      "name": "erp_stage_qty_over_plan",
+      "files": [
+        "20260912144802_erp_stage_qty_over_plan.sql"
+      ],
+      "note": "правка 12.09, п. 5, ПЕРВАЯ попытка — снятие потолка факта пересборкой функций через pg_get_functiondef. Применена и сразу заменена следующей (20260912145413). Файл заведён, потому что репозиторий обязан описывать ТУ систему, что в проде. Почему переделано: динамическая пересборка делает короткие функции НЕВИДИМЫМИ для сторожей — latestDefining ищет 'create or replace function public.<имя>(' в миграциях и, не найдя, читает прежнюю редакцию, то есть подтверждает снятый потолок как действующий. Поймал stageQtyMath.test.ts, оставшийся красным после применения"
+    },
+    {
+      "version": "20260912145413",
+      "name": "erp_stage_qty_over_plan_explicit",
+      "files": [
+        "20260912145413_erp_stage_qty_over_plan_explicit.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 5: фактический выпуск сверх тиража сохраняется целиком. ПОТОЛОК СТОЯЛ В ДВУХ МЕСТАХ, и сняты оба: erp_clamp_done (общее правило приращения, пять вызывающих) и erp_clamp_stage_qty (BEFORE-триггер таблицы, обрезал ЛЮБУЮ запись qty_done, включая прямой UPDATE клиента, и остался бы последним словом — сервер возвращал бы 100 там, где цех сдал 105). Обрезка снизу нулём осталась в обеих; erp_clamp_rework не тронута (потолка у переделки не было и раньше). Авто-закрытие этапа не меняется: qty_done >= тираж при перевыполнении истинно тем более. «Плюс» нигде не хранится — max(qty_done − qty, 0) выводится из двух существующих чисел, считает erp/utils/stageQty (вторая колонка означала бы двух писателей одной величины: qty_received и брак подряда). Функции переписаны ЯВНО, а не пересобраны динамически — иначе сторожа репозитория их не видят. Проверено на живой базе транзакцией с откатом: заказ 100, сдано 105 → qty_done = 105, статус done, тираж позиции 100"
+    },
+    {
+      "version": "20260912150559",
+      "name": "erp_update_order",
+      "files": [
+        "20260912150559_erp_update_order.sql"
+      ],
+      "note": "правка заказчика 12.09, п. 7: редактирование созданного заказа. Новая RPC erp_update_order(order_id, payload) — поля заказа, позиции, нанесения и бирки ОДНОЙ транзакцией: правка это одно решение человека, и половина применённых секций хуже, чем неприменённая правка. ЭТАПОВ НЕ КАСАЕТСЯ — маршрут правится erp_route_apply, иначе правка срока стёрла бы qty_done, журнал и плановые даты цеха. Позиции сопоставляются по id, а не по индексу (индекс сдвинулся бы, и техблок уехал бы к чужому изделию). Тираж нельзя опустить ниже уже сделанного: qty — знаменатель прогресса и гейта отгрузки, и заниженный задним числом объявил бы цех сделавшим больше, чем заказано. Добавление и удаление позиций вне этой правки (решение владельца): первое заводит этапы, второе сносит их вместе с работой. Номер, автор и дата создания в списке колонок отсутствуют. SECURITY INVOKER — страж erp_order_guard и RLS обязаны сработать от лица вызывающего. Проверено на живой базе транзакцией с откатом от лица директора: клиент изменён, цвет записан, тираж 120, факт 40 НЕ сброшен, bitrix_id и created_at те же, заказ ОДИН, занижение тиража отклонено"
+    },
+    {
+      "version": "20260912232217",
+      "name": "erp_material_receipt_per_material",
+      "files": [
+        "20260912232217_erp_material_receipt_per_material.sql"
+      ],
+      "note": "правка заказчика 12.09 (вторая порция), баг 01: складская задача «Приёмка материалов» заводится переходом ПОЗИЦИИ закупки в статус in_transit, а не запуском этапа supply. Что было: erp_warehouse_task_derive вешала задачу на заказ по переходу этапа в in_progress/done и статуса материалов не читала вовсе — склад видел приёмку, когда закупщик ещё ничего не заказал (на бое 12.09 из четырёх открытых задач у трёх материал НЕ в пути, у одной позиций закупки нет вовсе). Задача стала ПОЗИЦИОННОЙ (решение владельца): «В пути» — статус отдельной строки, и у заказа с двумя тканями одна может ехать, а вторая быть не заказанной. Новая колонка material_id + частичный уникальный индекс (дубль при повторном переводе статуса). Писателей ДВА — after insert и after update: строку заводят и формой сразу в нужном статусе (предварительная закупка), и правкой статуса. Ветка supply из erp_warehouse_task_derive снята ТЕМ ЖЕ коммитом: два писателя одной величины с разными правилами разошлись бы молча. Частичная поставка не теряется — журнал erp_material_receipts принадлежит позиции и пишется сколько угодно раз"
+    },
+    {
+      "version": "20260912232246",
+      "name": "erp_material_receipt_cleanup",
+      "files": [
+        "20260912232246_erp_material_receipt_cleanup.sql"
+      ],
+      "note": "разбор уже заведённых задач приёмки: правка кода не чинит заведённые данные — призрачные задачи остались бы на экране склада и продолжали предлагать принять материал, которого никто не отправлял. Открытая задача привязана к позиции, которая действительно в пути; открытые задачи без единой позиции в пути сняты DELETE (терминальный статус был бы неправдой о материале, которого склад не видел). Закрытые (accepted) не тронуты — это история приёмок, material_id у них остаётся пустым. Идемпотентно: отбор по состоянию, а не по списку id. Факт на бое: снято три задачи (материалы pending, ordered и заказ без позиций закупки), привязана одна"
+    },
+    {
+      "version": "20260912233626",
+      "name": "erp_over_plan_column",
+      "files": [
+        "20260912233626_erp_over_plan_column.sql"
+      ],
+      "note": "правка заказчика 12.09 (вторая порция), п. 4, АДДИТИВНАЯ половина: колонка erp_departments.allows_over_plan (включена у закроя) и функция erp_stage_input_qty — зеркало клиентского utils/stageInput.stageInputQty (минимум по предшественникам, у закрытого факт не ниже тиража, без предшественников — тираж позиции). Право на превышение — свойство участка В ДАННЫХ, а не константа code='cutting' в коде: рядом уже живут gate_material_kinds и result_fields. Сам страж (потолок в erp_clamp_stage_qty) выложен ОТДЕЛЬНОЙ миграцией ПОСЛЕ фронтенда: он делает сервер строже, и прежний бандл о потолке не знает — цех получил бы отказ на числе, которое форма приняла. Проверено на живой базе: у этапа вышивки с qty_done=105 вход 100 (то есть ровно та запись, на которую жалуется документ), у следующей за ним швейки — 105, у ВТО за незапущенной швейкой — 0"
+    },
+    {
+      "version": "20260912234725",
+      "name": "erp_stage_result_kind",
+      "files": [
+        "20260912234725_erp_stage_result_kind.sql"
+      ],
+      "note": "правка заказчика 12.09 (вторая порция), баг 02: у задачи «Разработка программы вышивки» результат — ФАЙЛ программы, а не «Вышито, шт» и «Брак, шт». Схема отчёта живёт у УЧАСТКА (erp_departments.result_fields), поэтому оба этапа цеха вышивки получали одну форму. Признак хранится колонкой erp_item_stages.result_kind, а не выводится из operation: имя операции — свободный текст (в справочнике route_operation такой операции нет вовсе), человек правит его в конструкторе маршрута, и опознание по строке перестало бы работать от первого переименования МОЛЧА. Вид вложения stage_result заведён тем же коммитом и в CHECK, и в тип ErpAttachmentKind (22.08 виды print/label/note завели только в типе — 23514 роняла создание заказа целиком). Колонка едет от расчёта до базы обоими писателями этапов: erp_create_order и erp_route_apply пересобраны из pg_get_functiondef с проверкой единственности каждой вставки; цена приёма названа — latestDefining их после этого не видит. Колонка вписана и в v_guarded стража: не вписанная, она не проверялась бы вообще ничем"
+    },
+    {
+      "version": "20260913002246",
+      "name": "erp_dev_package_guard_back",
+      "files": [
+        "20260913002246_erp_dev_package_guard_back.sql"
+      ],
+      "note": "правка заказчика 12.09 (вторая порция), п. 5: финальный техпакет снова обязателен, условия по образцу в страже НЕТ. Применена ПОСЛЕ выкладки фронтенда — делает сервер строже. Не откат к 20260830160000: та редакция требует sample_approved_at, то есть вернула бы ровно ту проверку образца, которую просят снять, а вход, которым это поле проставляли, убран из сценария — требование поля, которое некому заполнить, заперло бы завершение разработки навсегда. Текст написан ЯВНО, а не собран из pg_get_functiondef: latestDefining ищет «create or replace function public.<имя>(» и, не найдя, читает ПРЕЖНЮЮ редакцию — сторож подтвердил бы снятое правило как действующее. Проверено на живой базе от лица вошедшего (с откатом): закрытие разработки с пустым техпакетом отвечает 23514 и называет ровно четыре пункта — техническое название лекал, версия лекал, технический паспорт, фото образца; строки про образец в перечне нет"
+    },
+    {
+      "version": "20260913002315",
+      "name": "erp_over_plan_guard",
+      "files": [
+        "20260913002315_erp_over_plan_guard.sql"
+      ],
+      "note": "правка заказчика 12.09 (вторая порция), п. 4, СТРОГАЯ половина: потолок факта в erp_clamp_stage_qty — последнем слове для любой записи qty_done, включая прямой UPDATE мимо RPC. Применена ПОСЛЕ выкладки фронтенда. Потолок — БОЛЬШЕЕ из тиража и переданного: взять один только вход было первой редакцией правки, и она оказалась СТРОЖЕ ИНТЕРФЕЙСА («Завершить этап» и перенос карточки пишут qty_done = тираж). Отказ, а не молчаливая обрезка. Пропуски по меткам транзакции (erp.moving, erp.subcontract_rollup) при таком потолке не нужны вовсе — а будь они, «плюс» мимо закроя уезжал бы этими же путями. Проверено на живой базе с откатом: в обычном цехе тираж закрывается, потолок+1 отвечает 23514 с названным потолком; на закрое (allows_over_plan) проходит 10 + 5"
+    },
+    {
+      "version": "20260913185324",
+      "name": "erp_dev_branding_note",
+      "files": [
+        "20260913185324_erp_dev_branding_note.sql"
+      ],
+      "note": "правка заказчика 13.09, п. 10: колонка erp_experimental.branding_note — «Комментарий по проработке», необязательный результат этапа проработки; его спрашивают при переносе карточки в «Нанесения» и показывают цеху в задании. Аддитивная, применена сразу (прежний бандл её не читает). Имя файла приведено к фактической записи журнала: apply_migration ставит СВОЁ время применения, и версия в имени разошлась бы со снимком"
+    },
+    {
+      "version": "20260914211821",
+      "name": "erp_warehouse_task_index_per_material",
+      "files": [
+        "20260914211821_erp_warehouse_task_index_per_material.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 4: индекс erp_warehouse_tasks_order_type_idx получил предикат «and material_id is null». Причина бага «второй материал не переводится в „В пути“»: индекс требовал одну задачу каждого вида НА ЗАКАЗ (заведён 20260722120000, сужен по stage_id в 20260820130000), а правка 12.09 сделала приёмку материалов ПОЗИЦИОННОЙ — вторая строка того же заказа упиралась в 23505. Собственная уникальность позиционных задач (erp_warehouse_tasks_material_idx по material_id) остаётся. Аддитивная (ослабление), применена ДО фронтенда — чинит прод сразу. Перед правкой проверено на бое: задач material_receipt две, у обеих material_id заполнен, заказы разные — дублей нет, бэкфилл не нужен; ON CONFLICT (order_id, task_type) не осталось ни в одном действующем определении функций. После правки проверено сценарием документа с откатом: два материала одного заказа последовательно уходят «в пути» и дают ДВЕ складские задачи"
+    },
+    {
+      "version": "20260914211850",
+      "name": "erp_garment_source_stock",
+      "files": [
+        "20260914211850_erp_garment_source_stock.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 1: третье значение erp_order_items.garment_source — 'stock' («Склад готовой продукции»). Следствия маршрутные и отличаются от давальческого только действием склада: закупки нет у обоих, этап склада обязателен обоим, но customer склад ПРИНИМАЕТ, а stock ВЫДАЁТ (utils/garmentSource.garmentIntakeAction). Аддитивная, применена ДО фронтенда: прежний бандл значения не создаёт, CHECK лишь перестаёт его отвергать. Клиентская половина сравнивает строго с каждым значением — на бое колонка пуста у ВСЕХ позиций, и правило вида != 'purchased' сняло бы закупку у заведённых заказов задним числом"
+    },
+    {
+      "version": "20260914211947",
+      "name": "erp_production_files",
+      "files": [
+        "20260914211947_erp_production_files.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 3: папка «Файлы производства». Вид вложения 'production' (CHECK + ErpAttachmentKind одним коммитом), право files.manage в матрице, роль designer в CHECK erp_employees.role и erp_invites.employee_role, сводная DELETE-политика расширена на свободные файлы и макеты под files.manage, заведены UPDATE-политика и страж erp_attachment_guard. Страж обязателен: UPDATE-политики у таблицы не было вовсе, и право на правку kind без разбора колонок означало бы правку order_id и file_path, то есть подмену файла в чужом заказе. Перекладываются ТОЛЬКО attachment и production: у макета есть адресат (print_id), и смена вида оторвала бы его от нанесения. Аддитивная (прежде UPDATE был запрещён целиком), применена ДО фронтенда. Проверено на живой базе от лица заведённого в транзакции дизайнера, с откатом: роль резолвится как designer, files.manage есть, файл перекладывается в production, подмена file_path отвечает 42501"
+    },
+    {
+      "version": "20260914214651",
+      "name": "erp_notifications",
+      "files": [
+        "20260914214651_erp_notifications.sql"
+      ],
+      "note": "подготовка к правке 14.09 «чат внутри сделки»: таблица персональных уведомлений, которой в системе не было. «Центр уведомлений ERP» — чистая функция utils/notifications.ts, вычисляющая поводы вмешаться из заказов; адресата у них нет, прочитанности тоже. «Уведомить упомянутого по его ID» вычислить нельзя — это факт, и его надо хранить. ПИСАТЕЛЯ ПОКА НЕТ, и это не недоделка: на живой базе проверено, что все «ответственные» и «исполнители» ERP (erp_item_stages.assignee, erp_experimental_tasks.responsible, erp_materials.responsible, erp_subcontracting.responsible, erp_calendar_slots.assignee) хранятся ТЕКСТОМ, то есть привязать уведомление к учётной записи не к чему; первым писателем станет erp_chat_send. INSERT-политики нет вовсе (уведомление — следствие события, а не действие клиента), читает только адресат, правится только read_at — разбор колонок делает страж erp_notification_guard. Таблица в publication: человека зовут сейчас, а не «когда он перезагрузит страницу». Проверено на живой базе с откатом от лица адресата: видно только своё, вставка с клиента 42501, отметка прочтения проходит, подмена ссылки 42501"
+    },
+    {
+      "version": "20260914221959",
+      "name": "erp_chat_core",
+      "files": [
+        "20260914221959_erp_chat_core.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 5: схема чата внутри сделки. Сообщение принадлежит ТРЕДУ (erp_chat_threads с якорем «сделка ЛИБО разработка»), а не заказу: документ требует, чтобы переписка разработки после привязки к сделке была видна из её чата БЕЗ копирования сообщений — с order_id прямо в сообщении это был бы массовый UPDATE, то есть копирование и UPDATE-политика, которой у переписки быть не должно. Автор — постоянный profiles.id, а не имя текстом (этим чат и отличается от erp_order_comments, которые документ трогать запрещает). Отметок прочтения ДВЕ на человека: на тред и на этап — иначе просмотр переписки одной задачи гасил бы счётчик всей сделки, что документ запрещает прямо. Вложения — существующая erp_order_attachments плюс message_id и 17-й вид 'chat'; в сводную DELETE-политику он НЕ входит: удаления сообщений нет, значит и удаления их файлов быть не должно. У сообщений, тредов и упоминаний есть ТОЛЬКО select (erp_is_member — решение владельца «кто видит сделку, тот видит обсуждение»): ни INSERT-, ни UPDATE-, ни DELETE-политики, запрет выражен отсутствием команды. erp_chat_messages в publication. Аддитивная, применена до фронтенда"
+    },
+    {
+      "version": "20260914222151",
+      "name": "erp_chat_rpc",
+      "files": [
+        "20260914222151_erp_chat_rpc.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 5: единственный писатель переписки и три чтения. erp_chat_send (security definer) одной транзакцией пишет сообщение, упоминания, вложения и уведомления; повтор с тем же ключом попытки (utils/attemptKey) возвращает то же сообщение и НЕ рассылает уведомления второй раз. Контекст (позиция, этап, разработка) обязан принадлежать этой сделке — иначе сообщение всплывало бы в переписке чужой задачи. Живая база изменила решение по именам: profiles виден участнику ТОЛЬКО свой (profiles_select), то есть ни имя автора, ни требуемый документом поиск по email обычным запросом недостижимы — отсюда erp_chat_directory() (definer с гейтом erp_is_member), и она же единственный источник имён и для ленты, и для подсказки упоминаний. Чтение (erp_chat_page, erp_chat_unread) — security invoker: «одним запросом» не означает «мимо RLS». Непрочитанное считает ОДНА формула и для вкладки, и для кнопки задачи: total по отметке треда, задача — по поздней из двух отметок. Уведомление получило message_id и уникальность (user_id, message_id) — «упоминание и ответ одному человеку это одно уведомление» ограничением, а не кодом; страж erp_notification_guard пересобран тем же коммитом, иначе новая колонка осталась бы единственной, которую адресат вправе переписать себе сам. Проверено на живой базе с откатом: упоминание отключённого и самого себя отфильтровано, повтор не создал ни второго сообщения, ни второго уведомления, этап чужой сделки и пустое сообщение отвергнуты, прямая вставка в erp_chat_messages отвергнута RLS, отметка по этапу обнулила счётчик задачи и НЕ тронула счётчик сделки"
+    },
+    {
+      "version": "20260915030910",
+      "name": "erp_sku_cards",
+      "files": [
+        "20260915030910_erp_sku_cards.sql"
+      ],
+      "note": "правка заказчика 14.09, п. 6: каталог SKU в ERP. `erp_sku_cards` — КАРТОЧКА ИЗДЕЛИЯ (техпакет, файлы, версии, связь с разработкой и заказами) рядом с прайс-каталогом визарда `app_config.sku_catalog`, связь по КОДУ: две сущности отвечают на разные вопросы («сколько стоит» и «как это шьётся»). Четыре права — sku.view/edit/publish/archive; publish выдан ровно тем, у кого сегодня catalog.edit (директор и руководитель производства), иначе кто-то потерял бы доступ молча. Одна UPDATE-политика, разбор по колонкам у стража erp_sku_card_guard: выпуск — publish, архив — archive, код — publish (смена кода рвёт связь с прайсом молча), прочее — edit; версию карточки клиент не пишет вовсе. DELETE-политики НЕТ: модель архивируют, а не удаляют — по ней есть заказы. Версии пишет триггер erp_sku_card_version (BEFORE UPDATE, имя выбрано так, чтобы страж по алфавиту отработал раньше); правка без значимых изменений версии не получает. erp_order_items.sku_card_id — ССЫЛКА рядом со снимком полей позиции: правка карточки задним числом не имеет права переписать действующий заказ. Страж позиции колонки не перечисляет и потому уже закрывает её (проверено на базе, а не по плану). erp_sku_card_stats считает только по sku_card_id (сравнение по названию дало бы заказы одноимённых моделей), отменённые заказы исключены"
+    },
+    {
+      "version": "20260915031050",
+      "name": "erp_sku_catalog_upsert",
+      "files": [
+        "20260915031050_erp_sku_catalog_upsert.sql"
+      ],
+      "note": "правка 14.09, п. 6 (вторая миграция): запись в app_config.sku_catalog вынесена в erp_sku_catalog_upsert — писатель массива артикулов обязан остаться ровно ОДИН, иначе клиентское «прочитать → дописать → записать» затрёт соседний артикул молча. erp_sku_from_dev переведена с catalog.edit на sku.publish В ТОЙ ЖЕ выкладке, где право засеяно, и заодно выпускает карточку ERP в работу. ЗАСЕВ КАРТОЧЕК ИЗ ПРАЙСА (52 штуки, статус active) — решение по живой базе: карточки должны были наполняться публикациями из разработок, а разработка на бою одна при 52 моделях, то есть вкладка открывалась бы пустой при полном прайсе. Статус active, а не draft: эти модели работают, «требует заполнения» сказало бы неправду о действующем артикуле"
+    },
+    {
+      "version": "20260915031210",
+      "name": "erp_sku_card_version_fix",
+      "files": [
+        "20260915031210_erp_sku_card_version_fix.sql"
+      ],
+      "note": "починка дефекта, найденного проверкой на живой базе от лица заведённого в транзакции технолога: `text[] || 'строка'` Postgres разбирает как ЛИТЕРАЛ МАССИВА (22P02 malformed array literal), и триггер версий падал бы при ПЕРВОЙ ЖЕ правке карточки — то есть у человека, а не при выкладке. Тот же класс, что дефект аудита 10.09: создать можно, изменить нельзя. `array_append` вместо конкатенации не оставляет вопроса о типах вовсе. Правится НОВОЙ миграцией: версия из журнала повторно не исполняется, и правка применённого файла дала бы зелёный репозиторий при живом дефекте"
+    },
+    {
+      "version": "20260915034120",
+      "name": "erp_dev_sku_card_on_ready",
+      "files": [
+        "20260915034120_erp_dev_sku_card_on_ready.sql"
+      ],
+      "note": "правка 14.09, п. 6 (четвёртая миграция): завершение разработки с исходом «Готово к серии» заводит ЧЕРНОВИК карточки модели и переносит в неё файлы техпакета (dev_pattern/dev_passport/dev_photo — ссылкой на вложение плюс снимок пути: удалённая разработка не имеет права унести с собой техпаспорт). ТРИГГЕР, а не вызов из клиента: между «завершить» и «создать карточку» клиент может потерять сеть, а событие завершения больше не наступит. Только на ПЕРЕХОДЕ outcome — тем самым «сама галочка не публикует» выполняется по построению. В прайс визарда карточка НЕ уходит: пакет не содержит кода, категории и цены пошива, а артикул с нулевой ценой ломает визард молча. `security definer` проверен опытом на живой базе: со снятой у технолога галочкой sku.edit завершение разработки по-прежнему проходит и карточка заводится — с invoker снятая галочка роняла бы цеху само завершение 42501-й внутри чужой транзакции. БЭКФИЛЛ ЗАПОЛНИЛ НОЛЬ СТРОК, и это названо вслух: план исходил из того, что единственная разработка на бою завершена, — живая база показала обратное (outcome пуст). Бэкфилл оставлен: разработка, завершённая до появления триггера, карточки не получила бы НИКОГДА"
+    },
+    {
+      "version": "20260915034723",
+      "name": "erp_order_sku_card_link",
+      "files": [
+        "20260915034723_erp_order_sku_card_link.sql"
+      ],
+      "note": "правка 14.09, п. 6 (пятая миграция): «Использовать в заказе» — колонка erp_order_items.sku_card_id заведена 20260915030910, но НИ ОДИН писатель её не заполнял (erp_create_order и erp_update_order перечисляют колонки поимённо), то есть связь писалась бы в пустоту, а статистика модели навсегда показывала бы ноль. Обе функции пересобраны из собственного определения (pg_get_functiondef + вставки), КАЖДАЯ вставка проверена — не сработавшая замена оставила бы функцию прежней молча. У создания `nullif(…, '')::uuid`: форма шлёт пустую строку, когда модель не выбрана, и голое приведение отвечало бы 22P02, то есть заказ не создавался бы вовсе. У правки проверяется НАЛИЧИЕ КЛЮЧА (`v_item ? 'sku_card_id'`), а не значение: голое присваивание отвязывало бы модель у всякого, кто правит заказ из открытой старой вкладки, а coalesce сделал бы связь неразрываемой. Проверено на живой базе четырьмя сценариями с откатом: создание со ссылкой и с пустым значением, статистика видит заказ, правка без ключа связь сохраняет, пустое значение отвязывает"
+    },
+    {
+      "version": "20260915053342",
+      "name": "attachment_limit_20mb",
+      "files": [
+        "20260915053342_attachment_limit_20mb.sql"
+      ],
+      "note": "правка 14.09, расхождение №2 (решение владельца 15.09): лимит бакета erp-attachments поднят с 15 до 20 МБ — документ называл 20, в ERP стояло 15. ПОРЯДОК ВЫКЛАДКИ ОБРАТНЫЙ ОБЫЧНОМУ: сервер становится МЯГЧЕ, поэтому миграция идёт ПЕРЕД фронтендом — иначе форма приняла бы файл, который Storage отвергнет уже ПОСЛЕ загрузки восемнадцати мегабайт с планшета. Живая база поправила учёт мест: величина живёт не в трёх местах, а в ЧЕТЫРЁХ — бакетов два. sku-photos НЕ тронут (фото моделей Order Studio — другая величина и другой вопрос). Первая редакция миграции упала с 42501 на `comment on table storage.buckets`: таблица принадлежит supabase_storage_admin, COMMENT требует владения, а UPDATE строки проходит. Расхождение мест сторожит attachmentLimits.test.ts"
+    },
+    {
+      "version": "20260915053824",
+      "name": "experimental_without_order",
+      "files": [
+        "20260915053824_experimental_without_order.sql"
+      ],
+      "note": "правка 14.09, расхождение №4 (было отложено, снято решением владельца 15.09): разработка без сделки. erp_experimental.order_id и erp_order_attachments.order_id обнуляемы, у вложения появился CHECK erp_order_attachments_anchor_check («заказ ЛИБО разработка»: строка без якоря — файл, невидимый экранам и ЖИВОЙ для storage-gc, то есть платный, невидимый и неудаляемый). Привязка — отдельный RPC erp_experimental_attach_order под experimental.manage; повторная запрещена (перенос между сделками оставил бы этапы, задачу склада и переписку у прежнего заказа), позиция проверяется на принадлежность сделке, файлы НЕ перепривязываются (лекала и техпаспорт описывают модель, а не заказ). ЖИВАЯ БАЗА СОКРАТИЛА РАБОТУ: политики erp_experimental не ссылаются на order_id вовсе, а erp_dev_handoff_to_warehouse и erp_experimental_task_send уже написаны с оглядкой на его отсутствие. Переписка после привязки видна из чата сделки БЕЗ копирования по построению — erp_chat_page собирает треды заказа объединением с тредами его разработок. Проверено на живой базе семью сценариями с откатом"
+    },
+    {
+      "version": "20260915204908",
+      "name": "drop_deleted_test_orders_snapshot",
+      "files": [
+        "20260915204908_drop_deleted_test_orders_snapshot.sql"
+      ],
+      "note": "Уборка 15.09 (решение владельца): снята таблица-снимок erp_deleted_test_orders_20260913, заведённая чисткой 13.09 ради возможного отката. Это не косметика: снимок создан через `create table as` и унаследовал права по умолчанию — RLS выключен, политик ноль, has_table_privilege('anon', …, 'SELECT') = true. Ключ anon публичен по построению (лежит в бандле фронтенда), то есть двадцать удалённых заказов вместе с зависимыми строками в jsonb читались через PostgREST любым, кто открыл сайт; адвизор помечал это уровнем ERROR (rls_disabled_in_public). Перед удалением проверено: 20 строк, 160 кБ, внешних ключей на таблицу нет, представлений, читающих её, нет. Версия файла приведена к фактической записи журнала (apply_migration ставит своё время применения)."
+    },
+    {
+      "version": "20260915224637",
+      "name": "erp_stage_input_qty_revoke_rest",
+      "files": [
+        "20260915224637_erp_stage_input_qty_revoke_rest.sql"
+      ],
+      "note": "Побочная находка сессии 62: erp_stage_input_qty была security definer БЕЗ внутреннего гейта и с authenticated в ACL, то есть вызывалась любым вошедшим через /rest/v1/rpc/. Формула та же, по которой 07.09 закрыли erp_is_manager и соседей. Выбран ОТЗЫВ, а не внутренний гейт, и это проверено схемой: в предикатах политик функции нет ни разу (отзыв не сломает RLS — в отличие от is_admin()), вызывающий ОДИН и это триггерная функция erp_clamp_stage_qty (сама definer с владельцем postgres, отзыв её не касается), клиент функцию не зовёт вовсе. Внутренний гейт отобрал бы у цеха обрезку факта в его же триггере — тот отказ, ради которого функция и definer. Отзыв `from public, anon, authenticated`: право приходит от PUBLIC, и один только `from anon` не делает ничего. Проверено на живой базе транзакцией с откатом, обе половины: UPDATE qty_done проходит (триггер работает), прямой вызов от authenticated отвечает 42501."
+    },
+    {
+      "version": "20260916191850",
+      "name": "erp_stage_report_sizes",
+      "files": [
+        "20260916191850_erp_stage_report_sizes.sql"
+      ],
+      "note": "Правки заказчика 16.09, пп. 1, 4 и 6: размерный результат этапа. Три правки просят одно и то же — результат в разрезе размеров (склад принимает изделие по размерам и вправе принять меньше; закрой сдаёт раскрой по размерам с рулона; швейка отчитывается таблицей и не может сдать больше принятого из закроя), поэтому заведена ОДНА таблица erp_stage_report_sizes, а не jsonb у склада, таблица у закроя и колонки у швейки: по этим числам считаются показатели будущего раздела «Аналитика» и проверка «сшито+брак+переделка ≤ принято ПО ЭТОМУ РАЗМЕРУ», которая сравнивает НАКОПЛЕННОЕ по append-only журналу. Строка несёт ЦВЕТ, а не только размер: size_grid позиции это [{color, sizes}], и «XS» само по себе не адресует строку у позиции с двумя цветами. erp_stage_submit_report пересоздана с параметром p_sizes: при непустой разбивке заголовочные qty_good/defect/rework/extra СЧИТАЮТСЯ из строк — иначе у числа два писателя (форма и сумма строк), и разойдутся они молча. DROP+CREATE, а не create or replace с лишним аргументом: перегрузка дала бы PostgREST неоднозначность (PGRST203) на действии, которым цех живёт каждый день; права после DROP выставлены явно тем же набором (postgres + authenticated + service_role, без PUBLIC и anon), потому что DROP их сбрасывает МОЛЧА. Версия файла приведена к фактической записи журнала."
+    },
+    {
+      "version": "20260916191916",
+      "name": "erp_finished_good_purchase",
+      "files": [
+        "20260916191916_erp_finished_good_purchase.sql"
+      ],
+      "note": "Правка заказчика 16.09, п. 2: закупка готового изделия ОДНОЙ строкой с размерной разбивкой вместо закупки на каждый размер. Расширены erp_materials (вид kind='finished_good' и size_grid jsonb) и erp_material_receipts (size_grid — факт ЭТОГО прихода), а не заведена вторая сущность: на строку закупки завязаны экран закупки, позиционная задача склада, материальный гейт участков, автозакрытие этапа «Закупка» и триггер qty_received — копии всех шести разошлись бы молча. Вид, а не флаг: специализация участков уже выражена языком видов (erp_departments.gate_material_kinds), флаг потребовал бы константы в коде. Разбивка здесь jsonb (снимок, читается целиком), в отличие от erp_stage_report_sizes (величина для агрегации) — формат тот же, что у erp_order_items.size_grid. Триггер erp_material_grid_qty делает qty_expected при непустой сетке вычисляемым: сумма по размерам и «общая потребность» это одно число, и второй писатель дал бы приёмку по устаревшему плану. erp_material_accept пересоздана с p_size_grid (DROP+CREATE с явными правами по той же причине, что выше)."
+    },
+    {
+      "version": "20260916200551",
+      "name": "erp_rpc_quotes_and_trigger_revoke",
+      "files": [
+        "20260916200551_erp_rpc_quotes_and_trigger_revoke.sql"
+      ],
+      "note": "Правка по следам сторожей к 20260916191850/191916. Обе пересозданные RPC были записаны так, как их печатает pg_get_functiondef — в кавычках `$function$`. Для Postgres это безразлично, для репозитория нет: functionBody (utils/migrations.testutil.ts) вырезает тело между `$$`, и семь проверок materialReceipts.test.ts молча получили ПУСТУЮ строку вместо тела — то есть перестали проверять что-либо вообще («сторож, зелёный на сломанном коде, — не сторож»). Здесь тела переписаны в `$$` и добавлено явное `security invoker`. Второй правкой отозван EXECUTE у триггерной функции erp_material_grid_qty(): она создавалась без отзыва, а право приходит от PUBLIC."
+    },
+    {
+      "version": "20260916200636",
+      "name": "erp_material_grid_qty_revoke_authenticated",
+      "files": [
+        "20260916200636_erp_material_grid_qty_revoke_authenticated.sql"
+      ],
+      "note": "Дозакрытие: revoke `from public, anon` оставил в ACL собственный грант роли authenticated (его выдаёт grant execute on all functions in schema public), и функция по-прежнему вызывалась вошедшим через REST — текстовый сторож этого не видит, живая база показала. Канон раздела виден в самой базе: у всех прочих триггерных функций ACL ровно {postgres, service_role}; приведено к нему. Дыры не было (Postgres сам отклоняет прямой вызов триггерной функции), дефект — в расхождении с каноном и в постоянном предупреждении адвизора."
+    },
+    {
+      "version": "20260916202248",
+      "name": "erp_material_rolls",
+      "files": [
+        "20260916202248_erp_material_rolls.sql"
+      ],
+      "note": "Правка заказчика 16.09, п. 5: рулоны принятой партии. Таблица, а не счётчик rolls_count у приёмки: рулон — СУЩНОСТЬ, на которую дальше ссылается закрой (с какого рулона кроили, сколько ткани ушло, сколько изделий каждого размера получилось, п. 4), а сослаться на число «5 рулонов» нечем. Само число рулонов при этом не хранится нигде — это count(*), колонка рядом была бы вторым писателем (ошибка, на которой проект ловился с qty_received). Нумерация сквозная ВНУТРИ МАТЕРИАЛА, а не внутри прихода: документ требует, чтобы вторая поставка добавляла «Рулон №3…№5», а не заводила второй «Рулон №1» — в цеху эти номера произносят вслух. Вес рулона необязателен по тексту документа: склад принимает партию общим весом, и «вес ÷ N» был бы выдуманным числом в колонке, по которой считают расход. Признак «единица учитывается рулонами» живёт в erp_dictionaries.meta.rolls у значения справочника, а не списком в коде: на бою в erp_materials.unit разнобой («кг» у четырёх строк, «Килограммы» у трёх), потому что в колонку писали то код, то имя, и сравнение строки не сработало бы на трёх строках из семи. Серверное зеркало клиентского правила — erp_unit_tracks_rolls(text), проверено на живой базе: кг/Килограммы → true, м/шт/бухта/NULL → false (fail-open)."
+    },
+    {
+      "version": "20260916202447",
+      "name": "erp_material_accept_rolls",
+      "files": [
+        "20260916202447_erp_material_accept_rolls.sql"
+      ],
+      "note": "Правка 16.09, п. 5: приёмка принимает количество рулонов и заводит их в партии. Обязательность для единиц, учитываемых рулонами, стоит И на сервере (erp_unit_tracks_rolls), И в форме — одним коммитом, как требует правило «страж разрешает ровно то, что разрешает интерфейс». Рулоны создаются только на ветке «приход реально вставился» (not v_dup): приёмка идемпотентна по client_key ради офлайн-очереди, и повтор не должен удваивать рулоны так же, как не удваивает килограммы. Нумерация продолжается по max(seq) материала: документ требует «Рулон №3…№5» второй поставкой. Потолок 500 — защита от опечатки «3000» вместо «3». У ЭТОЙ редакции был дефект: `select max(seq) … for update` — Postgres не допускает FOR UPDATE с агрегатом (0A000), приёмка ткани падала. Поймано на живой базе в той же сессии, исправлено следующей миграцией."
+    },
+    {
+      "version": "20260916202527",
+      "name": "erp_material_accept_rolls_lock_fix",
+      "files": [
+        "20260916202527_erp_material_accept_rolls_lock_fix.sql"
+      ],
+      "note": "Починка к предыдущей: блокируется строка МАТЕРИАЛА (erp_materials … for update) — именно она общая для двух параллельных приёмок и не даёт обеим взять один максимум, — а максимум читается обычным запросом. DROP не нужен: сигнатура та же, а create or replace привилегии не сбрасывает. Проверено на живой базе транзакцией с откатом по сценарию документа: приёмка в кг без числа рулонов отвергается (22023), 40 кг/2 рулона + 60 кг/3 рулона дают 100 кг и рулоны №1…№5 сквозной нумерацией."
+    },
+    {
+      "version": "20260916204614",
+      "name": "erp_stage_report_rolls",
+      "files": [
+        "20260916204614_erp_stage_report_rolls.sql"
+      ],
+      "note": "Правка 16.09, п. 4: расход ткани по рулонам в отчёте закроя. ДВЕ таблицы, а не одна: erp_stage_report_rolls отвечает «сколько ткани ушло с рулона», erp_stage_report_sizes.report_roll_id — «какие изделия из неё вышли». Одной строкой их не сложить: расход у рулона ОДИН, а размеров с него несколько, и «19,4 кг» повторилось бы в каждой размерной строке — при первом же sum() расход вырос бы впятеро. Уникальность размерной строки пересобрана: прежнее (report_id, color, size) запрещало один размер дважды в отчёте, а закрой сдаёт «M» с двух рулонов — теперь ключ включает рулон, а coalesce с нулевым uuid держит прежнее правило для отчётов без рулонов (склад, швейка). Статус рулона пишет отчёт, и UPDATE открыт ровно тем правам, на которых стоит клиентский гейт кнопки «Сдать результат» (stage.progress/stage.complete) — оба ставятся одним коммитом. Признак участка result_detail ('rolls'/'sizes') живёт В ДАННЫХ рядом с result_fields и gate_material_kinds: константа «рулоны → закрой» в коде запрещена правилом проекта."
+    },
+    {
+      "version": "20260916204643",
+      "name": "erp_stage_submit_report_rolls",
+      "files": [
+        "20260916204643_erp_stage_submit_report_rolls.sql"
+      ],
+      "note": "Сдача результата принимает p_rolls («рулон → расход → размеры»). Когда он непуст, заголовочное qty_good считается ИЗ НЕГО — у числа один писатель. Статус рулона ведёт эта же транзакция: «израсходован» по галочке закройщика, «в работе» автоматически при первом расходе; у склада роль только заводить рулоны. Порядок веток важен: сначала рулоны, потом размеры без рулонов, потом скаляры — иначе у закроя строки записались бы дважды (раз без рулона, раз с ним). Проверено на живой базе транзакцией с откатом: два рулона дали 36 шт и 31.4 кг расхода, 5 размерных строк со связью «размер ↔ рулон», рулон с галочкой стал used, второй — in_use."
+    },
+    {
+      "version": "20260916210629",
+      "name": "erp_item_assembly_cost",
+      "files": [
+        "20260916210629_erp_item_assembly_cost.sql"
+      ],
+      "note": "Правка 16.09, п. 6: фактическая стоимость сборки за единицу. Живёт у ПОЗИЦИИ, а не у этапа и не в отчёте, потому что документ просит «один раз на всю позицию»: у этапа их бывает несколько (возврат брака заводит второй швейный этап со своим cycle), у отчёта — сколько угодно (сдача частями). Единственный писатель — erp_stage_submit_report: прямой путь закрыт стражем, требующим order.manage, а у швеи его нет и быть не должно (это право на заказ целиком). Пропуск устроен как у роллапа отгрузки и так же УЗКО: метка erp.assembly_cost ставится внутри RPC вокруг своего update, а ветка стража проверяет, что изменились ТОЛЬКО три колонки стоимости — без этой проверки метка стала бы дырой на всю позицию. Проверено на живой базе от лица цеховой роли (set local role authenticated + jwt сотрудника цеха вышивки): стоимость под меткой записывается, а `update … set qty = qty + 1` под той же меткой отвергается с 42501."
+    },
+    {
+      "version": "20260916210657",
+      "name": "erp_stage_submit_report_assembly_cost",
+      "files": [
+        "20260916210657_erp_stage_submit_report_assembly_cost.sql"
+      ],
+      "note": "Сдача результата принимает p_assembly_cost. Пусто — значение не трогается: «обязательное поле» из документа означает «пока его нет», а не «вводите одно и то же на каждой частичной сдаче». Метка ставится вокруг своего update и снимается сразу — она не должна пережить вызов."
+    },
+    {
+      "version": "20260916212230",
+      "name": "erp_analytics_permission_and_base",
+      "files": [
+        "20260916212230_erp_analytics_permission_and_base.sql"
+      ],
+      "note": "Правка 16.09, п. 7: право analytics.view и ЕДИНОЕ определение выпуска. Право отдельное, а не catalog.edit и не роль: сводка отвечает на вопросы руководства, но только читает — запирать её правом на правку справочников значило бы раздавать заодно и правку. Засеяно директору и руководителю производства; диспетчеру НЕ достаётся, потому что его набор в DEFAULT_PERMISSIONS строится исключениями и новое право ушло бы ему молча — оно названо там явно. Выпуск считает одна функция erp_analytics_released, которую читают все сводки: «сколько выпустили» можно определить четырьмя способами, и если каждая посчитает по-своему, плитка разойдётся с таблицей молча. Определение: отчёты ПОСЛЕДНИХ производственных этапов позиции (от которых никто не зависит), этапы образца исключены. Проверено на живой базе: терминальных этапов 26 (ВТО и вышивка), отчётов на них ноль — выпуск честно нулевой, а не потерян разбором."
+    },
+    {
+      "version": "20260916212248",
+      "name": "erp_analytics_overview",
+      "files": [
+        "20260916212248_erp_analytics_overview.sql"
+      ],
+      "note": "Карточки «Обзора» одним вызовом. Право проверяется ВНУТРИ функции, а не только вкладкой: политика erp_stage_reports — erp_is_member(), и без проверки сводку прочитал бы через REST любой участник производства. Себестоимость — средневзвешенная по выпуску (простое среднее дало бы единичной позиции вес тиража в тысячу штук) и возвращает ПОКРЫТИЕ: среднее по трём позициям из тридцати читается как среднее по всему, если не сказать, сколько изделий в него вошло. Ткань считается только в килограммах через erp_unit_tracks_rolls — пересчёта единиц система не делает, и сложить кг с метрами здесь было бы первым нарушением этого правила. Предыдущий период — той же длины и примыкающий слева: «месяц к месяцу» и «30 дней к 30 дням» дают разные числа."
+    },
+    {
+      "version": "20260916212348",
+      "name": "erp_analytics_series_and_tables",
+      "files": [
+        "20260916212348_erp_analytics_series_and_tables.sql"
+      ],
+      "note": "Ряды по дням/неделям, производство по моделям и брак по цехам. Все читают одно определение выпуска; исключение одно и осознанное: брак по цехам считается по ВСЕМ этапам, потому что вопрос документа — «где возникает брак», а на терминальном этапе брак закроя не виден вовсе. Детализация проверяется списком, а не подставляется в date_trunc как есть. Расход ткани объединяется с выпуском ПОЛНЫМ join: день, когда кроили, но ничего не сдали, обязан остаться в ряду. Доля брака считается от сделанного (годное + брак), а не от тиража: у частично сданного этапа тираж ещё не выбран и процент был бы занижен. Проверено на живой базе от лица директора: брак по цехам считается (ДТФ — 1 шт, 0.5%), ряды и модели пусты, потому что выпуска нет."
+    },
+    {
+      "version": "20260920154738",
+      "name": "erp_ship_order_client_key",
+      "files": [
+        "20260920154738_erp_ship_order_client_key.sql"
+      ],
+      "note": "Отгрузка заказа из нескольких позиций падала целиком: уникальный индекс журнала стоял на одном client_key, а erp_ship_order пишет строку на КАЖДУЮ позицию с одним и тем же ключом попытки — вторая вставка давала 23505 и откатывала транзакцию. Ключ строки стал парой client_key+item_id (nulls not distinct), повтор отсекает сам INSERT через on conflict do nothing, а не предварительный select exists (между ним и вставкой помещались два параллельных вызова — тот же дефект чинили у приёмки материалов 20260916191916). Событие истории склада пишется только за реально записанные строки. Проверено на живой базе на заказе 63634 «Одноклассники сентябрь» (3 позиции, 90 шт) в транзакции с откатом: первый вызов — 90 из 90 и три строки журнала при одном событии истории, повтор — duplicate без движения количеств."
+    },
+    {
+      "version": "20260920155451",
+      "name": "erp_stage_force_complete",
+      "files": [
+        "20260920155451_erp_stage_force_complete.sql"
+      ],
+      "note": "Принудительное завершение этапа (правка 20.09, п. 5): право stage.force_complete в матрице (только director), ветка v_force в erp_stage_guard и RPC erp_stage_force_complete. Право И метка erp.force_complete, которую ставит и снимает сама RPC: голое право работало бы сквозным пропуском для любых колонок любого этапа — тот же урок, что с v_move до правки 04.09. Цех вызывающего в этой ветке не проверяется: разбирает последствия обновления директор, а он не состоит ни в одном цехе. Количество не переписывается, последующие этапы не трогаются."
+    },
+    {
+      "version": "20260920160015",
+      "name": "erp_stage_force_complete_audit_fix",
+      "files": [
+        "20260920160015_erp_stage_force_complete_audit_fix.sql"
+      ],
+      "note": "Исправление к предыдущей, найдено живой проверкой от лица директора: функция падала 42501 «new row violates row-level security policy for table erp_order_audit» на совершенно правильном действии. У erp_order_audit есть только политика SELECT, и это намеренно — аудит заказа в проекте пишут исключительно триггеры (erp_log_changes и др., все security definer): журнал, в который может дописать прикладная функция, перестаёт быть независимым свидетельством. Ручная вставка убрана; триггер erp_stages_audit уже перечисляет status и пишет переход в done сам, то есть вставка была ещё и второй записью об одном событии. Причина уходит в erp_stage_events.comment и erp_item_stages.notes. Проверено от лица mib@pnhd.ru в транзакции с откатом: статус done, qty_done не изменён, событие этапа 1, запись аудита 1 (от триггера); рабочему design@pnhd.ru — 42501, пустая причина — 22023."
+    },
+    {
+      "version": "20260920161726",
+      "name": "erp_material_size_grid_ordered",
+      "files": [
+        "20260920161726_erp_material_size_grid_ordered.sql"
+      ],
+      "note": "Фактически заказано у поставщика по размерам (правка 20.09, п. 2). Отдельная колонка, а не перезапись size_grid: та остаётся ПОТРЕБНОСТЬЮ из заказа, по ней триггер erp_material_grid_qty считает qty_expected — запиши факт туда же, и сравнивать стало бы не с чем. Триггер пересчёта висит на of size_grid, qty_expected и новой колонки не касается: «сколько заказали» ведёт закупщик, как и qty_ordered."
+    },
+    {
+      "version": "20260920170014",
+      "name": "erp_report_assembly_cost",
+      "files": [
+        "20260920170014_erp_report_assembly_cost.sql"
+      ],
+      "note": "Стоимость сборки запоминается в САМОМ отчёте (правка 20.09, п. 9). Колонка позиции одна, и каждая следующая частичная сдача её затирает: сдали 40 шт по 300 ₽, потом 41 по 350 — в позиции останется 350, и средневзвешенную стоимость пошива посчитать не из чего. Колонку позиции не снимаем: её читает erp_analytics_released. Тело erp_stage_submit_report взято подлинным с прода, изменена ровно одна строка вставки отчёта."
+    },
+    {
+      "version": "20260920170044",
+      "name": "erp_department_cost_role",
+      "files": [
+        "20260920170044_erp_department_cost_role.sql"
+      ],
+      "note": "Роль участка в себестоимости (правка 20.09, п. 9): fabric у закроя, assembly у швейки. Свойство В ДАННЫХ рядом с result_fields и result_detail — правило раздела запрещает держать в коде «закрой → ткань». Переиспользовать result_detail='sizes' нельзя: ВТО и ОТК однажды тоже станут сдавать по размерам, и их отчёты молча удвоили бы стоимость сборки."
+    },
+    {
+      "version": "20260920170403",
+      "name": "erp_item_economics",
+      "files": [
+        "20260920170403_erp_item_economics.sql"
+      ],
+      "note": "Экономика позиции (правка 20.09, п. 9): право economics.view (director, production_head, manager) + erp_item_economics/erp_order_economics. Право проверяется ВНУТРИ функций: политика erp_stage_reports это erp_is_member(), и без этого себестоимость прочитала бы через REST любая швея. Отбор «основное полотно» fail-open (role='main' ЛИБО role is null и kind='fabric'): на бою role заполнена у одного материала из 25, строгий отбор дал бы нули. Расход возвращается разбивкой ПО ЕДИНИЦАМ, стоимость — одним числом: пересчёта единиц система не делает. Ключа «расход на годную единицу» нет намеренно — документ запрещает его выводить. Проверено на живой базе: директор получает 3 рулона / 47 кг / 0.5732 на выкроенную единицу при 82 скроенных, рублёвые ключи null (цена не заполнена ни у одного материала), рабочему — 42501."
+    },
+    {
+      "version": "20260920171621",
+      "name": "erp_chat_message_reads",
+      "files": [
+        "20260920171621_erp_chat_message_reads.sql"
+      ],
+      "note": "Прочтение на КАЖДОЕ сообщение (правка 20.09, п. 4) — пересмотр решения 14.09, которое выбрало водяную отметку. Документ требует поштучной модели прямо, и водяной отметкой «Прочитали N с именами» и «отметить непрочитанным с этого сообщения» невыразимы: это вопросы к СООБЩЕНИЮ, а отметка знает только момент. Водяная отметка остаётся: по ней считаются текущие счётчики, и снести её тем же коммитом значило бы обнулить их у всех. Плюс erp_chat_mark_seen (пачкой, свои сообщения не считаются) и erp_chat_read_receipts (definer — имена собираются как в erp_chat_directory, доступ ограничен erp_is_member внутри). Проверено на живой базе: первый вызов 1, повтор 0, своё сообщение 0."
+    },
+    {
+      "version": "20260920171652",
+      "name": "erp_chat_unread_rebuild",
+      "files": [
+        "20260920171652_erp_chat_unread_rebuild.sql"
+      ],
+      "note": "Счётчик непрочитанного считается по факту просмотра (правка 20.09, п. 4): позже водяной отметки И без строки erp_chat_message_reads. ОБЕ половины обязательны — на момент выката строк просмотра нет ни одной, и «нет строки = не прочитано» вывалило бы цеху всю историю переписки в первое же утро. В ответ добавлены mentions и якорь черты first_unread_id/at: два ответа на «что именно не прочитано» разошлись бы на первой же странице ленты. Сигнатура изменилась ⇒ drop+create. Плюс erp_chat_unread_many для списка заказов (полсотни строк — полсотни запросов иначе). Проверено на живой базе в откатываемой транзакции: 3 → 2 → 0 по мере пометки, якорь сдвигается и обнуляется."
+    },
+    {
+      "version": "20260920172237",
+      "name": "erp_chat_page_read_count",
+      "files": [
+        "20260920172237_erp_chat_page_read_count.sql"
+      ],
+      "note": "read_count в ленте (правка 20.09, п. 4): «Прочитали N» показывается у своего сообщения сразу, имена и время грузятся отдельно по нажатию. Подзапросом, а не отдельным вызовом на сообщение — иначе полсотни запросов на страницу. Тело erp_chat_page взято подлинным с прода, изменено ровно одно свойство собираемого объекта."
+    },
+    {
+      "version": "20260920172809",
+      "name": "erp_chat_subscriptions",
+      "files": [
+        "20260920172809_erp_chat_subscriptions.sql"
+      ],
+      "note": "Режимы уведомлений по заказу (правка 20.09, п. 4): all / mentions / none + erp_chat_set_mode и erp_chat_mode. Отсутствие строки = mentions, то есть РОВНО сегодняшнее поведение: умолчание all залило бы цех уведомлением о каждом сообщении, none отняло бы упоминания. Третий вид уведомления chat_message. Автоподписка менеджера, как её просит документ, невыполнима: erp_orders.manager — свободный текст («Никита», «никита», «игорь», «=»), и совпадение строки с сотрудником было бы догадкой ценой в чужую переписку в чужом колоколе; вместо неё подписка ПО ДЕЙСТВИЮ — кто в тред написал. Настоящая требует erp_orders.manager_id, это отдельная правка."
+    },
+    {
+      "version": "20260920172959",
+      "name": "erp_chat_send_subscribers",
+      "files": [
+        "20260920172959_erp_chat_send_subscribers.sql"
+      ],
+      "note": "Рассылка уведомлений учитывает режим подписки (правка 20.09, п. 4). Тело erp_chat_send взято подлинным с прода; изменены ровно два места: автоподписка автора на тред (on conflict do nothing — ручной выбор не затирается) и четвёртая группа адресатов — подписчики с режимом «Все сообщения», добавленная ПОСЛЕДНЕЙ, чтобы упоминание и ответ выигрывали. Плюс фильтр mode='none' во всех ветках: «Без уведомлений» отключает и персональные тоже, но учёт непрочитанных остаётся. Проверено на живой базе: режим по умолчанию mentions, смена работает, неизвестный режим — 22023, отправка подписывает автора."
+    },
+    {
+      "version": "20260920182703",
+      "name": "erp_chat_edit_delete",
+      "files": [
+        "20260920182703_erp_chat_edit_delete.sql"
+      ],
+      "note": "Правка и удаление СВОИХ сообщений (вторая очередь чата, документ 20.09, п. 4). Делается двумя security definer-функциями, а не политиками: у erp_chat_messages нет ни INSERT-, ни UPDATE-, ни DELETE-политики по построению, и UPDATE-политика открыла бы через REST переписывание автора, треда, контекста и момента отправки. Удаление ЗАТИРАЕТ body (иначе «Сообщение удалено» — косметика поверх доступного текста), уносит упоминания, файлы и уведомления сообщения, но НЕ удаляет строку: на неё ссылаются цитаты и по ней стоит порядок ленты. Правка пересобирает упоминания по тексту и намеренно не шлёт уведомлений — иначе правкой можно звать людей сколько угодно раз. erp_chat_page отдаёт edited_at/deleted_at и признак удаления В ЦИТАТЕ, erp_chat_unread перестал считать удалённое (бейдж звал бы читать пустое место и не гас). Проверено на живой базе в откатываемой транзакции: правка своего, повтор тем же текстом (changed=false), чужое 42501, пустое 22023, удаление затирает текст, повтор идемпотентен, правка удалённого 22023, чужое удаление 42501."
+    },
+    {
+      "version": "20260920184144",
+      "name": "erp_chat_reactions",
+      "files": [
+        "20260920184144_erp_chat_reactions.sql"
+      ],
+      "note": "Реакции на сообщения (вторая очередь чата, документ 20.09, п. 4). Таблица, а не поле в сообщении: реакция принадлежит ПАРЕ «сообщение + человек» — только так работает переключение и считается «кто поставил»; счётчиком в jsonb двое нажавших одновременно затёрли бы друг друга. Политики здесь уместны, в отличие от самих сообщений: строка не несёт ни текста, ни адресата, подделать можно ровно «Иван поставил палец», и это закрывает user_id = auth.uid(). Набор смайлов НЕ в CHECK — он меняется от привычек людей и живёт в интерфейсе, сервер ограничивает только длину. erp_chat_react переключает ОДНИМ вызовом: решает сам delete по row_count, потому что между «посмотреть» и «поставить» помещается второе нажатие. Лента везёт сводку {emoji, count, mine}, имена — отдельным definer-вызовом (profiles показывает участнику только свою строку). Таблица добавлена в supabase_realtime: реакция — единственное в чате, что меняется чужими руками без нового сообщения. Проверено на живой базе в откатываемой транзакции: поставил/снял/две разные, сводка в ленте, имена, чужую не снять (0 строк), подделка от чужого имени — 42501."
+    },
+    {
+      "version": "20260920185335",
+      "name": "erp_chat_search",
+      "files": [
+        "20260920185335_erp_chat_search.sql"
+      ],
+      "note": "Поиск по переписке сделки (вторая очередь чата, документ 20.09, п. 4). pg_trgm + GIN по телу, а не полнотекстовый поиск: в цеху ищут по обрывку — «PH-4821», «ромашк», «47 кг», — а to_tsvector режет текст на слова и по части слова не находит; ILIKE без индекса читает всю таблицу. Отдельная функция, а не ветка erp_chat_page: у поиска другой ответ, другой порядок и другой курсор — функция на два вопроса ломалась бы от каждой правки. security invoker: видимость решает RLS сообщений, вторая формула разошлась бы с первой. Удалённые не ищутся (тело затёрто, находка вела бы в пустоту), запрос короче двух символов не ищет вовсе. Тело отдаётся ЦЕЛИКОМ — обрезает клиент вокруг совпадения (utils/chatSearch), иначе сервер однажды вернул бы кусок без найденного слова. Проверено на живой базе в откатываемой транзакции: «утро» — 2, «УТР» (регистр и часть слова) — 2, один символ — 0, пустой — 0, несуществующее — 0, чужая сделка — 0."
+    },
+    {
+      "version": "20260921205029",
+      "name": "size_grid_merge_duplicates",
+      "files": [
+        "20260921205029_size_grid_merge_duplicates.sql"
+      ],
+      "note": "Склейка повторяющихся строк размерной сетки (правка 21.09, п. 8). Две строки одного цвета с одним размером давали таблицу, где оба поля ввода читают один ключ, а обратная сборка их складывала — ввод удваивался на каждое нажатие (336842, итог 673684). Функция erp_size_grid_merge + разовая правка трёх позиций; тираж ни у одной не изменился."
+    },
+    {
+      "version": "20260921211524",
+      "name": "erp_cut_extras",
+      "files": [
+        "20260921211524_erp_cut_extras.sql"
+      ],
+      "note": "Производственный плюс закроя (правка 21.09, п. 3): erp_stage_submit_report считает qty_extra по размерным строкам отчёта закроя — превышение от СУММЫ сданного этапом против сетки позиции, в строки уходит прирост превышения. Плюс считает сервер, а не клиент: у величины один писатель. Плюс helper erp_size_grid_cells (зеркало gridCells)."
+    },
+    {
+      "version": "20260921211844",
+      "name": "erp_cut_extras_roll_order",
+      "files": [
+        "20260921211844_erp_cut_extras_roll_order.sql"
+      ],
+      "note": "Исправление к 20260921211524: плюс закроя раскладывается по НОМЕРУ рулона, а не по случайному uuid строки. Сумма была верной, но на живом «тест закрой 1» плюс 5 доставался рулону №1, который до плана не дотянул. Проверено прогоном с откатом: 30 + 175 при плане 200 дают extra=0 на №1 и extra=5 на №2."
+    },
+    {
+      "version": "20260921212152",
+      "name": "erp_analytics_extra_from_cutting",
+      "files": [
+        "20260921212152_erp_analytics_extra_from_cutting.sql"
+      ],
+      "note": "Плитка «Количество плюсов» брала qty_extra из erp_analytics_released, то есть из ТЕРМИНАЛЬНЫХ этапов позиции. Закрой терминальным не бывает — плитка показывала ноль по построению. Плюсы считаются по всем отчётам периода, как брак в erp_analytics_by_dept (правка 21.09, п. 3)."
+    },
+    {
+      "version": "20260921213035",
+      "name": "erp_roll_weights",
+      "files": [
+        "20260921213035_erp_roll_weights.sql"
+      ],
+      "note": "Вес, цена и остаток рулона (правки 21.09, пп. 1, 2, 5). erp_material_rolls.qty_left / leftover_kind / price_per_unit; erp_material_accept принимает p_roll_weights и проверяет сумму весов против принятого количества; RPC erp_material_rolls_set_weights дозаполняет вес у 41 рулона, принятого до правки. Старая 13-аргументная перегрузка erp_material_accept СНЯТА: иначе PostgREST не смог бы выбрать между двумя функциями."
+    },
+    {
+      "version": "20260921214042",
+      "name": "erp_material_price_required",
+      "files": [
+        "20260921214042_erp_material_price_required.sql"
+      ],
+      "note": "Цена ткани обязательна при заведении закупки (правка 21.09, п. 1). Триггер ТОЛЬКО на INSERT: на бою десять тканей из семнадцати без цены, и требование на UPDATE заперло бы их правку целиком. Тот же гейт стоит в форме «Новая закупка»."
+    },
+    {
+      "version": "20260921214250",
+      "name": "erp_roll_leftovers",
+      "files": [
+        "20260921214250_erp_roll_leftovers.sql"
+      ],
+      "note": "Остаток рулона (правки 21.09, пп. 2 и 5): накопительный потолок расхода (fail-open у рулона без веса), qty_left считает сервер, вид остатка usable/scrap ставит закройщик. Порога в кг нет — документ просит его не задавать. Тело функции в файле сверено с прода по md5."
+    },
+    {
+      "version": "20260921214850",
+      "name": "erp_item_economics_leftover",
+      "files": [
+        "20260921214850_erp_item_economics_leftover.sql"
+      ],
+      "note": "Экономика позиции: возвратный остаток полотна (только usable, по цене конкретного рулона), цена берётся сначала у рулона, плюс закроя приезжает вместе с «выкроено» (правки 21.09, пп. 1, 3, 5). Тело функции сверено с продом по md5."
+    },
+    {
+      "version": "20260921220730",
+      "name": "erp_material_accept_security_invoker",
+      "files": [
+        "20260921220730_erp_material_accept_security_invoker.sql"
+      ],
+      "note": "Явный security invoker у erp_material_accept через alter function. Поведение не менялось (invoker — умолчание), но сторож materialReceipts.test.ts требует, чтобы это было НАПИСАНО: «одним запросом» не значит «мимо RLS»."
+    },
+    {
+      "version": "20260921221326",
+      "name": "erp_material_accept_invoker_text",
+      "files": [
+        "20260921221326_erp_material_accept_invoker.sql"
+      ],
+      "note": "То же определение целиком, со словом security invoker в тексте: сторож читает последнюю миграцию, ОБЪЯВЛЯЮЩУЮ функцию, и alter function он не видит. Тело не менялось ни на символ."
+    },
+    {
+      "version": "20260922085608",
+      "name": "erp_roll_weights_wording",
+      "files": [
+        "20260922085608_erp_roll_weights_wording.sql"
+      ],
+      "note": "склонение в тексте отказа: «не принадлежат этому материалу: рулонов — N»"
+    },
+    {
+      "version": "20260924122634",
+      "name": "erp_order_guard_exceptions",
+      "files": [
+        "20260924122634_erp_order_guard_exceptions.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122702",
+      "name": "erp_role_resolution_and_profile_check",
+      "files": [
+        "20260924122702_erp_role_resolution_and_profile_check.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122718",
+      "name": "erp_fk_indexes",
+      "files": [
+        "20260924122718_erp_fk_indexes.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924122733",
+      "name": "erp_analytics_by_dept_done_qty",
+      "files": [
+        "20260924122733_erp_analytics_by_dept_done_qty.sql"
+      ],
+      "note": "применено через MCP; версия в журнале — время применения, файл переименован под неё. Текст в файле несёт более полный разбор причины, чем применённый; SQL-эффект тот же"
+    },
+    {
+      "version": "20260924205222",
+      "name": "erp_client_errors",
+      "files": [
+        "20260924205222_erp_client_errors.sql"
+      ]
+    },
+    {
+      "version": "20260924222445",
+      "name": "order_studio_generate_order_number",
+      "files": [
+        "20260924222445_order_studio_generate_order_number.sql"
+      ]
+    },
+    {
+      "version": "20260924230014",
+      "name": "storage_backup_bucket",
+      "files": [
+        "20260924230014_storage_backup_bucket.sql"
+      ]
+    },
+    {
+      "version": "20260924231233",
+      "name": "erp_guards_snapshot_exceptions",
+      "files": [
+        "20260924231233_erp_guards_snapshot_exceptions.sql"
+      ]
+    },
+    {
+      "version": "20260924233145",
+      "name": "orders_erp_order_id_index",
+      "files": [
+        "20260924233145_orders_erp_order_id_index.sql"
+      ]
+    },
+    {
+      "version": "20260924235701",
+      "name": "erp_sku_card_guard_snapshot",
+      "files": [
+        "20260924235701_erp_sku_card_guard_snapshot.sql"
+      ]
+    },
+    {
+      "version": "20260926072513",
+      "name": "erp_drop_prefix_redundant_indexes",
+      "files": [
+        "20260926072513_erp_drop_prefix_redundant_indexes.sql"
+      ]
+    },
+    {
+      "version": "20260928082955",
+      "name": "erp_supply_autoclose",
+      "files": [
+        "20260928082955_erp_supply_autoclose.sql"
+      ]
+    },
+    {
+      "version": "20260928083145",
+      "name": "erp_stage_remaining",
+      "files": [
+        "20260928083145_erp_stage_remaining.sql"
+      ]
+    },
+    {
+      "version": "20260928083215",
+      "name": "erp_stage_done_gate",
+      "files": [
+        "20260928083215_erp_stage_done_gate.sql"
+      ]
+    },
+    {
+      "version": "20260928131459",
+      "name": "erp_fabric_metres",
+      "files": [
+        "20260928131459_erp_fabric_metres.sql"
+      ]
+    },
+    {
+      "version": "20260928133534",
+      "name": "erp_fabric_metres_economics",
+      "files": [
+        "20260928133534_erp_fabric_metres_economics.sql"
+      ]
+    },
+    {
+      "version": "20260928133829",
+      "name": "erp_roll_recalc_grant",
+      "files": [
+        "20260928133829_erp_roll_recalc_grant.sql"
+      ]
+    },
+    {
+      "version": "20260928134619",
+      "name": "erp_roll_adjustments_insert",
+      "files": [
+        "20260928134619_erp_roll_adjustments_insert.sql"
+      ]
+    },
+    {
+      "version": "20260928135034",
+      "name": "erp_item_economics_missing_fix",
+      "files": [
+        "20260928135034_erp_item_economics_missing_fix.sql"
+      ]
+    },
+    {
+      "version": "20260928135632",
+      "name": "erp_item_economics_wip_started",
+      "files": [
+        "20260928135632_erp_item_economics_wip_started.sql"
+      ]
+    },
+    {
+      "version": "20260928182342",
+      "name": "erp_pravki_27_09_dorabotki",
+      "files": [
+        "20260928182342_erp_pravki_27_09_dorabotki.sql"
+      ]
+    },
+    {
+      "version": "20260928182552",
+      "name": "erp_pravki_27_09_dorabotki_2",
+      "files": [
+        "20260928182552_erp_pravki_27_09_dorabotki_2.sql"
+      ]
+    },
+    {
+      "version": "20260928183439",
+      "name": "erp_fabric_leftovers_color",
+      "files": [
+        "20260928183439_erp_fabric_leftovers_color.sql"
+      ]
+    },
+    {
+      "version": "20260928213529",
+      "name": "orders_v4",
+      "files": [
+        "20260928213529_orders_v4.sql"
+      ]
+    },
+    {
+      "version": "20261001185238",
+      "name": "erp_fabric_rolls_add",
+      "files": [
+        "20261001185238_erp_fabric_rolls_add.sql"
+      ]
+    },
+    {
+      "version": "20261001185758",
+      "name": "erp_order_files_edit",
+      "files": [
+        "20261001185758_erp_order_files_edit.sql"
+      ]
+    },
+    {
+      "version": "20261001190924",
+      "name": "erp_chat_notify_read",
+      "files": [
+        "20261001190924_erp_chat_notify_read.sql"
+      ]
+    },
+    {
+      "version": "20261001194514",
+      "name": "erp_overdue_chat_request",
+      "files": [
+        "20261001194514_erp_overdue_chat_request.sql"
+      ]
+    },
+    {
+      "version": "20261001194849",
+      "name": "erp_chat_system_guard_revoke",
+      "files": [
+        "20261001194849_erp_chat_system_guard_revoke.sql"
+      ]
+    },
+    {
+      "version": "20261005074459",
+      "name": "erp_stage_fact_flow",
+      "files": [
+        "20261005074459_erp_stage_fact_flow.sql"
+      ]
+    },
+    {
+      "version": "20261005083947",
+      "name": "erp_rolls_fate_text",
+      "files": [
+        "20261005083947_erp_rolls_fate_text.sql"
+      ]
+    },
+    {
+      "version": "20261005092131",
+      "name": "erp_stage_fact_flow_fixes",
+      "files": [
+        "20261005092131_erp_stage_fact_flow_fixes.sql"
+      ]
+    },
+    {
+      "version": "20261005092736",
+      "name": "erp_clamp_trusted_state",
+      "files": [
+        "20261005092736_erp_clamp_trusted_state.sql"
+      ]
+    },
+    {
+      "version": "20261005093609",
+      "name": "erp_clamp_new_row",
+      "files": [
+        "20261005093609_erp_clamp_new_row.sql"
+      ]
+    },
+    {
+      "version": "20261005094126",
+      "name": "erp_input_same_item",
+      "files": [
+        "20261005094126_erp_input_same_item.sql"
+      ]
+    },
+    {
+      "version": "20261008003410",
+      "name": "erp_cut_batch_without_fate",
+      "files": [
+        "20261008003410_erp_cut_batch_without_fate.sql"
+      ]
+    },
+    {
+      "version": "20261008004814",
+      "name": "erp_finish_tasks_without_order",
+      "files": [
+        "20261008004814_erp_finish_tasks_without_order.sql"
+      ]
+    },
+    {
+      "version": "20261008075225",
+      "name": "erp_warehouse_route_gate",
+      "files": [
+        "20261008075225_erp_warehouse_route_gate.sql"
+      ]
+    },
+    {
+      "version": "20261009223435",
+      "name": "erp_roll_finish",
+      "files": [
+        "20261009223435_erp_roll_finish.sql"
+      ]
+    },
+    {
+      "version": "20261013114103",
+      "name": "order_v4_urgent_days",
+      "files": [
+        "20261013114103_order_v4_urgent_days.sql"
+      ]
+    },
+    {
+      "version": "20261013115331",
+      "name": "crm_pricing_13_10_catalog",
+      "files": [
+        "20261013115331_crm_pricing_13_10_catalog.sql"
+      ]
+    },
+    {
+      "version": "20261013152421",
+      "name": "order_v4_set_urgent_days",
+      "files": [
+        "20261013152421_order_v4_set_urgent_days.sql"
+      ]
+    }
+  ]
+}

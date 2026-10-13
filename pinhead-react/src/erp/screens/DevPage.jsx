@@ -1,0 +1,294 @@
+import { useEffect, useMemo } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
+import { PageHead } from '../components/PageHead';
+import { Badge } from '../components/Badge';
+import { Button, ButtonLink } from '../components/Button';
+import { Icon } from '../components/Icon';
+import { LoadFailed, EmptyState } from '../components/ErpStates';
+import { TableSkeleton } from '../components/ErpSkeletons';
+import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
+import { DEV_STATE_LABELS } from '../utils/filterExperimental';
+import { devState, nextAction, currentBlocker } from '../utils/experimentalTasks';
+import { DEV_STAGE_LABELS } from '../utils/experimentalBoard';
+import { neighbourStage } from '../utils/devBoardMove';
+import { devContext } from '../utils/devContext';
+import { useDevStageMove } from '../hooks/useDevStageMove';
+import { formatDateShort } from '../utils/time';
+import { factoryToday } from '../../utils/date';
+import { DevCard } from './experimental/DevCard';
+import { ChatSection } from '../components/chat/ChatSection';
+import { DevAttachOrder } from './experimental/DevAttachOrder';
+import styles from '../styles';
+
+/**
+ * ПОЛНОЭКРАННАЯ КАРТОЧКА РАЗРАБОТКИ (правка заказчика 22.08, п. 4.11).
+ *
+ * «Сейчас разработка открывается в длинной боковой панели. Для такого
+ * количества информации это неудобно. При клике на разработку основную работу
+ * лучше открывать в полноценной карточке на отдельной странице».
+ *
+ * Шторки больше нет вовсе — то же решение, что 16.08 приняли для карточки
+ * заказа: две поверхности с одним содержимым разъезжаются, а «быстрый
+ * просмотр» здесь ничего не добавляет — в карточку приходят работать.
+ *
+ * СТАРЫЙ АДРЕС `?dev=<id>` ПРОДОЛЖАЕТ РАБОТАТЬ: он живёт в переписке
+ * и в закладках, и молча приводить человека на список вместо разработки
+ * нельзя. Редирект делает сам список.
+ *
+ * ГЕЙТ. `/experimental/<uuid>` закрыт тем же правом, что раздел: с 22.08
+ * `canOpenScreen` сравнивает ПЕРВЫЙ СЕГМЕНТ пути, иначе подстраница
+ * оказалась бы «незнакомым путём», то есть открытой всем.
+ *
+ * Шапка отвечает на три вопроса документа — где разработка, что с ней
+ * происходит, что делать дальше, — и остаётся видимой над всей карточкой.
+ */
+export default function DevPage() {
+  const { devId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const {
+    orders, detailIds, loadOne, departments, loaded, loadError, loadAll,
+    experimental, experimentalLoaded, experimentalError, loadExperimental,
+    updateExperimental, addDevTasks, updateDevTask, sendDevTaskToDept,
+    closeExperimental, uploadDevFile, deleteDevFile,
+  } = useErpStore(useShallow((s) => ({
+    orders: s.orders,
+    detailIds: s.detailIds,
+    loadOne: s.loadOne,
+    departments: s.departments,
+    loaded: s.loaded,
+    loadError: s.loadError,
+    loadAll: s.loadAll,
+    experimental: s.experimental,
+    experimentalLoaded: s.experimentalLoaded,
+      experimentalError: s.experimentalError,
+    loadExperimental: s.loadExperimental,
+    updateExperimental: s.updateExperimental,
+    addDevTasks: s.addDevTasks,
+    updateDevTask: s.updateDevTask,
+    sendDevTaskToDept: s.sendDevTaskToDept,
+    closeExperimental: s.closeExperimental,
+    uploadDevFile: s.uploadDevFile,
+    deleteDevFile: s.deleteDevFile,
+  })));
+  const canManage = useErpAccess().can('experimental.manage');
+  // Перенос — та же реализация, что у доски (§3.6): порядок «закрыть свой этап →
+  // записать колонку → завести нанесения» повторять второй раз нельзя
+  const { requestMove } = useDevStageMove();
+
+  useEffect(() => { if (!loaded) loadAll(); }, [loaded, loadAll]);
+  useEffect(() => {
+    if (!experimentalLoaded) loadExperimental();
+  }, [experimentalLoaded, loadExperimental]);
+
+  const dev = useMemo(
+    () => (experimental ?? []).find((e) => e.id === devId) ?? null,
+    [experimental, devId],
+  );
+  const order = useMemo(
+    () => (dev ? (orders ?? []).find((o) => o.id === dev.order_id) ?? null : null),
+    [orders, dev],
+  );
+
+  /**
+   * ПОЛНЫЙ ЗАКАЗ ДОЗАГРУЖАЕТСЯ, как и в карточке заказа: справка разработки
+   * показывает размерный ряд, а `items.size_grid` намеренно выброшен
+   * из списочной выборки (`ORDER_LIST_SELECT`) — она едет по всем заказам.
+   * Без дозагрузки строка молча стояла бы пустой при заполненных данных:
+   * ровно тот отказ, от которого в проекте сторож `orderSelect.test.ts`.
+   *
+   * Проверка идёт по `detailIds`, а не по «есть ли заказ в сторе»: он там
+   * есть всегда — списочный, без сетки.
+   */
+  const orderId = dev?.order_id ?? null;
+  const hasDetail = orderId ? detailIds.includes(orderId) : true;
+  useEffect(() => {
+    if (!loaded || hasDetail || !orderId) return;
+    loadOne(orderId);
+  }, [loaded, hasDetail, orderId, loadOne]);
+
+  /** Куда вернуться: ссылка принесла контекст списка (фильтры, вид, страница) */
+  const back = location.state?.from || '/experimental';
+
+  /**
+   * Условие смешивало флаги ДВУХ доменов: `loadError` — про заказы,
+   * `experimentalLoaded` — про разработки (правка 03.09). При живых заказах
+   * и упавших разработках карточка замирала на скелетоне навсегда.
+   */
+  if (experimentalError && !experimentalLoaded) {
+    return <LoadFailed onRetry={loadExperimental} what="разработку" />;
+  }
+  // Заказы — второй источник этой страницы (размерный ряд живёт в `size_grid`,
+  // которого нет в списочной выборке), и их отказ тоже надо назвать
+  if (loadError && !loaded) {
+    return <LoadFailed onRetry={loadAll} what="заказ" />;
+  }
+  if (!experimentalLoaded) {
+    return <TableSkeleton rows={6} label="Загрузка разработки" />;
+  }
+  if (!dev) {
+    return (
+      <EmptyState
+        icon="flask"
+        title="Разработка не найдена"
+        text="Возможно, её закрыли или ссылка устарела."
+        action={<ButtonLink to="/experimental">К списку разработок</ButtonLink>}
+      />
+    );
+  }
+
+  const today = factoryToday();
+  /**
+   * Контекст шагов тот же, что у доски (правка 01.09): открыта ли закупка
+   * заказа, есть ли у позиции нанесения, готовы ли лекала. Считает
+   * `devContext` — та же реализация, которой пользуется смонтированная ниже
+   * `DevCard`: до 05.09 страница и карточка считали это порознь из одних
+   * и тех же данных, и одна из формул успела разойтись (см. `devBrandingOpen`).
+   */
+  const {
+    tasks, stage, materialsPending, hasBranding, brandingOpen,
+  } = devContext(dev, order, departments);
+  const state = devState(dev, tasks, today);
+  const blocker = currentBlocker(tasks, new Map(), today);
+
+  /**
+   * ПЕРЕНОС КАРТОЧКИ СО СТРАНИЦЫ (§3.6 обхода 04.09). Со страницы разработки
+   * карточку было не перенести вовсе, хотя диалоги переноса обещают «перейдёт»,
+   * а страница с 22.08 — основное место работы технолога: шторку заказчик
+   * отверг, доска отвечает на «что у всех», страница — на «что с этой».
+   *
+   * Соседний шаг считается ПО ПУТИ ЭТОЙ разработки, а не по общему порядку
+   * колонок: у образца без нанесений «Дальше» из «Кроя» ведёт в «Пошив».
+   * Контекст тот же, что у гейта, — иначе кнопка предлагала бы ход, который
+   * тут же отклоняется.
+   */
+  /**
+   * «Материалы держат крой» — тот же `cuttingGate`, что у доски и у карточки;
+   * приезжает из `devContext` выше. Напоминание, зачем он вообще отдельным
+   * значением: `devStageStates` отдаёт МАССИВ шагов, и читать из него
+   * `.materials.open` нельзя — получится `undefined`, то есть «держат всегда».
+   */
+  const moveCtx = { materialsPending, hasBranding };
+  const prevStage = neighbourStage(stage, -1, moveCtx);
+  const nextStage = neighbourStage(stage, 1, moveCtx);
+  const moveTo = (to) => requestMove({
+    devId: dev.id,
+    from: stage,
+    outcome: dev.outcome,
+    canManage,
+    materialsPending,
+    hasBranding,
+    brandingOpen,
+  }, to);
+
+  return (
+    <>
+      {/*
+        ПОДПИСЬ НАЗЫВАЕТ ОТСУТСТВИЕ СДЕЛКИ СЛОВАМИ (правка 14.09). Прежняя
+        строка при пустом заказе печатала «№— · », то есть прочерк и точку
+        в пустоту: это читается как недозагруженные данные, а не как
+        осознанное «разработка на полке».
+      */}
+      <PageHead
+        title={dev.tech_name || 'Разработка'}
+        sub={dev.order_id
+          ? `№${dev.order?.bitrix_id || order?.bitrix_id || '—'} · ${dev.order?.title || order?.title || ''}`
+          : 'Без сделки — разработка на полку'}
+      />
+      {/* Возврат несёт контекст списка (вид, фильтры, страница) — тем же
+          приёмом, что «Назад» в карточке заказа: ключ `useScrollRestore` —
+          это `pathname + search`, и без него теряется и подбор, и прокрутка */}
+      <ButtonLink to={back} variant="secondary" className={styles.cellWithIcon}>
+        <Icon name="chevronLeft" size={14} />К разработкам
+      </ButtonLink>
+
+      {/*
+        Шапка первого уровня (п. 4.11): изделие · заказ · ответственный · срок ·
+        текущий этап · статус · следующее действие. Всё остальное — ниже,
+        в самой карточке.
+      */}
+      <div className={styles.checkRow}>
+        <span className={styles.subText}>
+          Текущий этап: <strong>{DEV_STAGE_LABELS[stage]}</strong>
+        </span>
+        <Badge variant={STATE_VARIANT[state] ?? 'neutral'}>{DEV_STATE_LABELS[state]}</Badge>
+        <span className={styles.subText}>
+          Ответственный: <strong>{dev.technologist || '—'}</strong>
+        </span>
+        <span className={styles.subText}>
+          Срок: <strong>{dev.due_date ? formatDateShort(dev.due_date) : '—'}</strong>
+        </span>
+        {canManage && !dev.outcome && (prevStage || nextStage) && (
+          <span className={styles.checkRow}>
+            {prevStage && (
+              <Button variant="ghost" onClick={() => moveTo(prevStage)}>
+                <Icon name="chevronLeft" size={14} /> {DEV_STAGE_LABELS[prevStage]}
+              </Button>
+            )}
+            {nextStage && (
+              <Button variant="secondary" onClick={() => moveTo(nextStage)}>
+                {DEV_STAGE_LABELS[nextStage]} <Icon name="chevronRight" size={14} />
+              </Button>
+            )}
+          </span>
+        )}
+      </div>
+      <div className={styles.subText}>
+        Следующее действие: {nextAction(dev, tasks, new Map(), today) || '—'}
+        {blocker ? ` · блокер: ${blocker.title || blocker.task_type}` : ''}
+      </div>
+
+      <DevAttachOrder dev={dev} canManage={canManage} />
+
+      <DevCard
+        dev={dev}
+        order={order}
+        departments={departments}
+        canManage={canManage}
+        onUpdate={updateExperimental}
+        onAddTasks={(rows) => addDevTasks(dev.id, rows)}
+        onUpdateTask={updateDevTask}
+        onSendTask={sendDevTaskToDept}
+        onClose={async (id, patch) => {
+          const ok = await closeExperimental(id, patch);
+          // Закрытая разработка исчезает из рабочих подборок — возвращаем
+          // человека туда, откуда он пришёл, а не оставляем на карточке
+          if (ok !== false) navigate(back);
+          return ok;
+        }}
+        onUploadFile={uploadDevFile}
+        onRemoveFile={deleteDevFile}
+      />
+
+      {/*
+        ОБСУЖДЕНИЕ РАЗРАБОТКИ (правка 14.09, п. 5). Контекст — сама
+        разработка: технолог, цех и менеджер обсуждают образец, а не заказ
+        целиком. Переписка при этом живёт В ТРЕДЕ СДЕЛКИ — вкладка «Чат»
+        в карточке заказа показывает её же, без копирования сообщений.
+        Разработка без сделки (у которой был бы свой тред) отложена
+        решением владельца: `erp_experimental.order_id` — NOT NULL.
+      */}
+      {dev.order_id && (
+        <ChatSection
+          orderId={dev.order_id}
+          context={{ experimentalId: dev.id }}
+          contextLabel="Эта разработка"
+          title="Обсуждение разработки"
+          windowTitle={`№${dev.order?.bitrix_id || '—'} · ${dev.order?.title || 'разработка'}`}
+        />
+      )}
+    </>
+  );
+}
+
+const STATE_VARIANT = {
+  new: 'neutral', in_progress: 'progress', attention: 'blocked',
+  fitting: 'waiting', ready: 'ready',
+  // Переданные на склад (правка 30.08, п. 4). Пропуск здесь не роняет ничего —
+  // Badge получил бы undefined и нарисовался нейтральным, то есть состояние
+  // молча перестало бы отличаться от прочих
+  handed: 'done',
+};

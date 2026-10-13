@@ -1,0 +1,162 @@
+/**
+ * ПРИЁМКА ГОТОВОГО ИЗДЕЛИЯ НА СКЛАДЕ (правка заказчика 16.09, п. 1).
+ *
+ * ЧТО ПРОСИТ ДОКУМЕНТ. «При нажатии „Принять изделие" сейчас сразу появляется
+ * подтверждение завершения этапа, при этом система пишет, что склад отчитался
+ * 0 из N… Нужно открывать окно „Результат приёмки", в которое автоматически
+ * подтягивается количество из заказа… Нужно поддержать недоприёмку. Если
+ * заказано 50 шт, а фактически приехало 47 шт, склад вводит 47, ERP фиксирует
+ * „принято 47 из 50" и НЕ ЗАПИСЫВАЕТ автоматически полный тираж как
+ * выполненный».
+ *
+ * ПОЧЕМУ ЭТО ЧИСТАЯ УТИЛИТА, А НЕ РАЗМЕТКА ОКНА. Правило раздела: последствия
+ * необратимого действия этапа считает утилита с тестами и формулирует их
+ * ТЕКСТОМ (`utils/stageDone`, `utils/stageDefect`). Закрытие этапа склада —
+ * ровно такое действие: после него позиция уходит в нанесение, и вернуть её
+ * можно только браком.
+ *
+ * ОТКУДА БЕРЁТСЯ ПРЕДЗАПОЛНЕНИЕ. Из заказа — всегда; из фактической закупки —
+ * когда она есть (п. 2 документа: «после завершения закупки фактически
+ * закупленное количество и размерная разбивка должны передаваться на этап
+ * приёмки склада»). Факт приоритетнее плана: если закупщик привёз 47 из 50,
+ * кладовщику незачем стирать полсотни руками — но исправить он может и то,
+ * и другое, потому что физически приехать может третье число.
+ */
+
+import type { ErpOrderItem, SizeGridRow } from '../types';
+import { gridCells, gridRowsTotal, cellsToGrid, NO_COLOR } from './sizeGrid';
+import type { SizeCell } from './sizeGrid';
+import { cellKey as cellKeyOf } from './cellKey';
+
+/** Строка окна: что заказано и сколько принимают */
+export interface IntakeRow {
+  /** Ключ строки для разметки: цвет и размер вместе адресуют ячейку сетки */
+  key: string;
+  color: string;
+  /** Пусто у позиции без размерной сетки — там строка одна */
+  size: string;
+  /** Подпись строки человеку */
+  label: string;
+  /** Сколько заказано по этой строке */
+  expected: number;
+  /** Сколько принимают (предзаполнено) */
+  accepted: number;
+}
+
+/** Позиция в объёме, достаточном для окна приёмки */
+export type IntakeItem = Pick<ErpOrderItem, 'product_type' | 'qty'> & {
+  variant?: string | null;
+  size_grid?: SizeGridRow[] | null;
+};
+
+/**
+ * Строки окна.
+ *
+ * Сетка есть → строка на каждую непустую ячейку («XS — заказано 10 — принято
+ * [10]»). Сетки нет → ОДНА строка на позицию («Ручка — заказано 50 шт»).
+ * Третьего вида не заводим: позиция либо ведётся по размерам, либо числом,
+ * и «сетка из одной строки» была бы тем же числом с лишней колонкой.
+ */
+export function intakeRows(
+  item: IntakeItem | null | undefined,
+  purchaseFact?: SizeGridRow[] | null,
+): IntakeRow[] {
+  const ordered = gridCells(item?.size_grid);
+  if (ordered.length === 0) {
+    const qty = Math.max(Number(item?.qty) || 0, 0);
+    const name = [item?.product_type, item?.variant].filter(Boolean).join(' · ') || 'Изделие';
+    return [{
+      key: 'total', color: NO_COLOR, size: '', label: name, expected: qty, accepted: qty,
+    }];
+  }
+
+  // Факт закупки адресуется той же парой «цвет + размер», что и заказ
+  const fact = new Map(
+    gridCells(purchaseFact).map((cell) => [cellKey(cell), cell.qty]),
+  );
+
+  return ordered.map((cell) => {
+    const key = cellKey(cell);
+    const fromPurchase = fact.get(key);
+    return {
+      key,
+      color: cell.color,
+      size: cell.size,
+      label: cell.color === NO_COLOR ? cell.size : `${cell.size} · ${cell.color}`,
+      expected: cell.qty,
+      // Факт закупки приоритетнее плана — но только когда он есть.
+      // `?? cell.qty`, а не `|| cell.qty`: ноль это осмысленный факт
+      // («этот размер не привезли»), и подменять его тиражом нельзя
+      accepted: fromPurchase ?? cell.qty,
+    };
+  });
+}
+
+function cellKey(cell: SizeCell): string {
+  return cellKeyOf(cell.color, cell.size);
+}
+
+/** Итоги окна: сколько заказано и сколько принимают */
+export function intakeTotals(rows: readonly IntakeRow[] | null | undefined): {
+  expected: number; accepted: number; shortfall: number;
+} {
+  const expected = (rows ?? []).reduce((s, r) => s + Math.max(r.expected, 0), 0);
+  const accepted = (rows ?? []).reduce((s, r) => s + Math.max(r.accepted, 0), 0);
+  return { expected, accepted, shortfall: Math.max(expected - accepted, 0) };
+}
+
+/** Строки окна в размерную разбивку для отчёта этапа */
+export function intakeSizes(rows: readonly IntakeRow[] | null | undefined): SizeGridRow[] {
+  const cells = (rows ?? [])
+    .filter((r) => r.size)
+    .map((r) => ({ color: r.color, size: r.size, qty: Math.max(r.accepted, 0) }));
+  return cellsToGrid(cells);
+}
+
+/**
+ * Почему нельзя записать приёмку. `null` — можно.
+ *
+ * Причина называется ДО отправки: узнать о ней из отказа сервера хуже, чем
+ * прочитать рядом с кнопкой.
+ */
+export function intakeBlock(rows: readonly IntakeRow[] | null | undefined): string | null {
+  const { expected, accepted } = intakeTotals(rows);
+  if (accepted <= 0) return 'Укажите, сколько изделий фактически принято';
+  if (expected > 0 && accepted > expected) {
+    return `Принято ${accepted} шт при заказанных ${expected} — проверьте количество`;
+  }
+  return null;
+}
+
+/**
+ * Что произойдёт после подтверждения — текстом, с НАЗВАННЫМИ числами.
+ *
+ * «Принято не всё» без цифр отправляет человека пересчитывать строки заново.
+ * `null` — принят весь тираж, объяснять нечего.
+ */
+export function intakeShortfallWarning(
+  rows: readonly IntakeRow[] | null | undefined,
+): string | null {
+  const { expected, accepted, shortfall } = intakeTotals(rows);
+  if (shortfall <= 0) return null;
+  return `Принято ${accepted} из ${expected} шт — недостача ${shortfall} шт.`
+    + ' Этап останется открытым: недостающее можно принять следующей поставкой.';
+}
+
+/** Итог приёмки одной строкой для журнала этапа */
+export function intakeComment(rows: readonly IntakeRow[] | null | undefined): string {
+  const { expected, accepted } = intakeTotals(rows);
+  return `Приёмка: принято ${accepted} из ${expected} шт`;
+}
+
+/** Закроет ли эта приёмка этап целиком (нужно для предупреждения о последствиях) */
+export function intakeClosesStage(
+  rows: readonly IntakeRow[] | null | undefined,
+  item: IntakeItem | null | undefined,
+  alreadyDone = 0,
+): boolean {
+  const { accepted } = intakeTotals(rows);
+  const total = Math.max(gridRowsTotal(item?.size_grid) || Number(item?.qty) || 0, 0);
+  if (total <= 0) return false;
+  return Math.max(alreadyDone, 0) + accepted >= total;
+}

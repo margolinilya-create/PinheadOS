@@ -4,7 +4,8 @@ import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
-import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, calcExtrasCost } from '../../utils/pricing';
+import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, getPrices } from '../../utils/pricing';
+import { skuCost, garmentSellPrice, materialPrice } from '../../utils/costRules';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -51,8 +52,8 @@ function calcZoneSurcharge(zoneId, d, qty) {
 export default function ExpressCalc() {
   const navigate = useNavigate();
   const onClose = () => navigate('/');
-  const { skuCatalog, fabricsCatalog, extrasCatalog, usdRate } = useStore(
-    useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
+  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, usdRate } = useStore(
+    useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog,
       extrasCatalog: s.extrasCatalog, usdRate: s.usdRate }))
   );
 
@@ -162,18 +163,17 @@ export default function ExpressCalc() {
   const calc = useMemo(() => {
     if (!sku) return null;
 
-    // Base price from SKU + fabric
-    const sewingPrice = sku.sewingPrice || 0;
-    const fabricPriceRub = fabric ? Math.round(fabric.priceUSD * usdRate * (sku.mainFabricUsage || 0)) : 0;
-    const baseRaw = sewingPrice + fabricPriceRub;
-
-    // Markup on base
-    const category = sku?.category || 'tshirts';
-    const markupPct = getMarkup(qty, category);
-    const base = Math.round(baseRaw * (1 + markupPct));
-
-    // Extras cost
-    const extrasCost = calcExtrasCost(selectedExtras, extrasCatalog);
+    // Изделие — та же формула, что в визарде (правка 13.10): расходы с обработками
+    // × (1 + накладные) × (1 + наценка по группе и тиражу)
+    const P = getPrices();
+    const c = skuCost(sku, {
+      fabricCode: fabric?.code || null, fabricsCatalog, trimCatalog, usdRate,
+      extras: selectedExtras, extrasCatalog,
+    });
+    const extrasCost = c.extras;
+    const baseRaw = Math.round(c.base);
+    const markupPct = getMarkup(qty, sku?.category || 'tshirts', sku);
+    const base = Math.round(garmentSellPrice(P, c.base, markupPct, 0));
 
     // Tech surcharge from all active zones
     const activeEntries = Object.entries(expZoneData).filter(([, d]) => d.active);
@@ -183,11 +183,11 @@ export default function ExpressCalc() {
       techTotal += calcZoneSurcharge(id, d, qty);
     });
 
-    const unitPrice = base + extrasCost + techTotal;
+    const unitPrice = base + techTotal;
     const total = unitPrice * qty;
 
     return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
-  }, [sku, fabric, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
+  }, [sku, fabric, fabricsCatalog, trimCatalog, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
 
   // ── Render zone params ──
   function renderZoneParams(zoneId, d) {
@@ -339,7 +339,7 @@ export default function ExpressCalc() {
                 <option value="">— Выберите —</option>
                 {fabrics.map(f => (
                   <option key={f.code} value={f.code}>
-                    {f.name}{f.density ? ` ${f.density}г` : ''}{f.composition ? ` (${f.composition})` : ''}{' — '}{Math.round(f.priceUSD * usdRate)} ₽/м · {f.supplier}
+                    {f.name}{f.density ? ` ${f.density}г` : ''}{f.composition ? ` (${f.composition})` : ''}{' — '}{Math.round(materialPrice(f, usdRate) || 0)} ₽/м · {f.supplier}
                   </option>
                 ))}
               </select>
@@ -449,21 +449,13 @@ export default function ExpressCalc() {
               <div className="exp-result-card">
                 <div className="exp-result-title">Расчёт стоимости</div>
                 <div className="exp-result-row">
-                  <span>Себестоимость</span>
+                  <span>Себестоимость{calc.extrasCost > 0 ? ` (с обработками: ${calc.extrasCost.toLocaleString('ru-RU')} ₽)` : ''}</span>
                   <b>{calc.baseRaw.toLocaleString('ru-RU')} ₽</b>
                 </div>
-                {calc.markupPct > 0 && (
-                  <div className="exp-result-row">
-                    <span>Наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
-                    <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
-                  </div>
-                )}
-                {calc.extrasCost > 0 && (
-                  <div className="exp-result-row">
-                    <span>Обработки ({selectedExtras.length})</span>
-                    <b>+{calc.extrasCost.toLocaleString('ru-RU')} ₽</b>
-                  </div>
-                )}
+                <div className="exp-result-row">
+                  <span>Накладные и наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
+                  <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
+                </div>
                 <div className="exp-result-row">
                   <span>
                     {calc.zoneCount > 0

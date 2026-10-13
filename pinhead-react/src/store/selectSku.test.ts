@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from '../store/useStore';
+import type { SkuItem } from '../types/catalog';
+import type { LabelConfig } from '../types/order';
 
 // ── Helpers ──
 
-const makeSku = (overrides = {}) => ({
+/**
+ * Фикстура типизирована как `SkuItem`, а не как «объект похожей формы»:
+ * после того как действия стора получили типы, tsc показал, что здесь
+ * `fit: string`, а не union — то есть тест мог передать значение,
+ * которого продакшн-код никогда не увидит.
+ */
+const makeSku = (overrides: Partial<SkuItem> = {}): SkuItem => ({
   code: 'TEST-001',
   name: 'Test Hoodie',
   category: 'hoodies',
@@ -67,7 +75,9 @@ describe('selectSku with category rules', () => {
 
   it('applies labelPresets from rules', () => {
     useStore.getState().selectSku(makeSku({ category: 'tshirts', code: 'TEE-001', mockupType: 'tee' }));
-    const { labelConfig } = useStore.getState();
+    // Поля стора остаются свободными (часть приезжает из JSON-каталогов),
+    // поэтому читающая сторона сужает тип у себя — типизированы ДЕЙСТВИЯ.
+    const labelConfig = useStore.getState().labelConfig as LabelConfig;
     expect(labelConfig.careLabel.enabled).toBe(true);
     expect(labelConfig.careLabel.logoOption).toBe('standard');
   });
@@ -111,7 +121,7 @@ describe('per-SKU filtering fields', () => {
     useStore.setState({ categoryRules: [], sku: null, type: '' });
     const sku = makeSku({ allowedFabrics: ['kulirnaya', 'dvunitka'] });
     useStore.getState().selectSku(sku);
-    const { sku: stored } = useStore.getState();
+    const stored = useStore.getState().sku as SkuItem;
     expect(stored.allowedFabrics).toEqual(['kulirnaya', 'dvunitka']);
   });
 
@@ -119,7 +129,7 @@ describe('per-SKU filtering fields', () => {
     useStore.setState({ categoryRules: [], sku: null, type: '' });
     const sku = makeSku({ allowedExtras: ['overlock', 'wash-label'] });
     useStore.getState().selectSku(sku);
-    const { sku: stored } = useStore.getState();
+    const stored = useStore.getState().sku as SkuItem;
     expect(stored.allowedExtras).toEqual(['overlock', 'wash-label']);
   });
 
@@ -127,7 +137,7 @@ describe('per-SKU filtering fields', () => {
     useStore.setState({ categoryRules: [], sku: null, type: '' });
     const sku = makeSku({ availableSizes: ['S', 'M', 'L'] });
     useStore.getState().selectSku(sku);
-    const { sku: stored } = useStore.getState();
+    const stored = useStore.getState().sku as SkuItem;
     expect(stored.availableSizes).toEqual(['S', 'M', 'L']);
   });
 
@@ -135,7 +145,7 @@ describe('per-SKU filtering fields', () => {
     useStore.setState({ categoryRules: [], sku: null, type: '' });
     const sku = makeSku();
     useStore.getState().selectSku(sku);
-    const { sku: stored } = useStore.getState();
+    const stored = useStore.getState().sku as SkuItem;
     expect(stored.allowedFabrics).toBeUndefined();
     expect(stored.allowedExtras).toBeUndefined();
     expect(stored.availableSizes).toBeUndefined();

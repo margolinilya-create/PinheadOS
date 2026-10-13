@@ -1,0 +1,969 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  EMPTY_ITEM,
+  emptyLabel,
+  emptyPrint,
+  normalizeDraft,
+  ORDER_DRAFT_KEY,
+  newDraftItem,
+  clearOrderDraft,
+  effectiveQty,
+  emptyOrderForm,
+  gridToPayload,
+  gridTotal,
+  rowTotal,
+  isFormEmpty,
+  isDraftEmpty,
+  isItemEmpty,
+  loadOrderDraft,
+  SIZE_PRESETS,
+  emptyPurchaseRow,
+  draftFromOrder,
+  toggleSize,
+  validateOrderForm,
+  brandingOnOptions,
+  normalizeBrandingOn,
+  type DraftItem,
+} from './orderForm';
+import type { DraftGrid } from './orderForm';
+import { factoryToday } from '../../utils/date';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { latestMatching } from './migrations.testutil';
+
+const SRC = join(process.cwd(), 'src');
+
+function item(patch: Partial<DraftItem> = {}): DraftItem {
+  return { ...EMPTY_ITEM, prints: [], size_grid: null, ...patch };
+}
+
+// ─── Нанесение «на крое» / «на готовом» (правки 07.09, п. 8) ─────────────────
+
+describe('brandingOnOptions / normalizeBrandingOn', () => {
+  it('у готового изделия остаётся только «на готовом»', () => {
+    expect(brandingOnOptions('ready_garment')).toEqual(['finished']);
+  });
+
+  it('у остальных типов производства выбор прежний', () => {
+    for (const t of ['sewing', 'cut', 'samples', 'no_product', 'outsource']) {
+      expect(brandingOnOptions(t)).toEqual(['cut', 'finished']);
+    }
+  });
+
+  /**
+   * ВТОРАЯ ПОЛОВИНА ПРАВИЛА, и без неё первая ничего не решает: селект про
+   * смену типа производства не знает, и позиция, переключённая на «Готовое
+   * изделие» ПОСЛЕ выбора «на крое», уехала бы в payload с `cut`.
+   */
+  it('уже выбранное «на крое» при переходе на готовое изделие становится «на готовом»', () => {
+    expect(normalizeBrandingOn('ready_garment', 'cut')).toBe('finished');
+  });
+
+  it('допустимое значение не трогается', () => {
+    expect(normalizeBrandingOn('ready_garment', 'finished')).toBe('finished');
+    expect(normalizeBrandingOn('sewing', 'cut')).toBe('cut');
+    expect(normalizeBrandingOn('sewing', 'finished')).toBe('finished');
+  });
+
+  it('мусор приводится к первому допустимому', () => {
+    expect(normalizeBrandingOn('sewing', '')).toBe('cut');
+    expect(normalizeBrandingOn('ready_garment', 'что-то')).toBe('finished');
+  });
+});
+
+// ─── Черновик в localStorage ─────────────────────────────────────────────────
+
+/**
+ * Снимок черновика, КАК ЕГО ПИСАЛА ПРЕЖНЯЯ ВЕРСИЯ формы.
+ *
+ * Писателя (`saveOrderDraft`) больше нет: черновики живут в `erp_order_drafts`,
+ * а localStorage остался только на ЧТЕНИЕ — разовый перенос того, что человек
+ * начал до перехода на базу. Тест поэтому кладёт снимок напрямую: круг
+ * «сами записали — сами прочли» проверял бы собственную симметрию, а нужен
+ * ровно обратный сценарий — чужая запись, наше чтение.
+ */
+function writeLegacyDraft(
+  form: unknown, items: unknown[], purchase: unknown[] = [], notes: unknown[] = [],
+): void {
+  localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+    form, items, purchase, notes, savedAt: new Date().toISOString(),
+  }));
+}
+
+describe('черновик заказа прежней версии (localStorage, только чтение)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('сохраняется и восстанавливается', () => {
+    const form = { ...emptyOrderForm('2026-07-17'), title: 'BOX39 свитшоты' };
+    const items = [item({ product_type: 'свитшот', qty: '50' })];
+    writeLegacyDraft(form, items);
+
+    const restored = loadOrderDraft();
+    expect(restored).not.toBeNull();
+    expect(restored!.form.title).toBe('BOX39 свитшоты');
+    expect(restored!.items).toHaveLength(1);
+    expect(restored!.items[0].product_type).toBe('свитшот');
+  });
+
+  it('нет черновика → null', () => {
+    expect(loadOrderDraft()).toBeNull();
+  });
+
+  it('битый JSON или неверная форма → null', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, '{oops');
+    expect(loadOrderDraft()).toBeNull();
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({ form: null, items: [] }));
+    expect(loadOrderDraft()).toBeNull();
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({ form: {}, items: [] }));
+    expect(loadOrderDraft()).toBeNull();
+  });
+
+  it('clearOrderDraft удаляет черновик', () => {
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'футболка' })]);
+    clearOrderDraft();
+    expect(loadOrderDraft()).toBeNull();
+  });
+
+  it('старый черновик без has_branding: флаг выводится из наличия нанесений', () => {
+    const legacy = {
+      form: { ...emptyOrderForm(), title: 'Старый' },
+      items: [
+        { ...item({ product_type: 'худи' }), prints: [emptyPrint()] },
+        { ...item({ product_type: 'кепка' }), prints: [] },
+      ].map((it) => {
+        const rest: Record<string, unknown> = { ...it };
+        delete rest.has_branding;
+        return rest;
+      }),
+      savedAt: '2026-07-17T10:00:00Z',
+    };
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify(legacy));
+    const restored = loadOrderDraft();
+    expect(restored!.items[0].has_branding).toBe(true);
+    expect(restored!.items[1].has_branding).toBe(false);
+  });
+
+  it('черновик дополняется дефолтами формы (новые поля не ломают восстановление)', () => {
+    localStorage.setItem(
+      ORDER_DRAFT_KEY,
+      JSON.stringify({ form: { title: 'Только название' }, items: [{ product_type: 'шоппер' }] }),
+    );
+    const restored = loadOrderDraft();
+    expect(restored!.form.packaging).toBe('none');
+    expect(restored!.items[0].production_type).toBe('sewing');
+    expect(restored!.items[0].prints).toEqual([]);
+  });
+});
+
+// ─── Размерная сетка: сумма и авторасчёт qty ─────────────────────────────────
+
+describe('gridTotal / effectiveQty', () => {
+  /**
+   * Тип обязателен: без него строки выводятся как союз двух РАЗНЫХ форм
+   * (у второй нет ключа L), и `sizes` перестаёт быть `Record<string, number>`.
+   * Ровно это и проверяет тест — что пропущенный размер считается за ноль.
+   */
+  const grid: DraftGrid = {
+    sizes: ['S', 'M', 'L'],
+    rows: [
+      { color: 'чёрный', sizes: { S: 5, M: 10, L: 0 } },
+      { color: 'белый', sizes: { S: 2, M: 3 } },
+    ],
+  };
+
+  it('сумма по всем строкам и активным размерам', () => {
+    expect(gridTotal(grid)).toBe(20);
+  });
+
+  it('убранный чипс-размер не считается, хотя значение сохранено в row.sizes', () => {
+    const without = toggleSize(grid, 'M'); // выключили M
+    expect(without.sizes).toEqual(['S', 'L']);
+    expect(gridTotal(without)).toBe(7);
+    // повторное добавление — количества вернулись (ничего не потеряно)
+    const back = toggleSize(without, 'M');
+    expect(gridTotal(back)).toBe(20);
+  });
+
+  it('пустая/отсутствующая сетка = 0', () => {
+    expect(gridTotal(null)).toBe(0);
+    expect(gridTotal({ sizes: [], rows: [] })).toBe(0);
+    expect(gridTotal({ sizes: ['S'], rows: [] })).toBe(0);
+  });
+
+  it('effectiveQty: сетка заполнена → сумма сетки, иначе ручное значение', () => {
+    expect(effectiveQty({ qty: '99', size_grid: grid })).toBe(20);
+    expect(effectiveQty({ qty: '99', size_grid: null })).toBe(99);
+    expect(effectiveQty({ qty: '', size_grid: null })).toBe(0);
+  });
+
+  // Итог по цвету (правки 07.09, п. 6): «справа показывать итог по цвету»
+  it('rowTotal: сумма по строке одного цвета', () => {
+    expect(rowTotal(grid.rows![0], grid.sizes)).toBe(15);
+    expect(rowTotal(grid.rows![1], grid.sizes)).toBe(5);
+  });
+
+  /**
+   * Считается по тем же АКТИВНЫМ размерам, что и общий итог: иначе сумма
+   * строк не сошлась бы с «Всего» ровно тогда, когда чипс размера снят,
+   * а количества в нём остались.
+   */
+  it('rowTotal и gridTotal согласованы: сумма строк = общий итог', () => {
+    const sum = grid.rows!.reduce((s, r) => s + rowTotal(r, grid.sizes), 0);
+    expect(sum).toBe(gridTotal(grid));
+
+    const without = toggleSize(grid, 'M');
+    const sum2 = without.rows!.reduce((s, r) => s + rowTotal(r, without.sizes), 0);
+    expect(sum2).toBe(gridTotal(without));
+  });
+
+  it('rowTotal: пустая строка и отсутствие размеров дают 0', () => {
+    expect(rowTotal(null, grid.sizes)).toBe(0);
+    expect(rowTotal({ color: 'синий', sizes: {} }, grid.sizes)).toBe(0);
+    expect(rowTotal(grid.rows![0], [])).toBe(0);
+  });
+});
+
+describe('размерный ряд', () => {
+  it('покрывает 3XS—5XL — прямое требование заказчика 16.08', () => {
+    expect(SIZE_PRESETS.adult[0]).toBe('3XS');
+    expect(SIZE_PRESETS.adult).toContain('5XL');
+  });
+
+  it('идёт по возрастанию, без пропусков в середине; ONE — в конце', () => {
+    /**
+     * `ONE` (безразмерный) добавлен правкой 07.09, п. 7 и стоит ПОСЛЕДНИМ:
+     * он не часть возрастающего ряда, и место в середине разорвало бы шкалу.
+     */
+    expect(SIZE_PRESETS.adult).toEqual(
+      ['3XS', '2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
+    );
+  });
+
+  it('колонки из документа 07.09 все перечислены', () => {
+    // «2XS, XS, S, M, L, XL, 2XL, 3XL, 4XL, ONE и другие размеры»
+    for (const sz of ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'ONE']) {
+      expect(SIZE_PRESETS.adult).toContain(sz);
+    }
+  });
+
+  it('написание одно: XXL из прежнего набора не соседствует с 2XL', () => {
+    // Иначе в одном ряду стояли бы два разных правила подряд (XXL, затем 3XL).
+    // Прежним заказам это не мешает: размеры хранятся ключами JSON в size_grid,
+    // и показывают их из самих данных, а не из этого списка.
+    expect(SIZE_PRESETS.adult).not.toContain('XXL');
+  });
+
+  it('детский ряд не тронут', () => {
+    expect(SIZE_PRESETS.kids).toContain('92');
+    expect(SIZE_PRESETS.kids).toContain('146');
+  });
+});
+
+describe('toggleSize', () => {
+  it('добавляет и убирает размер без дублей', () => {
+    let g = toggleSize(null, 'XL');
+    expect(g.sizes).toEqual(['XL']);
+    g = toggleSize(g, 'XL');
+    expect(g.sizes).toEqual([]);
+  });
+});
+
+describe('gridToPayload', () => {
+  it('в payload попадают только активные размеры и непустые строки', () => {
+    const payload = gridToPayload({
+      sizes: ['S', 'M'],
+      rows: [
+        { color: '', sizes: { S: 3, XL: 7 } }, // XL выключен — не должен попасть
+        { color: '', sizes: {} }, // пустая строка — отбрасывается
+        { color: 'красный', sizes: {} }, // только цвет — остаётся
+      ],
+    });
+    expect(payload).toEqual([
+      { color: '—', sizes: { S: 3 } },
+      { color: 'красный', sizes: {} },
+    ]);
+  });
+
+  it('нет строк → null', () => {
+    expect(gridToPayload(null)).toBeNull();
+    expect(gridToPayload({ sizes: ['S'], rows: [] })).toBeNull();
+    expect(gridToPayload({ sizes: [], rows: [{ color: '', sizes: {} }] })).toBeNull();
+  });
+});
+
+// ─── Валидация ────────────────────────────────────────────────────────────────
+
+describe('validateOrderForm', () => {
+  const today = '2026-07-17';
+  /**
+   * Базовая ВАЛИДНАЯ форма. С 20.08 в неё входит отметка «закупка
+   * не требуется»: заказ без листа закупки и без отметки создать нельзя
+   * (документ: «если не выполнено ни одно условие — заказ создать нельзя»),
+   * и без этого поля каждая проверка ниже спотыкалась бы о лист закупки
+   * вместо того, что она проверяет.
+   */
+  const okForm = { ...emptyOrderForm(today), title: 'Заказ', purchase_required: false };
+
+  it('размер нанесения — целые миллиметры: дробь подсвечивает поле, а не роняет заказ (ошибка с боя 08.10)', () => {
+    const it0 = item({
+      product_type: 'ф', qty: '1', has_branding: true,
+      prints: [{ ...emptyPrint(), width_mm: '160', height_mm: '70' },
+        { ...emptyPrint(), width_mm: '50', height_mm: '1.4' }],
+    });
+    const v = validateOrderForm(okForm, [it0], today);
+    expect(v.errors.item_0_print_0_size).toBeUndefined();
+    expect(v.errors.item_0_print_1_size).toBe('Размер — целое число миллиметров (введено 1.4)');
+    expect(v.invalid).toContain('Размер нанесения №2');
+    // Пустое поле и целое — не ошибка
+    const ok = validateOrderForm(okForm, [item({
+      product_type: 'ф', qty: '1', has_branding: true,
+      prints: [{ ...emptyPrint(), width_mm: '', height_mm: 12 }],
+    })], today);
+    expect(ok.errors.item_0_print_0_size).toBeUndefined();
+  });
+
+  it('пустое название — ошибка с привязкой к полю', () => {
+    const v = validateOrderForm({ ...okForm, title: '  ' }, [item({ product_type: 'ф', qty: '1' })], today);
+    expect(v.errors.title).toBe('Укажите название заказа');
+    expect(v.missing).toContain('Название');
+  });
+
+  it('брендирование без единого нанесения — заказ не проходит', () => {
+    const v = validateOrderForm(
+      okForm,
+      [item({ product_type: 'футболка', qty: '10', has_branding: true, prints: [] })],
+      today,
+    );
+    expect(v.errors.item_0_prints).toBe('Добавьте хотя бы одно нанесение');
+    expect(v.missing).toContain('Нанесения');
+  });
+
+  it('брендирование с нанесением — ок', () => {
+    const v = validateOrderForm(
+      okForm,
+      [item({ product_type: 'футболка', qty: '10', has_branding: true, prints: [emptyPrint()] })],
+      today,
+    );
+    expect(v.errors).toEqual({});
+    expect(v.missing).toEqual([]);
+  });
+
+  it('qty из размерной сетки засчитывается (ручное поле пустое)', () => {
+    const v = validateOrderForm(
+      okForm,
+      [item({
+        product_type: 'худи',
+        qty: '',
+        size_grid: { sizes: ['S'], rows: [{ color: '', sizes: { S: 4 } }] },
+      })],
+      today,
+    );
+    expect(v.errors).toEqual({});
+  });
+
+  it('пустая сетка и пустое qty — ошибка количества', () => {
+    const v = validateOrderForm(okForm, [item({ product_type: 'худи', qty: '' })], today);
+    expect(v.errors.item_0_qty).toBe('Количество должно быть больше 0');
+    expect(v.missing).toContain('Кол-во');
+  });
+
+  it('пустая дополнительная строка позиции пропускается, ошибки нумеруются', () => {
+    const v = validateOrderForm(
+      okForm,
+      [item({ product_type: 'футболка', qty: '5' }), item()],
+      today,
+    );
+    expect(v.errors).toEqual({});
+
+    const v2 = validateOrderForm(
+      okForm,
+      [item({ product_type: 'футболка', qty: '5' }), item({ variant: 'синие' })],
+      today,
+    );
+    expect(v2.errors.item_1_product_type).toBe('Укажите изделие');
+    expect(v2.missing).toContain('Изделие (поз. 2)');
+  });
+
+  it('срок клиента в прошлом — ошибка', () => {
+    const v = validateOrderForm(
+      { ...okForm, due_date: '2026-07-01' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.due_date).toBe('Срок клиента в прошлом — проверьте дату');
+  });
+
+  it('срок клиента в прошлом — это invalid, а не missing', () => {
+    // Черновик восстанавливается назавтра с вчерашним сроком. Раньше поле
+    // попадало в missing, и подсказка говорила «Осталось заполнить: Срок
+    // клиента» при заполненном поле — указывая не на ту проблему.
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-07-01', due_date: '2026-07-02' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.invalid).toContain('Срок клиента');
+    expect(v.missing).not.toContain('Срок клиента');
+  });
+
+  it('подряд с доработкой требует следующего участка', () => {
+    const base = {
+      product_type: 'ф', qty: '10',
+      production_type: 'outsource', subcontract_kind: 'operation',
+    };
+    const withFurther = validateOrderForm(
+      okForm, [item({ ...base, needs_further: true, return_dept: '' })], today,
+    );
+    expect(withFurther.errors.item_0_return_dept).toBe('Выберите участок для доработки');
+    expect(withFurther.missing).toContain('Следующий участок');
+
+    // Участок выбран либо доработка не нужна — ошибки нет
+    for (const it of [
+      item({ ...base, needs_further: true, return_dept: 'sewing' }),
+      item({ ...base, needs_further: false, return_dept: '' }),
+      item({ product_type: 'ф', qty: '10' }),
+    ]) {
+      expect(validateOrderForm(okForm, [it], today).errors.item_0_return_dept).toBeUndefined();
+    }
+  });
+
+  /**
+   * Правка заказчика 30.08, п. 10: дату запуска разрешено ставить любую,
+   * включая прошедшую, — заказ переносят в ERP задним числом. Прошлое
+   * стоит в этом списке НАРЯДУ с сегодня и будущим, а не отдельным тестом:
+   * именно так формулируется требование — дата запуска не зависит от
+   * текущего дня вовсе.
+   */
+  it('дата запуска любая — сегодня, в прошлом, в будущем или пустая', () => {
+    for (const launch_date of [today, '2026-07-01', '2026-07-20', '']) {
+      const v = validateOrderForm(
+        { ...okForm, launch_date },
+        [item({ product_type: 'ф', qty: '1' })],
+        today,
+      );
+      expect(v.errors.launch_date).toBeUndefined();
+    }
+  });
+
+  /**
+   * ПРОТИВОРЕЧИЕ «СРОК РАНЬШЕ ЗАПУСКА» стало достижимым той же правкой:
+   * пока прошедший запуск запрещался, запуск был не раньше сегодня, а срок —
+   * не раньше запуска по построению, и проверять было нечего. Сняв
+   * ограничение, мы открыли опечатку в дате у заказа, заводимого задним
+   * числом, — а от даты запуска считается подстановка плана этапа.
+   */
+  it('срок раньше даты запуска — ошибка, а не молчаливый приём', () => {
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-09-10', due_date: '2026-09-01' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.due_date).toBe('Срок клиента раньше даты запуска — проверьте даты');
+    expect(v.invalid).toContain('Срок клиента');
+    expect(v.missing).not.toContain('Срок клиента');
+  });
+
+  it('срок позже запуска — обе даты в будущем и ошибки нет', () => {
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-09-01', due_date: '2026-09-10' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.due_date).toBeUndefined();
+  });
+
+  it('прошедший срок называет себя прошедшим, а не «раньше запуска»', () => {
+    // Две ошибки на одном поле спорят: у заказа задним числом прошедшими
+    // будут ОБЕ даты, и человеку надо назвать ту причину, которую он чинит
+    const v = validateOrderForm(
+      { ...okForm, launch_date: '2026-07-01', due_date: '2026-07-10' },
+      [item({ product_type: 'ф', qty: '1' })],
+      today,
+    );
+    expect(v.errors.due_date).toBe('Срок клиента в прошлом — проверьте дату');
+  });
+
+  /**
+   * ЛИСТ ЗАКУПКИ — ФАЙЛ (документ 20.08), и строк-подсказок больше нет
+   * (правки 07.09, п. 14): проверки `purchase_{i}_name` / `purchase_{i}_qty`
+   * ушли вместе с блоком, четвёртым аргументом стал `hasPurchaseList`.
+   */
+  describe('лист закупки', () => {
+    const okItems = [item({ product_type: 'ф', qty: '1' })];
+
+    /**
+     * ГЛАВНОЕ ПРАВИЛО ДОКУМЕНТА 20.08: потребность задаёт ФАЙЛ, и без него
+     * (или без явной отметки «закупка не требуется») заказ создать нельзя.
+     * Проверка живёт здесь, а не в сабмите: только отсюда работают рамка,
+     * `aria-invalid`, автоскролл и раскрытие секции.
+     */
+    describe('файл листа или отметка «не требуется»', () => {
+      const needsPurchase = { ...okForm, purchase_required: true };
+
+      it('ни файла, ни отметки — заказ не создать', () => {
+        const v = validateOrderForm(needsPurchase, okItems, today, false);
+        expect(v.errors.purchase_list)
+          .toBe('Приложите лист закупки или отметьте «Закупка не требуется»');
+        expect(v.missing).toContain('Лист закупки');
+      });
+
+      it('файл приложен — проходит', () => {
+        const v = validateOrderForm(needsPurchase, okItems, today, true);
+        expect(v.errors.purchase_list).toBeUndefined();
+      });
+
+      it('отмечено «закупка не требуется» — файл не нужен', () => {
+        const v = validateOrderForm(okForm, okItems, today, false);
+        expect(v.errors.purchase_list).toBeUndefined();
+      });
+
+      /**
+       * Сдвиг аргумента (`hasPurchaseList` был пятым, стал четвёртым) —
+       * ровно то место, где забытый вызывающий молча передал бы список строк
+       * и получил истинное значение. Проверяем ПОЗИЦИЮ явно.
+       */
+      it('четвёртый аргумент — именно «приложен ли файл»', () => {
+        expect(validateOrderForm(needsPurchase, okItems, today, true).errors.purchase_list)
+          .toBeUndefined();
+        expect(validateOrderForm(needsPurchase, okItems, today, false).errors.purchase_list)
+          .toBeDefined();
+      });
+    });
+
+    /** Лист не передан вовсе — поведение прежнее (умолчание «не приложен») */
+    it('без четвёртого аргумента лист считается неприложенным', () => {
+      expect(validateOrderForm(okForm, okItems, today).errors).toEqual({});
+      expect(validateOrderForm({ ...okForm, purchase_required: true }, okItems, today)
+        .errors.purchase_list).toBeDefined();
+    });
+  });
+});
+
+// ─── Пустота формы ────────────────────────────────────────────────────────────
+
+describe('isFormEmpty / isItemEmpty', () => {
+  const launch = factoryToday();
+
+  it('свежая форма с дефолтной датой запуска — пустая', () => {
+    expect(isFormEmpty(emptyOrderForm(launch), [item()], launch)).toBe(true);
+  });
+
+  /** Правка 28.09: иначе автосохранение удаляло черновик вместе с файлами */
+  it('черновик, где приложен только файл или ТЗ, — не пустой', () => {
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 1)).toBe(false);
+    expect(isDraftEmpty(emptyOrderForm(launch), [item()], launch, 0)).toBe(true);
+  });
+
+  it('любое заполненное поле — форма не пустая', () => {
+    expect(isFormEmpty({ ...emptyOrderForm(launch), title: 'X' }, [item()], launch)).toBe(false);
+    expect(isFormEmpty(emptyOrderForm(launch), [item({ variant: 'син' })], launch)).toBe(false);
+    expect(isFormEmpty({ ...emptyOrderForm(launch), packaging: 'zip' }, [item()], launch)).toBe(false);
+  });
+
+  it('позиция с сеткой или нанесением — не пустая', () => {
+    expect(isItemEmpty(item())).toBe(true);
+    expect(isItemEmpty(item({ prints: [emptyPrint()] }))).toBe(false);
+    expect(isItemEmpty(item({
+      size_grid: { sizes: ['S'], rows: [{ color: '', sizes: { S: 1 } }] },
+    }))).toBe(false);
+  });
+});
+
+// ─── Строки закупки: только восстановление старых черновиков ─────────────────
+
+/**
+ * Блока «Подсказки закупщику строками» в форме БОЛЬШЕ НЕТ (правки 07.09,
+ * п. 14), но снимки со строками лежат и в localStorage, и в
+ * `erp_order_drafts`. `normalizeDraft` обязан разбирать их, не падая —
+ * иначе человек, начавший заказ до правки, получил бы пустую форму вместо
+ * своего черновика. Эти тесты сторожат именно совместимость.
+ */
+describe('строки закупки в старом черновике', () => {
+  beforeEach(() => localStorage.clear());
+
+  /*
+    Тесты `isPurchaseRowEmpty` сняты 07.09 вместе с самой функцией: строк
+    листа в форме больше нет (п. 14), и «пустая ли строка» перестало быть
+    вопросом — отправлять их некому. Совместимость со старым черновиком
+    держат тесты НИЖЕ: они проверяют, что снимок с листом читается
+    и дополняется значениями по умолчанию, а это по-прежнему живой путь.
+  */
+  it('лист сохраняется в черновик и восстанавливается', () => {
+    const rows = [{ ...emptyPurchaseRow('k1'), name: 'Кулирка', qty_expected: '120' }];
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })], rows);
+    expect(loadOrderDraft()?.purchase).toEqual(rows);
+  });
+
+  it('черновик БЕЗ листа (сохранён до правки 16.08) восстанавливается с пустым', () => {
+    // Человек мог начать заказ вчера — падать на этом нельзя
+    writeLegacyDraft(emptyOrderForm(), [item({ product_type: 'Худи', qty: 10 })]);
+    expect(loadOrderDraft()?.purchase).toEqual([]);
+  });
+
+  it('строка из старого черновика дополняется значениями по умолчанию', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: emptyOrderForm(),
+      items: [item({ product_type: 'Худи', qty: 10 })],
+      purchase: [{ key: 'k1', name: 'Кулирка' }],
+      savedAt: new Date().toISOString(),
+    }));
+    const restored = loadOrderDraft()?.purchase?.[0];
+    expect(restored?.kind).toBe('fabric');
+    expect(restored?.item_index).toBeNull();
+    expect(restored?.name).toBe('Кулирка');
+  });
+});
+
+/**
+ * Правки заказчика 22.08: основная ткань, бирки, ключи нанесений.
+ */
+describe('бирки и основная ткань (правка 22.08)', () => {
+  /**
+   * П. 5.3. Позиция, в которой заполнена ТОЛЬКО бирка, пустой не является:
+   * иначе форма молча выбросила бы её из заказа вместе с набранным текстом —
+   * пустые дополнительные позиции валидация пропускает.
+   */
+  it('позиция с одной биркой пустой не считается', () => {
+    expect(isItemEmpty(item({ labels: [emptyLabel()] }))).toBe(false);
+    expect(isItemEmpty(item({ main_fabric: 'шерпа 240' }))).toBe(false);
+    expect(isItemEmpty(item({}))).toBe(true);
+  });
+
+  /**
+   * П. 5.2. У каждого нанесения СВОЙ ключ: по нему макет находит своё
+   * нанесение, пока строки `erp_item_prints` ещё не существует. Общая
+   * константа дала бы всем нанесениям один ключ, то есть один макет на всех.
+   */
+  it('у каждого нанесения свой ключ', () => {
+    expect(emptyPrint().key).not.toBe(emptyPrint().key);
+    expect(emptyLabel().key).not.toBe(emptyLabel().key);
+  });
+
+  it('черновик, сохранённый до правки, получает ключи при восстановлении', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: emptyOrderForm(),
+      items: [{
+        ...item({ product_type: 'Худи', qty: 10 }),
+        prints: [{ method: 'embroidery', zone: 'спина' }],
+      }],
+      savedAt: new Date().toISOString(),
+    }));
+    const restored = loadOrderDraft();
+    expect(restored?.items[0].prints[0].key).toBeTruthy();
+    // И бирок в старом черновике нет вовсе — восстановление не падает
+    expect(restored?.items[0].labels).toEqual([]);
+  });
+
+  /**
+   * `normalizeDraft` — ОДНА функция и для локального снимка, и для строки
+   * из базы (п. 5.5): чинить нужно оба, и вторая копия рядом означала бы,
+   * что часть черновиков остаётся сломанной.
+   */
+  it('снимок из базы чинится тем же нормализатором', () => {
+    const fromDb = normalizeDraft({
+      form: emptyOrderForm(),
+      items: [{ ...item({ product_type: 'Худи', qty: 10 }), prints: [{ method: 'dtf' }] }],
+    });
+    expect(fromDb?.items[0].prints[0].key).toBeTruthy();
+    expect(normalizeDraft(null)).toBeNull();
+    expect(normalizeDraft({ items: [] })).toBeNull();
+  });
+});
+
+/**
+ * ФАЙЛЫ ЧЕРНОВИКА (правка заказчика 27.09, п. 12).
+ *
+ * «После сохранения и повторного открытия черновика пропадают загруженные
+ * файлы». Снимок писал `attachments` и `tzDocs` с 20.09, а нормализатор
+ * возвращал только `{form, items, purchase, notes}`: в базе файлы лежали,
+ * форма открывалась без них. Мутация: убрать два поля из `normalizeEnvelope`
+ * — оба теста ниже красные.
+ */
+describe('файлы в черновике (правка 27.09, п. 12)', () => {
+  const base = { form: emptyOrderForm(), items: [item({ product_type: 'Худи', qty: 10 })] };
+
+  it('вложения блоков и ТЗ проходят через нормализацию', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{
+        uid: 'u1', kind: 'packaging', itemIndex: 0, ownerKey: null,
+        name: 'упаковка.jpg', state: 'uploaded', path: 'att/new/packaging/u1-upakovka.jpg',
+      }],
+      tzDocs: [{
+        groupId: 'g1', itemIndex: 0, state: 'uploaded', path: 'tz/new/g1/v1-TZ.pdf',
+        name: 'ТЗ.pdf', type: 'application/pdf', size: 1234,
+      }],
+    });
+    expect(d?.attachments).toHaveLength(1);
+    expect(d?.attachments[0].path).toBe('att/new/packaging/u1-upakovka.jpg');
+    expect(d?.tzDocs).toHaveLength(1);
+    expect(d?.tzDocs[0]).toMatchObject({ name: 'ТЗ.pdf', type: 'application/pdf', size: 1234 });
+  });
+
+  it('черновик без файлов (до 20.09) отдаёт пустые списки, а не падает', () => {
+    const d = normalizeDraft(base);
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /** Снимок с незавершённой загрузкой мог остаться от прежней формы: путь у него пустой */
+  it('незагруженное и без пути отбрасывается', () => {
+    const d = normalizeDraft({
+      ...base,
+      attachments: [{ uid: 'u1', kind: 'tech', state: 'uploading', path: null }, 'мусор'],
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'error', path: 'tz/new/g1/v1-x.pdf' }],
+    });
+    expect(d?.attachments).toEqual([]);
+    expect(d?.tzDocs).toEqual([]);
+  });
+
+  /**
+   * ТЗ, сохранённое до 27.09, имени не несёт — а показ и сабмит читали
+   * `doc.file.name` и падали бы на восстановленном документе. Имя берётся
+   * из ключа Storage: латиницей (транслит `tzFilePath`), но не пусто.
+   */
+  it('у ТЗ старого черновика имя выводится из пути', () => {
+    const d = normalizeDraft({
+      ...base,
+      tzDocs: [{ groupId: 'g1', itemIndex: null, state: 'uploaded', path: 'tz/new/g1/v1-TZ_59746.pdf' }],
+    });
+    expect(d?.tzDocs[0].name).toBe('TZ_59746.pdf');
+  });
+});
+
+/**
+ * ПОЛЕ «ЦВЕТ / ПОСТАВЩИК» (правка 12.09, п. 3) — СТОРОЖ ВСЕГО ПУТИ.
+ *
+ * Главный класс дефекта при добавлении поля — «половина требования выглядит
+ * как сделанное требование»: поле пишется в базу и нигде не читается, либо
+ * читается, но не доезжает. Путь у него семь звеньев, и проверка «поле есть
+ * в форме» не поймала бы обрыв ни в одном из остальных шести.
+ *
+ * Читаются ИСХОДНИКИ: сверка «в типе есть колонка» живёт в `schema.test.ts`
+ * и отвечает на другой вопрос — про схему, а не про то, доходит ли значение
+ * от человека до цеха.
+ */
+describe('цвет / поставщик доходит от формы до цеха (правка 12.09)', () => {
+  const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
+
+  it('позиция с одним «цветом / поставщиком» пустой не считается', () => {
+    // Иначе форма молча выбросила бы её из заказа вместе с набранным текстом
+    expect(isItemEmpty(item({ color_supplier: 'пыльная роза, Атлас' }))).toBe(false);
+  });
+
+  it('поле объявлено в пустой позиции — иначе инпут станет неконтролируемым', () => {
+    expect(EMPTY_ITEM.color_supplier).toBe('');
+  });
+
+  it('форма собирает значение в payload заказа', () => {
+    expect(read('erp/screens/orders/create/orderPayload.ts'))
+      .toMatch(/color_supplier: it\.color_supplier/);
+    expect(read('erp/store/slices/orderWriteSlice.ts'))
+      .toMatch(/color_supplier: it\.color_supplier \|\| null/);
+  });
+
+  /**
+   * Колонка, не попавшая в СПИСОЧНУЮ выборку, приезжает `undefined` МОЛЧА,
+   * а техблок читает именно её — `TzBlock` стоит в строке очереди цеха,
+   * самом списочном из экранов.
+   */
+  it('колонка едет в обеих выборках заказа', () => {
+    const helpers = read('erp/store/orderHelpers.ts');
+    expect(helpers).toMatch(/color_supplier/);
+  });
+
+  it('цех видит поле в техблоке ТЗ', () => {
+    expect(read('erp/screens/queue/TzBlock.jsx'))
+      .toMatch(/\['color_supplier', 'Цвет \/ поставщик'\]/);
+  });
+
+  /**
+   * Сервер обязан ПИСАТЬ колонку, иначе поле заполняется и теряется
+   * при создании заказа. Спрашиваем миграцию, пересобравшую `erp_create_order`:
+   * она делает это заменой в `pg_get_functiondef`, и проверка «замена
+   * сработала» стоит внутри самой миграции — здесь сторожим, что миграция
+   * с такой заменой вообще есть.
+   */
+  it('создание заказа пишет колонку', () => {
+    const sql = latestMatching(/add column if not exists color_supplier/, 'color_supplier');
+    // Кавычки УДВОЕНЫ: вставка живёт внутри строкового литерала DO-блока,
+    // и одинарные здесь означали бы, что мы сверяемся с несуществующим текстом
+    expect(sql).toMatch(/v_item->>''color_supplier''/);
+    expect(sql).toMatch(/replace\(v_def, v_cols_old, v_cols_new\)/);
+  });
+});
+
+/**
+ * РЕДАКТИРОВАНИЕ ЗАКАЗА (правка 12.09, п. 7): заказ → черновик формы.
+ *
+ * Главная проверка — ИНВАРИАНТ: форма, открытая на существующем заказе
+ * и не тронутая человеком, обязана описывать ровно тот же заказ. Это тот же
+ * приём, что у конструктора маршрута, и по той же причине: иначе одно
+ * открытие карточки молча меняет данные, и заметить это можно только
+ * по тому, что заказ поехал не туда.
+ */
+describe('заказ → черновик формы (правка 12.09, п. 7)', () => {
+  const ORDER = {
+    bitrix_id: '4821',
+    title: 'Худи ЧЁРНЫЙ',
+    customer: 'ООО Ромашка',
+    manager: 'Иванов',
+    launch_date: '2026-09-01',
+    due_date: '2026-09-20',
+    packaging: 'polybag',
+    packaging_note: 'по одной',
+    packaging_width_mm: 300,
+    packaging_height_mm: 400,
+    stickers: 'client',
+    stickers_note: 'на дно',
+    no_chestny_znak: true,
+    purchase_required: false,
+    items: [{
+      id: 'it1',
+      product_type: 'Худи',
+      variant: 'чёрное',
+      fit: 'Oversize',
+      qty: 100,
+      main_fabric: 'футер 320',
+      color_supplier: 'пыльная роза, Атлас',
+      trim_material: null,
+      cutting_note: null,
+      sewing_note: 'плоский шов',
+      labels_note: null,
+      production_type: 'sewing',
+      branding_on: 'cut',
+      size_grid: [
+        { color: 'чёрный', sizes: { S: 10, M: 20 } },
+        { color: 'белый', sizes: { M: 30, XXL: 40 } },
+      ],
+      prints: [{ id: 'p1', method: 'embroidery', zone: 'грудь', width_mm: 80, special: null }],
+      labels: [{ id: 'l1', label_type: 'размерник', place: 'шов', size: null, comment: null }],
+    }],
+  };
+
+  it('поля заказа переносятся в форму как есть', () => {
+    const { form } = draftFromOrder(ORDER);
+    expect(form.bitrix_id).toBe('4821');
+    expect(form.customer).toBe('ООО Ромашка');
+    expect(form.due_date).toBe('2026-09-20');
+    expect(form.no_chestny_znak).toBe(true);
+    expect(form.purchase_required).toBe(false);
+    expect(form.packaging_width_mm).toBe('300');
+  });
+
+  /**
+   * NULL В КОНТРОЛИРУЕМОМ ПОЛЕ делает `<input>` неуправляемым: React роняет
+   * предупреждение, а человек видит поле, которое «не печатается».
+   */
+  it('пустые колонки становятся пустыми строками, а не null', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].trim_material).toBe('');
+    expect(items[0].cutting_note).toBe('');
+    expect(items[0].labels[0].size).toBe('');
+  });
+
+  /**
+   * РАЗМЕРЫ — ИЗ КЛЮЧЕЙ ДАННЫХ, А НЕ ИЗ ПРЕСЕТА. Пресет можно менять без
+   * миграции (правило проекта), и заказ со старым набором обязан открыться
+   * со СВОИМИ размерами: взяв `SIZE_PRESETS`, форма показала бы не то, что
+   * вводил человек, и первое же сохранение стёрло бы столбцы.
+   */
+  it('размеры сетки берутся из самих строк', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].size_grid?.sizes).toEqual(['S', 'M', 'XXL']);
+    expect(gridTotal(items[0].size_grid)).toBe(100);
+  });
+
+  it('id позиций, нанесений и бирок сохраняются — по ним сервер сопоставляет строки', () => {
+    const { items } = draftFromOrder(ORDER);
+    expect(items[0].id).toBe('it1');
+    expect(items[0].prints[0].id).toBe('p1');
+    expect(items[0].labels[0].id).toBe('l1');
+    // Ключи формы — свои: в базе их нет, а макеты привязываются по ним
+    expect(items[0].prints[0].key).toBeTruthy();
+    expect(items[0].prints[0].key).not.toBe('p1');
+  });
+
+  it('заказ без позиций открывается с одной пустой — иначе править нечего', () => {
+    const { items } = draftFromOrder({ ...ORDER, items: [] });
+    expect(items).toHaveLength(1);
+    expect(isItemEmpty(items[0])).toBe(true);
+  });
+
+  /**
+   * ИНВАРИАНТ: открыли и не тронули — форма описывает тот же заказ.
+   * Проверяется по тем полям, которые человек действительно вводит:
+   * расхождение в любом из них означает, что правка заказа молча меняет
+   * данные, которых её не просили менять.
+   */
+  it('открытая и не тронутая форма описывает ТОТ ЖЕ заказ', () => {
+    const { form, items } = draftFromOrder(ORDER);
+    expect(form.title).toBe(ORDER.title);
+    expect(form.manager).toBe(ORDER.manager);
+    expect(form.launch_date).toBe(ORDER.launch_date);
+    expect(form.packaging).toBe(ORDER.packaging);
+    expect(form.stickers).toBe(ORDER.stickers);
+
+    const it = items[0];
+    expect(it.product_type).toBe(ORDER.items[0].product_type);
+    expect(it.variant).toBe(ORDER.items[0].variant);
+    expect(it.fit).toBe(ORDER.items[0].fit);
+    expect(Number(it.qty)).toBe(ORDER.items[0].qty);
+    expect(it.main_fabric).toBe(ORDER.items[0].main_fabric);
+    expect(it.color_supplier).toBe(ORDER.items[0].color_supplier);
+    expect(it.production_type).toBe(ORDER.items[0].production_type);
+    expect(it.branding_on).toBe(ORDER.items[0].branding_on);
+    // Сетка не теряет ни строк, ни чисел
+    expect(gridToPayload(it.size_grid)).toEqual(ORDER.items[0].size_grid);
+    // Нанесение с блоком «есть нанесения» раскрытым — иначе оно исчезнет с глаз
+    expect(it.has_branding).toBe(true);
+    expect(it.prints[0].method).toBe('embroidery');
+    expect(it.prints[0].width_mm).toBe(80);
+  });
+
+  it('умолчания проставляются там, где колонки нет вовсе', () => {
+    // Заказ, заведённый до появления колонки: «не задано» обязано читаться
+    // так же, как читает его расчёт маршрута, — иначе правка изменит маршрут
+    const { form, items } = draftFromOrder({ items: [{ id: 'i', product_type: 'Кепка' }] });
+    expect(form.purchase_required).toBe(true);
+    expect(form.packaging).toBe('none');
+    expect(items[0].production_type).toBe('sewing');
+    expect(items[0].garment_source).toBe('purchased');
+    expect(items[0].packaging).toBe('inherit');
+    expect(items[0].has_branding).toBe(false);
+  });
+});
+
+/**
+ * Ключ строки позиции (обзор 26.09, п. 23): у каждой позиции свой, ключи
+ * дописываются старым черновикам и заказу из базы. Без ключа форма вернулась
+ * бы к индексу — и раскрытые блоки переезжали бы при удалении соседки.
+ */
+describe('DraftItem.key — ключ строки формы', () => {
+  it('newDraftItem даёт уникальный ключ и остальные поля EMPTY_ITEM', () => {
+    const a = newDraftItem();
+    const b = newDraftItem();
+    expect(a.key).toBeTruthy();
+    expect(a.key).not.toBe(b.key);
+    expect({ ...a, key: undefined }).toEqual({ ...EMPTY_ITEM, key: undefined });
+  });
+
+  it('черновик без ключей позиций получает их при восстановлении', () => {
+    localStorage.setItem(ORDER_DRAFT_KEY, JSON.stringify({
+      form: { title: 'Без ключей' },
+      items: [{ product_type: 'Футболка' }, { product_type: 'Худи' }],
+    }));
+    const restored = loadOrderDraft();
+    const keys = (restored?.items ?? []).map((it) => it.key);
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('позиции заказа из базы получают ключи', () => {
+    const { items } = draftFromOrder({
+      items: [{ id: 'i1', product_type: 'Футболка' }, { id: 'i2', product_type: 'Худи' }],
+    } as never);
+    expect(items.map((it) => it.key).every(Boolean)).toBe(true);
+    expect(items[0].key).not.toBe(items[1].key);
+  });
+});

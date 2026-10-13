@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StepSummary from './StepSummary';
 import { useStore } from '../../store/useStore';
 import { useOrdersStore } from '../../store/useOrdersStore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 // Mock supabase for useOrdersStore
 vi.mock('../../lib/supabase', () => ({
@@ -30,6 +31,10 @@ vi.mock('../../utils/pricing', () => ({
   getLabelConfigPrice: vi.fn(() => 0),
   calcExtrasCost: vi.fn(() => 0),
 }));
+
+// Перенос в «Заказы v4» — модуль грузится по клику, здесь подменён
+const transfer = vi.hoisted(() => ({ transferWizardToSales: vi.fn() }));
+vi.mock('../../orderstudio/wizard/transferToSales', () => transfer);
 
 // Mock mockup
 vi.mock('../../utils/mockup', () => ({
@@ -230,5 +235,70 @@ describe('StepSummary', () => {
     const saveBtn = screen.getByText(/Сохранить заказ/);
     expect(saveBtn.disabled).toBe(true);
     expect(saveBtn.getAttribute('title')).toBe('Заполните обязательные поля');
+  });
+});
+
+describe('StepSummary — «Оформить как заказ v4»', () => {
+  const V4 = 'Оформить как заказ v4';
+  const renderRoutes = () => render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="/" element={<StepSummary />} />
+        <Route path="/sales/:id" element={<div>Карточка v4</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  beforeEach(() => {
+    transfer.transferWizardToSales.mockReset();
+    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' }, previewRole: null });
+  });
+
+  it('кнопки нет у менеджера и в просмотре «как менеджер»', () => {
+    useAuthStore.setState({ user: { name: 'Аня', role: 'manager' } });
+    const { unmount } = renderSummary();
+    expect(screen.queryByText(V4)).toBeNull();
+    unmount();
+    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' }, previewRole: 'manager' });
+    renderSummary();
+    expect(screen.queryByText(V4)).toBeNull();
+  });
+
+  it('кнопки нет при правке заказа из канбана — перенос не плодит копию', () => {
+    useStore.setState({ _editingOrderId: 'old-1' });
+    renderSummary();
+    expect(screen.queryByText(V4)).toBeNull();
+  });
+
+  it('перенос: карточка v4 открыта, черновик главной стёрт, визард сброшен', async () => {
+    const resetOrder = vi.fn();
+    useStore.setState({ resetOrder });
+    localStorage.setItem('pinhead_draft', '{"step":4}');
+    transfer.transferWizardToSales.mockResolvedValue({ id: 'o-1', number: 'PH-0042', notes: '' });
+    renderRoutes();
+    fireEvent.click(screen.getByText(V4));
+    expect(await screen.findByText('Карточка v4')).toBeInTheDocument();
+    expect(transfer.transferWizardToSales).toHaveBeenCalledWith('Илья');
+    expect(resetOrder).toHaveBeenCalled();
+    expect(localStorage.getItem('pinhead_draft')).toBeNull();
+  });
+
+  it('сбой переноса — остаёмся в «Итоге», визард и черновик целы', async () => {
+    const resetOrder = vi.fn();
+    useStore.setState({ resetOrder });
+    localStorage.setItem('pinhead_draft', '{"step":4}');
+    transfer.transferWizardToSales.mockResolvedValue(null);
+    renderRoutes();
+    fireEvent.click(screen.getByText(V4));
+    expect(await screen.findByText(V4)).toBeInTheDocument();
+    expect(transfer.transferWizardToSales).toHaveBeenCalled();
+    expect(resetOrder).not.toHaveBeenCalled();
+    expect(localStorage.getItem('pinhead_draft')).toBe('{"step":4}');
+  });
+
+  it('заблокирована, пока в заказе ошибки', () => {
+    useStore.setState({ name: '' });
+    renderSummary();
+    expect(screen.getByText(V4).closest('button').disabled).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import PageHeader from '../shared/PageHeader';
 import { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
 import { useStore } from '../../store/useStore';
 import { TYPE_NAMES } from '../../data';
-import { getDeadlineColor, getDeadlineLabel } from '../../utils/deadline';
+import { formatDeadlineShort, getDeadlineColor, getDeadlineLabel } from '../../utils/deadline';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import styles from './Dashboard.module.css';
 import { SkeletonTable } from '../shared/Skeleton';
+import { addDays, factoryToday } from '../../utils/date';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Title, Tooltip, Legend);
 
@@ -101,7 +102,7 @@ function exportCSV(orders) {
   const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `pinhead-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.href = url; a.download = `pinhead-orders-${factoryToday()}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 
@@ -361,15 +362,13 @@ function ProductionTab({ orders }) {
   }, [productionOrders]);
 
   const deadlineOrders = useMemo(() => {
-    const now = new Date(); now.setHours(0, 0, 0, 0);
-    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() + 14);
+    // Сроки — строки YYYY-MM-DD: сравниваются как строки, без Date и пояса
+    const cutoff = addDays(factoryToday(), 14);
+    const dayOf = (o) => String(o.data.deadline).slice(0, 10);
     return activeOrders
       .filter(o => o.data?.deadline)
-      .filter(o => {
-        const dl = new Date(o.data.deadline);
-        return dl <= cutoff || dl < now;
-      })
-      .sort((a, b) => new Date(a.data.deadline) - new Date(b.data.deadline));
+      .filter(o => dayOf(o) <= cutoff)
+      .sort((a, b) => dayOf(a).localeCompare(dayOf(b)));
   }, [activeOrders]);
 
   const weeklyLoad = useMemo(() => {
@@ -449,7 +448,7 @@ function ProductionTab({ orders }) {
               const dl = o.data.deadline;
               const color = getDeadlineColor(dl);
               const label = getDeadlineLabel(dl);
-              const dlDate = new Date(dl).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+              const dlDate = formatDeadlineShort(dl);
               return (
                 <div key={o.id} className="dash-deadline-row">
                   <span className="dash-dl-dot" style={{ background: color }} />

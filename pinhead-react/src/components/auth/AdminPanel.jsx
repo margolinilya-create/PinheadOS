@@ -9,8 +9,24 @@ import { toast } from '../../store/useToastStore';
 import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
 import { SkeletonTable } from '../shared/Skeleton';
+/**
+ * Единая админка смонтирована и в ERP (вкладка «Заказы ТЗ» в AdminScreen),
+ * то есть вне Order Studio, — а разметка здесь на его классах
+ * (.page-header-*, .page-tabs, .empty-state, .kanban-page, .kb-search,
+ * .sku-table). Раньше они приезжали глобально; теперь стили раздела едут
+ * со своим чанком, поэтому нужные файлы импортирует тот, кто их использует.
+ * Компонент ленивый в обоих местах — в оболочку это не попадает.
+ */
+/* Тот же порядок, что у OrderStudioApp: forms-buttons перед остальными */
+import '../../styles/forms-buttons.css'
+import '../../styles/wizard.css'
+import '../../styles/extras-zones.css'
+import '../../styles/kanban.css'
+import '../../styles/editors.css'
+/* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
+import '../../styles/responsive.css'
 
-export default function AdminPanel() {
+export default function AdminPanel({ ordersOnly = false }) {
   const [tab, setTab] = useState('orders');
 
   // Orders from store (shared with KanbanBoard/Dashboard)
@@ -85,19 +101,46 @@ export default function AdminPanel() {
 
   const totalRevenue = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
 
+  /**
+   * ВСТРОЕННЫЙ РЕЖИМ (`ordersOnly`) — БЕЗ СВОЕЙ ОБОЛОЧКИ (обход 04.09).
+   *
+   * Панель монтируется вкладкой «Заказы ТЗ» внутри админки раздела
+   * «Производство», а несла с собой полный каркас страницы Order Studio:
+   * `.kanban-page` объявлен `height: calc(100vh - 52px); overflow: hidden`,
+   * и внутри вкладки это давало коробку фиксированной высоты — карточка
+   * обрывалась, а селект и таблица висели на фоне страницы. Сверху при этом
+   * стояли чужие «← Назад», второй заголовок и второй ряд вкладок с одной
+   * вкладкой: две навигации одна в другой.
+   *
+   * Встроенная панель отдаёт ТОЛЬКО содержимое, а заголовок, вкладки
+   * и прокрутку даёт принимающий экран.
+   */
+  const refresh = () => { fetchOrders(); loadUsers(); };
+
   return (
-    <div className="kanban-page">
-      <PageHeader
-        title="АДМИН-ПАНЕЛЬ"
-        badge={`${orders.length} ${pluralize(orders.length, 'заказ', 'заказа', 'заказов')} · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
-        actions={<button className="btn" onClick={() => { fetchOrders(); loadUsers(); }}>Обновить</button>}
-        tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
-        activeTab={tab}
-        onTabChange={setTab}
-      />
+    <div className={ordersOnly ? undefined : 'kanban-page'}>
+      {ordersOnly ? (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <strong>
+            {orders.length} {pluralize(orders.length, 'заказ', 'заказа', 'заказов')}
+            {' · '}
+            {totalRevenue.toLocaleString('ru-RU')} ₽
+          </strong>
+          <button type="button" className="btn" onClick={refresh}>Обновить</button>
+        </div>
+      ) : (
+        <PageHeader
+          title="АДМИН-ПАНЕЛЬ"
+          badge={`${orders.length} ${pluralize(orders.length, 'заказ', 'заказа', 'заказов')} · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
+          actions={<button className="btn" onClick={refresh}>Обновить</button>}
+          tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
+          activeTab={tab}
+          onTabChange={setTab}
+        />
+      )}
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 40px 40px' }}>
+      <div style={ordersOnly ? undefined : { flex: 1, overflowY: 'auto', padding: '20px 40px 40px' }}>
         {tab === 'orders' ? (
           <>
             {/* Search + Filter */}
@@ -114,7 +157,7 @@ export default function AdminPanel() {
                 onChange={e => setStatusFilter(e.target.value)}
                 style={{
                   border: '1.5px solid #ccc', padding: '6px 12px',
-                  fontFamily: "'Roboto Condensed', sans-serif", fontSize: 12,
+                  fontFamily: 'var(--font-display)', fontSize: 12,
                 }}
               >
                 <option value="all">Все статусы</option>
@@ -212,7 +255,7 @@ export default function AdminPanel() {
                       onChange={e => changeRole(u.id, e.target.value)}
                       style={{
                         border: '1.5px solid #ccc', padding: '2px 8px',
-                        fontFamily: "'Roboto Condensed', sans-serif", fontSize: 11, fontWeight: 600,
+                        fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600,
                         background: u.role === 'admin' ? '#1D19EA' : 'transparent',
                         color: u.role === 'admin' ? '#fff' : '#000',
                       }}

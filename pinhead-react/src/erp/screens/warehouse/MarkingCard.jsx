@@ -1,0 +1,76 @@
+import { useState } from 'react';
+import { orderQty } from '../../utils/shipment';
+import { formatDateShort } from '../../utils/time';
+import { MARKING_STATUS_LABELS } from '../../types';
+import styles from '../../styles';
+import { DateField } from '../../components/DateField';
+import { Button } from '../../components/Button';
+
+/**
+ * Задача склада «Выпуск маркировки»: авто-создаётся при входе заказа в швейку.
+ * Новая → В работе → Маркировка выпущена. Показывает изделия, кол-во, тип маркировки, срок.
+ */
+
+const NEXT = { new: 'in_progress', in_progress: 'issued' };
+const NEXT_LABEL = { new: 'Взять в работу', in_progress: 'Маркировка выпущена' };
+
+export function MarkingCard({ order, task, onAdvance }) {
+  const [markingType, setMarkingType] = useState(task.marking_type ?? '');
+  const [deadline, setDeadline] = useState(task.deadline ?? '');
+  const [saving, setSaving] = useState(false);
+  const next = NEXT[task.status];
+  const totalQty = orderQty(order);
+
+  const advance = async () => {
+    if (!next) return;
+    setSaving(true);
+    await onAdvance(task.id, next, {
+      marking_type: markingType.trim() || null,
+      deadline: deadline || null,
+    });
+    setSaving(false);
+  };
+
+  return (
+    <section className={styles.matSection}>
+      <div className={styles.matSectionHead}>
+        <div>
+          <span className={styles.subText}>Выпуск маркировки</span>
+          <div><strong>№{order.bitrix_id || '—'} · {order.title}</strong></div>
+          <div className={styles.subText}>
+            {order.items.map((it) => `${it.product_type}${it.variant ? ` · ${it.variant}` : ''} × ${it.qty}`).join('; ')}
+            {' · всего '}{totalQty}
+          </div>
+        </div>
+        <span className={`${styles.chip} ${task.status === 'issued' ? styles.chipDone : styles.chipProgress}`}>
+          {MARKING_STATUS_LABELS[task.status]}
+        </span>
+      </div>
+
+      {task.status !== 'issued' && (
+        <div className={styles.checkRow}>
+          <input
+            className={`${styles.input} ${styles.wName}`}
+            placeholder="Тип маркировки (напр. Честный знак)"
+            value={markingType} onChange={(e) => setMarkingType(e.target.value)}
+            aria-label="Тип маркировки"
+          />
+          <DateField
+            className={`${styles.input} ${styles.wCode}`}
+            value={deadline} onChange={setDeadline}
+            aria-label="Срок выпуска маркировки"
+          />
+          <Button variant="primary" disabled={saving} onClick={advance}>
+            {NEXT_LABEL[task.status]}
+          </Button>
+        </div>
+      )}
+      {task.status === 'issued' && (task.marking_type || task.deadline) && (
+        <div className={styles.subText}>
+          {task.marking_type ? `Тип: ${task.marking_type}` : ''}
+          {task.deadline ? ` · срок ${formatDateShort(task.deadline)}` : ''}
+        </div>
+      )}
+    </section>
+  );
+}

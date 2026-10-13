@@ -1,0 +1,459 @@
+import { useMemo, useRef, useState } from 'react';
+import { Modal } from '../../components/Modal';
+import { Button } from '../../components/Button';
+import { DateField } from '../../components/DateField';
+import { DictionaryDatalist } from '../../components/DictionaryDatalist';
+import { PurchaseSizeTable } from './PurchaseSizeTable';
+import { FieldError } from '../orders/create/FormParts';
+import { garmentPurchaseCandidates, garmentPurchaseDraft } from '../../utils/garmentPurchase';
+import { useDictionary } from '../../store/useDictionary';
+import { scrollIntoViewSafely } from '../../utils/scrollIntoViewSafely';
+import { unitShortLabel } from '../../utils/materialUnit';
+import {
+  KIND_LABELS, PURCHASE_FIELD_LABELS, SOURCE_LABELS,
+  pricePerUnitLabel, priceRequiredFor, validatePurchaseForm,
+} from './purchaseLabels';
+import styles from '../../styles';
+
+/**
+ * Модалка «Новая закупка».
+ *
+ * Вынесена из `FabricPurchasing.jsx` 27.09 (правка 1): экран стоял на потолке
+ * ратчета размера, а модалка — самостоятельная форма со своей валидацией.
+ *
+ * `orderId` предвыбирает заказ: из очереди закупки материал заводят конкретному
+ * заказу, и заставлять искать его в списке из полусотни — лишний шаг ровно там,
+ * где человек уже сказал, о каком заказе речь.
+ *
+ * Селект заказа остаётся: он показывает, КУДА уедет строка, — а с 04.09
+ * единственный вход в модалку идёт из карточки, то есть приходит заполненным.
+ *
+ * ОБЯЗАТЕЛЬНЫЕ ПОЛЯ ПОДСВЕЧИВАЮТСЯ (правка 27.09, п. 1): «при нажатии
+ * „Добавить" подсвечивать красной обводкой все незаполненные обязательные
+ * поля». До правки `submit` останавливался тостом на первой ошибке —
+ * человек чинил одно поле и получал следующий тост. Теперь ошибки считает
+ * `validatePurchaseForm` по всем полям сразу, а форма ставит рамку,
+ * `aria-invalid`, текст под полем и уводит фокус на первое ошибочное —
+ * тем же приёмом, что форма создания заказа. Тоста нет: он не показывает, ГДЕ.
+ *
+ * ГРУППЫ ПОЛЕЙ И ПОЛЯ ПО ТИПУ (правка 05.10, п. 6): «поля группами: материал
+ * и поставщик, количества и цена, даты, параметры ткани… Ткань — ширина
+ * и плотность; готовое изделие — размерная сетка; поля другого типа
+ * скрывать». Сплошная сетка из пятнадцати полей не говорила, какие из них
+ * про что, и у фурнитуры спрашивала плотность.
+ *
+ * «ФАКТИЧЕСКОГО КОЛИЧЕСТВА» БОЛЬШЕ НЕТ: при создании приёмки ещё не было,
+ * а слово читалось как приход. Вместо него — необязательное «Заказано
+ * поставщику» (`qty_ordered`); принятое ведёт только журнал приёмок.
+ */
+
+const EMPTY_MAT = {
+  order_id: '', kind: 'fabric', name: '', source: 'purchase', supplier: '',
+  color: '', article: '', qty: '', unit: '', price_per_unit: '', eta_date: '',
+  // Параметры полотна для учёта в метрах (правка 27.09, п. 4): ширина, см
+  // и плотность, г/м² — подставляются в рулоны при приёмке
+  width_cm: '', density_gsm: '',
+  // Потребность из заказа и сколько заказано у поставщика (правки 14.09,
+  // п. 2 и 05.10, п. 6) — две разные величины, и вторая необязательна
+  qty_expected: '', qty_ordered: '', ordered_on: '',
+  // Закупка ГОТОВОГО ИЗДЕЛИЯ (правка 16.09, п. 2): позиция заказа и её
+  // размерная разбивка. Пусто — обычная закупка материала
+  item_id: '', size_grid: null,
+  // Фактически заказано по размерам (правка 20.09, п. 2) — отдельно
+  // от потребности: по ней считается qty_expected
+  size_grid_ordered: null,
+};
+
+export function AddPurchaseModal({ orders, orderId = '', onAdd, onClose }) {
+  const [form, setForm] = useState({ ...EMPTY_MAT, order_id: orderId });
+  const [saving, setSaving] = useState(false);
+  /** Нажимал ли «Добавить»: до этого подсветки нет — пустая форма не «ошибка» */
+  const [submitted, setSubmitted] = useState(false);
+  const bodyRef = useRef(null);
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  /**
+   * Подпись и обязательность цены — по виду и единице материала (п. 1).
+   * Справочник единиц тот же, что у приёмки: в `unit` на бою лежат и код
+   * («кг»), и имя («Килограммы») одного значения.
+   */
+  const units = useDictionary('unit');
+  const priceLabel = pricePerUnitLabel(form.unit, units);
+  /** Подпись количества с выбранной единицей: «Нужно по заказу, кг» */
+  const unitShort = unitShortLabel(form.unit, units);
+  const withUnit = (label) => (unitShort ? `${label}, ${unitShort}` : label);
+  const priceRequired = priceRequiredFor(form.kind);
+  const qtyRequired = form.source === 'purchase';
+
+  const errors = useMemo(
+    () => (submitted ? validatePurchaseForm(form, { priceRequired, priceLabel }) : {}),
+    [submitted, form, priceRequired, priceLabel],
+  );
+  const err = (key) => errors[key];
+  const cls = (base, key) => (err(key) ? `${base} ${styles.inputError}` : base);
+  const invalidProps = (key, errId) => ({
+    'aria-invalid': err(key) ? true : undefined,
+    'aria-describedby': err(key) ? errId : undefined,
+    'data-invalid': err(key) ? true : undefined,
+  });
+
+  /**
+   * Позиции выбранного заказа, которые закупаются как ГОТОВОЕ ИЗДЕЛИЕ.
+   * Правило одно на всю систему — `garmentPurchaseCandidates`: оно же решает,
+   * есть ли у позиции этап «Закупка» в маршруте.
+   */
+  const garmentItems = useMemo(() => {
+    const order = orders.find((o) => o.id === form.order_id);
+    return garmentPurchaseCandidates(order?.items);
+  }, [orders, form.order_id]);
+
+  /**
+   * Подстановка из позиции. Сброс на пустой выбор возвращает обычную закупку
+   * материала — иначе в форме остались бы поля изделия без самого изделия.
+   */
+  const pickGarment = (itemId) => {
+    if (!itemId) {
+      set({ item_id: '', size_grid: null, size_grid_ordered: null });
+      return;
+    }
+    const draft = garmentPurchaseDraft(garmentItems.find((i) => i.id === itemId));
+    if (!draft) return;
+    set({
+      item_id: draft.item_id,
+      kind: draft.kind,
+      name: draft.name,
+      color: draft.color ?? '',
+      unit: draft.unit,
+      size_grid: draft.size_grid,
+      qty_expected: String(draft.qty_expected),
+    });
+  };
+
+  /**
+   * Смена типа убирает поля чужого типа (правка 05.10, п. 6): у ткани
+   * ширина и плотность, у готового изделия — позиция и её сетка. Оставленные
+   * в состоянии, они уехали бы в строку закупки невидимыми.
+   */
+  const pickKind = (kind) => set({
+    kind,
+    ...(kind === 'fabric' ? {} : { width_cm: '', density_gsm: '' }),
+    ...(kind === 'finished_good' ? {} : { item_id: '', size_grid: null, size_grid_ordered: null }),
+  });
+
+  const submit = async () => {
+    setSubmitted(true);
+    /**
+     * План прихода БОЛЬШЕ НЕ ОБЯЗАТЕЛЕН (правка заказчика 16.08, п. 13):
+     * «менеджер зачастую не знает эту информацию на момент запуска, поле должен
+     * заполнять закупщик после взаимодействия с поставщиком». Строку заводят
+     * ДО разговора с поставщиком — и раньше её нельзя было завести вовсе,
+     * не выдумав дату.
+     *
+     * Количество обязательным остаётся: без него закупка не закроется
+     * автоматически (`supply.missingPlan`), то есть строка просто застрянет.
+     *
+     * ЦЕНА ТКАНИ ОБЯЗАТЕЛЬНА (правка 21.09, п. 1). Гейт стоит на ЗАВЕДЕНИИ
+     * строки, и ровно такой же — в триггере на INSERT: страж разрешает то же,
+     * что разрешает интерфейс. На правку уже заведённых строк он не
+     * распространяется — десять тканей из семнадцати на бою без цены,
+     * и требование при каждой правке заперло бы их целиком.
+     */
+    const found = validatePurchaseForm(form, { priceRequired, priceLabel });
+    if (Object.keys(found).length > 0) {
+      requestAnimationFrame(() => {
+        const el = bodyRef.current?.querySelector('[data-invalid="true"]');
+        scrollIntoViewSafely(el, { block: 'center' });
+        if (typeof el?.focus === 'function') el.focus({ preventScroll: true });
+      });
+      return;
+    }
+    setSaving(true);
+    /**
+     * ДВА КОЛИЧЕСТВА (правка заказчика 14.09, п. 2): потребность производства
+     * и факт заказа у поставщика. До 14.09 поле было одно (правка 30.08, п. 8)
+     * и заполняло обе колонки — документ просит их разделить, потому что
+     * «плановую потребность и фактически заказанное легко перепутать».
+     *
+     * ОБЯЗАТЕЛЬНА ПОТРЕБНОСТЬ: `qty_expected` — знаменатель приёмки на складе
+     * и условие автозакрытия закупки (`supply.missingPlan`). Строка без неё
+     * не закроется автоматически НИКОГДА. Факт может быть пустым: счёт
+     * поставщика приходит позже, чем заводится строка.
+     */
+    const qtyExpected = Number(form.qty_expected);
+    const row = await onAdd(form.order_id, {
+      kind: form.kind, name: form.name.trim(), source: form.source,
+      supplier: form.supplier.trim() || null, color: form.color.trim() || null,
+      article: form.article.trim() || null, qty: form.qty.trim() || null,
+      qty_expected: form.qty_expected === '' ? null : qtyExpected,
+      // Ткань без единицы считается в кг (правка 01.10, п. 1): пустая
+      // единица уводила приёмку мимо рулонов, и закрой потом вставал
+      unit: form.unit.trim() || (form.kind === 'fabric' ? 'кг' : null),
+      price_per_unit: form.price_per_unit === '' ? null : Number(form.price_per_unit),
+      eta_date: form.eta_date || null,
+      width_cm: form.kind === 'fabric' && form.width_cm !== '' ? Number(form.width_cm) : null,
+      density_gsm: form.kind === 'fabric' && form.density_gsm !== '' ? Number(form.density_gsm) : null,
+      qty_ordered: form.qty_ordered === '' ? null : Number(form.qty_ordered),
+      ordered_on: form.ordered_on || null,
+      /**
+       * Закупка готового изделия принадлежит ПОЗИЦИИ и несёт её разбивку
+       * (правка 16.09, п. 2). При непустой сетке `qty_expected` пересчитает
+       * триггер — сумма по размерам и «общая потребность» это одно число.
+       */
+      item_id: form.item_id || null,
+      size_grid: form.size_grid,
+      size_grid_ordered: form.size_grid_ordered,
+      status: form.source === 'purchase' || form.source === 'stock' ? 'pending' : 'received',
+    });
+    setSaving(false);
+    if (row) onClose();
+  };
+
+  const isFabric = form.kind === 'fabric';
+  const isGarment = form.kind === 'finished_good';
+
+  return (
+    <Modal title="Новая закупка" onClose={onClose} closeOnOverlay={false} closeOnEscape={false}>
+      <div ref={bodyRef}>
+        <fieldset className={styles.formGroup}>
+          <legend className={styles.formGroupTitle}>Материал и поставщик</legend>
+          <div className={styles.formGrid}>
+            {/*
+              Заказ приходит выбранным, когда окно открыто из закупки заказа
+              (правка 05.10, п. 6): селект остаётся, потому что показывает,
+              КУДА уедет строка.
+            */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Заказ *</span>
+              <select
+                className={cls(styles.select, 'order_id')}
+                value={form.order_id}
+                onChange={(e) => set({ order_id: e.target.value })}
+                aria-label="Заказ"
+                {...invalidProps('order_id', 'err-purchase-order')}
+              >
+                <option value="">Выберите заказ…</option>
+                {orders.map((o) => <option key={o.id} value={o.id}>№{o.bitrix_id || '—'} · {o.title}</option>)}
+              </select>
+              <FieldError id="err-purchase-order" text={err('order_id')} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Тип</span>
+              <select className={styles.select} value={form.kind} onChange={(e) => pickKind(e.target.value)} aria-label="Тип материала">
+                {Object.entries(KIND_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
+            <label className={`${styles.field} ${styles.fieldWide}`}>
+              <span className={styles.fieldLabel}>Материал *</span>
+              <input
+                className={cls(styles.input, 'name')}
+                value={form.name}
+                onChange={(e) => set({ name: e.target.value })}
+                placeholder="Кулирка 230гр чёрная"
+                aria-label="Материал"
+                {...invalidProps('name', 'err-purchase-name')}
+              />
+              <FieldError id="err-purchase-name" text={err('name')} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Цвет</span>
+              <input className={styles.input} value={form.color} onChange={(e) => set({ color: e.target.value })} aria-label="Цвет" />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Артикул</span>
+              <input className={styles.input} value={form.article} onChange={(e) => set({ article: e.target.value })} aria-label="Артикул" />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Источник</span>
+              <select className={styles.select} value={form.source} onChange={(e) => set({ source: e.target.value })} aria-label="Источник">
+                {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Поставщик</span>
+              {/* Подсказки из справочника поставщиков (правка 12), ввод свободный */}
+              <DictionaryDatalist kind="supplier" id="erp-suppliers-modal" />
+              <input
+                className={styles.input}
+                value={form.supplier}
+                onChange={(e) => set({ supplier: e.target.value })}
+                list="erp-suppliers-modal"
+                aria-label="Поставщик"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className={styles.formGroup}>
+          <legend className={styles.formGroupTitle}>Количество и цена</legend>
+          <div className={styles.formGrid}>
+            {/* Единица — метка, а не коэффициент: от неё подписи количества
+                и цены («Цена за кг, ₽»), поэтому она стоит первой в группе */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Единица</span>
+              <input
+                className={styles.input}
+                value={form.unit}
+                onChange={(e) => set({ unit: e.target.value })}
+                list="erp-units"
+                placeholder="кг, м, шт"
+                aria-label="Единица измерения"
+              />
+              <DictionaryDatalist id="erp-units" kind="unit" />
+            </label>
+            {/*
+              ДВА КОЛИЧЕСТВА, И ОНИ РАЗНЫЕ (правки 14.09, п. 2 и 05.10, п. 6).
+              Обязательна ПОТРЕБНОСТЬ: без неё строка не закроется
+              автоматически никогда (`supply.missingPlan`). «Заказано
+              поставщику» пусто, пока счёта нет, — и больше не едет
+              за потребностью подстановкой: заполненное до разговора
+              с поставщиком, оно делало строку «оформленной» раньше времени.
+              Подписи несут выбранную единицу — «нужно 100» без «кг» читается
+              как штуки.
+            */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                {withUnit(PURCHASE_FIELD_LABELS.qtyExpected)}{qtyRequired ? ' *' : ''}
+              </span>
+              <input
+                type="number" min="0" step="any"
+                className={cls(styles.input, 'qty_expected')}
+                value={form.qty_expected}
+                onChange={(e) => set({ qty_expected: e.target.value.replace('-', '') })}
+                aria-label={PURCHASE_FIELD_LABELS.qtyExpected}
+                {...invalidProps('qty_expected', 'err-purchase-qty')}
+              />
+              <FieldError id="err-purchase-qty" text={err('qty_expected')} />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>{withUnit(PURCHASE_FIELD_LABELS.qtyOrdered)}</span>
+              <input
+                type="number" min="0" step="any" className={styles.input}
+                value={form.qty_ordered}
+                onChange={(e) => set({ qty_ordered: e.target.value.replace('-', '') })}
+                aria-label={PURCHASE_FIELD_LABELS.qtyOrdered}
+              />
+            </label>
+            {/* ЦЕНА ПОДПИСАНА ЕДИНИЦЕЙ МАТЕРИАЛА (правка 21.09, п. 1) и обязательна
+                у ткани: по ней считается себестоимость полотна */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                {priceLabel}{priceRequired ? ' *' : ''}
+              </span>
+              <input
+                type="number" min="0" step="0.01"
+                className={cls(styles.input, 'price_per_unit')}
+                value={form.price_per_unit}
+                onChange={(e) => set({ price_per_unit: e.target.value })}
+                aria-label={priceLabel}
+                {...invalidProps('price_per_unit', 'err-purchase-price')}
+              />
+              <FieldError id="err-purchase-price" text={err('price_per_unit')} />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className={styles.formGroup}>
+          <legend className={styles.formGroupTitle}>Даты</legend>
+          <div className={styles.formGrid}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Дата заказа</span>
+              <DateField
+                value={form.ordered_on}
+                onChange={(v) => set({ ordered_on: v })}
+                aria-label="Дата заказа"
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>План прихода</span>
+              <DateField value={form.eta_date} onChange={(v) => set({ eta_date: v })} aria-label="План прихода" />
+            </label>
+          </div>
+        </fieldset>
+
+        {/*
+          ШИРИНА И ПЛОТНОСТЬ ПОЛОТНА (правка 27.09, п. 4): по ним склад
+          считает метраж каждого рулона при приёмке. Не обязательны —
+          закрой дозаполнит до записи расхода. Только у ткани.
+        */}
+        {isFabric && (
+          <fieldset className={styles.formGroup}>
+            <legend className={styles.formGroupTitle}>Параметры ткани</legend>
+            <div className={styles.formGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Ширина полотна, см</span>
+                <input
+                  type="number" min="0" step="1" className={styles.input}
+                  value={form.width_cm}
+                  onChange={(e) => set({ width_cm: e.target.value.replace('-', '') })}
+                  aria-label="Ширина полотна, см"
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Плотность, г/м²</span>
+                <input
+                  type="number" min="0" step="1" className={styles.input}
+                  value={form.density_gsm}
+                  onChange={(e) => set({ density_gsm: e.target.value.replace('-', '') })}
+                  aria-label="Плотность, г/м²"
+                />
+              </label>
+            </div>
+          </fieldset>
+        )}
+
+        {/*
+          ЗАКУПКА ГОТОВОГО ИЗДЕЛИЯ СОБИРАЕТСЯ ИЗ ПОЗИЦИИ (правка 16.09, п. 2):
+          «одна закупка на 100 футболок с разбивкой внутри». Выбор позиции
+          заполняет наименование, цвет, тираж и размерную сетку разом.
+          С 05.10 группа видна только у типа «Готовое изделие».
+        */}
+        {isGarment && (
+          <fieldset className={styles.formGroup}>
+            <legend className={styles.formGroupTitle}>Размерная сетка</legend>
+            <div className={styles.formGrid}>
+              {garmentItems.length > 0 ? (
+                <label className={`${styles.field} ${styles.fieldWide}`}>
+                  <span className={styles.fieldLabel}>Готовое изделие из позиции заказа</span>
+                  <select
+                    className={styles.select}
+                    value={form.item_id}
+                    onChange={(e) => pickGarment(e.target.value)}
+                    aria-label="Готовое изделие из позиции заказа"
+                  >
+                    <option value="">Без позиции — только общее количество</option>
+                    {garmentItems.map((it) => (
+                      <option key={it.id} value={it.id}>
+                        {[it.product_type, it.variant].filter(Boolean).join(' ')}
+                        {' — '}
+                        {garmentPurchaseDraft(it)?.qty_expected ?? it.qty} шт
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <p className={`${styles.subText} ${styles.fieldWide}`}>
+                  Сетка берётся из позиции заказа «Готовое изделие». У выбранного
+                  заказа таких позиций нет — укажите общее количество.
+                </p>
+              )}
+              {/* Таблица «Размер / Нужно по заказу / Заказано поставщику»
+                  (правка 20.09, п. 2) */}
+              {form.size_grid && (
+                <PurchaseSizeTable
+                  plannedGrid={form.size_grid}
+                  orderedGrid={form.size_grid_ordered}
+                  onChange={(grid) => set({ size_grid_ordered: grid })}
+                  caption="Размеры закупки: нужно по заказу и заказано поставщику"
+                />
+              )}
+            </div>
+          </fieldset>
+        )}
+      </div>
+      <div className={styles.modalActions}>
+        <Button variant="ghost" onClick={onClose}>Отмена</Button>
+        <Button variant="primary" disabled={saving} onClick={submit}>Добавить</Button>
+      </div>
+    </Modal>
+  );
+}

@@ -60,6 +60,24 @@ function printSection(title, hits, ok) {
   }
 }
 
+/**
+ * CSS без комментариев, С СОХРАНЁННОЙ НУМЕРАЦИЕЙ СТРОК.
+ *
+ * Проверки этого скрипта строчные, а комментарий, объясняющий решение по цвету,
+ * содержит те же hex-коды, что и само решение. До 04.09 из-за этого скрипт
+ * находил четыре «захардкоженных цвета» — все четыре внутри блока
+ * `/* … *\/`, разбирающего, почему #888888 не проходит AA. То же правило,
+ * что у `withoutComments` в тестах миграций: проверка «этого здесь нет»
+ * ловится собственным объяснением, почему этого нет.
+ *
+ * Содержимое комментария заменяется пробелами, переводы строк сохраняются —
+ * иначе номера строк в отчёте перестали бы совпадать с файлом.
+ */
+function stripCssComments(content) {
+  return content.replace(/\/\*[\s\S]*?\*\//g, (block) =>
+    block.replace(/[^\n]/g, ' '));
+}
+
 // ── Allowed hex patterns (tokens, rgba, common safe values) ──
 
 const HEX_ALLOWLIST = new Set([
@@ -83,7 +101,7 @@ const indexCss = join(ROOT, 'src/index.css');
 
 const hexHits = [];
 for (const f of [...cssFiles, indexCss]) {
-  const lines = readFileSync(f, 'utf8').split('\n');
+  const lines = stripCssComments(readFileSync(f, 'utf8')).split('\n');
   lines.forEach((line, i) => {
     if (isAllowedHex(line)) return;
     // Match 6-digit or 3-digit hex codes
@@ -148,13 +166,28 @@ printSection(
 const keyframeNames = new Set();
 const motionCoveredNames = new Set();
 
-for (const f of [...cssFiles, indexCss]) {
-  const content = readFileSync(f, 'utf8');
-  // Collect all @keyframes names
+/**
+ * ДВА ПРОХОДА, А НЕ ОДИН — и это не педантизм.
+ *
+ * Универсальное правило `*, *::before, *::after { animation-duration: … }`
+ * покрывает ВСЕ анимации проекта и живёт в `styles/utils.css`. Пока проход был
+ * один, покрытие зависело от ПОРЯДКА ЧТЕНИЯ ФАЙЛОВ: встретив блок в utils.css,
+ * скрипт помечал покрытыми только те имена, что успел собрать, — а `fadeSlideIn`
+ * объявлен в `wizard.css`, который по алфавиту идёт позже. Результат: скрипт
+ * годами сообщал, что анимация визарда не покрыта, хотя она покрыта, и падал
+ * с кодом 1. Переставь файлы местами — «находка» исчезла бы сама.
+ *
+ * Сначала собираем ВСЕ имена, потом ищем покрытие.
+ */
+const cssContents = [...cssFiles, indexCss].map((f) => stripCssComments(readFileSync(f, 'utf8')));
+
+for (const content of cssContents) {
   for (const m of content.matchAll(/@keyframes\s+([\w-]+)/g)) {
     keyframeNames.add(m[1]);
   }
-  // Check which ones appear inside a prefers-reduced-motion block
+}
+
+for (const content of cssContents) {
   const motionBlocks = content.matchAll(/@media\s*\(prefers-reduced-motion[^)]*\)\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g);
   for (const block of motionBlocks) {
     const inner = block[0];

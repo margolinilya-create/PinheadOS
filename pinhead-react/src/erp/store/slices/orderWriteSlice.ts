@@ -1,0 +1,573 @@
+/**
+ * ЗАПИСЬ по заказу — доменный слайс, приезжает вместе с первым экраном.
+ *
+ * ЗАЧЕМ ОТДЕЛЬНО ОТ `ordersSlice`. Оболочку ERP грузят все и всегда, а список
+ * заказов ей нужен для бейджей и счётчиков — то есть нужно ЧТЕНИЕ. Запись
+ * (создание заказа, отгрузка, удаление, вложения, комментарии) не зовёт
+ * ни `ErpApp`, ни `layout/*`, ни один общий компонент: её потребители —
+ * ленивые экраны. При этом один только `createOrder` — 13 кБ исходника:
+ * он собирает payload из позиций, маршрута, нанесений, бирок, ТЗ и листа
+ * закупки, то есть тянет за собой `routeDraft`, `routes` и половину
+ * справочников формы.
+ *
+ * ПОЧЕМУ ЭТО БЕЗОПАСНО. Экран ERP заводится `lazyScreen`, который грузит
+ * доменный чанк ПАРАЛЛЕЛЬНО с чанком экрана и подключает слайсы до первой
+ * отрисовки. Голый `lazy` дал бы стор без половины действий — ошибку
+ * не при сборке и не при переходе, а при нажатии на кнопку, то есть у цеха;
+ * поэтому правило «только через `lazyScreen`» и сторожится тестом.
+ *
+ * Данные остаются в ядре (`domainState.ts`) — здесь только функции.
+ */
+
+import type { StateCreator } from 'zustand';
+import { supabase } from '../../../lib/supabase';
+import { toast } from '../../../store/useToastStore';
+import { formItemRoute, linearize, stepPayload } from '../../utils/routeDraft';
+import { invokeFunction } from '../adminUsers';
+import { isOrderReadyToShip } from '../../utils/stageUi';
+import { shipmentTotals } from '../../utils/shipment';
+import { isBypassed } from '../../utils/bypass';
+import { pluralize } from '../../../utils/i18n';
+import type {
+  ErpItemStage, ErpOrder, ErpOrderAttachment, ErpOrderStatus,
+} from '../../types';
+import { TZ_BUCKET } from '../../types';
+import {
+  currentActor, erpError, erpQuery, erpWrite, freeOfSkuCards,
+  withPending,
+} from '../shared';
+import { invalidate } from '../queryCache';
+import { ORDER_SELECT } from '../orderHelpers';
+import { orderBundleKey, orderFilePaths } from './ordersSlice';
+import type { ErpOrderComment, ErpStore, OrderWriteSlice } from '../types';
+import { orderAttachmentActions } from './orderAttachmentActions';
+
+export const orderWriteSlice: StateCreator<ErpStore, [], [], OrderWriteSlice> = (set, get) => ({
+  // Файлы заказа (загрузка, снятие, папки) — свой модуль, вынос 01.10
+  ...orderAttachmentActions(set, get),
+  createOrder: async (input) => {
+    const { departments } = get();
+    const deptByCode = new Map(departments.map((d) => [d.code, d]));
+    const {
+      items, tz, materials, attachments, notes_list: orderNotes, ...orderFields
+    } = input;
+
+    /**
+     * Цеха маршрута, которых нет в справочнике `erp_departments`.
+     *
+     * Такой этап молча выпадал из маршрута ВМЕСТЕ со ссылками на него в `depends_on`:
+     * позиция создавалась короче задуманного, а финальный ОТК, зависевший от
+     * выпавшего этапа, оставался вообще без зависимостей и был готов к запуску
+     * с первой секунды. Ошибкой это не считается (цех могли отключить осознанно),
+     * но и молчать нельзя — иначе о дыре в маршруте узнают на сдаче.
+     */
+    const droppedDepts = new Set<string>();
+    /** `stage:<позиция>:<группа>:<шаг>` → номер этапа внутри позиции */
+    const stageKeyIndex = new Map<string, number>();
+    /**
+     * Ключ нанесения/бирки формы → номер внутри позиции (правка 22.08,
+     * пп. 5.2–5.3). Тем же приёмом, что у подрядных шагов: строк на момент
+     * выбора файла ещё нет, а номер знает только тот код, который строит
+     * секции `prints`/`labels`. Считать его в другом месте значило бы
+     * завести второй порядок рядом с настоящим.
+     */
+    const printKeyIndex = new Map<string, number>();
+    const labelKeyIndex = new Map<string, number>();
+
+    // Маршрут (этапы + depends_on) считается на клиенте как раньше (buildRoute),
+    // а RPC erp_create_order атомарно вставляет всё в одной транзакции (п.28).
+    // depends_on в payload — индексы этапов той же позиции (всегда более ранних).
+    const payload = {
+      order: { ...orderFields, status: 'active' },
+      items: items.map((it, i) => {
+        // Правка 4.2.2 (вырезание supply при материале подрядчика) — внутри buildItemRoute,
+        // общего с превью маршрута в форме создания заказа.
+        /**
+         * Маршрут берётся из ЧЕРНОВИКА формы (`formItemRoute`), а не считается
+         * здесь заново: конструктор маршрута (правки заказчика 16.08) позволяет
+         * менеджеру править предложенный вариант, и второй расчёт означал бы,
+         * что заказ создаётся не по тому маршруту, который человек утвердил.
+         * Не тронутый маршрут `formItemRoute` отдаёт РОВНО расчётным —
+         * инвариант тождества сторожит `routeDraft.test.ts`.
+         */
+        const linear = linearize(formItemRoute(it, {
+          // Отметка «Закупка не требуется» — свойство ЗАКАЗА, и в расчёт
+          // маршрута она обязана попасть здесь же: у формы и у стора должно
+          // получиться одно и то же
+          needsPurchase: (orderFields as { purchase_required?: boolean })
+            .purchase_required !== false,
+        }));
+        for (const l of linear) {
+          if (!deptByCode.has(l.step.departmentCode)) droppedDepts.add(l.step.departmentCode);
+        }
+        /**
+         * Этап с неизвестным цехом выпадает, а зависимости пересчитываются
+         * по ОСТАВШИМСЯ: индексы в `depends_on` указывают на позиции в массиве,
+         * и отфильтровать элементы, не сдвинув ссылки, значит перепутать
+         * предшественников — молча и на каждом заказе.
+         */
+        const kept = linear.filter((l) => deptByCode.has(l.step.departmentCode));
+        /**
+         * Ключи шагов В ТОМ ЖЕ ПОРЯДКЕ, в каком этапы уедут в секцию `stages`.
+         * По ним файл подрядного шага находит свой `stage_index` — считать его
+         * отдельным обходом значило бы завести второй порядок этапов рядом
+         * с этим, и однажды они разойдутся (ровно как у строк закупки).
+         */
+        kept.forEach((l, at) => stageKeyIndex.set(`stage:${i}:${l.gi}:${l.si}`, at));
+        const newIndex = new Map<number, number>();
+        linear.forEach((l, oldIdx) => {
+          const at = kept.indexOf(l);
+          if (at >= 0) newIndex.set(oldIdx, at);
+        });
+        return {
+          product_type: it.product_type,
+          variant: it.variant || null,
+          qty: it.qty,
+          production_type: it.production_type,
+          branding_methods: it.branding_methods,
+          branding_on: it.branding_on,
+          notes: it.notes || null,
+          size_grid: it.size_grid ?? null,
+          sort_order: (i + 1) * 10,
+          // Подряд (волна 4.2): тип/источник материалов для production_type='outsource'
+          subcontract_kind: it.production_type === 'outsource' ? (it.subcontract_kind ?? null) : null,
+          material_source: it.production_type === 'outsource' ? (it.material_source ?? null) : null,
+          // Технический блок и упаковка позиции (правки заказчика 16.08)
+          fit: it.fit || null,
+          // Основная ткань — отдельно от отделочной (правка 22.08, п. 5.1)
+          main_fabric: it.main_fabric || null,
+          color_supplier: it.color_supplier || null,
+          trim_material: it.trim_material || null,
+          cutting_note: it.cutting_note || null,
+          sewing_note: it.sewing_note || null,
+          labels_note: it.labels_note || null,
+          packaging: it.packaging ?? 'inherit',
+          packaging_size: it.packaging_size || null,
+          sticker_place: it.sticker_place || null,
+          marking_place: it.marking_place || null,
+          packaging_note: it.packaging_note || null,
+          // Размер упаковки позиции в мм (правки 07.09, п. 16)
+          packaging_width_mm: it.packaging_width_mm ?? null,
+          packaging_height_mm: it.packaging_height_mm ?? null,
+          prints: (it.prints ?? []).map((p, j) => {
+            if (p.key) printKeyIndex.set(p.key, j);
+            return {
+              seq: j + 1,
+              method: p.method,
+              fabric: p.fabric || null,
+              zone: p.zone || null,
+              width_mm: p.width_mm ?? null,
+              height_mm: p.height_mm ?? null,
+              offset_note: p.offset_note || null,
+              pantone: p.pantone || null,
+              // Эффект шелкографии и тип изделия вышивки (правки 07.09, пп. 10–11)
+              special: p.special || null,
+              garment_kind: p.garment_kind || null,
+              comment: p.comment || null,
+            };
+          }),
+          /** Бирки позиции (правка 22.08, п. 5.3) — повторяемый блок ТЗ */
+          labels: (it.labels ?? []).map((l, j) => {
+            if (l.key) labelKeyIndex.set(l.key, j);
+            return {
+              seq: j + 1,
+              label_type: l.label_type || null,
+              place: l.place || null,
+              size: l.size || null,
+              comment: l.comment || null,
+            };
+          }),
+          stages: kept.map((l) => ({
+            department_id: deptByCode.get(l.step.departmentCode)!.id,
+            sort_order: l.sortOrder,
+            depends_on: l.dependsOn
+              .map((idx) => newIndex.get(idx))
+              .filter((x): x is number => x !== undefined),
+            // Исполнитель и карточка подрядчика — тем же выражением, что
+            // в правке маршрута (`stepPayload`): писателей спутника подряда
+            // ровно два, и оба обязаны слать одно и то же
+            ...stepPayload(l.step),
+          })),
+        };
+      }),
+      /**
+       * Лист закупки (правки заказчика 16.08). Раньше здесь стоял жёсткий `[]`,
+       * и секция, которую RPC принимал с самого начала, не использовалась вовсе:
+       * закупщик заводил те же строки заново на своём экране. Теперь потребность
+       * приезжает вместе с заказом одной транзакцией.
+       */
+      materials: materials ?? [],
+      /**
+       * Заметки к заказу (правка 22.08, п. 5.8). Секция уезжает той же
+       * транзакцией, что и заказ: изображения привязываются к строкам заметок
+       * по `note_index`, а строк до вставки не существует.
+       */
+      notes: orderNotes ?? [],
+      // ТЗ в PDF (волна 4): документы и назначения вставляются той же транзакцией
+      tz: tz ?? { documents: [], assignments: [] },
+      /**
+       * Вложения блоков (правки заказчика 16.08). Как и `materials`, секция
+       * долго существовала в RPC и не использовалась: `item_id` у вложения
+       * появился той же миграцией, а слать было нечего — форм загрузки не было.
+       */
+      /**
+       * Файлы подрядного шага приходят из формы с ключом шага: этапа
+       * на момент выбора ещё нет. Номер этапа проставляет ТОТ ЖЕ код, что
+       * построил `stages`, — иначе привязка считалась бы дважды и разъехалась.
+       * Файл шага, выпавшего из маршрута (неизвестный цех), не едет вовсе:
+       * привязывать его не к чему.
+       */
+      attachments: (attachments ?? [])
+        .map((a) => {
+          const withKeys = a as typeof a & {
+            stage_key?: string; print_key?: string; label_key?: string;
+          };
+          const {
+            stage_key: stageKey, print_key: printKey, label_key: labelKey, ...rest
+          } = withKeys;
+          if (stageKey) {
+            const at = stageKeyIndex.get(stageKey);
+            return at === undefined ? null : { ...rest, stage_index: at };
+          }
+          /**
+           * Макет нанесения и файл бирки: ключ формы превращается в номер
+           * внутри позиции. Нанесение, которое человек удалил, ключа
+           * в карте не имеет — такой файл не едет вовсе, привязывать его
+           * не к чему.
+           */
+          if (printKey) {
+            const at = printKeyIndex.get(printKey);
+            return at === undefined ? null : { ...rest, print_index: at };
+          }
+          if (labelKey) {
+            const at = labelKeyIndex.get(labelKey);
+            return at === undefined ? null : { ...rest, label_index: at };
+          }
+          return a;
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null),
+    };
+
+    // Два разных исхода supabase-js: на ОТВЕТ сервера он возвращает `error`,
+    // а при отсутствии ответа (нет сети, CORS) — БРОСАЕТ. Первый называет причину
+    // через `erpError` (отказ прав и конфликт не должны выглядеть как обрыв),
+    // второй ловится catch: заказ не создан, транзакция либо не начиналась,
+    // либо откатилась, форма остаётся заполненной и повтор безопасен.
+    let newId: string;
+    try {
+      const { data, error } = await supabase.rpc('erp_create_order', { payload });
+      if (error || !data) {
+        erpError('Не удалось создать заказ', error);
+        return null;
+      }
+      newId = data as string;
+    } catch (e) {
+      console.error('[createOrder]', e);
+      toast.error('Не удалось создать заказ: нет связи с сервером');
+      return null;
+    }
+    if (droppedDepts.size > 0) {
+      toast.warning(
+        `Маршрут короче расчётного: нет цехов ${[...droppedDepts].join(', ')} — `
+        + 'проверьте справочник участков',
+      );
+    }
+    // Созданный заказ забираем тем же вложенным select
+    const created = await get().loadOne(newId);
+
+    /**
+     * АВТОСБОРКА PDF СНЯТА (правки заказчика 20.08).
+     *
+     * Она собирала лист из строк, которые заводил менеджер. Теперь потребность
+     * приходит ГОТОВЫМ ФАЙЛОМ, а строки в ERP заводит закупщик — то есть
+     * в момент создания заказа собирать нечего: функция ответила бы 409
+     * («в заказе нет листа закупки») на каждом заказе, а при уцелевших
+     * строках-подсказках собрала бы лист, который потребностью не является
+     * и спорил бы с приложенным файлом.
+     *
+     * Сборка осталась КНОПКОЙ в карточке заказа и означает теперь другое:
+     * лист по ФАКТИЧЕСКИМ строкам закупщика.
+     */
+    // Подряд (волна 4.2): авто-создаём операцию подряда по каждой позиции с типом подряда.
+    // Готовое изделие стартует в цикле «Ожидает оплаты», отдельная операция — «Запланировано».
+    if (created) {
+      // created.items идут в том же порядке, что и input items (sort_order = (k+1)*10),
+      // поэтому return_dept (не хранится на позиции) берём из входных items по индексу.
+      for (let k = 0; k < created.items.length; k++) {
+        const it = created.items[k];
+        if (!it.subcontract_kind) continue;
+        // Правка 4.2.3: для «отдельной операции» имя операции берём из формы (не хранится
+        // на позиции), для готового изделия — вид изделия.
+        const operation = it.subcontract_kind === 'operation'
+          ? (items[k]?.subcontract_operation?.trim() || it.product_type)
+          : it.product_type;
+        await get().createSubcontractOp({
+          order_id: created.id,
+          item_id: it.id,
+          operation,
+          op_type: it.subcontract_kind,
+          material_source: it.material_source ?? 'pinhead',
+          qty: it.qty,
+          status: it.subcontract_kind === 'finished_product' ? 'awaiting_payment' : 'planned',
+          return_dept: it.subcontract_kind === 'operation' ? (items[k]?.return_dept ?? null) : null,
+        });
+      }
+      /**
+       * Заказ-образец сразу заводит разработку в эксперим. цехе, чтобы
+       * проработка не создавалась вручную.
+       *
+       * Разработка заводится НА КАЖДУЮ позицию-образец, а не одна на заказ:
+       * задачи разработки уходят в цеха этапами конкретной позиции, и одна
+       * разработка на заказ из двух образцов отправила бы работу не туда.
+       *
+       * Задача заводится РОВНО ОДНА — «Построение лекал», и той же
+       * транзакцией (`erp_experimental_create`): документ 20.08 требует её
+       * сразу после запуска разработки. Остальные шаги технолог создаёт
+       * по потребности — пятиступенчатый план по умолчанию это ровно то,
+       * от чего отказались 12.08.
+       */
+      for (const it of created.items) {
+        if (it.production_type !== 'samples') continue;
+        await get().createExperimental(created.id, {
+          item_id: it.id,
+          tech_name: it.variant ? `${it.product_type} · ${it.variant}` : it.product_type,
+        });
+      }
+    }
+    return created;
+  },
+
+
+  /**
+   * ПРАВКА СОЗДАННОГО ЗАКАЗА ОДНОЙ ТРАНЗАКЦИЕЙ (правка 12.09, п. 7).
+   *
+   * Отличается от `updateOrder` тем же, чем правка формы отличается от
+   * инлайн-правки поля: там одна колонка, здесь — решение человека целиком
+   * (поля заказа, позиции, нанесения, бирки). Половина применённых секций
+   * хуже, чем неприменённая правка, поэтому RPC, а не набор UPDATE.
+   *
+   * НЕ ОПТИМИСТИЧНО, и это не лень: правка трогает полтора десятка колонок
+   * в трёх таблицах, часть из них сервер нормализует (пустая строка → NULL),
+   * а тираж может быть отклонён гейтом «ниже уже сделанного». Нарисовать
+   * предполагаемый результат значило бы показать состояние, которого
+   * в базе нет. Перечитываем заказ и показываем то, что получилось.
+   *
+   * МАРШРУТ СЮДА НЕ ВХОДИТ — он правится конструктором (`erp_route_apply`),
+   * и это записанное правило: тронь этапы здесь, и правка срока стёрла бы
+   * факт цеха.
+   */
+  saveOrderEdits: async (orderId, payload) => {
+    const { error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
+      supabase.rpc('erp_update_order', { p_order_id: orderId, p_payload: payload })));
+    if (error) {
+      erpError('Изменения не сохранены', error);
+      return false;
+    }
+    await get().loadOne(orderId);
+    // Пакет спутников заказа (история, аудит) мог измениться — триггеры пишут
+    // аудит правки, и кэш иначе показывал бы вчерашнюю историю
+    invalidate(orderBundleKey(orderId));
+    return true;
+  },
+
+  updateOrder: async (id, patch) => {
+    const prev = get().orders;
+    // optimistic с rollback + pending-ключ (защита от «старого» realtime)
+    set((s) => ({
+      orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    }));
+    /**
+     * `erpWrite` (правка 03.09). `erp_orders` UPDATE стоит на `erp_is_member()`,
+     * а колонки разбирает страж `erp_order_guard` — он бросает 42501, и это
+     * видно. Но отказ самой ПОЛИТИКИ приходит «нулём строк» без ошибки,
+     * и инлайн-правка заказа показывала бы сохранённым то, что не сохранено.
+     */
+    const ok = await erpWrite('Не удалось обновить заказ', () => withPending(`order:${id}`, () =>
+      supabase.from('erp_orders').update(patch).eq('id', id).select()));
+    if (!ok) {
+      set({ orders: prev });
+      return false;
+    }
+    return true;
+  },
+
+  /**
+   * PDF листа закупки. Заказ перечитывается после успеха: файл появляется
+   * строкой `erp_order_attachments`, и без перечитывания человек увидит его
+   * только после F5 — то есть решит, что кнопка не сработала.
+   */
+
+  /**
+   * PDF листа закупки. Заказ перечитывается после успеха: файл появляется
+   * строкой `erp_order_attachments`, и без перечитывания человек увидит его
+   * только после F5 — то есть решит, что кнопка не сработала.
+   */
+  generatePurchaseListPdf: async (orderId) => {
+    const { error } = await withPending(`pdf:${orderId}`, () =>
+      invokeFunction('purchase-list-pdf', { order_id: orderId }));
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    await get().loadOne(orderId);
+    toast.success('Лист закупки сформирован — файл в документах заказа');
+    return true;
+  },
+
+
+  /**
+   * ФАКТИЧЕСКАЯ ПЕРЕДАЧА КЛИЕНТУ — ЧАСТЯМИ (правка заказчика 30.08, п. 6).
+   *
+   * `lines` — сколько единиц какой позиции отдано ИМЕННО СЕЙЧАС. Не передали
+   * ничего — отгружается весь остаток: это прежнее поведение «Отгрузить»
+   * целиком, и вызывающие, которым частичность не нужна (кнопка в списке
+   * заказов), продолжают звать функцию одним аргументом.
+   *
+   * ЧТО БЫЛО СЛОМАНО. Раньше здесь одним патчем писались `shipped_status`
+   * и АРХИВНЫЙ статус заказа. Экран склада фильтрует по `status = 'active'`,
+   * поэтому первая же отгрузка убирала заказ со склада целиком — вместе
+   * с недоделанными задачами и неотданным остатком. Значение `partial`
+   * в схеме существовало и не записывалось никем.
+   *
+   * Теперь и журнал, и агрегаты, и архивный статус — ОДНА транзакция
+   * (`erp_ship_order`), а в архив заказ уходит только когда отдано всё.
+   * Количества клиент не считает и не пишет: их ведёт триггер, а вторая
+   * реализация арифметики на клиенте однажды разошлась бы с базой.
+   *
+   * Ключ идемпотентности обязателен: у действия два запроса не бывает,
+   * но оборвавшийся ответ и повторный тап — обычное дело на цеховом
+   * Wi-Fi, а повтор без ключа удвоил бы отгруженное МОЛЧА.
+   */
+  shipOrder: async (orderId, lines, opts = {}) => {
+    const prev = get().orders;
+    const order = prev.find((o) => o.id === orderId);
+    if (!order) return false;
+    /**
+     * Отгружать можно только готовый заказ (все этапы done/skipped, материалы
+     * приняты) — либо когда проверку сняли аварийно (правки 10.08).
+     *
+     * Снятие применяется ТОЛЬКО здесь и в кнопке, но НЕ в расчёте просрочки:
+     * `isOrderOverdue` тоже спрашивает `isOrderReadyToShip`, и если подставить
+     * снятие туда, заказ задним числом перестал бы считаться просроченным.
+     * Аварийный выход не должен переписывать отчётность.
+     *
+     * Гейт переживает частичную отгрузку без правок: частичная НЕ меняет
+     * `status`, заказ остаётся `active`, и ранний выход по нему не срабатывает.
+     */
+    if (!isOrderReadyToShip(order) && !isBypassed('ship_gate', orderId, get().bypasses)) {
+      toast.error('Заказ ещё не готов к отгрузке');
+      return false;
+    }
+
+    const totals = shipmentTotals(order);
+    const payload = (lines ?? totals.lines
+      .filter((l) => l.left > 0)
+      .map((l) => ({ item_id: l.item.id, qty: l.left })))
+      .filter((l) => Number(l.qty) > 0);
+    if (payload.length === 0) {
+      toast.error('Нечего отгружать: остаток по заказу нулевой');
+      return false;
+    }
+
+    const { data, error } = await erpQuery(() => withPending(`order:${orderId}`, () =>
+      supabase.rpc('erp_ship_order', {
+        p_order_id: orderId,
+        p_lines: payload,
+        p_note: opts.note ?? null,
+        p_actor: currentActor(),
+        p_client_key: opts.clientKey ?? null,
+      })));
+    if (error) {
+      erpError('Не удалось отгрузить заказ', error);
+      return false;
+    }
+    /**
+     * Оптимистичного обновления здесь НЕТ намеренно: количества считает
+     * триггер, и угадывать их на клиенте значило бы показать одно, а иметь
+     * в базе другое. Перечитываем заказ — тем же приёмом, что список
+     * сотрудников после заведения учётной записи.
+     */
+    await get().loadOne(orderId);
+
+    const complete = Boolean(data?.complete);
+    const shipped = Number(data?.qty_shipped ?? 0);
+    const total = Number(data?.qty_total ?? 0);
+    toast.success(complete
+      ? 'Заказ отгружен полностью и перемещён в архив'
+      : `Отгружено ${shipped} из ${total} шт · остаток ${Math.max(total - shipped, 0)} шт`);
+    return true;
+  },
+
+
+  deleteOrder: async (id) => {
+    /**
+     * Пути файлов собираются ДО удаления: строки `erp_tz_documents`
+     * и `erp_order_attachments` уедут каскадом вместе с заказом, и после
+     * DELETE спрашивать будет уже нечего. Так в бакете и накопились сироты:
+     * заказ удалялся, ТЗ-PDF оставались навсегда — платные, никем не учтённые
+     * и, пока бакет публичный, доступные по ссылке.
+     */
+    const paths = await orderFilePaths(id);
+
+    /**
+     * `.select()` обязателен. RLS запрещает DELETE через `USING`, то есть
+     * «удалено 0 строк», а НЕ ошибка: проверка только по `error` показывала
+     * зелёное «Заказ удалён», убирала заказ из списка — и он возвращался при
+     * следующей загрузке. Пустой ответ здесь и есть отказ.
+     */
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_orders').delete().eq('id', id).select('id'));
+    if (error) {
+      erpError('Не удалось удалить заказ', error);
+      return false;
+    }
+    if (!data || data.length === 0) {
+      toast.error('Заказ не удалён: удаление доступно только администратору');
+      return false;
+    }
+    set((s) => ({ orders: s.orders.filter((o) => o.id !== id) }));
+
+    /**
+     * Файлы — ПОСЛЕ строки. Обратный порядок означал бы, что упавший DELETE
+     * оставляет живой заказ без ТЗ. Неудача уборки заказ не отменяет (он уже
+     * удалён), но и молчать нельзя: файл остаётся в хранилище.
+     *
+     * Минус файлы, на которые ссылается карточка модели: техпакет живёт
+     * дольше заказа, из которого пришёл (`freeOfSkuCards`).
+     */
+    const removable = await freeOfSkuCards(paths);
+    if (removable.length > 0) {
+      const { error: rmError } = await erpQuery(() => supabase
+        .storage.from('erp-attachments').remove(removable));
+      if (rmError) {
+        // Число впереди слова: «1 файл осталось» не согласуется, а
+        // «осталось файлов: 1» читается верно при любом количестве
+        toast.warning(
+          'Заказ удалён, но в хранилище осталось '
+          + `${pluralize(removable.length, 'файл', 'файла', 'файлов')}: ${removable.length}`
+          + ' — уберите их вручную',
+        );
+      }
+    }
+    return true;
+  },
+
+
+
+
+  addComment: async (orderId, text) => {
+    const { data, error } = await erpQuery(() => supabase
+      .from('erp_order_comments')
+      .insert({ order_id: orderId, author: currentActor(), text })
+      .select());
+    const row = data?.[0] as ErpOrderComment | undefined;
+    if (error || !row) {
+      erpError('Не удалось отправить комментарий', error);
+      return null;
+    }
+    // Пакет заказа теперь устарел: без сброса возврат на карточку в течение
+    // TTL показал бы ленту без только что отправленного комментария.
+    invalidate(orderBundleKey(orderId));
+    return row;
+  },
+});

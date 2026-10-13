@@ -1,0 +1,130 @@
+/**
+ * ERP store: цеха, производственные заказы, позиции, этапы, материалы.
+ *
+ * Composition-root: собирает слайсы ЯДРА (store/slices/*) в единый Zustand-стор;
+ * доменные приезжают отдельным чанком (./domainSlices) вместе с первым экраном.
+ * Контракт (ErpStore) и DTO — в ./types; инфраструктура (аудит/pending/тайминги) — в
+ * ./shared; общие чистые хелперы — в ./orderHelpers. Публичный API стора и пути
+ * импорта не менялись: экраны по-прежнему берут всё из `useErpStore`.
+ *
+ * Правила Pinhead: toast.error на каждую ошибку Supabase, null при ошибке,
+ * без optimistic delete, optimistic update только с rollback.
+ */
+
+import { create } from 'zustand';
+import { registerAppReset } from '../../store/appReset';
+import { bootstrapSlice } from './slices/bootstrapSlice';
+import { ordersSlice } from './slices/ordersSlice';
+import { permissionsSlice } from './slices/permissionsSlice';
+import { bypassSlice } from './slices/bypassSlice';
+import { notificationsSlice } from './slices/notificationsSlice';
+import { realtimeSlice } from './slices/realtimeSlice';
+import { DOMAIN_INITIAL_STATE } from './domainState';
+import type { ErpStore } from './types';
+import { clearQueryCache } from './queryCache';
+
+/**
+ * ЯДРО стора — ровно то, чем пользуется сама оболочка: цеха и привязка
+ * (`bootstrap`), список заказов и бейджи (`orders`), права (`permissions`,
+ * через `useErpAccess`), пометки снятых блокировок (`bypass`), персональные
+ * уведомления (`notifications` — их счётчик показывает колокол шапки, то есть
+ * до открытия любого экрана) и живые обновления (`realtime` — подписка стоит
+ * в `ErpLayout`).
+ *
+ * Остальные одиннадцать слайсов приезжают вместе с первым экраном
+ * (`domainSlices.ts`): оболочку грузят все и всегда, и склад, подряд, образцы,
+ * справочники и план не должны ехать рабочему, который открывает только
+ * очередь своего цеха.
+ *
+ * Импорты ЯВНЫЕ, а не через баррель `./slices`: баррель тянет все шестнадцать,
+ * и невывезенные пропадают только благодаря tree-shaking — то есть по
+ * умолчанию, а не по решению. Здесь список ядра виден глазами.
+ *
+ * ПРИВЕДЕНИЕ ТИПА. Объект честно неполон: доменные ДЕЙСТВИЯ появятся при
+ * подключении. Что ни одно из них не потеряно навсегда, проверяет
+ * `domainSlices.test.ts` — он сверяет ключи `ErpStore` с суммой слайсов.
+ */
+export const useErpStore = create<ErpStore>((...a) => ({
+  ...bootstrapSlice(...a),
+  ...ordersSlice(...a),
+  ...permissionsSlice(...a),
+  ...bypassSlice(...a),
+  ...notificationsSlice(...a),
+  ...realtimeSlice(...a),
+  ...DOMAIN_INITIAL_STATE,
+} as unknown as ErpStore));
+
+/**
+ * Данные стора на момент создания — снимок без действий.
+ *
+ * Нужен для `resetErpStore()` при смене пользователя. Массивы копируем при снятии
+ * снимка И при каждом сбросе: иначе все последующие сбросы вернули бы один и тот же
+ * инстанс массива, и случайная мутация протекла бы между сессиями.
+ */
+const INITIAL_DATA = Object.entries(useErpStore.getState())
+  .filter(([, v]) => typeof v !== 'function');
+
+/**
+ * Сброс ERP-стора к исходному состоянию — вызывается при выходе из системы.
+ *
+ * На общем цеховом планшете `logout()` чистил localStorage, но стор оставался в
+ * памяти вкладки: флаги `loaded`/`myDeptLoaded` были `true`, поэтому `ErpLayout`
+ * не делал НИ ОДНОГО запроса, и следующий работник видел заказы предыдущего
+ * (выборка RLS уже от чужого имени), его цех, его бейджи и колокол. Само это
+ * состояние не восстанавливалось — только F5.
+ *
+ * `setState(..., false)` — слияние, а не замена: действия слайсов должны остаться.
+ */
+export function resetErpStore(): void {
+  const fresh = Object.fromEntries(
+    INITIAL_DATA.map(([k, v]) => [k, Array.isArray(v) ? [...v] : v]),
+  );
+  useErpStore.setState(fresh as Partial<ErpStore>, false);
+  /**
+   * Кэш запросов — ТО ЖЕ САМОЕ место, что и стор, только вторая память.
+   * Сбросить стор и оставить кэш значило бы вернуть ровно тот баг, ради
+   * которого написан resetErpStore: следующий работник на общем планшете
+   * получил бы пакет заказа, собранный от имени предыдущего.
+   */
+  clearQueryCache();
+}
+
+/**
+ * Регистрируем сброс в общем реестре, а не даём `useAuthStore` импортировать
+ * этот модуль напрямую: прямой импорт тянул весь ERP-стор во входной чанк,
+ * который грузит и тот, кто открыл только Order Studio (см. store/appReset).
+ * Строка выполняется при первой загрузке ERP — то есть ровно тогда, когда
+ * состоянию есть откуда взяться.
+ */
+registerAppReset(resetErpStore);
+
+// Инфраструктура (currentActor/logStageEvent/withPending/тайминги) — в ./shared.
+// Реэкспорт _pendingMutations — для тестов, импортирующих его отсюда.
+export { _pendingMutations } from './shared';
+
+// Общие чистые хелперы — в ./orderHelpers. Реэкспорт публичных: readyCountFor нужен
+// экрану очереди цеха и тестам, lastDefectPhotoUrl — карточке и очереди.
+export {
+  readyCountFor, readyOnlyCountFor, waitingCountFor, overdueUnackCountFor,
+  lastDefectPhotoUrl,
+  activeOrdersCount, openWarehouseTaskCount, openProcurementCount,
+  openSubcontractCount, activeExperimentalCount,
+} from './orderHelpers';
+
+// DTO-типы стора вынесены в ./types — реэкспорт для экранов/тестов, импортирующих их отсюда.
+export type {
+  ErpStore,
+  StaffProfile,
+  ErpOrderAuditRow,
+  ErpOrderComment,
+  ErpOrderAttachment,
+  ErpOrderFull,
+  ReportDefectOptions,
+  NewPrintInput,
+  NewOrderItemInput,
+  NewOrderInput,
+  ErpRealtimeEvent,
+} from './types';
+
+/** Слоты календаря загружаются отдельно по цеху (Фаза 3) */
+export type { ErpCalendarSlot } from '../types';

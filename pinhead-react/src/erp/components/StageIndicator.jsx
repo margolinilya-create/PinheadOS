@@ -1,0 +1,121 @@
+import styles from '../erp.module.css';
+import { Icon } from './Icon';
+import { ScrollHintBox } from './ScrollHintBox';
+
+/**
+ * Индикатор стадий — единственная реализация на оба вида в ERP.
+ *
+ * Раньше это были независимые компоненты (`Stepper` для подряда, лента точек
+ * в карточке заказа): один и тот же смысл — «горизонтальная последовательность
+ * стадий с соединителями» — жил в нескольких местах, и правка индикатора
+ * требовала нескольких правок.
+ *
+ * Виды отвечают на разные вопросы и потому сохранены оба:
+ * - `dots` — «где сейчас эта позиция»: точки этапов маршрута с галочкой у пройденных;
+ * - `funnel` — «сколько единиц на каждом шаге»: нумерованная воронка со счётчиками.
+ *
+ * Третий вид, `pipeline`, УДАЛЁН 12.08 вместе с фазовой моделью эксперим. цеха:
+ * он рисовал распределение разработок по пяти фазам и боковой узел «возврат
+ * конструктору», а фазы не хранятся вовсе — состояние вычисляется из задач
+ * (`utils/experimentalTasks.devState`). После удаления `ExperimentalCard.jsx`
+ * вид остался без единого вызова, и держал его только собственный тест.
+ *
+ * Узел: `{ key, label, sub?, count?, icon?, state?, title?, lineDone? }`,
+ * где `state` — 'done' | 'active' | 'blocked' | 'skipped' | undefined.
+ *
+ * `sub` и `skipped` добавлены правкой 23.08 (п. 7) для маршрута разработки:
+ * документ требует показывать у каждого этапа его состояние словами
+ * («Завершено», «В работе», «Не требуется») и дату. Это РАСШИРЕНИЕ
+ * существующего вида, а не четвёртый вид: вопрос тот же — «где сейчас».
+ */
+
+/**
+ * `title` узла — ЭТО ЕГО ДОСТУПНОЕ ИМЯ, и состояние должно быть в нём.
+ *
+ * До правки 03.09 `aria-label` висел на голом `<span>` без роли — такой
+ * атрибут вспомогательные технологии игнорируют (WCAG 4.1.2), — а состояние
+ * передавалось вдобавок только классом, то есть цветом (WCAG 1.4.1).
+ * Теперь у точки `role="img"`, и её имя читается; состояние в имя кладёт
+ * вызывающий, потому что только он знает, каким словом его назвать
+ * (карточка заказа — «Завершён», доска ЭКС — «завершено»). Автоматическая
+ * дописка словом дублировала бы то, что уже сказано в `title`.
+ */
+function DotsNodes({ nodes }) {
+  return nodes.map((n, i) => {
+    const dotCls = [
+      styles.stepperDot,
+      n.state === 'done' && styles.stepperDotDone,
+      n.state === 'active' && styles.stepperDotActive,
+      n.state === 'blocked' && styles.stepperDotBlocked,
+      n.state === 'skipped' && styles.stepperDotSkipped,
+    ].filter(Boolean).join(' ');
+    return (
+      <span key={n.key} className={styles.stepperItem} role="listitem">
+        {i > 0 && (
+          <span className={`${styles.stepperLine} ${n.lineDone ? styles.stepperLineDone : ''}`} />
+        )}
+        {/* `role="img"` обязателен: без роли `aria-label` на `<span>` не читается */}
+        <span
+          className={dotCls}
+          title={n.title}
+          role="img"
+          aria-label={n.title || n.label}
+        >
+          {n.state === 'done' ? <Icon name="check" size={12} /> : i + 1}
+        </span>
+        {n.sub ? (
+          /* Название и состояние — колонкой: в строке они читались бы
+             как два разных шага маршрута */
+          <span className={styles.stepperText}>
+            <span className={styles.stepperLabel}>{n.label}</span>
+            <span className={styles.stepperSub}>{n.sub}</span>
+          </span>
+        ) : (
+          <span className={styles.stepperLabel}>{n.label}</span>
+        )}
+      </span>
+    );
+  });
+}
+
+function FunnelNodes({ nodes }) {
+  return nodes.map((n, i) => (
+    <span key={n.key} className={styles.numStep}>
+      <span className={`${styles.numStepDot} ${n.count > 0 ? styles.numStepDotActive : ''}`}>
+        {i + 1}
+      </span>
+      <span className={styles.numStepText}>
+        <span className={styles.numStepLabel}>{n.label}</span>
+        {typeof n.count === 'number' && <span className={styles.numStepCount}>{n.count}</span>}
+      </span>
+      {i < nodes.length - 1 && <span className={styles.numStepBar} aria-hidden="true" />}
+    </span>
+  ));
+}
+
+export function StageIndicator({ variant, nodes, title, label }) {
+  if (variant === 'funnel') {
+    return (
+      <div className={styles.numStepper}>
+        {title && <span className={styles.numStepperTitle}>{title}</span>}
+        <div className={styles.numStepperTrack}>
+          <FunnelNodes nodes={nodes} />
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Лента точек шире экрана на планшете и телефоне (`overflow-x: auto`),
+   * а внутри неё нет ни одного фокусируемого элемента — с клавиатуры такую
+   * область не прокрутить вовсе (WCAG 2.1.1). Это работа `ScrollHintBox`:
+   * он ставит `tabIndex` ровно тогда, когда прокручивать есть что, и заодно
+   * показывает, что справа осталось содержимое. Своя копия правила здесь
+   * означала бы второе место, где решается один и тот же вопрос.
+   */
+  return (
+    <ScrollHintBox className={styles.stepper} role="list" label={label}>
+      <DotsNodes nodes={nodes} />
+    </ScrollHintBox>
+  );
+}

@@ -1,0 +1,482 @@
+import { Badge } from '../../components/Badge';
+import { Button } from '../../components/Button';
+import { DateField } from '../../components/DateField';
+import { Icon } from '../../components/Icon';
+import { OrderLink } from '../../components/OrderLink';
+import { kgPerMFromParams, pricePerM } from '../../utils/fabricMetres';
+import { pluralize } from '../../../utils/i18n';
+import { formatDateShort, procurementSla } from '../../utils/time';
+import { MATERIAL_STATUS_LABELS } from '../../types';
+import { isPurchaserChoosableStatus } from '../../utils/materialStatus';
+import { ACCEPTANCE_ISSUE_LABELS, materialAcceptanceIssue } from '../../utils/supply';
+import {
+  KIND_LABELS, PURCHASE_FIELD_LABELS, STATUS_VARIANT,
+  pricePerUnitLabel, priceRequiredFor,
+} from './purchaseLabels';
+import styles from '../../styles';
+import { PurchaseSizeTable } from './PurchaseSizeTable';
+import { gridCells } from '../../utils/sizeGrid';
+import { useDictionary } from '../../store/useDictionary';
+import { qtyLeftToAccept } from '../../utils/receiptLink';
+
+/**
+ * Содержимое колонок закупочной строки — ПО ОДНОЙ реализации на элемент.
+ *
+ * Зачем модуль. Строку закупки показывают две раскладки: таблица из четырнадцати
+ * колонок (десктоп) и карточка (планшет, экран пилота). Поля здесь не подписи,
+ * а инлайн-правки со своими условиями записи («пиши, только если значение
+ * изменилось»), и вторая их копия под карточку разошлась бы с первой в первую же
+ * правку — причём молча: обе «работают», просто пишут по-разному.
+ *
+ * Каждая функция отдаёт СОДЕРЖИМОЕ колонки без обёртки: таблица кладёт его
+ * в `<td>`, карточка — в подписанное поле.
+ */
+
+/** Номер заказа ссылкой на карточку + название */
+export function OrderCell({ order }) {
+  return (
+    <>
+      <OrderLink orderId={order.id} title={`Открыть заказ №${order.bitrix_id || '—'}`}>
+        №{order.bitrix_id || '—'}
+      </OrderLink>
+      <div className={styles.cellSub} title={order.title}>{order.title}</div>
+    </>
+  );
+}
+
+/**
+ * Материал: название, вид и цвет.
+ *
+ * ИСТОЧНИК, ПАРАМЕТРЫ ТКАНИ И РАЗБИВКА УЕХАЛИ В ПОДРОБНОСТИ СТРОКИ (правка
+ * 05.10, п. 6): «артикул, источник, параметры ткани, документы, сумму
+ * и историю — в деталях строки». Ячейка с двумя полями ввода и раскрывашкой
+ * сетки распирала строку, и до статуса приходилось двигать таблицу вбок.
+ */
+export function MaterialCell({ m }) {
+  return (
+    <>
+      <strong>{m.name}</strong>
+      <div className={styles.subText}>
+        {KIND_LABELS[m.kind]}
+        {m.color ? ` · ${m.color}` : ''}
+      </div>
+    </>
+  );
+}
+
+/**
+ * РАЗБИВКА ГОТОВОГО ИЗДЕЛИЯ (правка 16.09, п. 2): «одна закупка на 100
+ * футболок с разбивкой внутри» — значит, разбивку видно у строки,
+ * иначе закупщик видит «100 шт» и не знает, каких именно.
+ *
+ * ФАКТ ПО РАЗМЕРАМ ПРАВИТСЯ ЗДЕСЬ ЖЕ (правка 20.09, п. 2): сводка строкой
+ * на виду, таблица разворачивается по требованию. Без `onUpdate` (чтение)
+ * таблица не рисуется — поля ввода там бессмысленны.
+ *
+ * С 05.10 живёт в подробностях строки, а не в ячейке материала.
+ */
+export function MaterialSizes({ m, onUpdate }) {
+  const cells = gridCells(m.size_grid);
+  const ordered = gridCells(m.size_grid_ordered);
+  if (cells.length === 0) return null;
+  return (
+    <details className={styles.purchaseSizes}>
+      <summary className={styles.subText}>
+        {cells.map((c) => `${c.size} ${c.qty}`).join(' · ')}
+        {ordered.length > 0 ? ' · заказано по размерам' : ''}
+      </summary>
+      {onUpdate ? (
+        <PurchaseSizeTable
+          plannedGrid={m.size_grid}
+          orderedGrid={m.size_grid_ordered}
+          onChange={(grid) => onUpdate(m.id, { size_grid_ordered: grid })}
+          caption={`Размеры закупки: ${m.name}`}
+        />
+      ) : null}
+    </details>
+  );
+}
+
+/**
+ * ПРИНЯТО СКЛАДОМ — ТОЛЬКО ЧТЕНИЕ (правка 05.10, п. 6): «принятое только
+ * из приёмок, вручную не вводится». Сумму журнала приходов ведёт триггер;
+ * поле ввода рядом было бы вторым писателем того же числа.
+ *
+ * Ноль показывается нулём, а не прочерком: «100 / 110 / 0» — ровно то,
+ * что постановка ждёт увидеть до приёмки. Ниже — остаток к приёмке,
+ * пока он есть.
+ */
+export function ReceivedQty({ m }) {
+  const unit = m.unit ? ` ${m.unit}` : '';
+  const left = qtyLeftToAccept(m);
+  return (
+    <>
+      <span>{`${m.qty_received ?? 0}${unit}`}</span>
+      {left != null && left > 0 && Number(m.qty_received ?? 0) > 0 && (
+        <span className={styles.subText}>{` · осталось ${left}${unit}`}</span>
+      )}
+    </>
+  );
+}
+
+/**
+ * ТРИ КОЛИЧЕСТВА ОДНИМ БЛОКОМ (правка 05.10, п. 6): «нужно по заказу,
+ * заказано поставщику, принято складом». Подписи видимые и короткие —
+ * в узкой ячейке «100 / 110 / 0» без слов не читается; полное имя
+ * величины несёт `aria-label` поля.
+ */
+export function QtyTriple({ m, onUpdate }) {
+  const row = (label, content) => (
+    <span className={styles.qtyTripleRow}>
+      <span className={styles.subText}>{label}</span>
+      {content}
+    </span>
+  );
+  return (
+    <span className={styles.qtyTriple}>
+      {row('нужно', <PlanField m={m} onUpdate={onUpdate} />)}
+      {row('заказано', <QtyOrderedField m={m} onUpdate={onUpdate} />)}
+      {row('принято', <span><ReceivedQty m={m} /></span>)}
+    </span>
+  );
+}
+
+/**
+ * ШИРИНА И ПЛОТНОСТЬ ПОЛОТНА (правка 27.09, п. 4): «в карточку материала
+ * добавить ширину полотна в сантиметрах и плотность в г/м². Подставлять их
+ * в рулоны при приёмке». По ним склад и закрой считают метраж рулона —
+ * без них расход в метрах не записать, поэтому пустые подсвечены как
+ * недостающие (не блок: черновик закупки заводится и без них).
+ *
+ * С 05.10 (п. 6) — в подробностях строки, а не отдельной колонкой:
+ * параметры ткани нужны складу и закрою, а не каждому взгляду на список.
+ * Без `onUpdate` (чтение) показываются подписью.
+ */
+export function FabricParamsFields({ m, onUpdate }) {
+  const width = m.width_cm ?? null;
+  const density = m.density_gsm ?? null;
+  if (!onUpdate) {
+    return (
+      <div className={styles.subText}>
+        {width !== null ? `${width} см` : 'ширина —'} · {density !== null ? `${density} г/м²` : 'плотность —'}
+      </div>
+    );
+  }
+  const field = (key, label, value, unit, step) => (
+    <input
+      type="number" min="0" step={step}
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`
+        + `${value === null ? ` ${styles.inputError}` : ''}`}
+      defaultValue={value ?? ''} placeholder={unit}
+      aria-invalid={value === null || undefined}
+      title={`${label}: нужна для расчёта метража рулонов`}
+      onBlur={(e) => {
+        const v = e.target.value === '' ? null : Number(e.target.value);
+        if (v !== (m[key] ?? null)) onUpdate(m.id, { [key]: v });
+      }}
+      aria-label={`${label}: ${m.name}`}
+    />
+  );
+  /**
+   * ЦЕНА ЗА МЕТР — ТОЛЬКО ПРОСМОТР (правка 28.09): «закупка вводит только
+   * цену за кг… Поле цены за метр доступно только для просмотра». Считается
+   * по ширине и плотности; у рулона уточняется его собственным коэффициентом.
+   */
+  const perM = pricePerM(m.price_per_unit, kgPerMFromParams(width, density));
+  return (
+    <div className={styles.cellWithIcon}>
+      {field('width_cm', 'Ширина полотна, см', width, 'см', '1')}
+      {field('density_gsm', 'Плотность, г/м²', density, 'г/м²', '1')}
+      {perM !== null && (
+        <span className={styles.subText} title="Цена за метр считается системой: цена за кг × кг/м (расчёт)">
+          ≈ {perM.toFixed(2).replace('.', ',')} ₽/м (расчёт)
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Сколько нужно — план менеджера */
+export function PlanField({ m, onUpdate }) {
+  /**
+   * У ЗАКУПКИ С РАЗМЕРНОЙ СЕТКОЙ ПОТРЕБНОСТЬ НЕ ПРАВИТСЯ РУКАМИ.
+   *
+   * Сумма по размерам и «общая потребность» — одно число, и его считает
+   * триггер `erp_material_grid_qty`. Оставить поле редактируемым значило бы
+   * завести второго писателя: закупщик вписал бы 90, сервер вернул бы 100,
+   * и правка молча «не сохранилась» бы.
+   */
+  const byGrid = gridCells(m.size_grid).length > 0;
+  if (byGrid) {
+    return (
+      <span className={styles.subText} title="Считается по размерной сетке позиции">
+        {m.qty_expected ?? '—'}
+      </span>
+    );
+  }
+  return (
+    <input
+      type="number" min="0" step="0.01" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
+      defaultValue={m.qty_expected ?? ''} placeholder="—"
+      onBlur={(e) => {
+        const v = e.target.value === '' ? null : Number(e.target.value);
+        if (v !== (m.qty_expected ?? null)) onUpdate(m.id, { qty_expected: v });
+      }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyExpected}: ${m.name}`}
+    />
+  );
+}
+
+/**
+ * Комментарий МЕНЕДЖЕРА — на чтение: это исходное задание, и правка его
+ * закупщиком стёрла бы то, что просили. Свой комментарий закупщик пишет
+ * в приёмке.
+ */
+export function ManagerNote({ m }) {
+  return (
+    <span className={m.manager_note ? undefined : styles.subText}>
+      {m.manager_note || '—'}
+    </span>
+  );
+}
+
+/** Поставщик — не одно поле, а выбор из вариантов (правка 10) */
+export function SupplierCell({ m, order, onOpenOptions }) {
+  const count = (m.suppliers ?? []).length;
+  return (
+    <button
+      type="button"
+      className={styles.supplierCell}
+      onClick={() => onOpenOptions({ material: m, order })}
+      title={`Варианты поставщиков: ${m.name}`}
+    >
+      <span className={m.supplier ? undefined : styles.subText}>
+        {m.supplier || 'не выбран'}
+      </span>
+      <span className={styles.subText}>
+        {count > 0
+          ? `${count} ${pluralize(count, 'вариант', 'варианта', 'вариантов')}`
+          : 'добавить вариант'}
+      </span>
+    </button>
+  );
+}
+
+export function ArticleField({ m, onUpdate }) {
+  return (
+    <input
+      className={`${styles.input} ${styles.inputSm} ${styles.wQty}`} defaultValue={m.article || ''} placeholder="—"
+      onBlur={(e) => {
+        const v = e.target.value.trim() || null;
+        if (v !== (m.article || null)) onUpdate(m.id, { article: v });
+      }}
+      aria-label={`Артикул ${m.name}`}
+    />
+  );
+}
+
+export function QtyOrderedField({ m, onUpdate }) {
+  return (
+    <input
+      type="number" min="0" step="any" className={`${styles.input} ${styles.inputSm} ${styles.wNum}`}
+      defaultValue={m.qty_ordered ?? ''} placeholder="—"
+      onBlur={(e) => {
+        const v = e.target.value === '' ? null : Number(e.target.value);
+        if (v !== (m.qty_ordered ?? null)) onUpdate(m.id, { qty_ordered: v });
+      }}
+      aria-label={`${PURCHASE_FIELD_LABELS.qtyOrdered}: ${m.name}`}
+    />
+  );
+}
+
+/**
+ * Цена подписана ЕДИНИЦЕЙ материала (правка 21.09, п. 1): у ткани в килограммах
+ * это «Цена за кг, ₽», у штучной позиции — «за шт». Пустая цена у ткани
+ * названа прямо: по ней считается и себестоимость полотна, и стоимость
+ * возвратного остатка, и прочерк там читается как «бесплатно».
+ */
+export function PriceField({ m, onUpdate, note = false }) {
+  const units = useDictionary('unit');
+  const label = pricePerUnitLabel(m.unit, units);
+  const missing = priceRequiredFor(m.kind) && m.price_per_unit == null;
+  const input = (
+    <input
+      type="number" min="0" step="any"
+      className={`${styles.input} ${styles.inputSm} ${styles.wNum}`
+        + `${missing ? ` ${styles.inputError}` : ''}`}
+      defaultValue={m.price_per_unit ?? ''} placeholder={missing ? 'нужна' : '—'}
+      aria-invalid={missing || undefined}
+      onBlur={(e) => {
+        const v = e.target.value === '' ? null : Number(e.target.value);
+        if (v !== (m.price_per_unit ?? null)) onUpdate(m.id, { price_per_unit: v });
+      }}
+      aria-label={`${label}: ${m.name}`}
+    />
+  );
+  /*
+    СЛОВАМИ — ТОЛЬКО ТАМ, ГДЕ ЕСТЬ МЕСТО (решение заказчика 22.09). В строке
+    таблицы хватает рамки и «нужна»: лишняя подпись в узкой ячейке ломает ряд.
+    В карточке планшета поле стоит своим блоком, и там пустая цена названа
+    прямо — обязательность стоит только на INSERT, а десять тканей из
+    семнадцати заведены до правки, и молчаливый прочерк их и оставит пустыми.
+  */
+  if (!note || !missing) return input;
+  return (
+    <>
+      {input}
+      <span className={styles.subText}>Цена не указана</span>
+    </>
+  );
+}
+
+/**
+ * Стоимость СЧИТАЕТСЯ, а не хранится: производная от двух полей рядом с ними —
+ * это второй писатель одного числа.
+ */
+export function CostValue({ m }) {
+  if (m.qty_ordered == null || m.price_per_unit == null) return '—';
+  return Math.round(m.qty_ordered * m.price_per_unit).toLocaleString('ru-RU');
+}
+
+export function OrderedOnField({ m, onUpdate }) {
+  return (
+    <DateField
+      showFormatHint={false}
+      value={m.ordered_on || ''}
+      onChange={(v) => onUpdate(m.id, { ordered_on: v || null })}
+      aria-label={`Дата заказа ${m.name}`}
+    />
+  );
+}
+
+export function EtaField({ m, onUpdate }) {
+  return (
+    <DateField
+      showFormatHint={false}
+      value={m.eta_date || ''}
+      onChange={(v) => onUpdate(m.id, { eta_date: v || null })}
+      aria-label={`План прихода ${m.name}`}
+    />
+  );
+}
+
+/** Приход ведёт журнал приёмок — здесь только чтение */
+export function ReceivedValue({ m }) {
+  /**
+   * ПРИНЯТО ПОКАЗЫВАЕТСЯ ПРОТИВ ПЛАНА (обход 04.09). Одно «40» не отвечает
+   * на вопрос закупщика — довезли или нет; «40 из 42» отвечает. План здесь
+   * уже есть в соседней колонке, но в компактной карточке колонок нет,
+   * а именно с планшета с закупкой и работают.
+   */
+  if (m.qty_received != null) {
+    const unit = m.unit ? ` ${m.unit}` : '';
+    const need = Number(m.qty_expected ?? 0);
+    return need > 0
+      ? `${m.qty_received} из ${m.qty_expected}${unit}`
+      : `${m.qty_received}${unit}`;
+  }
+  return m.received_at ? formatDateShort(m.received_at) : '—';
+}
+
+/**
+ * С кого спрашивать, пока материала нет. Показывается цеху в карточке
+ * «Ожидают материалы» — `accepted_by` для этого не годится: он заполняется
+ * уже после приёмки.
+ */
+export function ResponsibleField({ m, onUpdate }) {
+  return (
+    <input
+      className={`${styles.input} ${styles.inputSm} ${styles.wQty}`} defaultValue={m.responsible || ''} placeholder="—"
+      onBlur={(e) => {
+        const v = e.target.value.trim() || null;
+        if (v !== (m.responsible || null)) onUpdate(m.id, { responsible: v });
+      }}
+      aria-label={`Ответственный за получение ${m.name}`}
+    />
+  );
+}
+
+/**
+ * Статус подписью + вердикт склада + отметка SLA закупки.
+ *
+ * ВЕРДИКТ СКЛАДА ЖИВЁТ ЗДЕСЬ, ПОТОМУ ЧТО ЗДЕСЬ ЕГО ЖДУТ (обход 04.09).
+ * Приёмка ставит `status = 'received'` при ЛЮБОМ исходе — и при недостаче,
+ * и при пересорте, и при отказе, — поэтому строка закупки показывала
+ * «Пришло» одинаково во всех случаях. Кладовщик записывал расхождение
+ * и комментарий, а закупщик не видел ни того, ни другого: обратной связи
+ * склад → закупка не было вовсе.
+ *
+ * Компонент один на таблицу и на карточку планшета — второй экземпляр
+ * вердикта разошёлся бы с первым молча.
+ */
+export function StatusCell({ m }) {
+  const sla = m.source === 'purchase' ? procurementSla(m.created_at, m.status) : null;
+  const issue = materialAcceptanceIssue(m);
+  /** Что фактически привезли — спрашивается только при пересорте */
+  const fact = [m.fact_name, m.fact_article, m.fact_color].filter(Boolean).join(' · ');
+  return (
+    <>
+      <Badge variant={STATUS_VARIANT[m.status] || 'neutral'}>{MATERIAL_STATUS_LABELS[m.status]}</Badge>
+      {issue && (
+        <div className={styles.subText}>
+          <span className={styles.cellWithIcon}>
+            <Icon name="alert" size={13} /> {ACCEPTANCE_ISSUE_LABELS[issue]}
+          </span>
+          {issue === 'mismatch' && fact && <div>привезли: {fact}</div>}
+          {m.accept_comment && <div>«{m.accept_comment}»</div>}
+        </div>
+      )}
+      {sla && (
+        <div className={styles.subText}>
+          {sla === 'overdue'
+            ? <span className={styles.cellWithIcon}><Icon name="alert" size={13} /> просрочено</span>
+            : 'на обработке'}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Действие: подтверждение наличия со склада либо смена статуса.
+ *
+ * ОСНОВНОЙ СЦЕНАРИЙ ЗАКУПКИ (правка заказчика 12.09, п. 8):
+ * «Не заказано» → «Заказано» → «В пути».
+ *
+ * «ЗАКАЗАНО» СНОВА ВЫБИРАЕТСЯ РУКАМИ. С 24.08 пункт был погашен: статус
+ * ставился по факту оформления — заполненными «Количество к заказу» и «Дата
+ * заказа». Заказчик это решение отменил, и подстановка (`autoOrderedStatus`)
+ * ОСТАЛАСЬ: она по-прежнему переводит материал в «Заказано», когда оба поля
+ * заполнены, но теперь это подсказка, а не единственный путь. Одно другому
+ * не мешает — подстановка работает только из «Не заказано».
+ *
+ * «ПРИШЛО» И «ЧАСТИЧНО» ГАСЯТСЯ ВМЕСТО НЕГО: приход фиксирует склад приёмкой,
+ * а не закупщик выбором. Правило — `utils/materialStatus`, там же объяснено,
+ * почему убирается ВВОД, а не само значение.
+ *
+ * Погашенный пункт остаётся видимым и подписанным, а не исчезает: пропавшая
+ * строка читается как поломка списка, и человек ищет её вместо того, чтобы
+ * понять, кто теперь ставит статус. Уже принятый материал показывает своё
+ * значение — иначе селект открылся бы пустым.
+ */
+export function StatusControl({ m, onConfirmStock, onSetStatus }) {
+  if (m.source === 'stock' && m.status === 'pending') {
+    return <Button variant="secondary" onClick={() => onConfirmStock(m.id)}>Наличие</Button>;
+  }
+  return (
+    <select
+      className={styles.select} value={m.status}
+      onChange={(e) => onSetStatus(m, e.target.value)}
+      aria-label={`Статус ${m.name}`}
+    >
+      {Object.entries(MATERIAL_STATUS_LABELS).map(([v, l]) => {
+        const byWarehouse = !isPurchaserChoosableStatus(v) && m.status !== v;
+        return (
+          <option key={v} value={v} disabled={byWarehouse}>
+            {byWarehouse ? `${l} — по приёмке склада` : l}
+          </option>
+        );
+      })}
+    </select>
+  );
+}

@@ -1,0 +1,440 @@
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
+import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
+import { PageHead } from '../components/PageHead';
+import { ScreenSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed } from '../components/ErpStates';
+import InlineEdit from '../components/InlineEdit';
+import { Icon } from '../components/Icon';
+/**
+ * Форма заказа приезжает ЛЕНИВО и здесь тоже: полторы тысячи строк вместе
+ * с под-компонентами, а открывает её меньшинство и по требованию — тот же
+ * довод, что у списка заказов.
+ */
+const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
+  .then((m) => ({ default: m.CreateOrderModal })));
+import { formatDateShort } from '../utils/time';
+import { orderProgress } from '../utils/progress';
+import {
+  ORDER_STATUS_LABELS,
+  SHIPPED_STATUS_LABELS,
+  MATERIAL_STATUS_LABELS,
+  PACKAGING_LABELS,
+  STICKERS_LABELS,
+} from '../types';
+import styles from '../styles';
+import { Badge } from '../components/Badge';
+import { buildOrderNow } from '../utils/orderNow';
+import { fmt, fmtTs } from './orderCard/format';
+import { OrderItemSection } from './orderCard/OrderItemSection';
+import { TzDocsSection, TzMissingBanner } from './orderCard/TzDocsSection';
+import { FilesSection } from './orderCard/FilesSection';
+import { CommentsSection } from './orderCard/CommentsSection';
+import { ChatPanel } from '../components/chat/ChatPanel';
+import { HistorySection } from './orderCard/HistorySection';
+import { EconomicsSection } from './orderCard/EconomicsSection';
+import { NotificationsSection } from './orderCard/NotificationsSection';
+import { useOrderDetail } from './orderCard/useOrderDetail';
+import { Button, ButtonLink } from '../components/Button';
+import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
+import { Tabs, TabPanel } from '../components/Tabs';
+import { TzBlock } from './queue/TzBlock';
+
+/** Готовность заказа в штуках по этапам — знаменатель поясняется в подписи */
+function OrderReadiness({ order }) {
+  const p = orderProgress(order);
+  return (
+    <div className={styles.routeTotal} style={{ marginBottom: 12 }}>
+      <span className={styles.routeTotalLabel}>Готовность заказа</span>
+      <div className={styles.progressTrack} aria-hidden="true">
+        <div className={styles.progressFill} style={{ width: `${p.pct}%` }} />
+      </div>
+      <span className={styles.progressCell}>{p.pct}%</span>
+      <span className={styles.subText}>{p.done}/{p.total} шт по этапам</span>
+    </div>
+  );
+}
+
+/**
+ * Карточка заказа (страница /orders/:id) — «трекинг посылки»: маршрут по этапам с план/фактом,
+ * материалы, история.
+ *
+ * Единственный вид карточки: боковая панель убрана правкой заказчика 16.08 —
+ * в узком окне не помещался растущий объём (маршрут, материалы, ТЗ, файлы,
+ * комментарии), а всё, что она умела сверх страницы, переехало сюда.
+ */
+export default function OrderCard() {
+  const { orderId } = useParams();
+  const {
+    order, notFound, loaded, loadError, loadAll, detailError, retryDetail,
+    events, audit, comments,
+    saveOrderField, onSavePlan, onSendComment, readyToShip, shippedByName,
+    deptById, deptNameById, stageById, departments,
+  } = useOrderDetail(orderId);
+
+  /**
+   * Правка полей заказа — право `order.manage`, ровно как на сервере
+   * (страж `erp_order_guard`, миграция 20260803280000). Без права поля
+   * показываются НА ЧТЕНИЕ, а не пропадают: срок клиента и менеджер нужны
+   * цеху, чтобы понимать, что он делает, — тот же приём, что у плановых дат.
+   */
+  const access = useErpAccess();
+  const canManageOrder = access.can('order.manage');
+  /** Себестоимость позиции — своё право, а не `order.manage` (20.09, п. 9) */
+  const canSeeEconomics = access.can('economics.view');
+  /** Открыта ли форма правки заказа (правка 12.09, п. 7) */
+  const [editing, setEditing] = useState(false);
+
+  /**
+   * «Сейчас» для шапки. Тот же расчёт, что рисует колонку списка заказов:
+   * второй ответ об одном состоянии однажды разошёлся бы с первым.
+   * Аварийно снятые проверки учитываются — карточка обязана показывать
+   * ту же готовность, что видит цех.
+   */
+  const bypasses = useErpStore((st) => st.bypasses);
+  const now = useMemo(
+    () => (order ? buildOrderNow([order], departments, { bypasses }).get(order.id) : null),
+    [order, departments, bypasses],
+  );
+  /**
+   * НЕПРОЧИТАННОЕ ПЕРЕПИСКИ для вкладки «Чат». Считается СЕРВЕРОМ
+   * (`erp_chat_unread`) той же формулой, что и счётчик у задания цеха:
+   * две формулы одного числа разошлись бы, и первым это заметил бы цех —
+   * «в сделке непрочитанных нет, а в задаче есть».
+   *
+   * Запрос идёт при открытии карточки и на каждый звонок realtime: число
+   * стоит в подписи вкладки, то есть видно и тогда, когда сама переписка
+   * не открыта.
+   */
+  const chatUnread = useErpStore((st) => st.chatUnread[orderId]?.total ?? 0);
+  const loadChatUnread = useErpStore((st) => st.loadChatUnread);
+  const chatPing = useErpStore((st) => st.chatPing);
+  useEffect(() => {
+    if (orderId) void loadChatUnread(orderId);
+  }, [orderId, chatPing, loadChatUnread]);
+
+  const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
+  /**
+   * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
+   * (холодный старт функции тянет шрифт), и без него человек нажимает кнопку
+   * второй раз, получая вторую сборку того же листа.
+   */
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  /**
+   * Куда возвращает «Заказы». Раньше здесь стоял безусловный `/orders`, и возврат
+   * приводил на «Активные» без фильтров, дат, сортировки и страницы — с другим
+   * ключом `useScrollRestore` (он ключуется по `pathname+search`), то есть и без
+   * позиции прокрутки. Пока карточка открывалась боковой панелью, это было
+   * незаметно: список не размонтировался вовсе. Теперь он размонтируется, и
+   * контекст обязан приезжать явно — тем же приёмом, что в `ProductionTask`.
+   *
+   * В заказ приходят и не из списка (канбан, очередь цеха, план, дашборд), и
+   * ссылками от коллег — поэтому `from` необязателен, а запасной путь остаётся.
+   */
+  const location = useLocation();
+  const backTo = location.state?.from || '/orders';
+
+  /**
+   * Активная вкладка — в адресе: ссылку на карточку шлют коллегам, и «смотри
+   * историю по этому заказу» должно открываться сразу нужной панелью.
+   * `replace`, чтобы переключение вкладок не забивало историю браузера:
+   * «Назад» обязан вернуть к списку заказов, а не пройти шесть вкладок.
+   */
+  const [params, setParams] = useSearchParams();
+  const tabs = useMemo(() => [
+    { id: 'items', label: 'Позиции', count: order?.items.length ?? 0 },
+    { id: 'tz', label: 'ТЗ', count: order?.tz_documents?.filter((d) => d.is_current).length ?? 0 },
+    { id: 'materials', label: 'Материалы', count: order?.materials.length ?? 0 },
+    { id: 'files', label: 'Файлы', count: order?.attachments?.length ?? 0 },
+    { id: 'comments', label: 'Комментарии', count: comments?.length ?? 0 },
+    /**
+     * ЧАТ — ОТДЕЛЬНАЯ ВКЛАДКА, а не замена комментариев (прямое требование
+     * документа: «существующие комментарии к заказу не трогать»). Это разные
+     * сущности: комментарий хранит автора текстом и не знает ни вложений,
+     * ни ответов, ни прочитанности. Счётчик показывает НЕПРОЧИТАННОЕ, а не
+     * общее число сообщений: у остальных вкладок число отвечает «сколько
+     * там всего», а у переписки полезен ровно другой вопрос — «сколько
+     * я ещё не видел».
+     *
+     * НОЛЬ СКРЫВАЕТСЯ (правка 20.09, п. 4: «при нуле скрывать бейдж»), и это
+     * не спор с примитивом, а другое значение числа: у остальных вкладок ноль
+     * отвечает «там пусто» и отличает пустую вкладку от вкладки без счётчика,
+     * а здесь он отвечал бы «читать нечего» — и просил бы внимания зря.
+     */
+    { id: 'chat', label: 'Чат', count: chatUnread || undefined },
+    /**
+     * ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9) — под своим правом
+     * `economics.view`. Без него вкладки нет вовсе: прятать содержимое,
+     * оставляя заголовок, значит обещать то, чего человек не получит.
+     *
+     * Счётчика у неё нет намеренно: «сколько там» — неверный вопрос
+     * к себестоимости, а число позиций уже стоит у вкладки «Позиции».
+     */
+    ...(canSeeEconomics ? [{ id: 'economics', label: 'Экономика позиции' }] : []),
+    { id: 'history', label: 'История', count: (events?.length ?? 0) + (audit?.length ?? 0) },
+  ], [order, comments, events, audit, chatUnread, canSeeEconomics]);
+  const requested = params.get('tab');
+  const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
+
+  /**
+   * Сбой ТОЧЕЧНОЙ загрузки заказа (правка 03.09). Раньше он попадал в ветку
+   * «Заказ не найден»: `loadOne` отдаёт `null` и при отказе сети, и при
+   * отсутствии записи. Менеджер кидал ссылку в чат, коллега читал «не найден»
+   * и делал вывод, что заказ удалили.
+   */
+  if (detailError && !order) {
+    return (
+      <>
+        <PageHead title="Заказ" />
+        <LoadFailed onRetry={retryDetail} what="заказ" />
+      </>
+    );
+  }
+  if (notFound) {
+    return (
+      <>
+        <PageHead title="Заказ не найден" />
+        <ButtonLink to={backTo} variant="secondary" className={styles.cellWithIcon}>
+          <Icon name="chevronLeft" size={14} />К списку заказов
+        </ButtonLink>
+      </>
+    );
+  }
+  if (loadError && !loaded) {
+    return (
+      <>
+        <PageHead title="Заказ" />
+        <LoadFailed onRetry={loadAll} what="заказ" />
+      </>
+    );
+  }
+  if (!order) return <ScreenSkeleton />;
+
+  return (
+    <>
+      <div className={styles.toolbar} style={{ marginBottom: 4 }}>
+        <Link to={backTo} className={`${styles.subText} ${styles.cellWithIcon}`}>
+          <Icon name="chevronLeft" size={13} />Заказы
+        </Link>
+        <div className={styles.spacer} />
+        {/*
+          «РЕДАКТИРОВАТЬ» (правка 12.09, п. 7): «после создания заказа его
+          данные нельзя нормально отредактировать — приходится обходить
+          текущую логику или создавать заказ заново».
+
+          Под `order.manage` — тем же правом, что требует серверная
+          `erp_update_order`. Иначе получилось бы запрещённое в проекте
+          «кнопка есть, действие падает», причём после заполнения всей формы.
+
+          Форма открывается на ПОЛНОМ заказе: он уже дозагружен (`loadOne`
+          в `useOrderDetail`), и размерная сетка на месте — в списочной
+          выборке её нет намеренно, и на ней форма открылась бы с пустой
+          сеткой, а сохранение её стёрло.
+        */}
+        {canManageOrder && (
+          <Button variant="secondary" icon="pencil" onClick={() => setEditing(true)}>
+            Редактировать
+          </Button>
+        )}
+      </div>
+      {editing && (
+        <Suspense fallback={null}>
+          <CreateOrderModal order={order} onClose={() => setEditing(false)} />
+        </Suspense>
+      )}
+      <PageHead title={`${order.bitrix_id ? `№${order.bitrix_id} · ` : ''}${order.title}`} />
+      <div className={`${styles.toolbar} ${styles.toolbarUnderHead} ${styles.orderFacts}`}>
+        {/* Клиент собирается формой создания и правится в боковой карточке, но на
+            полной странице его не было вовсе — а именно её ссылку шлют коллегам */}
+        <span>
+          <span className={styles.subText}>Клиент: </span>
+          <InlineEdit
+            value={order.customer}
+            placeholder="добавить…"
+            ariaLabel="Клиент"
+            onSave={(v) => saveOrderField({ customer: v })} disabled={!canManageOrder}
+          />
+        </span>
+        <span>
+          <span className={styles.subText}>Менеджер: </span>
+          <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} disabled={!canManageOrder} />
+        </span>
+        <span>
+          <span className={styles.subText}>Запуск: </span>
+          <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} disabled={!canManageOrder} />
+        </span>
+        <span>
+          <span className={styles.subText}>Срок клиента: </span>
+          <InlineEdit type="date" value={order.due_date} format={fmt} ariaLabel="Срок клиента" onSave={(v) => saveOrderField({ due_date: v })} disabled={!canManageOrder} />
+        </span>
+        <span>
+          <span className={styles.subText}>Заметка: </span>
+          <InlineEdit value={order.notes === 'imported' ? null : order.notes} placeholder="добавить…" ariaLabel="Заметка" onSave={(v) => saveOrderField({ notes: v })} disabled={!canManageOrder} />
+        </span>
+      </div>
+      <div className={styles.toolbar}>
+        <span className={`${styles.chip} ${order.status === 'active' ? styles.chipProgress : styles.chipNeutral}`}>{ORDER_STATUS_LABELS[order.status]}</span>
+        {readyToShip && <span className={`${styles.chip} ${styles.chipReady}`}><Icon name="checkCircle" size={13} /> Готов к отгрузке</span>}
+        <span className={`${styles.chip} ${order.shipped_status === 'shipped' ? styles.chipReady : styles.chipNeutral}`}>{SHIPPED_STATUS_LABELS[order.shipped_status]}</span>
+        {readyToShip && order.shipped_status !== 'shipped' && <span className={styles.subText}><span className={styles.cellWithIcon}><Icon name="truck" size={13} /> Отгрузка — во вкладке «Склад»</span></span>}
+        {order.shipped_at && <span className={styles.subText}>Отгружен {fmtTs(order.shipped_at)}{shippedByName ? ` · ${shippedByName}` : ''}</span>}
+        {order.delivered_at && <span className={styles.subText}>сдан {fmt(order.delivered_at)}</span>}
+        {order.packaging && order.packaging !== 'none' && (
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="box" size={13} /> {PACKAGING_LABELS[order.packaging]}{order.packaging_note ? `: ${order.packaging_note}` : ''}</span>
+        )}
+        {order.stickers && order.stickers !== 'none' && (
+          <span className={`${styles.chip} ${styles.chipNeutral}`}><Icon name="tag" size={13} /> Стикеры: {STICKERS_LABELS[order.stickers]}{order.stickers_note ? ` — ${order.stickers_note}` : ''}</span>
+        )}
+        {order.no_chestny_znak && <span className={`${styles.chip} ${styles.chipWaiting}`}>Без Честного знака</span>}
+      </div>
+
+      {/*
+        «СЕЙЧАС» В ШАПКЕ (обход 04.09). Шапка несла номер, клиента, менеджера,
+        даты и чипы упаковки, а текущий этап и причина простоя лежали в таблице
+        этапов ТРЕТЬИМ экраном — под готовностью, размерной сеткой и нанесениями.
+        В карточку заходят именно с этим вопросом, и он обязан быть виден
+        до первой прокрутки и на ЛЮБОЙ вкладке. Величина считается тем же
+        `utils/orderNow`, что рисует колонку списка: два ответа об одном
+        состоянии однажды разошлись бы.
+      */}
+      {now && (
+        <div className={styles.orderNowBar} data-stopped={now.stopped || undefined}>
+          <span className={styles.fieldLabel}>Сейчас</span>
+          <span className={styles.nowHead}>
+            <span className={styles.nowWhere}>{now.where}</span>
+            <Badge variant={now.variant}>{now.what}</Badge>
+          </span>
+          {now.why && <span className={styles.subText}>{now.why}</span>}
+        </div>
+      )}
+
+      {/* Уведомления и баннер ТЗ — ВНЕ вкладок: это «почему заказ стоит»,
+          и прятать его за переключателем значит показывать проблему только
+          тому, кто угадал вкладку. */}
+      <NotificationsSection order={order} stageById={stageById} deptById={deptById} />
+      <TzMissingBanner order={order} departments={departments} />
+
+      <Tabs
+        idPrefix="order"
+        label="Разделы карточки заказа"
+        tabs={tabs}
+        active={tab}
+        onSelect={(id) => setParams((prev) => {
+          const next = new URLSearchParams(prev);
+          if (id === 'items') next.delete('tab'); else next.set('tab', id);
+          return next;
+        }, { replace: true })}
+      />
+
+      <TabPanel idPrefix="order" active={tab}>
+        {tab === 'items' && (
+          <>
+            {/* Готовность заказа в штуках по этапам. Жила только в боковой карточке,
+                хотя отвечает на первый вопрос к заказу — «насколько он сделан». */}
+            <OrderReadiness order={order} />
+            {order.items.map((item) => (
+              <OrderItemSection key={item.id} item={item} order={order} deptById={deptById} deptNameById={deptNameById} events={events} onSavePlan={onSavePlan} />
+            ))}
+          </>
+        )}
+
+        {tab === 'tz' && (
+          <section className={styles.matSection}>
+            {order.items.map((item) => (
+              <div key={item.id}>
+                <div className={styles.matSectionHead}>
+                  <strong>{item.product_type}{item.variant ? ` · ${item.variant}` : ''}</strong>
+                  <span className={styles.queueQty}>{item.qty} шт</span>
+                </div>
+                <TzDocsSection order={order} item={item} deptById={deptById} />
+                {/* Структурное ТЗ (сетка, нанесения, упаковка) — рядом с PDF, как
+                    это было в боковой карточке: цеху нужны оба вида сразу */}
+                <TzBlock order={order} item={item} defaultOpen hideToggle />
+              </div>
+            ))}
+          </section>
+        )}
+
+        {tab === 'materials' && (
+          <section className={styles.matSection}>
+            {/*
+              ЛИСТ ЗАКУПКИ МЕНЕДЖЕРА — это ФАЙЛ (правки 20.08), он лежит
+              во вкладке «Файлы» и виден закупщику в его очереди. Кнопки ниже
+              про другое: печатная форма и PDF собираются по ФАКТИЧЕСКИМ
+              строкам закупщика. Подписи это называют прямо — иначе два
+              разных документа выглядели бы одним.
+            */}
+            <div className={styles.toolbar}>
+              <ButtonLink to={`/orders/${orderId}/purchase-list`} variant="secondary">
+                <Icon name="file" size={14} /> Печать по строкам закупки
+              </ButtonLink>
+              {/* Автосборка при создании заказа снята: в тот момент строк
+                  закупщика ещё нет, и функция отвечала бы 409 на каждом заказе */}
+              {order.materials.length > 0 && (
+                <Button
+                  variant="ghost"
+                  icon="download"
+                  loading={pdfBusy}
+                  onClick={async () => {
+                    setPdfBusy(true);
+                    await generatePurchaseListPdf(orderId);
+                    setPdfBusy(false);
+                  }}
+                >
+                  Собрать PDF
+                </Button>
+              )}
+            </div>
+            {order.materials.length > 0 ? (
+              <div className={styles.stageChips}>
+                {order.materials.map((m) => {
+                  const pending = m.status !== 'received' && m.status !== 'not_needed';
+                  const eta = pending ? formatDateShort(m.eta_date) : '';
+                  return (
+                    <span key={m.id} className={`${styles.chip} ${pending ? styles.chipProgress : styles.chipReady}`}>
+                      {m.name}
+                      {m.supplier ? ` · ${m.supplier}` : ''}
+                      {' · '}{MATERIAL_STATUS_LABELS[m.status]}{pending && (eta ? ` · план ${eta}` : ' · план не указан')}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              /*
+                «Строк закупки пока нет», а не «Материалы по этому заказу
+                не закупаются» (правка 03.09). Прежний текст утверждал
+                РЕШЕНИЕ, которого никто не принимал: пустой список означает
+                и «закупщик ещё не завёл строки». Настоящее решение живёт
+                в `purchase_required`, и печатная форма листа закупки называет
+                этот случай верно — расхождение было только здесь.
+              */
+              <div className={styles.subText}>
+                {order.purchase_required === false
+                  ? 'Закупка по заказу не требуется — отметил менеджер.'
+                  : 'Строк закупки пока нет.'}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === 'files' && (
+          <FilesSection orderId={order.id} attachments={order.attachments} />
+        )}
+
+        {tab === 'comments' && <CommentsSection comments={comments} onSend={onSendComment} />}
+
+        {/* Переписка сделки. Контекст не передаётся: с карточки заказа
+            разговор общий — сужение по задаче открывается со страницы
+            задания, где задача и выбрана */}
+        {tab === 'chat' && <ChatPanel orderId={order.id} focusId={params.get('msg')} />}
+
+        {tab === 'economics' && <EconomicsSection order={order} />}
+
+        {tab === 'history' && (
+          <HistorySection events={events} audit={audit} stageById={stageById} deptById={deptById} />
+        )}
+      </TabPanel>
+    </>
+  );
+}

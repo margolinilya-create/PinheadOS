@@ -1,0 +1,485 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
+import { PageHead } from '../components/PageHead';
+import { KanbanSkeleton, TableSkeleton } from '../components/ErpSkeletons';
+import { LoadFailed, EmptyResult, EmptyState } from '../components/ErpStates';
+import { QueueFilters } from '../components/QueueFilters';
+import ErpKanban from '../components/ErpKanban';
+import { Icon } from '../components/Icon';
+import { useErpStore } from '../store/useErpStore';
+import { useErpAccess } from '../store/useErpAccess';
+import { OrderLink } from '../components/OrderLink';
+import { useScrollRestore } from '../../hooks/useScrollRestore';
+import {
+  isStageReady, waitingReason, materialsForItem, isStageAwaitingProcurement,
+} from '../utils/routes';
+import { stageMissingTz } from '../utils/tz';
+import {
+  applyStageFilters, EMPTY_FILTERS, filtersFromParams, filtersToParams, hasActiveFilters,
+} from '../utils/filterStages';
+import { buildQueueEntries } from '../utils/queueEntries';
+import { materialsAfterBypass, isBypassed } from '../utils/bypass';
+import { confirmStageDone } from '../utils/stageDone';
+import { stageDonePatch } from '../utils/stageRemaining';
+import { isProductionDept, deptShortName } from '../data/departments';
+import { daysLeft, formatDateShort } from '../utils/time';
+import { STAGE_CHIP_CLASS, isOrderReadyToShip } from '../utils/stageUi';
+import { itemProgress } from '../utils/progress';
+import { pluralize } from '../../utils/i18n';
+import { useCompactLayout } from '../layout/useCompactLayout';
+import { BoardCardMobile } from './board/BoardCardMobile';
+import { STAGE_STATUS_LABELS } from '../types';
+import { FilterChip } from '../components/FilterChip';
+import styles from '../styles';
+import { ScrollHintBox } from '../components/ScrollHintBox';
+import { dueLabelCompact } from '../utils/format';
+import { ProductionTabs } from '../components/ProductionTabs';
+import { storageGetRaw, storageSetRaw } from '../../lib/storage';
+
+/**
+ * Производственный план — мастер-таблица (аналог 1_Производственный_план).
+ * Строка = позиция заказа, колонки = этапы-светофор по цехам.
+ * Клик по этапу циклит статус: ready → in_progress → done.
+ *
+ * Фильтры — те же, что в очереди цеха и на канбане (`applyStageFilters`): строка
+ * показывается, если под подбор попал хотя бы один её этап. Раньше таблица брала
+ * из фильтров только строку поиска, а «Просрочено» / «С проблемой» / цех / статус
+ * красились активными и ничего не меняли — диспетчер делал вывод, что просрочено всё.
+ */
+
+/** Следующий статус по клику (простая механика MVP) */
+const NEXT_STATUS = {
+  ready: 'in_progress',
+  in_progress: 'done',
+};
+
+/** Право, которое нужно для клика по чипу этапа */
+const NEXT_PERMISSION = {
+  ready: 'stage.take',
+  in_progress: 'stage.complete',
+};
+
+/** Чип, которым нельзя двигать статус (компактная раскладка) */
+const NEVER_ADVANCE = () => false;
+
+function StageChip({ stage, item, order, deptById, onAdvance, allowAdvance, bypasses }) {
+  const dept = deptById.get(stage.department_id);
+  const allStages = item.stages;
+
+  /**
+   * АВАРИЙНЫЕ СНЯТИЯ УЧИТЫВАЮТСЯ И ЗДЕСЬ (правка 03.09).
+   *
+   * `buildQueueEntries` получает `bypasses` и потому в очереди цеха задание
+   * с аварийно снятой проверкой стоит «Готово к работе» с пометкой «Проверка
+   * снята вручную». Чип на доске считал готовность СВОИМ вызовом
+   * `isStageReady` без снятий — и тот же этап показывал «Ожидает» серым
+   * и некликабельным. Диспетчер, ради которого снятие и делали, двинуть
+   * работу с доски не мог.
+   *
+   * Это ровно тот же класс, что расхождение по дозакупке двумя абзацами ниже:
+   * вторая копия правила, отвечающая иначе, чем первая.
+   */
+  const gateMaterials = materialsAfterBypass(
+    materialsForItem(order.materials, item.id), order.id, bypasses,
+  );
+  // waiting в БД, но зависимости выполнены → показываем как «готов к работе»
+  const noTz = stageMissingTz(order, item.id, dept)
+    && !isBypassed('tz_gate', order.id, bypasses);
+  /**
+   * ЗАКУПКА НА ЗАМЕНУ СЧИТАЕТСЯ И ЗДЕСЬ (правка 30.08, п. 7).
+   *
+   * Раньше в обе функции жёстко уходил `blockedByProcurement = false`, тогда
+   * как `buildQueueEntries` считает его настоящим `isStageAwaitingProcurement`.
+   * Из-за этого этап, ждущий дозакупку после брака, на доске горел «готов
+   * к работе» и его чип был кликабелен, а в очереди того же цеха он стоял
+   * в ожидании. Документ требует, чтобы все поверхности отвечали одинаково;
+   * расхождение здесь было ровно того же класса, что потерянная дорожка.
+   */
+  const awaitProc = isStageAwaitingProcurement(order.procurement_tasks, stage.id);
+  const effectiveReady =
+    stage.status === 'waiting' &&
+    isStageReady(
+      stage, allStages, gateMaterials, dept, awaitProc, noTz,
+    );
+  const displayStatus = effectiveReady ? 'ready' : stage.status;
+
+  const reason =
+    displayStatus === 'waiting' || displayStatus === 'blocked'
+      ? waitingReason(
+          stage, allStages, gateMaterials,
+          new Map([...deptById].map(([id, d]) => [id, d.name])),
+          dept, awaitProc, noTz,
+        )
+      : null;
+
+  // Двигать этап может только тот, кому это разрешено матрицей прав и кто работает
+  // в этом цехе. Раньше чип двигал статус любому, кто открыл экран, — доска была
+  // единственным местом действий в обход useErpAccess.
+  const advanceable = displayStatus === 'ready' || displayStatus === 'in_progress';
+  const clickable = advanceable && allowAdvance(stage.department_id, displayStatus);
+  const title = [
+    dept?.name,
+    STAGE_STATUS_LABELS[displayStatus],
+    reason,
+    clickable ? `Клик: ${STAGE_STATUS_LABELS[NEXT_STATUS[displayStatus]]}` : null,
+    advanceable && !clickable ? 'Нет прав менять статус этого этапа' : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      type="button"
+      className={`${styles.chip} ${styles.chipBtn} ${styles[STAGE_CHIP_CLASS[displayStatus]]}`}
+      style={{ cursor: clickable ? 'pointer' : 'default' }}
+      title={title}
+      aria-label={title}
+      disabled={!clickable}
+      onClick={() => clickable && onAdvance(stage, NEXT_STATUS[displayStatus], item, order)}
+    >
+      {dept ? deptShortName(dept.code, dept.name) : '?'}
+      {displayStatus === 'done' && <Icon name="check" size={12} />}
+    </button>
+  );
+}
+
+export default function ProductionBoard() {
+  const {
+    orders, departments, loaded, loadError, loadAll, setStageStatus,
+    archiveLoaded, loadArchive, bypasses,
+  } = useErpStore(
+    useShallow((s) => ({
+      orders: s.orders,
+      departments: s.departments,
+      loaded: s.loaded,
+      loadError: s.loadError,
+      loadAll: s.loadAll,
+      setStageStatus: s.setStageStatus,
+      archiveLoaded: s.archiveLoaded,
+      loadArchive: s.loadArchive,
+      bypasses: s.bypasses,
+    })),
+  );
+  const access = useErpAccess();
+  const isCompact = useCompactLayout();
+  const [onlyActive, setOnlyActive] = useState(true);
+  const [view, setView] = useState(() => storageGetRaw('erp_board_view') || 'table');
+  const switchView = (v) => { setView(v); storageSetRaw('erp_board_view', v); };
+
+  // Поиск, фильтры и сортировка — общие с очередью цеха, состояние в URL (правки 4 и 9)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
+  const setFilters = useCallback(
+    (next) => setSearchParams(filtersToParams(next), { replace: true }),
+    [setSearchParams],
+  );
+  useScrollRestore(loaded);
+
+  useEffect(() => {
+    if (!loaded) loadAll();
+  }, [loaded, loadAll]);
+
+  // Снят фильтр «Только активные» → нужны и архивные (лениво)
+  useEffect(() => {
+    if (!onlyActive && !archiveLoaded) loadArchive();
+  }, [onlyActive, archiveLoaded, loadArchive]);
+
+  const deptById = useMemo(
+    () => new Map(departments.map((d) => [d.id, d])),
+    [departments],
+  );
+  /** Цеха с очередью — колонки канбана и значения фильтра «Цех» */
+  const queueDepartments = useMemo(
+    () => departments.filter((d) => d.active && isProductionDept(d)),
+    [departments],
+  );
+  const assignees = useMemo(
+    () => [...new Set(
+      orders.flatMap((o) => o.items).flatMap((it) => it.stages).map((s) => s.assignee).filter(Boolean),
+    )].sort(),
+    [orders],
+  );
+
+  const deptNameById = useMemo(
+    () => new Map(departments.map((d) => [d.id, deptShortName(d.code, d.name)])),
+    [departments],
+  );
+
+  /** Задания всех заказов — тот же источник, что у очереди и канбана */
+  const entries = useMemo(
+    () => buildQueueEntries(orders, departments, { includeInactive: !onlyActive, bypasses }),
+    [orders, departments, onlyActive, bypasses],
+  );
+
+  /**
+   * Строка = позиция заказа. Позиция видна, если под фильтры попал хотя бы один
+   * её этап; порядок строк — по лучшему (первому в отсортированном списке) этапу,
+   * поэтому сортировка «по приоритету / сроку / величине просрочки» работает и здесь.
+   */
+  const rows = useMemo(() => {
+    const byItem = new Map();
+    for (const e of applyStageFilters(entries, filters)) {
+      if (!byItem.has(e.item.id)) byItem.set(e.item.id, { order: e.order, item: e.item });
+    }
+    return [...byItem.values()];
+  }, [entries, filters]);
+
+  const filtersActive = hasActiveFilters(filters);
+
+  /** Может ли текущий пользователь двинуть этап этого цеха дальше */
+  const allowAdvance = useCallback(
+    (departmentId, displayStatus) =>
+      access.canDo(NEXT_PERMISSION[displayStatus], departmentId),
+    [access],
+  );
+
+  /**
+   * Чип этапа. `interactive` — можно ли им двигать статус.
+   *
+   * НА КОМПАКТНОЙ РАСКЛАДКЕ ЧИПЫ ТОЛЬКО ПОКАЗЫВАЮТ СОСТОЯНИЕ (правка 03.09).
+   * Это обещал комментарий в `BoardCardMobile` с самого её появления —
+   * «менять статус тычком пальца по 25-пиксельной пилюле в списке из сотни
+   * позиций не сценарий», — но сюда передавался тот же кликабельный чип,
+   * и тап переводил этап `ready → in_progress` без подтверждения, назначая
+   * исполнителя. Комментарий описывал намерение, а не код.
+   *
+   * Для действий на планшете есть очередь цеха и страница задания — там у них
+   * полноразмерные кнопки и формы.
+   */
+  const renderStage = (st, order, item, interactive = true) => (
+    <StageChip
+      key={st.id}
+      stage={st}
+      item={item}
+      order={order}
+      deptById={deptById}
+      bypasses={bypasses}
+      onAdvance={onAdvance}
+      allowAdvance={interactive ? allowAdvance : NEVER_ADVANCE}
+    />
+  );
+
+  const onAdvance = async (stage, nextStatus, item, order) => {
+    if (nextStatus !== 'done') {
+      await setStageStatus(stage.id, nextStatus);
+      return;
+    }
+    // Чип пишет весь тираж — при незакрытом остатке спрашиваем, как в очереди цеха
+    const ok = await confirmStageDone({
+      stage, qty: item.qty, allStages: item.stages, deptNameById,
+      // Гейт закупки (правка 30.08, п. 5) — те же аргументы, что в очереди цеха.
+      // Аварийное снятие учитывается и здесь (правка 03.09)
+      materials: materialsAfterBypass(materialsForItem(order.materials, item.id), order.id, bypasses),
+      dept: deptById.get(stage.department_id),
+      orderItems: order.items,
+      itemId: item.id,
+    });
+    if (!ok) return;
+    // Участок с формой результата закрывается учтённым, а не тиражом (27.09, п. 7)
+    await setStageStatus(stage.id, 'done', stageDonePatch(stage, item, deptById.get(stage.department_id)));
+  };
+
+  return (
+    <>
+      <PageHead
+        title="Доска производства"
+        sub="Все позиции в работе: этапы-светофор по цехам, сроки, узкие места."
+      />
+      <ProductionTabs />
+
+      <div className={styles.toolbar}>
+        {/* Не tablist: панели с role="tabpanel" нет, aria-controls нет, стрелочной
+            навигации нет — объявлять паттерн вкладок наполовину хуже, чем не
+            объявлять. Это переключатель, и aria-pressed описывает его честно. */}
+        <div role="group" aria-label="Вид" className={styles.filterRow}>
+          <FilterChip active={view === 'table'} onClick={() => switchView('table')}>
+            <Icon name="queue" size={13} /> Таблица
+          </FilterChip>
+          <FilterChip active={view === 'kanban'} onClick={() => switchView('kanban')}>
+            <Icon name="board" size={13} /> Канбан
+          </FilterChip>
+        </div>
+        {view === 'table' && (
+          <label className={styles.checkLabel}>
+            <input
+              type="checkbox"
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
+            />
+            Только активные
+          </label>
+        )}
+        <div className={styles.spacer} />
+        {/* Счётчик считает строки таблицы: на канбане набор другой (только
+            производственные цеха, «Завершено» обрезано), и то же число врало бы */}
+        {view === 'table' && (
+          <span className={styles.subText}>
+            {rows.length} {pluralize(rows.length, 'позиция', 'позиции', 'позиций')}
+          </span>
+        )}
+      </div>
+
+      <QueueFilters
+        filters={filters}
+        onChange={setFilters}
+        departments={queueDepartments}
+        assignees={assignees}
+      />
+
+      {view === 'kanban' && loaded && <ErpKanban filters={filters} />}
+      {/* Заглушка была привязана к табличному виду: на канбане при пустом подборе
+          или без заведённых участков оставалась просто пустая область */}
+      {view === 'kanban' && loaded && rows.length === 0 && (
+        filtersActive ? (
+          /* «Сбросить фильтры», а не «Сбросить»: та же подпись стоит в панели
+             фильтров выше, и две одинаковые кнопки на экране путают человека
+             и роняют strict mode Playwright */
+          <EmptyResult
+            onReset={() => setFilters(EMPTY_FILTERS)}
+            resetLabel="Сбросить фильтры"
+          />
+        ) : queueDepartments.length === 0 ? (
+          <EmptyState
+            icon="settings"
+            title="Производственные участки не заведены"
+            text="Добавьте их в админке."
+          />
+        ) : (
+          <EmptyState
+            icon="board"
+            title="Нет позиций в работе"
+            text="Создайте заказ на экране «Заказы»."
+          />
+        )
+      )}
+
+      {loadError && !loaded && <LoadFailed onRetry={loadAll} what="производственный план" />}
+      {/* Скелетон по виду: в канбан-виде появится доска, а не таблица */}
+      {/* `!loaded && !loadError`, а не `loading` — см. правило UX-2 */}
+      {!loadError && !loaded && (
+        view === 'kanban'
+          ? <KanbanSkeleton />
+          : <TableSkeleton rows={6} label="Загрузка производственного плана" />
+      )}
+
+      {view === 'table' && loaded && rows.length === 0 && (
+        filtersActive ? (
+          <EmptyResult
+            onReset={() => setFilters(EMPTY_FILTERS)}
+            resetLabel="Сбросить фильтры"
+          />
+        ) : (
+          <EmptyState
+            icon="board"
+            title="Нет позиций в работе"
+            text="Создайте заказ на экране «Заказы»."
+          />
+        )
+      )}
+
+      {/* На 390px таблица показывала только «№ / Заказ / Кол-во» — срок, прогресс
+          и этапы уезжали за край без подсказки прокрутки. Ниже 760px — карточки. */}
+      {view === 'table' && rows.length > 0 && isCompact && (
+        <div className={styles.queueGrid}>
+          {rows.map(({ order, item }) => (
+            <BoardCardMobile
+              key={item.id}
+              order={order}
+              item={item}
+              renderStage={(st) => renderStage(st, order, item, false)}
+            />
+          ))}
+        </div>
+      )}
+
+      {view === 'table' && rows.length > 0 && !isCompact && (
+        <ScrollHintBox className={styles.tableWrap} label="Производственный план">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Заказ / позиция</th>
+                <th>Кол-во</th>
+                <th>Срок</th>
+                <th>Прогресс</th>
+                <th>Этапы</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ order, item }) => {
+                const d = daysLeft(order.due_date);
+                const dueCls = d !== null && d < 0
+                  ? styles.overdue
+                  : d !== null && d <= 3 ? styles.dueSoon : undefined;
+                const progress = itemProgress(item);
+                return (
+                  <tr key={item.id}>
+                    {/* Номер и название — ссылки: раньше это был обычный текст,
+                        и увиденную на доске проблемную позицию нельзя было открыть */}
+                    <td>
+                      <OrderLink
+                        orderId={order.id}
+                        title={`Открыть заказ №${order.bitrix_id || '—'}`}
+                      >
+                        {order.bitrix_id || '—'}
+                      </OrderLink>
+                    </td>
+                    <td>
+                      <OrderLink
+                        orderId={order.id}
+                        className={styles.cellTitle}
+                        title={order.title}
+                      >
+                        {order.title}
+                      </OrderLink>
+                      {isOrderReadyToShip(order) && (
+                        <span
+                          className={`${styles.chip} ${styles.chipReady}`}
+                          style={{ marginLeft: 6 }}
+                          title="Все этапы завершены — заказ готов к отгрузке"
+                        >
+                          <Icon name="checkCircle" size={13} /> к отгрузке
+                        </span>
+                      )}
+                      <div className={styles.subText}>
+                        {item.product_type}
+                        {item.variant ? ` · ${item.variant}` : ''}
+                        {order.manager ? ` · ${order.manager}` : ''}
+                      </div>
+                    </td>
+                    <td>{item.qty}</td>
+                    <td>
+                      {/* Класс висел на <td>, а число дней лежит в .subText со своим
+                          color — дата краснела, «просрочен 5» оставался серым.
+                          Красим сам текст, как в строке очереди */}
+                      <div className={dueCls}>
+                        {order.due_date ? formatDateShort(order.due_date) : '—'}
+                      </div>
+                      {d !== null && (
+                        <div className={d < 0 ? styles.overdue : d <= 3 ? styles.dueSoon : styles.subText}>
+                          {dueLabelCompact(d)}
+                        </div>
+                      )}
+                    </td>
+                    <td className={styles.progressCell}>
+                      <div className={styles.progressLine} title={`Сделано ${progress.done} из ${progress.total} шт по этапам маршрута`}>
+                        <div className={styles.progressTrack} aria-hidden="true">
+                          <div className={styles.progressFill} style={{ width: `${progress.pct}%` }} />
+                        </div>
+                        <span>{progress.pct}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className={styles.stageChips}>
+                        {item.stages.map((st) => renderStage(st, order, item))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ScrollHintBox>
+      )}
+    </>
+  );
+}
