@@ -157,13 +157,9 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
     const fabric = fabricsCatalog.find(f => f.code === c.fabricCode);
     const trim = trimCatalog.find(t => t.code === c.trimCode);
     return {
-      sewingCost: c.sewing,
-      fabricCost: Math.round(c.fabric),
+      sewingCost: c.sewing, fabricCost: Math.round(c.fabric), trimCost: Math.round(c.trim),
       fabricName: fabric ? [fabric.name, fabric.supplier].filter(Boolean).join(' · ') : '—',
-      trimCost: Math.round(c.trim),
-      trimName: trim?.name || '—',
-      extraMaterials: c.extraMaterials,
-      total: Math.round(c.base),
+      trimName: trim?.name || '—', extraMaterials: c.extraMaterials, total: Math.round(c.base),
     };
   }, [sku, fabricsCatalog, trimCatalog, usdRate]);
 
@@ -355,12 +351,7 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
                 <span className="econ-value">{economics.fabricCost} &#8381;</span>
                 <span className="econ-label">Отделка ({economics.trimName})</span>
                 <span className="econ-value">{economics.trimCost} &#8381;</span>
-                {economics.extraMaterials > 0 && (
-                  <>
-                    <span className="econ-label">Доп. материалы</span>
-                    <span className="econ-value">{economics.extraMaterials} &#8381;</span>
-                  </>
-                )}
+                {economics.extraMaterials > 0 && <><span className="econ-label">Доп. материалы</span><span className="econ-value">{economics.extraMaterials} &#8381;</span></>}
                 <span className="econ-label econ-total">Итого</span>
                 <span className="econ-value econ-total">{economics.total} &#8381;</span>
               </div>

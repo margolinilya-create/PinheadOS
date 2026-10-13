@@ -476,11 +476,11 @@ describe('calcItemTotal', () => {
     expect(withPack - withoutPack).toBe(40 * 20); // 40 units × 20₽
   });
 
-  it('urgent adds 20%', () => {
+  it('urgent flag = 5 days: +15 % to the garment (13.10)', () => {
     const item = makeItemState();
     const normal = calcItemTotal(item, { ...catalogs, urgentOption: false });
     const urgent = calcItemTotal(item, { ...catalogs, urgentOption: true });
-    expect(urgent).toBe(Math.round(normal * 1.2));
+    expect(Math.abs(urgent - normal * 1.15)).toBeLessThanOrEqual(getItemTotalQty(item));
   });
 
   it('dtg print adds cost', () => {
@@ -1304,10 +1304,10 @@ describe('getSkuEstPrice — all SKU types', () => {
   it('longsleeve', () => { expect(getSkuEstPrice(LONGSLEEVE, null, FC, TC, 92)).toBeGreaterThan(0); });
   it('polo', () => { expect(getSkuEstPrice(POLO, null, FC, TC, 92)).toBeGreaterThan(0); });
 
-  it('higher USD rate = higher price', () => {
+  it('ruble prices are not re-converted by USD rate (13.10)', () => {
     const p92 = getSkuEstPrice(TEE, null, FC, TC, 92);
     const p100 = getSkuEstPrice(TEE, null, FC, TC, 100);
-    expect(p100).toBeGreaterThan(p92);
+    expect(p100).toBe(p92);
   });
 });
 
@@ -1478,21 +1478,21 @@ describe('getTotalSurcharge — multi-zone', () => {
 describe('Zone surcharge — dtf extended', () => {
   it('dtf A4 (film pricing, optimal rotation)', () => {
     const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A4' } } });
-    // gap=10, orient1: cols=floor(550/220)=2, cost=(307/1000)*1400/2=214.9 → round(214.9+50)=265
-    expect(getZoneSurcharge('front', s)).toBe(265);
+    // раскладка тиража 13.10: 6 на метр, 40 шт. → 7 м × 1500 + 40 × 50 → 312,5 за шт.
+    expect(getZoneSurcharge('front', s)).toBe(312.5);
   });
   it('dtf A3 (film pricing, optimal rotation)', () => {
     const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'dtf' }, dtfZones: { front: { fmt: 'A3' } } });
-    // gap=10, rotated: cols=floor(550/430)=1, cost=(307/1000)*1400=429.8 → round(429.8+50)=480
-    expect(getZoneSurcharge('front', s)).toBe(480);
+    // повёрнутый: 3 на метр, 40 шт. → 14 м × 1400 (12,28 м непрерывно) + 40 × 50 → 540 за шт.
+    expect(getZoneSurcharge('front', s)).toBe(540);
   });
 });
 
 describe('Zone surcharge — embroidery extended', () => {
   it('emb 50x50mm default', () => {
     const s = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { width_mm: 50, height_mm: 50, fill: 1.0, extra: null } } });
-    // area=25cm², stitches=7500, price=105
-    expect(getZoneSurcharge('front', s)).toBe(105);
+    // 7500 стежков, на крое, < 50 шт. → 15 ₽/1000 = 112,5
+    expect(getZoneSurcharge('front', s)).toBe(112.5);
   });
   it('emb larger area costs more', () => {
     const small = makeFullState({ zones: ['front'], zoneTechs: { front: 'embroidery' }, embZones: { front: { width_mm: 50, height_mm: 50 } } });
@@ -1550,11 +1550,11 @@ describe('Multi-item pricing: pack/urgent affect all items', () => {
     expect(withPack - noPack).toBe(20 * 20); // 10+10 units × 20₽ (BOPP)
   });
 
-  it('urgent 20% applies to each item separately', () => {
+  it('urgent (5 days, +15 %) applies to each item separately', () => {
     const tee = makeItemState({ sizes: { M: 10 } });
     const normal = calcItemTotal(tee, catalogs);
     const urgent = calcItemTotal(tee, { ...catalogs, urgentOption: true });
-    expect(urgent).toBe(Math.round(normal * 1.2));
+    expect(Math.abs(urgent - normal * 1.15)).toBeLessThanOrEqual(10);
   });
 });
 
