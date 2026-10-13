@@ -34,6 +34,10 @@ jobs:
     continue-on-error: true
     permissions:
       contents: write
+    env:
+      # Dummy values: supabase.ts throws without them; dev mode falls back to bundled catalogs
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: ci-dummy-anon-key
     defaults:
       run:
         working-directory: pinhead-react
@@ -50,9 +54,9 @@ jobs:
       - run: sleep 3
       - run: |
           if [ "${{ inputs.update_snapshots }}" = "true" ]; then
-            npx playwright test e2e/visual.spec.ts --update-snapshots
+            npx playwright test e2e/visual.spec.ts --project=desktop --update-snapshots
           else
-            npx playwright test e2e/visual.spec.ts
+            npx playwright test e2e/visual.spec.ts --project=desktop
           fi
       - name: Commit updated snapshots
         if: inputs.update_snapshots
