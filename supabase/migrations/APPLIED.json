@@ -2439,6 +2439,13 @@
       "files": [
         "20261013115331_crm_pricing_13_10_catalog.sql"
       ]
+    },
+    {
+      "version": "20261013152421",
+      "name": "order_v4_set_urgent_days",
+      "files": [
+        "20261013152421_order_v4_set_urgent_days.sql"
+      ]
     }
   ]
 }

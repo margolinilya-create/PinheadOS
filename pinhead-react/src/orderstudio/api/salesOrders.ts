@@ -249,5 +249,14 @@ export async function saveSalesOrder(payload: Row): Promise<SaveResult | null> {
     console.error('order_v4_save', error);
     return null;
   }
-  return data as SaveResult;
+  const saved = data as SaveResult;
+  // Дни срочного пошива — отдельным RPC: order_v4_save пишет только флажок (13.10)
+  if (typeof payload.urgent_days === 'number') {
+    const res = await supabase.rpc('order_v4_set_urgent_days', { p_order_id: saved.id, p_days: payload.urgent_days });
+    if (res.error) {
+      console.error('order_v4_set_urgent_days', res.error);
+      return null;
+    }
+  }
+  return saved;
 }
