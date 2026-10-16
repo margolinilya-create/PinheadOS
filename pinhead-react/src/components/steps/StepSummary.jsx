@@ -377,7 +377,7 @@ export default function StepSummary() {
                     <span className="val"><b>{getZoneTechSummary(z, item)}</b></span>
                   </div>
                 )) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Без нанесения</span></div>}
-                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>+{printPrice} ₽</b></span></div>}
+                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>{fmtPerUnit(printPrice).replace('/шт', '')}</b></span></div>}
               </div>
 
               <div className="summary-block">

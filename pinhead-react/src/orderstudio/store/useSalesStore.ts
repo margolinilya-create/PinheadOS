@@ -94,7 +94,9 @@ export const useSalesStore = create<SalesState>((set, get) => {
       // Карточку закрыли или открыли другой заказ, пока шёл запрос
       const same = mySession === session && cur != null;
       if (!res) {
-        if (!lastFailed) toast.error('Не удалось сохранить заказ — правки остаются в карточке, повторим при следующей');
+        if (!lastFailed) toast.error(get().current?.id
+          ? 'Не удалось сохранить заказ — правки остаются в карточке, повторим при следующей правке'
+          : 'Не удалось создать заказ — проверьте связь и попробуйте ещё раз');
         lastFailed = true;
         set({ saveState: 'error' });
         return;
