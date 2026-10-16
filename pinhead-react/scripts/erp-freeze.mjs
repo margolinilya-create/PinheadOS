@@ -13,11 +13,18 @@ const srcDir = join(root, 'src');
 const migrationsDir = join(root, '..', 'supabase', 'migrations');
 const out = join(srcDir, 'orderstudio', 'erpFrozen.json');
 
-const sha = (buf) => createHash('sha256').update(buf).digest('hex');
+// Копия frozenHash из src/orderstudio/erpFrozenCheck.ts: текст с концами строк,
+// приведёнными к \n, — иначе копия с core.autocrlf=true (Windows) дала бы другие
+// хэши при том же содержимом. Правите здесь — правьте и там (и наоборот).
+const sha = (text) => createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex');
+
+// Копия isHiddenPath: скрытые файлы и каталоги (.DS_Store) в манифест не идут
+const hidden = (name) => name.startsWith('.');
 
 function walk(dir) {
   const files = [];
   for (const name of readdirSync(dir).sort()) {
+    if (hidden(name)) continue;
     const p = join(dir, name);
     if (statSync(p).isDirectory()) files.push(...walk(p));
     else files.push(p);
@@ -30,13 +37,13 @@ const sorted = (obj) => Object.fromEntries(Object.entries(obj).sort(([a], [b]) =
 
 const files = {};
 for (const p of walk(join(srcDir, 'erp'))) {
-  files[relative(srcDir, p).split(sep).join('/')] = sha(readFileSync(p));
+  files[relative(srcDir, p).split(sep).join('/')] = sha(readFileSync(p, 'utf8'));
 }
 
 const migrations = {};
-for (const name of readdirSync(migrationsDir).filter((n) => n.endsWith('.sql'))) {
-  const buf = readFileSync(join(migrationsDir, name));
-  if (buf.toString('utf8').includes('erp_')) migrations[name] = sha(buf);
+for (const name of readdirSync(migrationsDir).filter((n) => n.endsWith('.sql') && !hidden(n))) {
+  const text = readFileSync(join(migrationsDir, name), 'utf8');
+  if (text.includes('erp_')) migrations[name] = sha(text);
 }
 
 writeFileSync(out, JSON.stringify({ files: sorted(files), migrations: sorted(migrations) }, null, 2) + '\n');

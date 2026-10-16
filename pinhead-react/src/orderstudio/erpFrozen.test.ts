@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
-import { diffManifest, erpDdlViolations, frozenMessage } from './erpFrozenCheck';
+import { diffManifest, erpDdlViolations, frozenHash, frozenMessage, isHiddenPath } from './erpFrozenCheck';
 import manifest from './erpFrozen.json';
 
 // Сторож «ERP заморожен»: боевой ERP при работе над Order не меняется.
@@ -12,7 +12,8 @@ import manifest from './erpFrozen.json';
 
 const MIGRATIONS_DIR = join(process.cwd(), '..', 'supabase', 'migrations');
 
-const sha = (path: string): string => createHash('sha256').update(readFileSync(path)).digest('hex');
+// Текст, а не байты: CRLF рабочей копии (core.autocrlf на Windows) не должен ронять сторож
+const sha = (path: string): string => frozenHash(readFileSync(path, 'utf8'));
 
 describe('сторож «ERP заморожен»', () => {
   it('diffManifest видит изменённый, новый и удалённый файл', () => {
@@ -65,6 +66,35 @@ describe('сторож «ERP заморожен»', () => {
     for (const sql of bad) expect(erpDdlViolations(sql), sql).not.toEqual([]);
   });
 
+  it('erpDdlViolations видит имена в кавычках и списки', () => {
+    const bad = [
+      'alter table "erp_orders" add column x int;',
+      'alter table public."erp_orders" add column x int;',
+      'alter table "public"."erp_orders" add column x int;',
+      'drop table x, erp_orders;',
+      'drop table if exists public.sales_x, public."erp_orders";',
+      'truncate table sales_x, erp_orders;',
+      'truncate only sales_x, only erp_orders;',
+      'update "erp_orders" set x = 1;',
+    ];
+    for (const sql of bad) expect(erpDdlViolations(sql), sql).not.toEqual([]);
+    expect(erpDdlViolations('drop table sales_x, sales_y;')).toEqual([]);
+    expect(erpDdlViolations('truncate table sales_x;')).toEqual([]);
+  });
+
+  it('frozenHash не зависит от концов строк рабочей копии', () => {
+    expect(frozenHash('a\r\nb\r\n')).toBe(frozenHash('a\nb\n'));
+    expect(frozenHash('a\nb')).not.toBe(frozenHash('a\nc'));
+    // LF-файл хэшируется как раньше — манифест не переписывается
+    expect(frozenHash('a\nb\n')).toBe(createHash('sha256').update('a\nb\n').digest('hex'));
+  });
+
+  it('isHiddenPath: скрытые файлы и каталоги (.DS_Store) не в манифесте', () => {
+    expect(isHiddenPath('erp/.DS_Store')).toBe(true);
+    expect(isHiddenPath('erp/.cache/x.ts')).toBe(true);
+    expect(isHiddenPath('erp/utils/time.ts')).toBe(false);
+  });
+
   it('erpDdlViolations пропускает чтение ERP в предикате RLS и комментарии', () => {
     expect(
       erpDdlViolations(
@@ -85,7 +115,8 @@ describe('сторож «ERP заморожен»', () => {
   it('файлы src/erp совпадают с манифестом', () => {
     const actual: Record<string, string> = {};
     for (const p of sourceFiles(join(SRC_DIR, 'erp'), { ext: /./, tests: true })) {
-      actual[relative(SRC_DIR, p).split(sep).join('/')] = sha(p);
+      const rel = relative(SRC_DIR, p).split(sep).join('/');
+      if (!isHiddenPath(rel)) actual[rel] = sha(p);
     }
     const message = frozenMessage('files', diffManifest(manifest.files, actual));
     if (message) expect.fail(message);
@@ -95,7 +126,7 @@ describe('сторож «ERP заморожен»', () => {
     const frozen = manifest.migrations as Record<string, string>;
     const actualFrozen: Record<string, string> = {};
     const violations: string[] = [];
-    for (const name of readdirSync(MIGRATIONS_DIR).filter((n) => n.endsWith('.sql')).sort()) {
+    for (const name of readdirSync(MIGRATIONS_DIR).filter((n) => n.endsWith('.sql') && !isHiddenPath(n)).sort()) {
       const path = join(MIGRATIONS_DIR, name);
       if (name in frozen) {
         actualFrozen[name] = sha(path);

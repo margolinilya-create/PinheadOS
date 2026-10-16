@@ -7,6 +7,27 @@
  * «заморозка» и проверка разойдутся.
  */
 
+import { createHash } from 'node:crypto';
+
+/**
+ * Хэш файла для манифеста: sha256 текста с концами строк, приведёнными к `\n`.
+ * Без приведения сторож краснел бы на чистой копии с `core.autocrlf=true`
+ * (Windows): содержимое то же, байты другие. Для LF-файлов хэш прежний —
+ * манифест от правки не меняется. `scripts/erp-freeze.mjs` повторяет то же
+ * приведение (скрипт — чистый Node ESM и TS не импортирует).
+ */
+export function frozenHash(text: string): string {
+  return createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex');
+}
+
+/**
+ * Скрытый путь (`.DS_Store`, `.cache/…`): сторож и скрипт его не хэшируют.
+ * Неотслеживаемый мусор ОС иначе выглядел бы «добавленным файлом ERP».
+ */
+export function isHiddenPath(rel: string): boolean {
+  return rel.split('/').some((part) => part.startsWith('.'));
+}
+
 export interface ManifestDiff {
   changed: string[];
   added: string[];
@@ -28,7 +49,16 @@ export function diffManifest(expected: Record<string, string>, actual: Record<st
   return { changed: changed.sort(), added: added.sort(), removed: removed.sort() };
 }
 
-const ERP = String.raw`(?:public\.)?erp_[a-z0-9_]*`;
+/**
+ * Имя объекта ERP: схема и имя — и без кавычек, и в кавычках
+ * (`erp_orders`, `"erp_orders"`, `public."erp_orders"`, `"public"."erp_orders"`).
+ */
+const ERP = String.raw`(?:"?public"?\.)?"?erp_[a-z0-9_]*"?`;
+/**
+ * Голова списка перед именем ERP: `drop table x, erp_orders`, `truncate a, only erp_b`.
+ * Только для drop table/index/view и truncate — у функций в списке скобки с аргументами.
+ */
+const LIST_HEAD = String.raw`(?:(?:only\s+)?[\w."]+\s*,\s*)*`;
 const IF_EXISTS = String.raw`(?:if\s+exists\s+)?`;
 
 const NAME = String.raw`(?:\S+\s+)`;
@@ -39,6 +69,8 @@ const KW = String.raw`(?:as|for|to|using|with|before|after|instead|referencing|e
  * Чтение (`select … from erp_employees`, `join erp_employees e on …` в теле
  * функции или предикате RLS Order) — не нарушение: Order читает ERP, но не пишет.
  *
+ * Имена — и в кавычках (`public."erp_orders"`); drop table/index/view и truncate —
+ * и в списке (`drop table x, erp_orders`).
  * Покрыто: alter table/policy/function/view/publication/trigger/index/sequence по erp_*;
  * drop table/function/trigger/policy/index/view (policy и trigger — и в форме `drop … name on erp_x`);
  * create function/view/table/index по erp_* (в т.ч. `create [unique] index [name] on erp_x`);
@@ -56,12 +88,13 @@ const FORBIDDEN: RegExp[] = [
     'gi',
   ),
   new RegExp(String.raw`\balter\s+publication\s+\S+\s+(?:add|drop|set)\s+table\s+(?:only\s+)?${ERP}`, 'gi'),
-  new RegExp(String.raw`\bdrop\s+(?:table|function|trigger|policy|index|view)\s+${IF_EXISTS}${ERP}`, 'gi'),
+  new RegExp(String.raw`\bdrop\s+(?:function|trigger|policy)\s+${IF_EXISTS}${ERP}`, 'gi'),
+  new RegExp(String.raw`\bdrop\s+(?:table|index|view)\s+${IF_EXISTS}${LIST_HEAD}${ERP}`, 'gi'),
   new RegExp(String.raw`\bdrop\s+(?:policy|trigger)\s+${IF_EXISTS}\S+\s+on\s+${ERP}`, 'gi'),
   new RegExp(String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:function|view|index)\s+${ERP}`, 'gi'),
   new RegExp(String.raw`\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?(?:\S+\s+)?on\s+(?:only\s+)?${ERP}`, 'gi'),
   new RegExp(String.raw`\bcreate\s+(?:(?:global\s+|local\s+)?(?:temp|temporary)\s+|unlogged\s+)?table\s+(?:if\s+not\s+exists\s+)?${ERP}`, 'gi'),
-  new RegExp(String.raw`\btruncate\s+(?:table\s+)?(?:only\s+)?${ERP}`, 'gi'),
+  new RegExp(String.raw`\btruncate\s+(?:table\s+)?${LIST_HEAD}(?:only\s+)?${ERP}`, 'gi'),
   new RegExp(
     String.raw`\bcreate\s+(?:or\s+replace\s+)?(?:trigger|policy)\b[^;]*?\bon\s+${ERP}\s+${KW}\b`,
     'gi',
