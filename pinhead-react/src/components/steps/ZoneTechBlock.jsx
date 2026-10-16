@@ -5,6 +5,7 @@ import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, 
 import { useEffectiveRules } from '../../hooks/useEffectiveRules';
 import { isTechAllowed } from '../../utils/skuRules';
 import { EMB_SURCHARGES } from '../../utils/printRules';
+import { fmtPerUnit } from '../../utils/fabricName';
 
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
@@ -32,7 +33,7 @@ export default function ZoneTechBlock({ zone }) {
     <div className="zone-tech-block">
       <div className="zone-tech-header">
         <span>{ZONE_LABELS[zone] || zone}</span>
-        <span className="zone-surcharge">+{surcharge} ₽/шт</span>
+        <span className="zone-surcharge">{fmtPerUnit(surcharge)}</span>
       </div>
       <div className="zone-tech-tabs">
         {TECH_TABS.map(t => {

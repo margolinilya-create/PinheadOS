@@ -7,13 +7,14 @@ import { useOrdersStore } from '../../store/useOrdersStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { storageRemove } from '../../lib/storage';
 import { toast } from '../../store/useToastStore';
-import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
+import { TYPE_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
 import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice, calcExtrasCost } from '../../utils/pricing';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/validate';
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import { getEffectiveRules } from '../../utils/skuRules';
+import { fabricDisplayName, fmtPerUnit } from '../../utils/fabricName';
 
 function EditBtn({ step, goToStep }) {
   return (
@@ -91,7 +92,7 @@ function buildItemTZBlock(item, idx, catalogs) {
 
   return `ПОЗИЦИЯ #${idx + 1}
 Тип: ${item.sku ? item.sku.name + (item.sku.article ? ' [' + item.sku.article + ']' : '') : TYPE_NAMES[item.type] || item.type}
-${item.fabric ? 'Ткань: ' + (FABRIC_NAMES[item.fabric] || item.fabric) : ''}
+${item.fabric ? 'Ткань: ' + fabricDisplayName(item.fabric, catalogs.fabricsCatalog) : ''}
 Цвет: ${item.color}${colorEntry ? ' — ' + colorEntry.name : ''}
 Крой: ${item.fit || 'regular'}
 Тираж: ${qty} шт
@@ -343,7 +344,7 @@ export default function StepSummary() {
                 <div className="summary-block-title">Изделие <EditBtn step={0} goToStep={goToStep} /></div>
                 <div className="summary-mockup" dangerouslySetInnerHTML={{ __html: getGarmentSVG(item.type, item.color) }} />
                 {!isAccessory(item.type) && <div className="summary-row"><span className="key">Лекала</span><span className="val"><b>{item.fit}</b></span></div>}
-                {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{FABRIC_NAMES[item.fabric] || item.fabric}</b></span></div>}
+                {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{fabricDisplayName(item.fabric, fabricsCatalog)}</b></span></div>}
                 {ce && (
                   <div className="summary-row">
                     <span className="key">Цвет</span>
@@ -449,14 +450,14 @@ export default function StepSummary() {
               return (
                 <div key={idx} className="price-breakdown-item">
                   <div className="price-line"><span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type}</span></div>
-                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">+{printP} ₽/шт</span></div>}
-                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">+{extP} ₽/шт</span></div>}
-                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">+{labP} ₽/шт</span></div>}
+                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">{fmtPerUnit(printP)}</span></div>}
+                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">{fmtPerUnit(extP)}</span></div>}
+                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">{fmtPerUnit(labP)}</span></div>}
                   <div className="price-line"><span className="name">{qty} шт</span><span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span></div>
                 </div>
               );
             })}
-            {packPerUnit > 0 && <div className="price-line"><span className="name">Упаковка — {PACK_NAMES[packType] ?? 'упаковка'}</span><span className="amount">+{packPerUnit} ₽/шт</span></div>}
+            {packPerUnit > 0 && <div className="price-line"><span className="name">Упаковка — {PACK_NAMES[packType] ?? 'упаковка'}</span><span className="amount">{fmtPerUnit(packPerUnit)}</span></div>}
             {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочный пошив: {urgentLabel(urgentDays)}</span><span className="amount">+{urgentTotal.toLocaleString('ru-RU')} ₽</span></div>}
           </div>
         )}

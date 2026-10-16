@@ -68,6 +68,41 @@
 .table tbody tr:hover { background: var(--bg1); }
 
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/*
+ * Компактная раскладка списка (обход 16.10): на 390 px таблица была 516 px
+ * шириной, а у body стоит overflow-x: hidden — колонки «Сумма» и «Срок»
+ * обрезались, и добраться до них было нельзя. Правило проекта: у экрана
+ * с таблицей обязана быть компактная раскладка. Строка — карточка,
+ * подпись колонки — перед значением (`data-label`).
+ */
+@media (max-width: 760px) {
+  .listTable thead { display: none; }
+  .listTable,
+  .listTable tbody,
+  .listTable tr,
+  .listTable td { display: block; width: 100%; }
+  .listTable tr {
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .listTable td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    border-bottom: none;
+    padding: var(--space-xs) var(--space-md);
+    text-align: right;
+  }
+  .listTable td::before {
+    content: attr(data-label);
+    color: var(--text-dim);
+    font-size: var(--type-label);
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .listTable .link { min-height: 44px; }
+}
 .right { text-align: right; }
 
 .link {

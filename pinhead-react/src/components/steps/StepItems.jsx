@@ -1,25 +1,28 @@
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
-import { TYPE_NAMES, FABRIC_NAMES } from '../../data';
+import { TYPE_NAMES } from '../../data';
 import { useState } from 'react';
 import { calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty } from '../../utils/pricing';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { confirm } from '../../store/useConfirmStore';
+import { fabricDisplayName } from '../../utils/fabricName';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
-    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays } = useStore(
+    fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays } = useStore(
     useShallow(s => ({ items: s.items, activeItemIdx: s.activeItemIdx, nextStep: s.nextStep, prevStep: s.prevStep,
       addNewItem: s.addNewItem, editItem: s.editItem, removeItem: s.removeItem,
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
-      usdRate: s.usdRate, packOption: s.packOption, urgentOption: s.urgentOption, urgentDays: s.urgentDays }))
+      usdRate: s.usdRate, packOption: s.packOption, packType: s.packType || (s.packOption ? 'bopp' : 'none'),
+      urgentOption: s.urgentOption, urgentDays: s.urgentDays }))
   );
 
   const [openBreakdown, setOpenBreakdown] = useState(null);
 
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays };
+  // packType обязателен: без него ядро считает ЗИП как БОПП
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays };
 
   const grandTotal = items.reduce((sum, it) => sum + calcItemTotal(it, catalogs), 0);
   const grandQty = items.reduce((sum, it) => sum + getItemTotalQty(it), 0);
@@ -56,7 +59,7 @@ export default function StepItems() {
                   <span className="item-card-type">{typeName}</span>
                 </div>
                 <div className="item-card-details">
-                  {item.fabric && <span>{FABRIC_NAMES[item.fabric] || item.fabric}</span>}
+                  {item.fabric && <span>{fabricDisplayName(item.fabric, fabricsCatalog)}</span>}
                   {colorEntry && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       <span className="swatch-mini" style={{ backgroundColor: colorEntry.hex }} />

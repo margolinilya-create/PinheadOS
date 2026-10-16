@@ -52,7 +52,7 @@ export default function SalesList() {
           <button type="button" className="btn" onClick={onCreate} disabled={creating}>Создать первый</button>
         </div>
       ) : (
-        <table className={styles.table}>
+        <table className={`${styles.table} ${styles.listTable}`}>
           <thead>
             <tr>
               <th>Номер</th>
@@ -66,16 +66,16 @@ export default function SalesList() {
           <tbody>
             {list.map((o) => (
               <tr key={o.id}>
-                <td className={styles.num}>
+                <td className={styles.num} data-label="Номер">
                   <button type="button" className={styles.link} onClick={() => navigate(`/sales/${o.id}`)}>
                     {o.order_number || 'без номера'}
                   </button>
                 </td>
-                <td>{o.title || <span className={styles.muted}>без названия</span>}</td>
-                <td>{o.customer || '—'}</td>
-                <td><span className={styles.badge}>{STATUS_LABELS[o.status] ?? o.status}</span></td>
-                <td className={`${styles.num} ${styles.right}`}>{rub(o.price_total)}</td>
-                <td className={styles.num}>{fmtDate(o.due_date)}</td>
+                <td data-label="Название">{o.title || <span className={styles.muted}>без названия</span>}</td>
+                <td data-label="Клиент">{o.customer || '—'}</td>
+                <td data-label="Статус"><span className={styles.badge}>{STATUS_LABELS[o.status] ?? o.status}</span></td>
+                <td className={`${styles.num} ${styles.right}`} data-label="Сумма">{rub(o.price_total)}</td>
+                <td className={styles.num} data-label="Срок">{fmtDate(o.due_date)}</td>
               </tr>
             ))}
           </tbody>
