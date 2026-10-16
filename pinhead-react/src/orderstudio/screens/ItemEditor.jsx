@@ -10,13 +10,10 @@ import GridEditor from './GridEditor';
 import PrintRow from './PrintRow';
 import LabelRow from './LabelRow';
 import { ISSUE_LABELS, rub } from './labels';
+import BufferedInput from './BufferedInput';
+import { formatMoney, parseMoney } from './fieldParse';
 import styles from './Sales.module.css';
 
-const toMoney = (v) => {
-  if (v === '' || v == null) return null;
-  const n = Number(String(v).replace(',', '.'));
-  return Number.isFinite(n) && n >= 0 ? n : null;
-};
 const toMm = (v) => {
   const n = Math.floor(Number(v));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -220,11 +217,13 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
           <span className={styles.num} data-testid={`calc-unit-${index}`}>{rub(price?.calc_unit)}</span>
         </div>
         <label className={styles.field}>Ручная цена за штуку
-          <input
+          <BufferedInput
             className={styles.input}
             inputMode="decimal"
-            value={item.manual_unit_price ?? ''}
-            onChange={(e) => onChange({ manual_unit_price: toMoney(e.target.value) })}
+            value={item.manual_unit_price}
+            format={formatMoney}
+            parse={parseMoney}
+            onCommit={(v) => onChange({ manual_unit_price: v })}
             placeholder="пусто — расчётная"
           />
         </label>

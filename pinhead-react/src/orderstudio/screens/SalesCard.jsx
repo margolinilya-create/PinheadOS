@@ -2,11 +2,14 @@ import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useSalesStore } from '../store/useSalesStore';
+import { confirm } from '../../store/useConfirmStore';
 import { newSalesItem } from '../model/factory';
 import ItemEditor from './ItemEditor';
 import PricePanel from './PricePanel';
 import { useOrderPrice } from './useOrderPrice';
 import { STATUS_LABELS } from './labels';
+import BufferedInput from './BufferedInput';
+import { formatMoney, parseMoney } from './fieldParse';
 import styles from './Sales.module.css';
 import { orderUrgentDays } from '../pricing/priceOrder';
 import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
@@ -52,12 +55,25 @@ export default function SalesCard() {
     items: o.items.map((it, j) => (j === i ? { ...it, ...patch } : it)),
   }));
   const addItem = () => edit((o) => ({ ...o, items: [...o.items, newSalesItem()] }));
-  const removeItem = (i) => edit((o) => ({ ...o, items: o.items.filter((_, j) => j !== i) }));
+  // Удаление уходит в базу автосохранением, отмены нет — поэтому спрашиваем
+  const removeItem = async (i) => {
+    const it = order.items[i];
+    const ok = await confirm({
+      title: `Удалить позицию ${i + 1}?`,
+      message: it?.product_type ? `«${it.product_type}» со всеми нанесениями и бирками.` : 'Позиция удалится со всеми нанесениями и бирками.',
+      confirmLabel: 'Удалить',
+      variant: 'danger',
+    });
+    if (ok) edit((o) => ({ ...o, items: o.items.filter((_, j) => j !== i) }));
+  };
 
+  // Вид скидки хранится и при нулевой сумме: прежде `null` на пустом поле
+  // сбрасывал «₽» обратно на «%», и набранные 1000 ₽ превращались в 1000 %
   const discount = order.discount ?? { mode: 'pct', value: 0 };
   const setDiscount = (patch) => {
     const next = { ...discount, ...patch };
-    set({ discount: next.value > 0 ? next : null });
+    const cap = next.mode === 'pct' ? 100 : Infinity;
+    set({ discount: { mode: next.mode, value: Math.min(cap, Math.max(0, next.value || 0)) } });
   };
 
   return (
@@ -108,13 +124,14 @@ export default function SalesCard() {
               </label>
               <div className={styles.field}>Скидка на заказ
                 <div className={styles.row}>
-                  <input
+                  <BufferedInput
                     className={styles.input}
                     aria-label="Размер скидки"
-                    type="number"
-                    min="0"
-                    value={discount.value || ''}
-                    onChange={(e) => setDiscount({ value: Math.max(0, Number(e.target.value) || 0) })}
+                    inputMode="decimal"
+                    value={discount.value || null}
+                    format={formatMoney}
+                    parse={parseMoney}
+                    onCommit={(v) => setDiscount({ value: v ?? 0 })}
                   />
                   <select className={styles.select} aria-label="Вид скидки" value={discount.mode} onChange={(e) => setDiscount({ mode: e.target.value })}>
                     <option value="pct">%</option>

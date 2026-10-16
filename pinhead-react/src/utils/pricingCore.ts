@@ -73,7 +73,7 @@ export const hasNoPrint = (type: string): boolean => type === 'socks';
 
 // Screen printing lookup
 const SCREEN_QTY_TIERS: number[] = [50, 100, 300, 500, 700, 1000];
-const SCREEN_MAX_COLORS = 8;
+export const SCREEN_MAX_COLORS = 8;
 const SMALL_SHEETS = ['A5', 'A6'];
 const SCREEN_TEXTILE_MULT = 1.3;
 const SCREEN_FUTHER_MULT = 1.5;

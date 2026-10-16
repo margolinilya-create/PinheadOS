@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import * as confirmStore from '../../store/useConfirmStore';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import SalesCard from './SalesCard';
 import { useSalesStore, __resetSalesStoreForTests } from '../store/useSalesStore';
@@ -58,12 +59,48 @@ describe('SalesCard — карточка заказа v4', () => {
     expect(total()).toBe(`${(10000).toLocaleString('ru-RU')} ₽`);
   });
 
-  it('позиция добавляется и удаляется', () => {
+  it('позиция добавляется и удаляется', async () => {
     renderCard(newSalesOrder({ id: 'o-1' }));
     fireEvent.click(screen.getByRole('button', { name: '+ Позиция вручную' }));
     expect(screen.getByRole('region', { name: 'Позиция 1' })).toBeInTheDocument();
+    const confirm = vi.spyOn(confirmStore, 'confirm').mockResolvedValue(true);
     fireEvent.click(screen.getByRole('button', { name: 'Удалить позицию' }));
-    expect(screen.queryByRole('region', { name: 'Позиция 1' })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Позиция 1' })).toBeNull());
+    confirm.mockRestore();
+  });
+
+  it('скидка в рублях: вид выбирают при пустой сумме — он не слетает на «%»', () => {
+    renderCard(newSalesOrder({
+      id: 'o-1',
+      items: [newSalesItem({
+        sku_code: SKU.code,
+        size_grid: { sizes: ['S'], rows: [{ color: 'Белый', sizes: { S: 10 } }] },
+        manual_unit_price: 1000,
+      })],
+    }));
+    fireEvent.change(screen.getByLabelText('Вид скидки'), { target: { value: 'sum' } });
+    const amount = screen.getByLabelText('Размер скидки');
+    fireEvent.focus(amount);
+    fireEvent.change(amount, { target: { value: '1000' } });
+    expect(useSalesStore.getState().current.discount).toEqual({ mode: 'sum', value: 1000 });
+    expect(total()).toBe(`${(9000).toLocaleString('ru-RU')} ₽`);
+  });
+
+  it('скидка в процентах не больше 100', () => {
+    renderCard(newSalesOrder({ id: 'o-1' }));
+    const amount = screen.getByLabelText('Размер скидки');
+    fireEvent.focus(amount);
+    fireEvent.change(amount, { target: { value: '150' } });
+    expect(useSalesStore.getState().current.discount).toEqual({ mode: 'pct', value: 100 });
+  });
+
+  it('удаление позиции спрашивает подтверждение', async () => {
+    renderCard(newSalesOrder({ id: 'o-1', items: [newSalesItem()] }));
+    const confirm = vi.spyOn(confirmStore, 'confirm').mockResolvedValue(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить позицию' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(screen.getByRole('region', { name: 'Позиция 1' })).toBeInTheDocument();
+    confirm.mockRestore();
   });
 
   it('модель без формулы не молчит — пометка «нужна ручная цена»', () => {

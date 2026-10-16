@@ -1,5 +1,8 @@
 import { useId } from 'react';
+import { FLEX_MAX_COLORS, SCREEN_MAX_COLORS } from '../../utils/pricingCore';
 import { METHOD_LABELS, METHOD_ORDER, SCREEN_EFFECTS, EMBROIDERY_EFFECTS, rub } from './labels';
+import BufferedInput from './BufferedInput';
+import { formatPantone, parseIntIn, parsePantone } from './fieldParse';
 import styles from './Sales.module.css';
 
 const toInt = (v) => {
@@ -15,6 +18,8 @@ export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qt
   const id = useId();
   const m = print.method;
   const needsColors = m === 'silkscreen' || m === 'heat_transfer';
+  // Потолок — тот же, что у формулы: больше цветов в ТЗ, чем в цене, не уходит
+  const maxColors = m === 'heat_transfer' ? FLEX_MAX_COLORS : SCREEN_MAX_COLORS;
   const needsTextile = m === 'silkscreen' || m === 'dtg';
   const effects = m === 'silkscreen' ? SCREEN_EFFECTS : m === 'embroidery' ? EMBROIDERY_EFFECTS : null;
 
@@ -49,7 +54,7 @@ export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qt
         </label>
         {needsColors && (
           <label className={styles.field}>Цветов
-            <input className={styles.input} type="number" min="1" max="8" value={print.colors} onChange={(e) => onChange({ colors: toInt(e.target.value) ?? 1 })} />
+            <BufferedInput className={styles.input} inputMode="numeric" value={print.colors} format={String} parse={parseIntIn(1, maxColors)} onCommit={(colors) => onChange({ colors })} />
           </label>
         )}
         {needsTextile && (
@@ -62,7 +67,7 @@ export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qt
         )}
         {m === 'embroidery' && (
           <label className={styles.field}>Заполнение, %
-            <input className={styles.input} type="number" min="10" max="100" step="10" value={Math.round(print.fill * 100)} onChange={(e) => onChange({ fill: Math.min(1, Math.max(0.1, (Number(e.target.value) || 100) / 100)) })} />
+            <BufferedInput className={styles.input} inputMode="numeric" value={Math.round(print.fill * 100)} format={String} parse={parseIntIn(10, 100)} onCommit={(pct) => onChange({ fill: pct / 100 })} />
           </label>
         )}
         {effects && (
@@ -73,10 +78,12 @@ export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qt
           </label>
         )}
         <label className={styles.field}>Pantone (через запятую)
-          <input
+          <BufferedInput
             className={styles.input}
-            value={print.pantone.join(', ')}
-            onChange={(e) => onChange({ pantone: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+            value={print.pantone}
+            format={formatPantone}
+            parse={parsePantone}
+            onCommit={(pantone) => onChange({ pantone })}
             placeholder="186 C, Black C"
           />
         </label>
