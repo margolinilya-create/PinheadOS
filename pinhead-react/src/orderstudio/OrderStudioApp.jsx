@@ -15,6 +15,7 @@ import '../styles/forms-buttons.css'
 import '../styles/wizard.css'
 import '../styles/garment.css'
 import '../styles/extras-zones.css'
+/* kanban.css — остаток канбана v3: `.kanban-page` нужен ExpressCalc */
 import '../styles/kanban.css'
 import '../styles/express.css'
 import '../styles/editors.css'
