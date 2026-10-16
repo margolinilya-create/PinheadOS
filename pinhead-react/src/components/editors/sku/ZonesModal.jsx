@@ -2,6 +2,7 @@ import { useStore } from '../../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { getAvailableZonesForSku } from '../../../utils/skuRules';
+import { overlayClick } from '../../../utils/overlayClick';
 
 export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
   const panelRef = useFocusTrap(true, onClose);
@@ -9,8 +10,8 @@ export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
   const availableZones = getAvailableZonesForSku(zonesCatalog, skuItem?.category || '');
 
   return (
-    <div className="sku-modal-overlay" onClick={onClose}>
-      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Зоны нанесения" onClick={e => e.stopPropagation()}>
+    <div className="sku-modal-overlay" role="presentation" onClick={overlayClick(onClose)}>
+      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Зоны нанесения">
         <h3>Зоны нанесения</h3>
         <p className="sku-modal-hint">{skuItem?.name}</p>
         <div className="sku-zones-grid">

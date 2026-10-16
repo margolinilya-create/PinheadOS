@@ -316,8 +316,8 @@ export default function ExpressCalc() {
             </div>
             {/* SKU select */}
             <div className="exp-field">
-              <label>Изделие</label>
-              <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
+              <label htmlFor="exp-sku">Изделие</label>
+              <select id="exp-sku" value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
                 <option value="">— Выберите —</option>
                 {Object.keys(categories).length === 0 && (
                   <option disabled>Загрузка каталога...</option>
@@ -334,8 +334,8 @@ export default function ExpressCalc() {
 
             {/* Fabric select */}
             <div className="exp-field">
-              <label>Ткань</label>
-              <select value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
+              <label htmlFor="exp-fabric">Ткань</label>
+              <select id="exp-fabric" value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
                 <option value="">— Выберите —</option>
                 {fabrics.map(f => (
                   <option key={f.code} value={f.code}>
@@ -347,8 +347,9 @@ export default function ExpressCalc() {
 
             {/* Quantity */}
             <div className="exp-field">
-              <label>Тираж (шт)</label>
+              <label htmlFor="exp-qty">Тираж (шт)</label>
               <input
+                id="exp-qty"
                 type="number"
                 value={qty}
                 onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
@@ -358,8 +359,9 @@ export default function ExpressCalc() {
 
             {/* Per-zone technology blocks */}
             {sku && skuZones.length > 0 && (
-              <div className="exp-field">
-                <label>Зоны нанесения</label>
+              <div className="exp-field" role="group" aria-labelledby="exp-zones-title">
+                {/* Подпись группы, а не поля: у неё нет одного контрола */}
+                <span id="exp-zones-title" className="exp-field-title">Зоны нанесения</span>
                 <div className="exp-zones-wrap">
                   {skuZones.map(zId => {
                     const d = expZoneData[zId];

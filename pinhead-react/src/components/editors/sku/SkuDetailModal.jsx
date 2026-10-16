@@ -9,12 +9,12 @@ import { skuCost } from '../../../utils/costRules';
 import { getEffectiveRules, getAvailableZonesForSku } from '../../../utils/skuRules';
 import { TECH_TABS } from '../../../utils/pricing';
 import { MEDASTEX_COLORS, COLOR_GROUPS, SIZES } from '../../../data';
+import { overlayClick } from '../../../utils/overlayClick';
 
 const MAX_PHOTOS = 4;
 
 const DEFAULT_SIZE_CHART = {
-  headers: ['Размер', 'Длина', 'Ширина'],
-  rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
+  headers: ['Размер', 'Длина', 'Ширина'], rows: [['S','',''], ['M','',''], ['L','',''], ['XL','','']],
 };
 
 export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPersist }) {
@@ -198,8 +198,8 @@ export default function SkuDetailModal({ sku, skuIndex, onUpdate, onClose, onPer
   const mockupSvg = photos.length === 0 ? getGarmentSVG(sku.mockupType, '#d9d9d9') : '';
 
   return (
-    <div className="sku-modal-overlay" onClick={onClose}>
-      <div ref={panelRef} className="sku-detail-modal" role="dialog" aria-modal="true" aria-label={`Редактирование ${sku.name}`} onClick={e => e.stopPropagation()}>
+    <div className="sku-modal-overlay" role="presentation" onClick={overlayClick(onClose)}>
+      <div ref={panelRef} className="sku-detail-modal" role="dialog" aria-modal="true" aria-label={`Редактирование ${sku.name}`}>
 
         {/* Header */}
         <div className="sku-detail-header">

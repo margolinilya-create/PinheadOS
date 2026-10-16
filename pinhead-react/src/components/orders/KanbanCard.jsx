@@ -139,7 +139,7 @@ const KanbanCard = memo(function KanbanCard({ order, statusColor, onStatusChange
       <button className="kb-card-menu-btn" onClick={stopAndRun(() => setShowMenu(!showMenu))} aria-label="Меню действий">•••</button>
       {showMenu && (
         <>
-          <div className="kb-card-menu-backdrop" onClick={stopAndRun(() => setShowMenu(false))} />
+          <div className="kb-card-menu-backdrop" role="presentation" onClick={stopAndRun(() => setShowMenu(false))} />
           <div className="kb-card-menu">
             {STATUS_LIST.filter(s => s !== order.status).map(s => (
               <button key={s} onClick={stopAndRun(() => { onStatusChange(order.id, s); setShowMenu(false); })}>

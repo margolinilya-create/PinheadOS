@@ -1,12 +1,13 @@
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
+import { overlayClick } from '../../../utils/overlayClick';
 
 export default function AddSkuModal({ addForm, setAddForm, onAdd, onClose }) {
   const panelRef = useFocusTrap(true, onClose);
 
   return (
-    <div className="sku-modal-overlay" onClick={onClose}>
-      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Добавить изделие" onClick={e => e.stopPropagation()}>
+    <div className="sku-modal-overlay" role="presentation" onClick={overlayClick(onClose)}>
+      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Добавить изделие">
         <h3>Добавить изделие</h3>
         <div className="sku-modal-field">
           <label htmlFor="sku-add-name">НАЗВАНИЕ</label>

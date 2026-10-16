@@ -65,7 +65,7 @@ export default function CommandPalette() {
 
   return (
     <>
-      <div className="cmd-backdrop" onClick={() => setOpen(false)} />
+      <div className="cmd-backdrop" role="presentation" onClick={() => setOpen(false)} />
       <div className="cmd-palette" role="dialog" aria-modal="true" aria-label="Быстрый поиск">
         <input
           ref={inputRef}

@@ -9,6 +9,7 @@ import styles from './KanbanBoard.module.css';
 import KanbanCard from './KanbanCard';
 import OrderDrawer from './OrderDrawer';
 import { SkeletonCard } from '../shared/Skeleton';
+import { overlayClick } from '../../utils/overlayClick';
 
 const FINAL_STATUSES = ['done'];
 
@@ -280,8 +281,8 @@ export default function KanbanBoard() {
       {showShortcuts && (
         <div className={styles.shortcutsOverlay}
           role="dialog" aria-modal="true" aria-label="Горячие клавиши"
-          onClick={() => setShowShortcuts(false)}>
-          <div className={styles.shortcutsDialog} onClick={e => e.stopPropagation()}>
+          onClick={overlayClick(() => setShowShortcuts(false))}>
+          <div className={styles.shortcutsDialog}>
             <div className={styles.shortcutsTitle}>Горячие клавиши</div>
             <div className={styles.shortcutsList}>
               <div><kbd className={styles.shortcutsKey}>/</kbd> — Поиск</div>

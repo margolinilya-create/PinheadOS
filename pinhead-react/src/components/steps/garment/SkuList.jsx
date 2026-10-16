@@ -8,6 +8,7 @@ import { SKU_CATEGORIES } from '../../../data';
 import { ZONE_LABELS } from '../../../data/constants';
 import { getSkuEstPrice } from '../../../utils/pricing';
 import { getGarmentSVG } from '../../../utils/mockup';
+import { overlayClick } from '../../../utils/overlayClick';
 
 const FIT_OPTIONS = [
   { key: 'all', label: 'Все фиты' },
@@ -35,8 +36,8 @@ function PhotoLightbox({ photos, startIdx, onClose }) {
     if (e.key === 'ArrowLeft') setIdx(i => (i - 1 + photos.length) % photos.length);
   };
   return (
-    <div className="photo-lightbox" onClick={onClose} onKeyDown={handleKey} tabIndex={0} ref={el => el?.focus()}>
-      <div className="photo-lightbox-content" onClick={e => e.stopPropagation()}>
+    <div className="photo-lightbox" role="dialog" aria-modal="true" aria-label="Фото изделия" onClick={overlayClick(onClose)} onKeyDown={handleKey} tabIndex={-1} ref={el => el?.focus()}>
+      <div className="photo-lightbox-content">
         <img src={photos[idx]} alt={`Фото ${idx + 1}`} />
         {photos.length > 1 && (
           <>
