@@ -44,12 +44,14 @@ const ERP_STYLES_TARGET = /\/erp\/erp\.module\.css$/;
  * - динамический `import('…/erp/…')`.
  * `import type` и `export type` стираются при сборке и не попадают в список.
  */
-const STATIC_IMPORT = /^import\s+(?!type\b)(?:[^;]*?from\s+)?'([^']*\/erp\/[^']*)'/gm;
-const REEXPORT = /^export\s+(?!type\b)[^;]*?from\s+'([^']*\/erp\/[^']*)'/gm;
-const DYNAMIC_IMPORT = /\bimport\(\s*'([^']*\/erp\/[^']*)'\s*\)/g;
+// Кавычки любые, но парные (`(['"])…\1`): класс только с `'` пропускал
+// `import … from "…/erp/…"` — сторож обходился сменой кавычек.
+const STATIC_IMPORT = /^import\s+(?!type\b)(?:[^;]*?from\s+)?(['"])([^'"]*\/erp\/[^'"]*)\1/gm;
+const REEXPORT = /^export\s+(?!type\b)[^;]*?from\s+(['"])([^'"]*\/erp\/[^'"]*)\1/gm;
+const DYNAMIC_IMPORT = /\bimport\(\s*(['"])([^'"]*\/erp\/[^'"]*)\1\s*\)/g;
 
 function runtimeErpImports(text: string): string[] {
-  return [STATIC_IMPORT, REEXPORT, DYNAMIC_IMPORT].flatMap((re) => [...text.matchAll(re)].map((m) => m[1]));
+  return [STATIC_IMPORT, REEXPORT, DYNAMIC_IMPORT].flatMap((re) => [...text.matchAll(re)].map((m) => m[2]));
 }
 
 /** Может ли модуль `rel` (путь от src/orderstudio, с `/`) импортировать цель `target` из ERP */
@@ -69,6 +71,10 @@ describe('Order v4 не импортирует рантайм ERP', () => {
     expect(runtimeErpImports("export * from '../../erp/utils/orderForm';")).toEqual(['../../erp/utils/orderForm']);
     expect(runtimeErpImports("export type { X } from '../../erp/types';")).toEqual([]);
     expect(runtimeErpImports("const S = lazy(() => import('../erp/screens/AdminScreen'));")).toEqual(['../erp/screens/AdminScreen']);
+    // Двойные кавычки — та же форма: иначе сторож обходится сменой кавычек
+    expect(runtimeErpImports('import { useErpStore } from "../../erp/store/useErpStore";')).toEqual(['../../erp/store/useErpStore']);
+    expect(runtimeErpImports('export * from "../../erp/utils/orderForm";')).toEqual(['../../erp/utils/orderForm']);
+    expect(runtimeErpImports('const S = lazy(() => import("../erp/screens/AdminScreen"));')).toEqual(['../erp/screens/AdminScreen']);
   });
 
   it('примитивы и стили ERP разрешены, стор — нет', () => {
@@ -89,7 +95,7 @@ describe('Order v4 не импортирует рантайм ERP', () => {
     for (const name of ERP_PRIMITIVES) {
       const file = [`${name}.jsx`, `${name}.js`].map((e) => join(COMPONENTS_DIR, e)).find((p) => existsSync(p));
       expect(file, `нет файла для ${name}`).toBeDefined();
-      const specifiers = [...readSource(file!).matchAll(/\bfrom\s+'([^']+)'/g)].map((m) => m[1]);
+      const specifiers = [...readSource(file!).matchAll(/\bfrom\s+(['"])([^'"]+)\1/g)].map((m) => m[2]);
       expect(specifiers.filter((s) => /\/store\/|lib\/supabase|lib\/api/.test(s)), name).toEqual([]);
     }
   });
