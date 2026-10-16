@@ -59,7 +59,7 @@ pinhead-react/src/
 │   ├── useStore.ts          # Главный Zustand store (собирает слайсы)
 │   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
 │   ├── useAuthStore.ts      # Auth + роли
-│   ├── useOrdersStore.ts    # CRUD заказов, Kanban
+│   ├── useOrdersStore.ts    # CRUD заказов v3 (вкладка ERP «Заказы ТЗ»; канбан v3 убран)
 │   ├── useCommentsStore.ts  # Комментарии к заказам
 │   ├── useToastStore.ts     # Уведомления
 │   ├── useConfirmStore.ts   # Imperative confirm dialog
@@ -90,7 +90,7 @@ pinhead-react/src/
 │   ├── deadline.ts          # Расчёт дедлайнов
 │   ├── displayNames.ts      # Показ: ткань названием, надбавка «+N ₽/шт», вид упаковки (16.10)
 │   └── i18n.ts              # Pluralize, translateSupabaseError
-├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
+├── styles/                  # CSS: auth, kanban (остаток: .kanban-page, .kb-search), wizard, forms, layout, garment, editors, extras-zones
 └── orderstudio/             # Order v4: layout/ (оболочка раздела: OrderLayout, OrderSidebar, orderNav — снимок CSS оболочки ERP), model/ (заказ, имена полей как DraftItem, ряды размеров),
                              # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
                              # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
@@ -134,7 +134,8 @@ supabase/
 | `/express` | ExpressCalc | Не production/designer |
 | `/prices` | → redirect `/sku?tab=pricing` | admin, director |
 | `/sku` | SkuEditor (8 табов) | admin, director |
-| `/admin` | AdminPanel | admin, director |
+| `/admin` | AdminScreen (единая админка ERP) | admin, director |
+| `/orders`, `/print`, `/analytics` | → redirect: `/orders` → `/sales` (admin/director) или `/`; `/print`, `/analytics` → `/` (канбан v3, печать и аналитика убраны в вехе 1) | Все |
 | `/sales`, `/sales/:id` | Order v4: SalesList, SalesCard (пилот) | admin, director |
 | `/sales/:id/item/:key` | ItemWizard — шаги визарда «Изделие»/«Дизайн» для позиции v4 (`key` = `new` или ключ) | admin, director |
 

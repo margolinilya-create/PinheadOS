@@ -35,7 +35,16 @@
   сторож `orderLayoutCss.test.ts`. Палитра ERP `.shell` теперь красит и визард (DESIGN.md).
 - **e2e-мок** знает v4 (`salesOrders`, журнал `calls`, `order_v4_save_full`,
   `erp_create_order`, Storage upload); новая спека `e2e/order-shell.spec.ts`.
-- **Числа.** Оболочка ERP: JS 194312 → 194169 B gzip, CSS 15932 → 15905; ESLint
+- **Финальная волна по ревью ветки.** Автосохранение черновика визарда вернулось:
+  `useDraft()` зовёт `OrderLayout` (жил в удалённой шапке — `pinhead_draft` не писался);
+  на `/` и `/express` в шапке — статус черновика и «Сбросить черновик» с подтверждением.
+  Сторож импортов видит двойные кавычки; сторож «ERP заморожен» хэширует текст с
+  CRLF→LF (`frozenHash`, одинаково в скрипте), пропускает скрытые файлы (`.DS_Store`),
+  DDL-шаблон видит `public."erp_orders"` и списки в `drop table`/`truncate`. Мёртвый CSS
+  канбана v3 убран (живы `.kanban-page` и `.kb-search`).
+- **Флаг `orderStudio` менеджерам НЕ включать до вехи 3:** у менеджера нет списка
+  своих заказов — канбан убран, `/sales` только admin/director.
+- **Числа.** Оболочка ERP: JS 194312 → 194176 B gzip, CSS 15932 → 15905; ESLint
   44 → 38, лимит `--max-warnings 38`. Остальное — changelog 2026-10.
 
 ### Следующие шаги
@@ -44,15 +53,16 @@
   прототип запуска заказа в производство (мост по-прежнему без правок ERP до решения).
 - Эталоны `studio-*` обновить workflow `update_snapshots` (локально в контейнере не
   обновлялись; `studio-sku` ожидаемо расходится).
-- Отложенные мелочи вехи 1: нет `.gitattributes` eol=lf (хэши ERP разъедутся при
-  CRLF-клоне); предикат «миграция содержит `erp_`» живёт только в скрипте;
-  `stripSqlComments` не учитывает строки с `--`; `frozenMessage` для DDL советует
-  `erp:freeze`, который нарушение не снимает; белый список — только прямые импорты
-  (`ErpStates` → `lib/appUpdate` → `useConfirmStore`); `DYNAMIC_IMPORT` — только
-  одинарные кавычки; `useAuthStore.ts` — устаревший заголовок «Preview role» над
+- Осознанно: `frozenMessage` для DDL советует `erp:freeze` — скрипт вносит новую
+  миграцию с `erp_` в манифест, и дальше она сверяется только по хэшу. Заморозка =
+  одобрение правки ERP владельцем; без одобрения не запускать.
+- Отложенные мелочи вехи 1: предикат «миграция содержит `erp_`» живёт только в скрипте;
+  `stripSqlComments` не учитывает строки с `--`; белый список — только прямые импорты
+  (`ErpStates` → `lib/appUpdate` → `useConfirmStore`); `useAuthStore.ts` — устаревший заголовок «Preview role» над
   `effectiveRole`; лишняя пустая строка в `index.css` на месте `body.has-preview-bar`;
   `vite.config.js` `manualChunks` `vendor-charts` и `FORBIDDEN_IN_SHELL` в bundle-budget —
-  мёртвая конфигурация; комментарий про канбан у `SOON_DAYS` в `deadline.ts`; закрытый
+  мёртвая конфигурация; мёртвый CSS `.pp-*` (печать v3) и `.dash-*` (аналитика) в
+  `editors.css`, `utils.css`, `responsive.css`; комментарий про канбан у `SOON_DAYS` в `deadline.ts`; закрытый
   мобильный сайдбар остаётся в табуляции (`inert`); сторож снимка покрывает только
   палитру `.shell`, каркас/шапка/сайдбар — ручная сверка; Storage-мок считает
   `object/sign|list|move|copy` загрузкой (понадобится в вехе 2); в `order-shell.spec.ts`
