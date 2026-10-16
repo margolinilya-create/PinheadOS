@@ -14,7 +14,8 @@
 import { findColorEntry } from '../../data/colors';
 import { initSizes, sizeOrder } from '../../store/slices/helpers';
 import { FMT_SIZES } from '../../utils/pricingCore';
-import { fitFormat } from '../pricing/priceOrder';
+import { DTG_SIZES, dtgFitSize, dtgSizeKey } from '../../utils/printRules';
+import { SCREEN_MAX_MM, embroideryExtras, fitFormat, screenFormat } from '../pricing/priceOrder';
 import { newSalesItem, newSalesLabel, newSalesPrint } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesPrint, SalesPrintMethod } from '../model/types';
 import type { Fabric, SkuItem, ZoneDefinition } from '../../types/catalog';
@@ -82,7 +83,39 @@ function zoneId(name: string, zones: ZoneDefinition[]): string {
   return zones.find((z) => z.name === name || z.id === name)?.id ?? name;
 }
 
-const fmtMm = (fmt: string | undefined) => FMT_SIZES[fmt || 'A4'] ?? FMT_SIZES.A4;
+/**
+ * Формат визарда ↔ мм v4 — ПО ТЕХНИКЕ. Один перевод через размеры листа
+ * ломал цену при переносе: DTG A4 (лист 210×297) не входил в DTG-размер
+ * A4 (200×300) и считался как A3; Max у шелкографии мм не имел и становился
+ * A4. Здесь у каждой техники свои размеры, и обратный перевод даёт тот же
+ * формат (`fmtOf(mmOf(f)) === f`).
+ */
+type Mm = { w: number; h: number };
+
+function mmOf(tech: WizardTech, fmt: string | undefined): Mm {
+  const f = fmt || 'A4';
+  if (tech === 'dtg') {
+    const s = DTG_SIZES.find((d) => d.key === dtgSizeKey(f)) ?? DTG_SIZES.find((d) => d.key === 'A4')!;
+    return { w: s.w, h: s.h };
+  }
+  if (tech === 'screen' && f === 'Max') return SCREEN_MAX_MM;
+  return FMT_SIZES[f] ?? FMT_SIZES.A4;
+}
+
+/** DTG-размер `40x45` у визарда — кнопка A3+ */
+const DTG_KEY_TO_WIZARD: Record<string, string> = { '40x45': 'A3+' };
+
+function fmtOf(tech: WizardTech, w: number | null, h: number | null): string {
+  if (tech === 'dtg') {
+    const k = dtgFitSize(w, h);
+    return k ? (DTG_KEY_TO_WIZARD[k] ?? k) : (w && h ? 'A3+' : 'A4');
+  }
+  if (tech === 'screen') return screenFormat(w, h).fmt;
+  return fitFormat(w, h).fmt;
+}
+
+/** Способ вышивки визарда ↔ «где наносим» и тип изделия v4 */
+const PATCH_KIND = 'Шеврон';
 
 // ── Визард → v4 ──────────────────────────────────────────────────────────
 
@@ -94,9 +127,15 @@ function printFromZone(snap: WizardItem, id: string, cat: WizardCatalogs, base: 
     zone: zoneName(id, cat.zonesCatalog),
   };
   if (tech === 'screen' || tech === 'flex' || tech === 'dtg') {
-    const { w, h } = fmtMm(p.size);
-    patch.width_mm = w;
-    patch.height_mm = h;
+    // Мм, заданные в карточке, остаются, пока формат в визарде не меняли:
+    // иначе проход «Изменить в визарде» без правок сбивал 250×300 до листа A3
+    const keepMm = base && METHOD_TO_TECH[base.method] === tech
+      && fmtOf(tech, base.width_mm, base.height_mm) === (p.size || 'A4');
+    if (!keepMm) {
+      const { w, h } = mmOf(tech, p.size);
+      patch.width_mm = w;
+      patch.height_mm = h;
+    }
   }
   if (tech === 'screen' || tech === 'flex') patch.colors = Math.max(1, parseInt(p.colors) || 1);
   if (tech === 'screen' || tech === 'dtg') patch.textile = p.textile === 'color' ? 'color' : 'white';
@@ -105,10 +144,17 @@ function printFromZone(snap: WizardItem, id: string, cat: WizardCatalogs, base: 
     patch.width_mm = Number(p.width_mm) || 50;
     patch.height_mm = Number(p.height_mm) || 50;
     patch.fill = Number(p.fill) || 1;
-    patch.special = p.extra || '';
+    // Надбавки суммируются: одна из списка `extras` плюс выбор `extra`
+    const fx = [...new Set([...(p.extras ?? []), ...(p.extra ? [p.extra] : [])])];
+    patch.special = embroideryExtras(fx.join('+')).join('+');
+    if (p.mode === 'patch') patch.garment_kind = PATCH_KIND;
+    else {
+      patch.on = p.mode === 'garment' ? 'finished' : 'cut';
+      if (base?.garment_kind === PATCH_KIND) patch.garment_kind = '';
+    }
   }
   if (tech === 'dtf') {
-    const { w, h } = fmtMm(p.fmt || p.size);
+    const { w, h } = mmOf('dtf', p.fmt || p.size);
     patch.width_mm = Number(p.width_mm) || w;
     patch.height_mm = Number(p.height_mm) || h;
   }
@@ -126,6 +172,8 @@ function labelsFrom(snap: WizardItem, base: SalesLabel[]): SalesLabel[] {
   if (cfg?.careLabel?.enabled && !has('composition')) {
     out.push(newSalesLabel({
       label_type: 'composition',
+      // Вариант — для цены (`salesLabelPrice`): та же ставка, что в визарде
+      variant_id: cfg.careLabel.logoOption || 'standard',
       comment: note(cfg.careLabel.composition, cfg.careLabel.country, cfg.careLabel.comments),
     }));
   }
@@ -133,12 +181,13 @@ function labelsFrom(snap: WizardItem, base: SalesLabel[]): SalesLabel[] {
   if (main && main.option !== 'none' && !has('brand')) {
     out.push(newSalesLabel({
       label_type: 'brand',
+      variant_id: [main.option, main.material].filter(Boolean).join(':'),
       place: main.placement === 'inseam' ? 'Боковой шов' : 'Горловина',
       comment: note(main.option === 'send-own' ? 'бирка клиента' : main.option, main.material, main.color, main.comments),
     }));
   }
   if (cfg?.hangTag && cfg.hangTag.option !== 'none' && !has('hangtag')) {
-    out.push(newSalesLabel({ label_type: 'hangtag', comment: note(cfg.hangTag.option, cfg.hangTag.comments) }));
+    out.push(newSalesLabel({ label_type: 'hangtag', variant_id: cfg.hangTag.option, comment: note(cfg.hangTag.option, cfg.hangTag.comments) }));
   }
   return out;
 }
@@ -247,11 +296,18 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
     const id = zoneId(p.zone, cat.zonesCatalog);
     zones.push(id);
     zoneTechs[id] = tech;
-    const fmt = fitFormat(p.width_mm, p.height_mm).fmt;
+    const fmt = fmtOf(tech, p.width_mm, p.height_mm);
     if (tech === 'screen') fields.zonePrints[id] = { colors: p.colors, size: fmt, textile: p.textile, fx: p.special || 'none' };
     if (tech === 'flex') fields.flexZones[id] = { colors: p.colors, size: fmt };
     if (tech === 'dtg') fields.dtgZones[id] = { size: fmt, textile: p.textile };
-    if (tech === 'embroidery') fields.embZones[id] = { width_mm: p.width_mm ?? 50, height_mm: p.height_mm ?? 50, fill: p.fill, extra: p.special || null };
+    if (tech === 'embroidery') {
+      const fx = embroideryExtras(p.special);
+      const mode = /шеврон|нашивк|patch/i.test(p.garment_kind || '') ? 'patch' : p.on === 'cut' ? 'cut' : 'garment';
+      fields.embZones[id] = {
+        width_mm: p.width_mm ?? 50, height_mm: p.height_mm ?? 50, fill: p.fill,
+        extra: fx[0] ?? null, extras: fx.slice(1), mode,
+      };
+    }
     if (tech === 'dtf') fields.dtfZones[id] = { fmt, width_mm: p.width_mm, height_mm: p.height_mm };
     if (p.artwork_url) zoneArtworks[id] = p.artwork_url;
   }

@@ -102,4 +102,28 @@ if (typeof window !== 'undefined') {
    * подсветки (см. комментарий в `erp/layout/Sidebar.jsx`).
    */
   Element.prototype.scrollIntoView = vi.fn();
+
+  /**
+   * getContext — jsdom без пакета `canvas` отвечает «Not implemented» в консоль
+   * на КАЖДЫЙ график Chart.js: десятки строк шума на прогон, среди которых
+   * терялись настоящие предупреждения. Заглушка — 2D-контекст, где любой метод
+   * ничего не делает, а `measureText` отдаёт нулевую ширину (раскладка легенды
+   * её читает). Рисовать в jsdom всё равно некуда: тесты проверяют разметку
+   * и данные графика, а не пиксели.
+   */
+  const noop = () => {};
+  const context2d = new Proxy({}, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      if (prop === 'measureText') return () => ({ width: 0 });
+      if (prop === 'getImageData' || prop === 'createImageData') {
+        return () => ({ data: new Uint8ClampedArray(4) });
+      }
+      if (prop === 'getLineDash') return () => [];
+      if (prop === 'canvas') return undefined;
+      return noop;
+    },
+    set(target, prop, value) { target[prop] = value; return true; },
+  });
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => context2d);
 }

@@ -6,6 +6,7 @@ import { useStore } from '../../store/useStore';
 // Mock pricing
 vi.mock('../../utils/pricing', () => ({
   getSkuEstPrice: vi.fn(() => 500),
+  getSkuFromPrice: vi.fn(() => 1200),
   isAccessory: vi.fn((type) => type === 'shopper'),
   getTotalQty: vi.fn(() => 0),
   getUnitPrice: vi.fn(() => 500),

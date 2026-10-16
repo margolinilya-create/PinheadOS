@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import styles from '../styles';
+import { overlayClick } from '../../utils/overlayClick';
 
 /**
  * Модальное окно раздела — ОДНА оболочка вместо шести рукописных.
@@ -55,7 +56,7 @@ export function Modal({
     <div
       className={styles.modalOverlay}
       role="presentation"
-      onClick={closeOnOverlay ? onClose : undefined}
+      onClick={overlayClick(closeOnOverlay ? onClose : undefined)}
     >
       <div
         ref={trapRef}
@@ -63,7 +64,6 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        onClick={(e) => e.stopPropagation()}
       >
         {title && <div id={titleId} className={styles.modalTitle}>{title}</div>}
         {children}

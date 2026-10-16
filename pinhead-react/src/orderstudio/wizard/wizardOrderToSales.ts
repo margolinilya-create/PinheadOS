@@ -10,11 +10,8 @@ import { wizardToSalesItem } from './wizardAdapter';
 import type { WizardCatalogs, WizardItem } from './wizardAdapter';
 import type { SalesOrder } from '../model/types';
 
-/** Упаковка визарда (`packType`) → упаковка заказа v4 */
-const PACK_NOTE: Record<string, string> = {
-  bopp: 'БОПП пакет',
-  zip: 'ЗИП пакет',
-};
+/** Упаковка визарда (`packType`) — те же виды, что у ERP и v4: none / bopp / zip */
+const PACK_KINDS = new Set(['none', 'bopp', 'zip']);
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
@@ -34,7 +31,7 @@ export function wizardOrderToSalesOrder(
   const contact = [state.contact, state.phone, state.email, state.messenger]
     .map(str).filter(Boolean).join(', ');
   const packType = str(state.packType) || (state.packOption ? 'bopp' : 'none');
-  const packNote = PACK_NOTE[packType];
+  const packaging = PACK_KINDS.has(packType) ? packType : 'none';
   const firstModel = items[0]?.product_type ?? '';
 
   return {
@@ -48,8 +45,7 @@ export function wizardOrderToSalesOrder(
       delivery_address: str(state.address),
       urgent: !!state.urgentOption,
       urgent_days: typeof state.urgentDays === 'number' ? state.urgentDays : (state.urgentOption ? 5 : 0),
-      packaging: packNote ? 'individual' : 'none',
-      packaging_note: packNote ?? '',
+      packaging,
       items,
     },
     notes: str(state.notes),

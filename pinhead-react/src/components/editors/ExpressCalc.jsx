@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, getPrices } from '../../utils/pricing';
-import { skuCost, garmentSellPrice, materialPrice } from '../../utils/costRules';
+import { skuCost, garmentSellPrice, materialPrice, overheadOf } from '../../utils/costRules';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -43,9 +43,10 @@ function initZoneData(zones) {
   return data;
 }
 
-function calcZoneSurcharge(zoneId, d, qty) {
+/** Ткань — для надбавки шелкографии по футеру (×1,5), как в визарде */
+function calcZoneSurcharge(zoneId, d, qty, fabricCode) {
   if (!d || !d.active) return 0;
-  return calcZonePriceDirect(d.tech, d, qty);
+  return calcZonePriceDirect(d.tech, d, qty, fabricCode || undefined);
 }
 
 // ── Component ──
@@ -180,13 +181,13 @@ export default function ExpressCalc() {
     const zoneCount = activeEntries.length;
     let techTotal = 0;
     activeEntries.forEach(([id, d]) => {
-      techTotal += calcZoneSurcharge(id, d, qty);
+      techTotal += calcZoneSurcharge(id, d, qty, fabric?.code);
     });
 
     const unitPrice = base + techTotal;
     const total = unitPrice * qty;
 
-    return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
+    return { baseRaw, base, markupPct, overheadPct: overheadOf(P), extrasCost, techTotal, zoneCount, unitPrice, total };
   }, [sku, fabric, fabricsCatalog, trimCatalog, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
 
   // ── Render zone params ──
@@ -316,8 +317,8 @@ export default function ExpressCalc() {
             </div>
             {/* SKU select */}
             <div className="exp-field">
-              <label>Изделие</label>
-              <select value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
+              <label htmlFor="exp-sku">Изделие</label>
+              <select id="exp-sku" value={skuCode} onChange={e => handleSkuChange(e.target.value)}>
                 <option value="">— Выберите —</option>
                 {Object.keys(categories).length === 0 && (
                   <option disabled>Загрузка каталога...</option>
@@ -334,8 +335,8 @@ export default function ExpressCalc() {
 
             {/* Fabric select */}
             <div className="exp-field">
-              <label>Ткань</label>
-              <select value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
+              <label htmlFor="exp-fabric">Ткань</label>
+              <select id="exp-fabric" value={fabricCode} onChange={e => setFabricCode(e.target.value)}>
                 <option value="">— Выберите —</option>
                 {fabrics.map(f => (
                   <option key={f.code} value={f.code}>
@@ -347,8 +348,9 @@ export default function ExpressCalc() {
 
             {/* Quantity */}
             <div className="exp-field">
-              <label>Тираж (шт)</label>
+              <label htmlFor="exp-qty">Тираж (шт)</label>
               <input
+                id="exp-qty"
                 type="number"
                 value={qty}
                 onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
@@ -358,8 +360,9 @@ export default function ExpressCalc() {
 
             {/* Per-zone technology blocks */}
             {sku && skuZones.length > 0 && (
-              <div className="exp-field">
-                <label>Зоны нанесения</label>
+              <div className="exp-field" role="group" aria-labelledby="exp-zones-title">
+                {/* Подпись группы, а не поля: у неё нет одного контрола */}
+                <span id="exp-zones-title" className="exp-field-title">Зоны нанесения</span>
                 <div className="exp-zones-wrap">
                   {skuZones.map(zId => {
                     const d = expZoneData[zId];
@@ -374,7 +377,7 @@ export default function ExpressCalc() {
                       );
                     }
 
-                    const surcharge = calcZoneSurcharge(zId, d, qty);
+                    const surcharge = calcZoneSurcharge(zId, d, qty, fabric?.code);
                     const screenWarn = d.tech === 'screen' && qty > 0 && qty < 50;
 
                     return (
@@ -453,7 +456,7 @@ export default function ExpressCalc() {
                   <b>{calc.baseRaw.toLocaleString('ru-RU')} ₽</b>
                 </div>
                 <div className="exp-result-row">
-                  <span>Накладные и наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
+                  <span>Накладные +{Math.round(calc.overheadPct * 100)}%, наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
                   <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
                 </div>
                 <div className="exp-result-row">

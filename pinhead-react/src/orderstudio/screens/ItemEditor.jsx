@@ -9,14 +9,11 @@ import { newSalesLabel, newSalesPrint } from '../model/factory';
 import GridEditor from './GridEditor';
 import PrintRow from './PrintRow';
 import LabelRow from './LabelRow';
-import { ISSUE_LABELS, rub } from './labels';
+import { ISSUE_LABELS, PACKAGING_OPTIONS, rub } from './labels';
+import BufferedInput from './BufferedInput';
+import { formatMoney, parseMoney } from './fieldParse';
 import styles from './Sales.module.css';
 
-const toMoney = (v) => {
-  if (v === '' || v == null) return null;
-  const n = Number(String(v).replace(',', '.'));
-  return Number.isFinite(n) && n >= 0 ? n : null;
-};
 const toMm = (v) => {
   const n = Math.floor(Number(v));
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -153,7 +150,7 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
           onRemove={() => onChange({ prints: item.prints.filter((_, j) => j !== i) })}
         />
       ))}
-      <button type="button" className={styles.add} onClick={() => onChange({ prints: [...item.prints, newSalesPrint()] })}>+ Нанесение</button>
+      <button type="button" className={styles.add} onClick={() => onChange({ prints: [...item.prints, newSalesPrint({ on: item.kind === 'sku' ? 'cut' : 'finished' })] })}>+ Нанесение</button>
 
       <h3 className={styles.sectionTitle}>Бирки</h3>
       {item.labels.map((l, i) => (
@@ -194,9 +191,7 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
           <label className={styles.field}>Упаковка
             <select className={styles.select} value={item.packaging} onChange={(e) => onChange({ packaging: e.target.value })}>
               <option value="inherit">Как в заказе</option>
-              <option value="individual">Индивидуальная</option>
-              <option value="bulk">Навалом</option>
-              <option value="none">Без упаковки</option>
+              {PACKAGING_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </label>
           <label className={styles.field}>Ширина, мм
@@ -220,11 +215,13 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
           <span className={styles.num} data-testid={`calc-unit-${index}`}>{rub(price?.calc_unit)}</span>
         </div>
         <label className={styles.field}>Ручная цена за штуку
-          <input
+          <BufferedInput
             className={styles.input}
             inputMode="decimal"
-            value={item.manual_unit_price ?? ''}
-            onChange={(e) => onChange({ manual_unit_price: toMoney(e.target.value) })}
+            value={item.manual_unit_price}
+            format={formatMoney}
+            parse={parseMoney}
+            onCommit={(v) => onChange({ manual_unit_price: v })}
             placeholder="пусто — расчётная"
           />
         </label>

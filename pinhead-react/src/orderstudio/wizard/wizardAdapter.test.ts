@@ -78,7 +78,8 @@ describe('визард → позиция v4', () => {
     }), CAT);
     expect(it.prints.map((p) => [p.method, p.width_mm, p.height_mm])).toEqual([
       ['heat_transfer', 148, 210],
-      ['dtg', 297, 420],
+      // DTG — свои размеры (А3 = 30×41 см), а не лист A3
+      ['dtg', 300, 410],
       ['embroidery', 80, 40],
       ['dtf', 90, 90],
       ['silkscreen', 105, 148],
@@ -183,7 +184,7 @@ describe('позиция v4 → визард (для «Изменить в ви�
     expect(back.zones).toEqual(['front', 'sleeve-l']);
     expect(back.zoneTechs).toEqual({ front: 'screen', 'sleeve-l': 'embroidery' });
     expect(back.zonePrints.front).toEqual({ colors: 3, size: 'A4', textile: 'color', fx: 'puff' });
-    expect(back.embZones['sleeve-l']).toEqual({ width_mm: 80, height_mm: 40, fill: 0.6, extra: 'puff' });
+    expect(back.embZones['sleeve-l']).toEqual({ width_mm: 80, height_mm: 40, fill: 0.6, extra: 'puff', extras: [], mode: 'cut' });
     expect(back.zoneArtworks).toEqual({ front: 'https://files/art.pdf' });
     expect(back.noPrint).toBe(false);
   });
@@ -194,5 +195,36 @@ describe('позиция v4 → визард (для «Изменить в ви�
     const back = salesItemToWizard(it, CAT, 'Чёрный (15-01)');
     expect(back.sizes.L).toBe(3);
     expect(back.sizes.S).toBe(0);
+  });
+});
+
+describe('перенос без потерь цены (16.10)', () => {
+  const tech = (zoneTechs: Record<string, string>, fields: Record<string, unknown>) =>
+    wizardToSalesItem(snap({ zones: Object.keys(zoneTechs), zoneTechs, ...fields }), CAT);
+
+  it.each(['A6', 'A5', 'A4', 'A3', 'A3+'])('DTG %s туда-обратно — тот же формат', (size) => {
+    const item = tech({ back: 'dtg' }, { dtgZones: { back: { size, textile: 'white' } } });
+    expect(salesItemToWizard(item, CAT).dtgZones.back.size).toBe(size);
+  });
+
+  it.each(['A4', 'A3', 'A3+', 'Max'])('шелкография %s туда-обратно — тот же формат', (size) => {
+    const item = tech({ back: 'screen' }, { zonePrints: { back: { colors: 2, size, textile: 'white', fx: 'none' } } });
+    expect(salesItemToWizard(item, CAT).zonePrints.back.size).toBe(size);
+  });
+
+  it('проход через визард без правок не сбивает мм, заданные в карточке', () => {
+    const item = tech({ back: 'screen' }, { zonePrints: { back: { colors: 2, size: 'A3', textile: 'white', fx: 'none' } } });
+    const edited = { ...item, prints: [{ ...item.prints[0], width_mm: 250, height_mm: 300 }] };
+    const again = wizardToSalesItem(salesItemToWizard(edited, CAT), CAT, edited);
+    expect(again.prints[0]).toMatchObject({ width_mm: 250, height_mm: 300 });
+  });
+
+  it('вышивка: способ и обе надбавки переносятся', () => {
+    const item = tech({ chest: 'embroidery' }, {
+      embZones: { chest: { width_mm: 80, height_mm: 60, fill: 1, extra: 'metallic', extras: ['puff'], mode: 'garment' } },
+    });
+    expect(item.prints[0]).toMatchObject({ special: 'puff+metallic', on: 'finished' });
+    const patch = tech({ chest: 'embroidery' }, { embZones: { chest: { width_mm: 80, height_mm: 60, mode: 'patch' } } });
+    expect(patch.prints[0].garment_kind).toBe('Шеврон');
   });
 });

@@ -28,7 +28,7 @@ import * as printRules from '../../utils/printRules';
 import type { PricesExt } from '../../utils/pricingCore';
 import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
-import type { SalesItem, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
+import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -76,6 +76,10 @@ export interface ItemPrice {
   /** Наценка по тиражу позиции, доля */
   markup_pct: number;
   prints: PrintPrice[];
+  /** Бирки за штуку — ставки визарда (`salesLabelPrice`) */
+  labels_unit: number;
+  /** Упаковка за штуку — по виду позиции или заказа (`packPrice`) */
+  pack_unit: number;
   /** Расчётная цена за штуку со срочностью, округлённая вверх */
   calc_unit: number;
   /** Цена за штуку в КП: ручная, если задана, иначе расчётная */
@@ -117,6 +121,27 @@ export function fitFormat(width: number | null, height: number | null): { fmt: s
   return { fmt: 'A3', issue: 'print_oversize' };
 }
 
+/**
+ * Шелкография знает форматы больше A3 — A3+ и Max (матрица цен, визард).
+ * Прежде всё больше A3 считалось по A3 с пометкой, а Max при переносе из
+ * визарда (у него нет мм) становился A4 вовсе без пометки: −39 % к цене.
+ * Макет больше A3+ — это Max.
+ */
+export const SCREEN_MAX_MM = { w: 400, h: 500 };
+
+export function screenFormat(width: number | null, height: number | null): { fmt: string; issue?: PriceIssue } {
+  const sheet = fitFormat(width, height);
+  if (sheet.issue !== 'print_oversize') return sheet;
+  const [a, b] = [Math.min(width!, height!), Math.max(width!, height!)];
+  const plus = core.FMT_SIZES['A3+'];
+  return a <= plus.w && b <= plus.h ? { fmt: 'A3+' } : { fmt: 'Max' };
+}
+
+/** Надбавки вышивки — `special` списком через «+» (визард их суммирует) */
+export function embroideryExtras(special: string): string[] {
+  return (special || '').split('+').filter((x) => x === 'metallic' || x === 'puff');
+}
+
 const ceilTo = (v: number, step: number): number => (step > 0 ? Math.ceil(v / step) * step : Math.round(v));
 
 /** Цена одного нанесения за штуку; null — у техники нет конструктора цен */
@@ -127,8 +152,10 @@ function printUnitPrice(
   const w = print.width_mm ?? undefined;
   const h = print.height_mm ?? undefined;
   switch (print.method) {
-    case 'silkscreen':
-      return { unit: core.calcZonePriceDirect(P, 'screen', { fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode), issue };
+    case 'silkscreen': {
+      const sf = screenFormat(print.width_mm, print.height_mm);
+      return { unit: core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode), issue: sf.issue };
+    }
     case 'heat_transfer':
       return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };
     case 'dtg': {
@@ -142,7 +169,7 @@ function printUnitPrice(
       };
     }
     case 'embroidery': {
-      const extras = print.special === 'metallic' || print.special === 'puff' ? [print.special] : [];
+      const extras = embroideryExtras(print.special);
       return {
         unit: core.calcZonePriceDirect(P, 'embroidery', { width_mm: w, height_mm: h, fill: print.fill, extras, mode: embMode }, qty),
         issue: !w || !h ? 'print_no_size' : qty < (P.embTiers?.[0] ?? printRules.EMB_TIERS[0]) ? 'emb_low_qty' : undefined,
@@ -189,6 +216,28 @@ function garmentCost(
   }
 }
 
+/**
+ * Бирка v4 → цена за штуку по ставкам визарда. Вариант — `variant_id`:
+ * составник — логотип (`my-logo` / `no-logo` / `standard`), основная —
+ * `вариант[:материал]` (`standard`, `custom:canvas`, `send-own` — бирка
+ * клиента), хэнгтег — `standard` / `custom`. Без варианта — стандартная,
+ * как в визарде по умолчанию. Остальные типы ставки у визарда не имеют.
+ */
+export function salesLabelPrice(label: Pick<SalesLabel, 'label_type' | 'variant_id'>): number {
+  const [variant, material] = (label.variant_id || '').split(':');
+  switch (label.label_type) {
+    case 'composition': return core.careLabelPrice(variant || 'standard');
+    case 'brand': return core.mainLabelPrice(variant || 'standard', material);
+    case 'hangtag': return core.hangTagPrice(variant || 'standard');
+    default: return 0;
+  }
+}
+
+/** Упаковка позиции: своя или заказа (`inherit`/пусто) */
+export function itemPackaging(item: Pick<SalesItem, 'packaging'>, orderPackaging: string): string {
+  return !item.packaging || item.packaging === 'inherit' ? (orderPackaging || 'none') : item.packaging;
+}
+
 /** Дни срочного пошива: новое поле заказа, иначе прежний флажок (= 5 дней) */
 export function orderUrgentDays(order: Pick<SalesOrder, 'urgent' | 'urgent_days'>): number {
   if (typeof order.urgent_days === 'number' && order.urgent_days > 0) return order.urgent_days;
@@ -197,6 +246,7 @@ export function orderUrgentDays(order: Pick<SalesOrder, 'urgent' | 'urgent_days'
 
 export function priceItem(
   item: SalesItem, P: PricesExt, cat: PriceCatalogs, rules: PriceRules, urgentDays: number | boolean,
+  orderPackaging = 'none',
 ): ItemPrice {
   const issues: PriceIssue[] = [];
   const qty = gridQty(item.size_grid);
@@ -213,10 +263,14 @@ export function priceItem(
   const prints: PrintPrice[] = [];
   let printsPerUnit = 0;
   let printsTotal = 0;
-  const embMode: printRules.EmbMode = sewn ? 'cut' : 'garment';
   for (const pr of item.prints) {
     const pq = gridQty(item.size_grid, pr.sizes);
-    const mode: printRules.EmbMode = /шеврон|нашивк|patch/i.test(pr.garment_kind || '') ? 'patch' : embMode;
+    // Способ вышивки: шеврон — по типу; у своего пошива — по «где наносим»
+    // (прежде всегда «на крое», и поле на цену не влияло); бланк и
+    // давальческое — только на готовом
+    const mode: printRules.EmbMode = /шеврон|нашивк|patch/i.test(pr.garment_kind || '')
+      ? 'patch'
+      : sewn && pr.on === 'cut' ? 'cut' : 'garment';
     const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode);
     if (issue && !issues.includes(issue)) issues.push(issue);
     const u = unit ?? 0;
@@ -225,12 +279,15 @@ export function priceItem(
   }
   if (qty > 0) printsPerUnit = printsTotal / qty;
 
-  const rawUnit = garment + printsPerUnit;
+  // Бирки и упаковка — как в визарде: сверху, без накладных, наценки и срочности
+  const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l), 0);
+  const packUnit = core.packPrice(P, itemPackaging(item, orderPackaging));
+  const rawUnit = garment + printsPerUnit + labelsUnit + packUnit;
   const calcUnit = qty > 0 ? ceilTo(rawUnit, rules.roundTo) : 0;
 
   const manual = item.manual_unit_price != null;
   const unit = manual ? item.manual_unit_price! : calcUnit;
-  const costTotal = Math.round((g.cost + g.extras) * qty + printsTotal);
+  const costTotal = Math.round((g.cost + g.extras + labelsUnit + packUnit) * qty + printsTotal);
 
   return {
     key: item.key,
@@ -238,6 +295,8 @@ export function priceItem(
     cost_unit: g.cost,
     markup_pct: markup,
     prints,
+    labels_unit: labelsUnit,
+    pack_unit: packUnit,
     calc_unit: calcUnit,
     unit,
     total: Math.round(unit * qty),
@@ -253,7 +312,7 @@ export function priceOrder(
   order: SalesOrder, P: PricesExt, cat: PriceCatalogs, rules: PriceRules = DEFAULT_PRICE_RULES,
 ): OrderPrice {
   const days = orderUrgentDays(order);
-  const items = order.items.map((it) => priceItem(it, P, cat, rules, days));
+  const items = order.items.map((it) => priceItem(it, P, cat, rules, days, order.packaging));
   const subtotal = items.reduce((s, i) => s + i.total, 0);
 
   const methods = new Set(order.items.flatMap((it) => it.prints.map((p) => p.method)));

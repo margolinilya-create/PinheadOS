@@ -67,7 +67,7 @@ const A11Y_RULE_OVERRIDES = {
    * (`erp/labelBinding.test.ts`), поэтому линтеру просто сообщается состав
    * собственных контролов, а не ослабляется проверка.
    */
-  'jsx-a11y/label-has-associated-control': ['warn', { controlComponents: ['DateField'] }],
+  'jsx-a11y/label-has-associated-control': ['warn', { controlComponents: ['DateField', 'BufferedInput'] }],
   /**
    * РАТЧЕТ, А НЕ ПОСЛАБЛЕНИЕ. Эти правила дают 95 находок на коде, который
    * писался, пока линтер их не знал: оверлеи, закрывающиеся кликом по

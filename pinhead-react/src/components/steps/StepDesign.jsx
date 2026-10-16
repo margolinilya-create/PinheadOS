@@ -9,6 +9,7 @@ import ZoneTechBlock from './ZoneTechBlock';
 import LabelConfigurator from './LabelConfigurator';
 import ZoneMockup from './ZoneMockup';
 import styles from './StepDesign.module.css';
+import { fmtPerUnit } from '../../utils/displayNames';
 
 // ALL_ZONES removed — now uses sku.zones from store directly
 
@@ -39,23 +40,25 @@ function getZoneMiniSummary(zone, state) {
     const p = state.dtfZones?.[zone] || { fmt: 'A4' };
     fmt = p.fmt || p.size || 'A4';
   }
-  const parts = [label, fmt, colors, `+${surcharge} ₽`].filter(Boolean);
+  const parts = [label, fmt, colors, fmtPerUnit(surcharge).replace('/шт', '')].filter(Boolean);
   return parts.join(' · ');
 }
 
 export default function StepDesign() {
   const { sku, type, color, zones, toggleZone, noPrint, toggleNoPrint, designNotes, setField, nextStep, prevStep,
-    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones,
+    sizes, customSizes, zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, fabric, fabricsCatalog,
     artworkPath, setArtworkPath, zonesCatalog, extras, extrasCatalog } = useStore(
     useShallow(s => ({ sku: s.sku, type: s.type, color: s.color, zones: s.zones, toggleZone: s.toggleZone,
       noPrint: s.noPrint, toggleNoPrint: s.toggleNoPrint, designNotes: s.designNotes, setField: s.setField,
       nextStep: s.nextStep, prevStep: s.prevStep, sizes: s.sizes, customSizes: s.customSizes,
       zoneTechs: s.zoneTechs, zonePrints: s.zonePrints, flexZones: s.flexZones, dtgZones: s.dtgZones,
-      embZones: s.embZones, dtfZones: s.dtfZones,
+      embZones: s.embZones, dtfZones: s.dtfZones, fabric: s.fabric, fabricsCatalog: s.fabricsCatalog,
       artworkPath: s.artworkPath, setArtworkPath: s.setArtworkPath,
       zonesCatalog: s.zonesCatalog, extras: s.extras, extrasCatalog: s.extrasCatalog }))
   );
-  const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes };
+  // Ткань — для надбавки шелкографии по футеру: без неё сводка зоны была ниже
+  // заголовка блока (ZoneTechBlock считает по полному стору), обход 16.10
+  const store = { zoneTechs, zonePrints, flexZones, dtgZones, embZones, dtfZones, sizes, customSizes, fabric, fabricsCatalog };
   const [screenConfirmed, setScreenConfirmed] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
 

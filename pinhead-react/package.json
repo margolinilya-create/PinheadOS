@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --max-warnings 95",
+    "lint": "eslint . --max-warnings 44",
     "preview": "vite preview",
     "test": "vitest run",
     "audit": "node scripts/audit-guidebook.js",

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import styles from './ConfirmDialog.module.css';
+import { overlayClick } from '../../utils/overlayClick';
 
 /**
  * Shared confirmation dialog. Replaces window.confirm().
@@ -48,14 +49,13 @@ export default function ConfirmDialog({
   const submit = () => { if (!blocked) onConfirm(value.trim()); };
 
   return (
-    <div className={styles.overlay} onClick={onCancel}>
+    <div className={styles.overlay} role="presentation" onClick={overlayClick(onCancel)}>
       <div
         ref={ref}
         className={styles.dialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        onClick={(e) => e.stopPropagation()}
       >
         {title && <div id="confirm-dialog-title" className={styles.title}>{title}</div>}
         {message && <div className={styles.message}>{message}</div>}

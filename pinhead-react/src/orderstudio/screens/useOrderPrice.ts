@@ -46,10 +46,13 @@ export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
 
   const pricer = useMemo(() => makeOrderPricer(cat as unknown as PricerSource), [cat]);
 
-  // Снимок цены при сохранении — тот же расчёт, что видит менеджер
+  // Снимок цены при сохранении — тот же расчёт, что видит менеджер.
+  // При размонтировании расчёт НЕ снимается: очистка этого эффекта идёт
+  // раньше `flush()` карточки (порядок объявления), и сохранение последней
+  // правки при уходе уходило с `price_total: null`, затирая сумму в базе.
+  // Расчёт чистый (прайс и каталоги), прежний годен до замены новым.
   useEffect(() => {
     useSalesStore.getState().setPricer(pricer);
-    return () => useSalesStore.getState().setPricer(null);
   }, [pricer]);
 
   return useMemo(() => (order ? pricer(order) : null), [order, pricer]);

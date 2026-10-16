@@ -57,6 +57,7 @@ vi.mock('./utils/pricing', () => ({
   getTotalQty: vi.fn(() => 0),
   isAccessory: vi.fn(() => false),
   getSkuEstPrice: vi.fn(() => 500),
+  getSkuFromPrice: vi.fn(() => 1200),
   getUnitPrice: vi.fn(() => 500),
   hasNoPrint: vi.fn(() => false),
   getZoneSurcharge: vi.fn(() => 0),

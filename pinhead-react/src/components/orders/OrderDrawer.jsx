@@ -9,6 +9,7 @@ import { parseDateLocal } from '../../utils/date';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { toast } from '../../store/useToastStore';
 import styles from './KanbanBoard.module.css';
+import { overlayClick } from '../../utils/overlayClick';
 
 const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, onOpenTZ, onDuplicate }) {
   const d = order.data || {};
@@ -45,8 +46,8 @@ const OrderDrawer = memo(function OrderDrawer({ order, onClose, onStatusChange, 
   const panelRef = useFocusTrap(true, onClose);
 
   return (
-    <div className="exp-overlay" onClick={onClose}>
-      <div ref={panelRef} className={`exp-panel ${styles.drawerPanel}`} role="dialog" aria-modal="true" aria-label="Детали заказа" onClick={e => e.stopPropagation()}>
+    <div className="exp-overlay" role="presentation" onClick={overlayClick(onClose)}>
+      <div ref={panelRef} className={`exp-panel ${styles.drawerPanel}`} role="dialog" aria-modal="true" aria-label="Детали заказа">
         <div className="exp-header">
           <div className={styles.rowFlexGap10}>
             <span className="exp-title">{order.order_number || '—'}</span>

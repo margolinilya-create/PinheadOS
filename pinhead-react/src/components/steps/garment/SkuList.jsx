@@ -6,8 +6,9 @@ import { supabase } from '../../../lib/supabase';
 import { storageSet } from '../../../lib/storage';
 import { SKU_CATEGORIES } from '../../../data';
 import { ZONE_LABELS } from '../../../data/constants';
-import { getSkuEstPrice } from '../../../utils/pricing';
+import { getSkuFromPrice } from '../../../utils/pricing';
 import { getGarmentSVG } from '../../../utils/mockup';
+import { overlayClick } from '../../../utils/overlayClick';
 
 const FIT_OPTIONS = [
   { key: 'all', label: 'Все фиты' },
@@ -35,8 +36,8 @@ function PhotoLightbox({ photos, startIdx, onClose }) {
     if (e.key === 'ArrowLeft') setIdx(i => (i - 1 + photos.length) % photos.length);
   };
   return (
-    <div className="photo-lightbox" onClick={onClose} onKeyDown={handleKey} tabIndex={0} ref={el => el?.focus()}>
-      <div className="photo-lightbox-content" onClick={e => e.stopPropagation()}>
+    <div className="photo-lightbox" role="dialog" aria-modal="true" aria-label="Фото изделия" onClick={overlayClick(onClose)} onKeyDown={handleKey} tabIndex={-1} ref={el => el?.focus()}>
+      <div className="photo-lightbox-content">
         <img src={photos[idx]} alt={`Фото ${idx + 1}`} />
         {photos.length > 1 && (
           <>
@@ -56,7 +57,7 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabric
   const desc = skuDescription(s, fabricCode, fabricsCatalog);
   const photos = s.photos || [];
   const [lightbox, setLightbox] = useState(null);
-  const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
+  const est = getSkuFromPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
   const mockupSvg = photos.length === 0 ? getGarmentSVG(s.mockupType, '#d9d9d9') : '';
 
   return (
@@ -235,7 +236,7 @@ export default function SkuList() {
             <div key={catId}>
               <div className="garment-sep"><span className="garment-sep-text">{cat?.name || catId}</span><div className="garment-sep-line" /></div>
               {groups[catId].map(s => {
-                const est = getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
+                const est = getSkuFromPrice(s, null, fabricsCatalog, trimCatalog, usdRate);
                 const isSelected = sku?.code === s.code;
                 const isExpanded = expandedCode === s.code;
                 return (

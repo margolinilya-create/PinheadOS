@@ -145,7 +145,7 @@
 .sku-ed-group        { margin-bottom: 28px; min-width: 900px; }
 .sku-ed-group-header { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--bg2); border: 1.5px solid var(--border-light); font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text-mid); }
 .sku-ed-group-count  { font-size: 11px; background: var(--accent); color: var(--white); padding: 2px 10px; font-weight: 600; letter-spacing: 0; }
-.sku-ed-table        { width: 100%; border-collapse: collapse; font-size: 12px; border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); table-layout: fixed; }
+.sku-ed-table        { width: 100%; border-collapse: collapse; font-size: 12px; border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); table-layout: fixed; min-width: 1040px; }
 .sku-ed-table thead  { background: var(--black); }
 .sku-ed-table th     { text-align: left; font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--white); padding: 8px 10px; border-bottom: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sku-ed-table td     { padding: 6px 10px; border-bottom: 1px solid var(--bg3); vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
@@ -155,7 +155,7 @@
 .sku-th-name { width: auto; }
 .sku-th-fit  { width: 88px; }
 .sku-th-price { width: 80px; }
-.sku-th-num2  { width: 64px; }
+.sku-th-num2  { width: 76px; }
 .sku-th-trim  { width: 110px; }
 .sku-th-zones { width: 140px; }
 .sku-th-est   { width: 90px; }
@@ -185,6 +185,9 @@
 .sku-edit-input[type="number"] { -moz-appearance: textfield; }
 .sku-edit-name  { min-width: 120px; }
 .sku-edit-num   { width: 100%; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* Глобальный input[type="number"] (padding 9px 12px, шрифт body) съедал
+   колонку «Осн»/«Отд»: от 0.02 оставалось «0.0». Класс + атрибут сильнее. */
+.sku-ed-table input[type="number"].sku-edit-num { padding: var(--space-xs); font-family: var(--mono); }
 .sku-edit-select { border: 1px solid transparent; background: transparent; padding: 4px 4px; font-family: var(--font-display); font-size: 11px; cursor: pointer; outline: none; transition: border-color 150ms ease-out; width: 100%; box-sizing: border-box; }
 .sku-edit-select:hover  { border-color: var(--border-light); }
 .sku-edit-select:focus  { border-color: var(--accent); }

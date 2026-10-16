@@ -125,8 +125,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
    * и свои прежние (плюсы, остаток по размерам и «Осталось сдать», п. 7) —
    * хук `useStageReports`; здесь только их производные.
    */
-  // Этапы — из свежей позиции: снимок очереди мог отстать от сдачи соседа
-  const stages = fullItem.stages ?? item.stages ?? [];
+  // Этапы — из свежей позиции (снимок очереди мог отстать); в useMemo, чтобы `?? []` не сбивал мемоизацию
+  const stages = useMemo(() => fullItem.stages ?? item.stages ?? [], [fullItem.stages, item.stages]);
   const { prevReports, ownReports } = useStageReports(stage, stages, bySizes);
   // Завершение рулона — отдельное окно у рулона, не часть записи (05.10, п. 5)
   const finishRoll = useErpStore((st) => st.finishRoll);

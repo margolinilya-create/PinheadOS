@@ -7,13 +7,14 @@ import { useOrdersStore } from '../../store/useOrdersStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { storageRemove } from '../../lib/storage';
 import { toast } from '../../store/useToastStore';
-import { TYPE_NAMES, FABRIC_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
+import { TYPE_NAMES, ZONE_LABELS, TECH_NAMES, SIZES } from '../../data';
 import { isAccessory, calcItemTotal, calcItemBreakdown, getItemUnitPrice, getItemTotalQty, getTotalSurcharge, getLabelConfigPrice, calcExtrasCost } from '../../utils/pricing';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/validate';
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import { getEffectiveRules } from '../../utils/skuRules';
+import { fabricDisplayName, fmtPerUnit, packName } from '../../utils/displayNames';
 
 function EditBtn({ step, goToStep }) {
   return (
@@ -88,7 +89,7 @@ function buildItemTZBlock(item, idx, catalogs) {
 
   return `ПОЗИЦИЯ #${idx + 1}
 Тип: ${item.sku ? item.sku.name + (item.sku.article ? ' [' + item.sku.article + ']' : '') : TYPE_NAMES[item.type] || item.type}
-${item.fabric ? 'Ткань: ' + (FABRIC_NAMES[item.fabric] || item.fabric) : ''}
+${item.fabric ? 'Ткань: ' + fabricDisplayName(item.fabric, catalogs.fabricsCatalog) : ''}
 Цвет: ${item.color}${colorEntry ? ' — ' + colorEntry.name : ''}
 Крой: ${item.fit || 'regular'}
 Тираж: ${qty} шт
@@ -122,7 +123,7 @@ ${state.address ? 'Адрес: ' + state.address : ''}
 ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 ОПЦИИ
-Упаковка: ${state.packOption ? 'Да' : 'Нет'}
+Упаковка: ${state.packType && state.packType !== 'none' ? packName(state.packType) : 'Нет'}
 Срочно: ${state.urgentOption ? 'Да' + (state.urgentDays ? ` (${urgentLabel(state.urgentDays)})` : '') : 'Нет'}
 
 ИТОГО: ${grandTotal.toLocaleString('ru-RU')} ₽
@@ -131,18 +132,18 @@ ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 export default function StepSummary() {
   const navigate = useNavigate();
-  const { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption, urgentDays,
+  const { items, name, contact, email, phone, deadline, address, notes, role, packOption, packType, urgentOption, urgentDays,
     prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
     _editingOrderId, _editingOrderNumber, _lastSavedOrderNum } = useStore(
     useShallow(s => ({ items: s.items, name: s.name, contact: s.contact, email: s.email, phone: s.phone,
-      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption,
+      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption, packType: s.packType || (s.packOption ? 'bopp' : 'none'),
       urgentOption: s.urgentOption, urgentDays: s.urgentDays || (s.urgentOption ? 5 : 0), prevStep: s.prevStep, resetOrder: s.resetOrder,
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
       usdRate: s.usdRate, bitrixDeal: s.bitrixDeal, messenger: s.messenger,
       _editingOrderId: s._editingOrderId, _editingOrderNumber: s._editingOrderNumber,
       _lastSavedOrderNum: s._lastSavedOrderNum }))
   );
-  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, urgentOption, urgentDays,
+  const state = { items, name, contact, email, phone, deadline, address, notes, role, packOption, packType, urgentOption, urgentDays,
     fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
     _editingOrderId, _editingOrderNumber, _lastSavedOrderNum };
   const saveOrder = useOrdersStore(s => s.saveOrder);
@@ -159,9 +160,7 @@ export default function StepSummary() {
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
 
-  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, urgentOption, urgentDays };
-  // Надбавка за срочный пошив — из разбивки (только изделие, без нанесений)
-
+  const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays };
   // Per-item calculations
   const itemCalcs = items.map(item => {
     const qty = getItemTotalQty(item);
@@ -174,6 +173,8 @@ export default function StepSummary() {
 
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
   const grandQty = itemCalcs.reduce((sum, ic) => sum + ic.qty, 0);
+  const packPerUnit = itemCalcs[0]?.breakdown?.pack || 0;
+  // Надбавка за срочный пошив — из разбивки (только изделие, без нанесений)
   const urgentTotal = itemCalcs.reduce((sum, ic) => sum + (ic.breakdown.urgent || 0) * ic.qty, 0);
 
   // ─── Validation ───
@@ -234,7 +235,7 @@ export default function StepSummary() {
         // Shared fields
         name, contact, email, phone, bitrixDeal: bitrixDeal, deadline, address, notes,
         role, messenger: messenger,
-        packOption, urgentOption, urgentDays,
+        packOption, packType, urgentOption, urgentDays,
         total: grandTotal, totalQty: grandQty, unitPrice: grandQty > 0 ? Math.round(grandTotal / grandQty) : 0,
       };
 
@@ -336,7 +337,7 @@ export default function StepSummary() {
                 <div className="summary-block-title">Изделие <EditBtn step={0} goToStep={goToStep} /></div>
                 <div className="summary-mockup" dangerouslySetInnerHTML={{ __html: getGarmentSVG(item.type, item.color) }} />
                 {!isAccessory(item.type) && <div className="summary-row"><span className="key">Лекала</span><span className="val"><b>{item.fit}</b></span></div>}
-                {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{FABRIC_NAMES[item.fabric] || item.fabric}</b></span></div>}
+                {item.fabric && <div className="summary-row"><span className="key">Ткань</span><span className="val"><b>{fabricDisplayName(item.fabric, fabricsCatalog)}</b></span></div>}
                 {ce && (
                   <div className="summary-row">
                     <span className="key">Цвет</span>
@@ -376,7 +377,7 @@ export default function StepSummary() {
                     <span className="val"><b>{getZoneTechSummary(z, item)}</b></span>
                   </div>
                 )) : <div className="summary-row"><span className="key" style={{ opacity: .5 }}>Без нанесения</span></div>}
-                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>+{printPrice} ₽</b></span></div>}
+                {printPrice > 0 && <div className="summary-row summary-row-accent"><span className="key">Печать/шт</span><span className="val"><b>{fmtPerUnit(printPrice).replace('/шт', '')}</b></span></div>}
               </div>
 
               <div className="summary-block">
@@ -442,14 +443,14 @@ export default function StepSummary() {
               return (
                 <div key={idx} className="price-breakdown-item">
                   <div className="price-line"><span className="name">#{idx + 1} {item.sku?.name || TYPE_NAMES[item.type] || item.type}</span></div>
-                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">+{printP} ₽/шт</span></div>}
-                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">+{extP} ₽/шт</span></div>}
-                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">+{labP} ₽/шт</span></div>}
+                  {printP > 0 && <div className="price-line price-line-sub"><span className="name">Печать (зоны)</span><span className="amount">{fmtPerUnit(printP)}</span></div>}
+                  {extP > 0 && <div className="price-line price-line-sub"><span className="name">Обработки</span><span className="amount">{fmtPerUnit(extP)}</span></div>}
+                  {labP > 0 && <div className="price-line price-line-sub"><span className="name">Бирки</span><span className="amount">{fmtPerUnit(labP)}</span></div>}
                   <div className="price-line"><span className="name">{qty} шт</span><span className="amount">{itemTotal.toLocaleString('ru-RU')} ₽</span></div>
                 </div>
               );
             })}
-            {packOption && <div className="price-line"><span className="name">Упаковка</span><span className="amount">+15 ₽/шт</span></div>}
+            {packPerUnit > 0 && <div className="price-line"><span className="name">Упаковка — {packName(packType) || 'упаковка'}</span><span className="amount">{fmtPerUnit(packPerUnit)}</span></div>}
             {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочный пошив: {urgentLabel(urgentDays)}</span><span className="amount">+{urgentTotal.toLocaleString('ru-RU')} ₽</span></div>}
           </div>
         )}

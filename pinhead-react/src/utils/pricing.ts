@@ -12,7 +12,7 @@ import { useStore } from '../store/useStore';
 import * as core from './pricingCore';
 import type { PricesExt, PricingState, ZoneCalcParams } from './pricingCore';
 import type { PriceBreakdown } from '../types/pricing';
-import type { Fabric, Trim, ExtraItem } from '../types/catalog';
+import type { Fabric, Trim, ExtraItem, SkuItem } from '../types/catalog';
 
 export {
   isAccessory, hasNoPrint, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS,
@@ -61,6 +61,10 @@ export function flexLookup(format: string, colors: number, qty: number): number 
 
 export function screenCalcZone(zone: string, state: PricingState): number {
   return core.screenCalcZone(getPrices(), zone, state);
+}
+
+export function getSkuFromPrice(sku: SkuItem, fabricCode: string | null, fabricsCatalog: Fabric[], trimCatalog: Trim[], usdRate: number): number {
+  return core.getSkuFromPrice(getPrices(), sku, fabricCode, fabricsCatalog, trimCatalog, usdRate);
 }
 
 export function calcZonePriceDirect(tech: string, params: ZoneCalcParams, qty: number, fabric?: string): number {

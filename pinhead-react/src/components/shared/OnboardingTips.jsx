@@ -49,7 +49,7 @@ export default function OnboardingTips() {
 
   return (
     <>
-      <div className="onboarding-backdrop" onClick={handleSkip} />
+      <div className="onboarding-backdrop" role="presentation" onClick={handleSkip} />
       <div className="onboarding-tip" style={style}>
         <div className="onboarding-tip-text">{tip.text}</div>
         <div className="onboarding-tip-actions">

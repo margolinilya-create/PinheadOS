@@ -1,6 +1,7 @@
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import styles from '../erp.module.css';
 import { Icon } from './Icon';
+import { overlayClick } from '../../utils/overlayClick';
 
 /**
  * Правая боковая панель деталей (редизайн). Монтируется родителем только когда открыта
@@ -27,14 +28,13 @@ export function Drawer({ onClose, title, subtitle, badge, wide = false, children
   const panelRef = useFocusTrap(true, onClose);
 
   return (
-    <div className={styles.drawerOverlay} onClick={onClose} role="presentation">
+    <div className={styles.drawerOverlay} onClick={overlayClick(onClose)} role="presentation">
       <div
         ref={panelRef}
         className={`${styles.drawerPanel} ${wide ? styles.drawerPanelWide : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title || 'Детали'}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.drawerHead}>
           <div className={styles.drawerHeadMain}>

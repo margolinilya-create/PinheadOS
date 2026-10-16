@@ -58,8 +58,9 @@ export default function LabelConfigurator() {
 
             <div className="label-fields">
               <div className="label-field">
-                <label>Состав ткани</label>
+                <label htmlFor="label-careLabel-composition">Состав ткани</label>
                 <input
+                  id="label-careLabel-composition"
                   type="text"
                   placeholder="напр. 100% хлопок"
                   value={careLabel.composition}
@@ -67,8 +68,9 @@ export default function LabelConfigurator() {
                 />
               </div>
               <div className="label-field">
-                <label>Страна производства</label>
+                <label htmlFor="label-careLabel-country">Страна производства</label>
                 <input
+                  id="label-careLabel-country"
                   type="text"
                   placeholder="напр. Россия"
                   value={careLabel.country}
@@ -78,8 +80,9 @@ export default function LabelConfigurator() {
             </div>
 
             <div className="label-field full">
-              <label>Комментарий</label>
+              <label htmlFor="label-careLabel-comments">Комментарий</label>
               <textarea
+                id="label-careLabel-comments"
                 placeholder="Дополнительные пожелания..."
                 value={careLabel.comments}
                 onChange={e => setLabelConfig('careLabel', 'comments', e.target.value)}
@@ -169,8 +172,9 @@ export default function LabelConfigurator() {
           )}
 
           <div className="label-field full">
-            <label>Комментарий</label>
+            <label htmlFor="label-mainLabel-comments">Комментарий</label>
             <textarea
+              id="label-mainLabel-comments"
               placeholder="Дополнительные пожелания..."
               value={mainLabel.comments}
               onChange={e => setLabelConfig('mainLabel', 'comments', e.target.value)}
@@ -206,8 +210,9 @@ export default function LabelConfigurator() {
 
           {hangTag.option !== 'none' && (
             <div className="label-field full">
-              <label>Комментарий</label>
+              <label htmlFor="label-hangTag-comments">Комментарий</label>
               <textarea
+                id="label-hangTag-comments"
                 placeholder="Дополнительные пожелания..."
                 value={hangTag.comments}
                 onChange={e => setLabelConfig('hangTag', 'comments', e.target.value)}
