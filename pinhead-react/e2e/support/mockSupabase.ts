@@ -532,9 +532,27 @@ const PLAN_SLOTS = [
  * значит перекрасить эталоны половины прогона. Поэтому спека, которой нужны
  * СВОИ данные, передаёт их сюда, а всем остальным мир остаётся прежним.
  */
+/**
+ * Запись журнала мока: каждый RPC и каждая загрузка в Storage, дошедшие
+ * до сети. Спека передаёт пустой массив в `MockExtras.calls` и читает его
+ * ПОСЛЕ действий — так проверяется, что экран вызвал именно ту функцию
+ * с теми аргументами (`body`), а не просто нарисовал нужный текст.
+ * Для Storage `name` — `<bucket>/<path>`, `body` — `{ size }` (содержимое
+ * multipart-запроса спекам не нужно, а хранить его незачем).
+ */
+export type MockCall = { kind: 'rpc' | 'storage'; name: string; body: unknown };
+
 export type MockExtras = {
   /** Заказы, добавляемые к базовым четырём */
   orders?: unknown[];
+  /**
+   * Строки `orders` Order v4 (`schema_version: 4`) — ответ на список и карточку
+   * «Заказов v4». Отдаются ТОЛЬКО на запрос с `schema_version=eq.4`: читатели
+   * v3 (`useOrdersStore`) этого фильтра не шлют и по-прежнему получают пусто.
+   */
+  salesOrders?: unknown[];
+  /** Журнал RPC и загрузок в Storage — см. `MockCall` */
+  calls?: MockCall[];
   /**
    * Разработки ЭКС (с эмбедом `tasks` и `order`).
    *
@@ -616,6 +634,22 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
   switch (table) {
     case 'erp_departments':
       return departmentsFx;
+    /**
+     * `orders` — таблица двух поколений. Order v4 (`fetchSalesOrders` и
+     * `fetchSalesOrder`) ВСЕГДА шлёт `schema_version=eq.4`; v3-читатели
+     * (`useOrdersStore`, канбан ТЗ, вкладка ERP «Заказы ТЗ») фильтра не шлют.
+     * Отдать им строки v4 значило бы подмешать чужую схему в старый список,
+     * поэтому без фильтра ответ прежний — пустой. Фильтр по `id=eq.` нужен
+     * карточке: она берёт одну строку (`maybeSingle`), а «первая попавшаяся»
+     * открыла бы не тот заказ.
+     */
+    case 'orders': {
+      if (params.get('schema_version') !== 'eq.4') return [];
+      const rows = (extra.salesOrders ?? []) as { id?: string }[];
+      const idFilter = params.get('id');
+      if (idFilter?.startsWith('eq.')) return rows.filter((r) => r.id === idFilter.slice(3));
+      return rows;
+    }
     case 'erp_experimental':
       // Разработки приезжают и пакетом оболочки, и этим запросом — на проде
       // это один и тот же набор, и мок обязан повторять именно так
@@ -789,6 +823,30 @@ resetChatMock();
 
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
+    /**
+     * Сохранение Order v4 одной транзакцией (`order_v4_save_full`). Клиент
+     * читает из ответа id (для нового заказа его назначает сервер), номер
+     * `PH-XXXX` и `updated_at` — по нему работает автосохранение.
+     */
+    case 'order_v4_save_full': {
+      const order = (body.p_order ?? {}) as { id?: string };
+      return {
+        id: order.id ?? 'mock-sales-1',
+        order_number: 'PH-9001',
+        updated_at: FX_CREATED,
+      };
+    }
+    /**
+     * Запуск заказа в производство. Форма ответа ОПРЕДЕЛЕНА КЛИЕНТОМ:
+     * `orderWriteSlice.createOrder` делает `newId = data as string` и сразу
+     * зовёт `loadOne(newId)` — то есть RPC отдаёт ГОЛУЮ СТРОКУ id, а не объект.
+     * Объект `{ id, items: [] }` из плана тут сломал бы загрузку заказа
+     * (`id=eq.[object Object]`), поэтому отвечаем строкой; `loadOne` затем
+     * находит заказ в `erp_orders` по этому id, если спека положила его
+     * в `extra.orders`.
+     */
+    case 'erp_create_order':
+      return 'mock-erp-order-1';
     case 'erp_experimental_add_tasks': {
       const devId = String(body.p_experimental_id ?? '');
       const list = (body.p_tasks ?? []) as Record<string, unknown>[];
@@ -1007,9 +1065,34 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
   await page.route('**/auth/v1/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
 
-  // Storage — заглушка (в фикстурах нет вложений; сломанные картинки детерминированы).
-  await page.route('**/storage/v1/**', (route: Route) =>
-    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  /**
+   * Storage. ЧТЕНИЕ по-прежнему 404 — в фикстурах нет вложений, и сломанные
+   * картинки детерминированы (снимки не зависят от того, что лежит в бакете).
+   * ЗАГРУЗКА (`POST|PUT …/object/<bucket>/<path>`) отвечает успехом и пишется
+   * в журнал `extra.calls`: макеты нанесений и ТЗ грузятся при выборе файла
+   * (правило проекта «файл, видимый приложенным, обязан быть в бакете»), и без
+   * успешного ответа этот путь в e2e был бы недостижим. Ключ ответа —
+   * `<bucket>/<path>`, как у настоящего Storage.
+   */
+  await page.route('**/storage/v1/**', (route: Route) => {
+    const req = route.request();
+    const method = req.method();
+    const key = new URL(req.url()).pathname.split('/storage/v1/object/')[1];
+    if ((method === 'POST' || method === 'PUT') && key) {
+      const name = decodeURIComponent(key);
+      extra.calls?.push({
+        kind: 'storage',
+        name,
+        body: { size: req.postDataBuffer()?.length ?? 0 },
+      });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ Key: name }),
+      });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
 
   /**
    * REST (PostgREST) — ОДИН перехватчик на пакеты и на таблицы.
@@ -1036,6 +1119,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
       // Оба писателя состава участков ждут гейт — см. `deptsGate` в MockExtras
       if (fn === 'erp_bootstrap' && extra.deptsGate) await extra.deptsGate;
+      extra.calls?.push({ kind: 'rpc', name: fn, body: payload });
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
