@@ -251,15 +251,11 @@ describe('StepSummary — «Оформить как заказ v4»', () => {
 
   beforeEach(() => {
     transfer.transferWizardToSales.mockReset();
-    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' }, previewRole: null });
+    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' } });
   });
 
-  it('кнопки нет у менеджера и в просмотре «как менеджер»', () => {
+  it('кнопки нет у менеджера', () => {
     useAuthStore.setState({ user: { name: 'Аня', role: 'manager' } });
-    const { unmount } = renderSummary();
-    expect(screen.queryByText(V4)).toBeNull();
-    unmount();
-    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' }, previewRole: 'manager' });
     renderSummary();
     expect(screen.queryByText(V4)).toBeNull();
   });

@@ -154,8 +154,7 @@ export default function StepSummary() {
   const [transferring, setTransferring] = useState(false);
   // «Заказы v4» — пилот admin/director, тот же гейт, что у маршрута /sales
   const user = useAuthStore(s => s.user);
-  const previewRole = useAuthStore(s => s.previewRole);
-  const canSalesV4 = ['admin', 'director'].includes(previewRole || user?.role);
+  const canSalesV4 = ['admin', 'director'].includes(user?.role);
 
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);

@@ -61,7 +61,6 @@ interface AuthStore {
    */
   initializing: boolean;
   error: string | null;
-  previewRole: UserRole | null;
 
   /** true, пока идёт наш собственный выход — чтобы не путать его с потерей сессии */
   signingOut: boolean;
@@ -107,8 +106,6 @@ interface AuthStore {
   logout: () => Promise<void>;
   clearError: () => void;
 
-  setPreviewRole: (role: UserRole | null) => void;
-  clearPreviewRole: () => void;
   effectiveRole: () => UserRole | undefined;
   isAdmin: () => boolean;
   isROP: () => boolean;
@@ -130,7 +127,6 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   loading: false,
   initializing: true,
   error: null,
-  previewRole: null,
   signingOut: false,
   awaitingEmailConfirm: null,
   resendingConfirm: false,
@@ -523,9 +519,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   clearError: () => set({ error: null }),
 
   // ─── Preview role ───
-  setPreviewRole: (role) => set({ previewRole: role }),
-  clearPreviewRole: () => set({ previewRole: null }),
-  effectiveRole: () => get().previewRole || get().user?.role,
+  effectiveRole: () => get().user?.role,
 
   // ─── Role helpers ───
   isAdmin: () => ['admin', 'director'].includes(get().effectiveRole() || ''),

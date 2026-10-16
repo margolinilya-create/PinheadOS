@@ -21,8 +21,6 @@ import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
-import { useAuthStore } from '../store/useAuthStore'
-import Header from '../components/layout/Header'
 import ProgressBar from '../components/layout/ProgressBar'
 import StepGarment from '../components/steps/StepGarment'
 
@@ -32,9 +30,6 @@ const StepDesign = lazy(() => import('../components/steps/StepDesign'));
 const StepItems = lazy(() => import('../components/steps/StepItems'));
 const StepDetails = lazy(() => import('../components/steps/StepDetails'));
 const StepSummary = lazy(() => import('../components/steps/StepSummary'));
-import RolePreviewBar from '../components/shared/RolePreviewBar'
-import OnboardingTips from '../components/shared/OnboardingTips'
-import CommandPalette from '../components/shared/CommandPalette'
 import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
 
@@ -127,7 +122,6 @@ function LoadingScreen() {
  * Показывается только при FEATURES.orderStudio === true.
  */
 export default function OrderStudioApp({ user }) {
-  const previewRole = useAuthStore(s => s.previewRole);
   const [catalogsReady, setCatalogsReady] = useState(false);
   // Состояние визарда читается В МОМЕНТ перехода, а не из прошлого рендера:
   // «Оформить как заказ v4» сбрасывает визард и тут же уходит в карточку —
@@ -162,20 +156,14 @@ export default function OrderStudioApp({ user }) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  const isRealAdmin = ['admin', 'director'].includes(user?.role);
-  useEffect(() => {
-    document.body.classList.toggle('has-preview-bar', isRealAdmin);
-    return () => document.body.classList.remove('has-preview-bar');
-  }, [isRealAdmin]);
-
   if (!catalogsReady) {
     return <LoadingScreen />;
   }
 
-  const effectiveRole = previewRole || user.role;
-  const isAdmin = ['admin', 'director'].includes(effectiveRole);
-  const isProduction = effectiveRole === 'production';
-  const isDesigner = effectiveRole === 'designer';
+  const role = user.role;
+  const isAdmin = ['admin', 'director'].includes(role);
+  const isProduction = role === 'production';
+  const isDesigner = role === 'designer';
   const canEdit = !isProduction && !isDesigner;
 
   return (
@@ -184,23 +172,6 @@ export default function OrderStudioApp({ user }) {
       <a href="#main-content" className={styles.skipLink}>
         Перейти к основному содержимому
       </a>
-
-      {/* ── RAY DECO SVG ── */}
-      <svg aria-hidden="true" style={{ position: 'fixed', top: -120, right: -80, width: 420, opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="200" y1="200" x2="20"  y2="10"  stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="390" y2="30"  stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="380" y2="200" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="370" y2="370" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="200" y2="390" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="10"  y2="350" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="30"  y2="200" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="60"  y2="20"  stroke="#000" strokeWidth="1"/>
-      </svg>
-
-      <Header />
-      <RolePreviewBar />
-      <OnboardingTips />
-      <CommandPalette />
 
       <main id="main-content">
       <Routes>
@@ -211,7 +182,7 @@ export default function OrderStudioApp({ user }) {
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
+        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || role === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
         <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
         <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />

@@ -211,18 +211,18 @@ describe('App', () => {
     });
     useStore.setState({ step: 0 });
     renderApp();
-    await waitFor(() => expect(screen.getByText('pinhead')).toBeInTheDocument());
-    expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
   });
 
-  it('shows header with navigation for authenticated user when orderStudio flag is on', async () => {
+  it('показывает визард менеджеру при флаге orderStudio (старой шапки нет)', async () => {
     setFeature('orderStudio', true);
     useAuthStore.setState({
       user: { id: '1', role: 'manager', email: 'test@test.com', approved: true },
       logout: vi.fn(),
     });
     renderApp();
-    await waitFor(() => expect(screen.getByText('Заказы')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
+    expect(screen.queryByText('Заказы')).toBeNull();
   });
 
   it('redirects unknown routes to home (orderStudio flag on)', async () => {
@@ -233,6 +233,6 @@ describe('App', () => {
     });
     renderApp('/unknown-route');
     // Should redirect and show wizard
-    await waitFor(() => expect(screen.getByText('pinhead')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
   });
 });
