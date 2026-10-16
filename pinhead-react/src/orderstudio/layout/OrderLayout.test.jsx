@@ -24,6 +24,14 @@ describe('OrderLayout', () => {
     expect(screen.getByRole('link', { name: 'Каталог' })).toBeTruthy();
   });
 
+  it('подписи: навигация, логотип и заголовок раздела', () => {
+    renderLayout({ role: 'admin', name: 'Илья' });
+    expect(screen.getByRole('navigation', { name: 'Разделы заказа' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'На главную раздела заказов' })).toBeTruthy();
+    expect(screen.getByText('Оформление заказа')).toBeTruthy();
+    expect(screen.getByText('PINHEAD ORDER')).toBeTruthy();
+  });
+
   it('«Перейти в Производство» выключает флаг orderStudio', () => {
     renderLayout({ role: 'admin', name: 'Илья' });
     fireEvent.click(screen.getByRole('button', { name: 'Перейти в Производство' }));

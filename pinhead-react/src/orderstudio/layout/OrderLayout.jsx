@@ -43,7 +43,7 @@ export default function OrderLayout({ user, children }) {
           >
             <Icon name="menu" size={19} />
           </button>
-          <span className={styles.sectionTitle}>ТЗ</span>
+          <span className={styles.sectionTitle}>Оформление заказа</span>
           <div className={styles.spacer} />
 
           {isAdmin && (

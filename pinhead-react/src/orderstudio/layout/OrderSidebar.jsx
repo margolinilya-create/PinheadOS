@@ -19,12 +19,12 @@ export function OrderSidebar({ role, open = false, onNavigate }) {
       ref={trapRef}
       className={[styles.sidebar, open ? styles.sidebarOpen : ''].filter(Boolean).join(' ')}
     >
-      <Link to="/" onClick={onNavigate} className={styles.sidebarBrand} title="На главную ТЗ" aria-label="На главную ТЗ">
+      <Link to="/" onClick={onNavigate} className={styles.sidebarBrand} title="На главную раздела заказов" aria-label="На главную раздела заказов">
         <span className={styles.sidebarLogo}>P</span>
-        <span className={styles.sidebarBrandText}>PINHEAD ТЗ</span>
+        <span className={styles.sidebarBrandText}>PINHEAD ORDER</span>
       </Link>
 
-      <nav className={styles.sidebarNav}>
+      <nav className={styles.sidebarNav} aria-label="Разделы заказа">
         {navFor(role).map((g) => (
           <div key={g.title}>
             <div className={styles.navGroup}>{g.title}</div>
