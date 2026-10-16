@@ -33,6 +33,7 @@ const StepSummary = lazy(() => import('../components/steps/StepSummary'));
 import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
 import { legacyRedirect } from './layout/orderNav'
+import OrderLayout from './layout/OrderLayout'
 
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
@@ -166,12 +167,7 @@ export default function OrderStudioApp({ user }) {
 
   return (
     <>
-      {/* ── Skip to content ── */}
-      <a href="#main-content" className={styles.skipLink}>
-        Перейти к основному содержимому
-      </a>
-
-      <main id="main-content">
+      <OrderLayout user={user}>
       <Routes>
         <Route path="/" element={<WizardPage />} />
         {/* Убраны канбан v3, аналитика продаж и печать v3 — закладки ведут на рабочие экраны */}
@@ -187,7 +183,7 @@ export default function OrderStudioApp({ user }) {
         <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      </main>
+      </OrderLayout>
 
       {blocker.state === 'blocked' && (
         <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">

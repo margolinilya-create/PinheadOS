@@ -1,0 +1,341 @@
+/* Оболочка раздела «ТЗ» в стиле ERP.
+   Правила ниже — СНИМОК из `erp/erp.module.css` (палитра `.shell`, каркас, шапка,
+   сайдбар, мобильное меню). Модуль ERP отсюда не импортируется: общий модуль,
+   нужный и оболочке ERP, и ленивому чанку Order, сборщик выносит в отдельный чанк
+   критического пути ERP — «Оболочка ERP, CSS» вырастала с 15905 до 16309 Б gzip
+   (бюджет 16000). Правка вида ERP сюда не приезжает сама: сверять руками.
+   Без свёрнутого сайдбара, счётчиков и цехов — их в разделе нет. */
+
+/* Палитра раздела: бумага и краска, как у ERP */
+:global(html) .shell {
+  --accent: #2B2BF0;
+  --accent-light: rgba(43, 43, 240, 0.07);
+  --accent-hover: #1E1ED4;
+  --btn-primary-bg: #2B2BF0;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #1E1ED4;
+  --btn-primary-active-bg: #1717AE;
+  --bg: #F4F1EA;
+  --card: #ffffff;
+  --surface: #EBE7DD;
+  --border-light: #E0DBCF;
+  --border-mid: #CDC6B5;
+  --text: #16130E;
+  --text-mid: #5A5348;
+  --text-dim: #6A6357;
+  --border-control: #8A8272;
+  --color-success: #10A34A;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-info: #2563EB;
+  --color-violet: #8B5CF6;
+  --bg-success: #ECFDF3;
+  --bg-warning: #FFF7ED;
+  --bg-error: #FEF2F2;
+  --bg-info: #EFF6FF;
+  --bg-violet: #F5F3FF;
+  --bg-cyan: #ECFEFF;
+  --color-success-ink: #067647;
+  --color-warning-ink: #B45309;
+  --color-error-ink:   #B42318;
+  --color-info-ink:    #1D4ED8;
+  --color-violet-ink:  #6D28D9;
+  --color-cyan-ink:    #0E7490;
+  --text-muted: #6A6357;
+  --btn-danger-bg: #DC2626;
+  --btn-danger-fg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(36, 28, 16, 0.05), 0 1px 3px rgba(36, 28, 16, 0.08);
+  --nav-bg: #16130E;
+  --nav-ink: #EDE8DD;
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #9A9184;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #7B7BFF;
+  --nav-border: rgba(255, 255, 255, 0.10);
+}
+:global(html[data-theme='dark']) .shell {
+  --accent: #8C8CFF;
+  --accent-light: rgba(140, 140, 255, 0.16);
+  --accent-hover: #A9A9FF;
+  --btn-primary-bg: #2B2BF0;
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover-bg: #4242F5;
+  --btn-primary-active-bg: #1E1ED4;
+  --bg: #14120E;
+  --card: #1D1A15;
+  --surface: #26221B;
+  --border-light: #302B23;
+  --border-mid: #403A30;
+  --text: #EDE8DE;
+  --text-mid: #B3AB9C;
+  --text-dim: #978E7F;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #F87171;
+  --color-info: #3B82F6;
+  --color-violet: #A78BFA;
+  --bg-success: #0E2A1B;
+  --bg-warning: #2A2210;
+  --bg-error: #2A1416;
+  --bg-info: #12233F;
+  --bg-violet: #211B3A;
+  --bg-cyan: #0C2A30;
+  --color-success-ink: #22C55E;
+  --color-warning-ink: #F59E0B;
+  --color-error-ink:   #F87171;
+  --color-info-ink:    #60A5FA;
+  --color-violet-ink:  #A78BFA;
+  --color-cyan-ink:    #22D3EE;
+  --text-muted: #978E7F;
+  --border-control: #7C7361;
+  --btn-danger-bg: #B91C1C;
+  --btn-danger-fg: #ffffff;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --nav-bg: #100E0A;
+  --nav-ink: #EDE8DD;
+  --nav-ink-mid: #BDB5A7;
+  --nav-ink-dim: #948B7D;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: #2B2BF0;
+  --nav-active-ink: #ffffff;
+  --nav-accent: #8C8CFF;
+  --nav-border: rgba(255, 255, 255, 0.16);
+}
+
+.shell {
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.rightcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  position: relative;
+  height: 60px;
+  flex-shrink: 0;
+  padding: 0 var(--space-xl);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+}
+
+.spacer { flex: 1; }
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h3);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.iconBtn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text-mid);
+  cursor: pointer;
+  font-size: var(--type-title);
+}
+.iconBtn:hover { background: var(--surface); }
+
+.userChip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: var(--space-md);
+  margin-left: var(--space-xs);
+  border-left: 1px solid var(--border-light);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.userRole {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* Прокручивается `.main`, а не окно, и шапка не липкая: липкие панели визарда
+   и каталога (`ProgressBar`, `.pe-tabs`, `.sku-ed-rate-bar`) считают отступ
+   от `--header-h` и без обнуления оставили бы щель в 52 px под шапкой. */
+.orderMain {
+  --header-h: 0px;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xl) 28px var(--space-3xl);
+}
+
+/* Панель навигации — плоскость краски: цвета только из --nav-* */
+.sidebar {
+  width: 236px;
+  flex-shrink: 0;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
+  color: var(--nav-ink);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  transition: width var(--dur-base) var(--ease-out);
+}
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 60px;
+  padding: 0 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--nav-border);
+  color: var(--nav-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.sidebarBrand:hover { background: var(--nav-hover); }
+/* Кольцо фокуса на чернилах — токеном панели: --accent там даёт 2.39:1 */
+.sidebarBrand:focus-visible,
+.sidebar .navLink:focus-visible {
+  outline: 2px solid var(--nav-accent);
+  outline-offset: -2px;
+}
+.sidebarLogo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--nav-active-bg);
+  transition: background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  color: var(--nav-active-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h4);
+  line-height: 1;
+  box-shadow: 2px 2px 0 rgba(123, 123, 255, 0.35);
+}
+.sidebarBrand:hover .sidebarLogo {
+  box-shadow: 3px 3px 0 rgba(123, 123, 255, 0.55);
+}
+.sidebarBrandText {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--type-h4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebarNav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-sm);
+  scrollbar-width: thin;
+}
+.navGroup {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: var(--space-lg) var(--space-md) var(--space-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--nav-ink-dim);
+}
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 38px;
+  padding: 0 var(--space-md);
+  margin: 2px 0;
+  border-radius: var(--radius-md);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  color: var(--nav-ink-mid);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.navLink:hover { background: var(--nav-hover); color: var(--nav-ink); }
+.navLinkActive,
+.navLinkActive:hover {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-ink);
+  font-weight: 600;
+}
+.navIcon {
+  width: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 768px) {
+  .userChip { display: none; }
+  .topbar { padding: 0 14px; gap: var(--space-sm); }
+  .orderMain { padding: var(--space-lg) 14px var(--space-3xl); }
+}
+@media (max-width: 480px) {
+  .orderMain { padding: var(--space-md) 10px 40px; }
+  .navLink { padding: 0 10px; gap: 6px; }
+}
+
+/* Тач: цель нажатия не меньше 44 px */
+@media (pointer: coarse) {
+  .navLink { min-height: 44px; height: auto; }
+  .iconBtn { min-width: 44px; min-height: 44px; }
+  .sidebarBrand { min-height: 44px; }
+}
+
+/* Бургер нужен только там, где сайдбар стал оверлеем */
+.navToggle { display: none; }
+@media (max-width: 1024px), (pointer: coarse) {
+  .sidebar {
+    position: fixed;
+    z-index: var(--z-drawer);
+    top: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform var(--dur-base) var(--ease-out);
+    box-shadow: var(--shadow-modal);
+  }
+  .sidebarOpen { transform: translateX(0); }
+  .sidebarScrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    background: var(--overlay);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .navToggle { display: inline-flex; }
+}
