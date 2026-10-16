@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════
-// Deadline helpers — unified across Kanban + Dashboard
+// Deadline helpers — общие для заказов и срочности
 // ═══════════════════════════════════════════
 
 import { diffDays, factoryDate, factoryToday, parseDateLocal, URGENT_DAYS } from './date';
@@ -55,7 +55,7 @@ export function formatDeadlineShort(deadline: string | Date): string {
 }
 
 /**
- * Full deadline info — used in KanbanBoard.
+ * Full deadline info — срок заказа с подписью и тоном.
  * Returns null if no deadline.
  */
 export function getDeadlineInfo(deadline: string | Date | null | undefined): DeadlineInfo | null {

@@ -32,8 +32,8 @@ const StepDetails = lazy(() => import('../components/steps/StepDetails'));
 const StepSummary = lazy(() => import('../components/steps/StepSummary'));
 import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
+import { legacyRedirect } from './layout/orderNav'
 
-const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc'));
@@ -44,8 +44,6 @@ const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc')
  * «loadEmployees is not a function» вместо списка сотрудников.
  */
 const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
-const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
-const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 // Order v4 (срез 1) — пилот владельца, admin/director
 const SalesList = React.lazy(() => import('./screens/SalesList'));
@@ -176,13 +174,14 @@ export default function OrderStudioApp({ user }) {
       <main id="main-content">
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
-        <Route path="/print" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PrintPreview /></Suspense>} />
+        {/* Убраны канбан v3, аналитика продаж и печать v3 — закладки ведут на рабочие экраны */}
+        <Route path="/orders" element={<Navigate to={legacyRedirect('/orders', role)} replace />} />
+        <Route path="/print" element={<Navigate to={legacyRedirect('/print', role)} replace />} />
+        <Route path="/analytics" element={<Navigate to={legacyRedirect('/analytics', role)} replace />} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || role === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
         <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
         <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />

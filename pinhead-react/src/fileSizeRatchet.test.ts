@@ -55,7 +55,6 @@ const CEILINGS: Record<string, number> = {
   'store/useAuthStore.ts': 569,
   'erp/screens/ErpDashboard.jsx': 560,
   'erp/screens/queue/StageActionsPanel.jsx': 532,
-  'components/analytics/Dashboard.jsx': 521,
 };
 
 const SRC = join(process.cwd(), 'src');

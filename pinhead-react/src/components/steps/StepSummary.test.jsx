@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StepSummary from './StepSummary';
 import { useStore } from '../../store/useStore';
@@ -113,9 +113,30 @@ describe('StepSummary', () => {
     expect(screen.getByText(/Скопировать ТЗ/)).toBeInTheDocument();
   });
 
-  it('shows print button', () => {
+  it('менеджер сохраняет заказ, печати v3 нет', async () => {
+    useAuthStore.setState({ user: { name: 'Аня', role: 'manager' } });
     renderSummary();
-    expect(screen.getByText(/Печать/)).toBeInTheDocument();
+    expect(screen.getByText(/Сохранить заказ/)).toBeInTheDocument();
+    expect(screen.queryByText('Печать / PDF')).toBeNull();
+    fireEvent.click(screen.getByText(/Сохранить заказ/));
+    await screen.findByText('PH-0001');
+    expect(screen.queryByText('Печать / PDF')).toBeNull();
+    expect(screen.queryByText('Все заказы')).toBeNull();
+  });
+
+  it('admin после сохранения видит «Все заказы» и идёт в /sales', async () => {
+    useAuthStore.setState({ user: { name: 'Илья', role: 'admin' } });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<StepSummary />} />
+          <Route path="/sales" element={<div>Список v4</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText(/Сохранить заказ/));
+    fireEvent.click(await screen.findByText('Все заказы'));
+    await waitFor(() => expect(screen.getByText('Список v4')).toBeInTheDocument());
   });
 
   it('calls prevStep on back', () => {
