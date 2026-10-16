@@ -5,7 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ZONE_LABELS } from '../../data';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
 import { calcZonePriceDirect, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS, getMarkup, getPrices } from '../../utils/pricing';
-import { skuCost, garmentSellPrice, materialPrice } from '../../utils/costRules';
+import { skuCost, garmentSellPrice, materialPrice, overheadOf } from '../../utils/costRules';
 
 // ── Constants ──
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
@@ -43,9 +43,10 @@ function initZoneData(zones) {
   return data;
 }
 
-function calcZoneSurcharge(zoneId, d, qty) {
+/** Ткань — для надбавки шелкографии по футеру (×1,5), как в визарде */
+function calcZoneSurcharge(zoneId, d, qty, fabricCode) {
   if (!d || !d.active) return 0;
-  return calcZonePriceDirect(d.tech, d, qty);
+  return calcZonePriceDirect(d.tech, d, qty, fabricCode || undefined);
 }
 
 // ── Component ──
@@ -180,13 +181,13 @@ export default function ExpressCalc() {
     const zoneCount = activeEntries.length;
     let techTotal = 0;
     activeEntries.forEach(([id, d]) => {
-      techTotal += calcZoneSurcharge(id, d, qty);
+      techTotal += calcZoneSurcharge(id, d, qty, fabric?.code);
     });
 
     const unitPrice = base + techTotal;
     const total = unitPrice * qty;
 
-    return { baseRaw, base, markupPct, extrasCost, techTotal, zoneCount, unitPrice, total };
+    return { baseRaw, base, markupPct, overheadPct: overheadOf(P), extrasCost, techTotal, zoneCount, unitPrice, total };
   }, [sku, fabric, fabricsCatalog, trimCatalog, usdRate, expZoneData, qty, selectedExtras, extrasCatalog]);
 
   // ── Render zone params ──
@@ -376,7 +377,7 @@ export default function ExpressCalc() {
                       );
                     }
 
-                    const surcharge = calcZoneSurcharge(zId, d, qty);
+                    const surcharge = calcZoneSurcharge(zId, d, qty, fabric?.code);
                     const screenWarn = d.tech === 'screen' && qty > 0 && qty < 50;
 
                     return (
@@ -455,7 +456,7 @@ export default function ExpressCalc() {
                   <b>{calc.baseRaw.toLocaleString('ru-RU')} ₽</b>
                 </div>
                 <div className="exp-result-row">
-                  <span>Накладные и наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
+                  <span>Накладные +{Math.round(calc.overheadPct * 100)}%, наценка +{Math.round(calc.markupPct * 100)}% ({qty} шт)</span>
                   <b>{calc.base.toLocaleString('ru-RU')} ₽</b>
                 </div>
                 <div className="exp-result-row">

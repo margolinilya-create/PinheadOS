@@ -4,6 +4,7 @@ import { ZONE_LABELS } from '../../data';
 import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, getTotalQty } from '../../utils/pricing';
 import { useEffectiveRules } from '../../hooks/useEffectiveRules';
 import { isTechAllowed } from '../../utils/skuRules';
+import { EMB_SURCHARGES } from '../../utils/printRules';
 
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;
@@ -13,8 +14,9 @@ const TECH_HELP = {
   screen: 'Шелкография — оптимально для тиражей от 50 шт.',
   flex: 'Флекс-печать — для малых тиражей, до 3 цветов',
   dtg: 'DTG — прямая печать, любое кол-во цветов',
-  embroidery: 'Вышивка — премиальный вид, от 350₽',
-  dtf: 'DTF — плёночный трансфер, от 180₽',
+  // Без «от N ₽»: цена зависит от размера и тиража, зашитые суммы устаревают
+  embroidery: 'Вышивка — премиальный вид, цена по стежкам',
+  dtf: 'DTF — плёночный трансфер, любые цвета'
 };
 
 export default function ZoneTechBlock({ zone }) {
@@ -158,10 +160,13 @@ const EMB_FILL_OPTIONS = [
   { value: 0.8, label: '80%' },
   { value: 0.6, label: '60%' },
 ];
+// Проценты — из формулы (`EMB_SURCHARGES`): зашитые «+20 %» и «+50 %»
+// разошлись с ней (35 % и 40 %) и вводили менеджера в заблуждение
+const surchargePct = (k) => Math.round((EMB_SURCHARGES[k] ?? 0) * 100);
 const EMB_EXTRA_OPTIONS = [
   { value: null, label: 'Нет' },
-  { value: 'metallic', label: 'Металлик (+20%)' },
-  { value: 'puff', label: 'Объёмная-puff (+50%)' },
+  { value: 'metallic', label: `Металлик (+${surchargePct('metallic')}%)` },
+  { value: 'puff', label: `Объёмная-puff (+${surchargePct('puff')}%)` },
 ];
 
 function EmbParams({ zone }) {

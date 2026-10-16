@@ -293,6 +293,18 @@ export function getSkuEstPrice(sku: SkuItem, fabricCode: string | null, fabricsC
   return cost.skuCost(sku, { fabricCode, fabricsCatalog, trimCatalog, usdRate }).base;
 }
 
+/**
+ * «от … ₽» в списке моделей — НИЖНЯЯ цена продажи изделия: себестоимость
+ * × накладные × наценка крупнейшей ступени тиража, без срочности, нанесений
+ * и обработок. Прежде список показывал себестоимость с копейками («от 398,7 ₽»
+ * при цене 1 334 ₽/шт на том же шаге, обход 16.10).
+ */
+export function getSkuFromPrice(P: PricesExt, sku: SkuItem, fabricCode: string | null, fabricsCatalog: Fabric[], trimCatalog: Trim[], usdRate: number): number {
+  const base = getSkuEstPrice(sku, fabricCode, fabricsCatalog, trimCatalog, usdRate);
+  const markup = cost.markupFor(P, Number.MAX_SAFE_INTEGER, sku.category, sku);
+  return Math.round(cost.garmentSellPrice(P, base, markup, 0));
+}
+
 export function skuCostOf(sku: SkuItem, state: PricingState): cost.SkuCost {
   return cost.skuCost(sku, {
     fabricCode: state.fabric || null,
