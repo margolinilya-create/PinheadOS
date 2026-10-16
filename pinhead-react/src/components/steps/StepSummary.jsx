@@ -14,7 +14,7 @@ import PriceBreakdown from '../shared/PriceBreakdown';
 import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import { getEffectiveRules } from '../../utils/skuRules';
-import { fabricDisplayName, fmtPerUnit } from '../../utils/fabricName';
+import { fabricDisplayName, fmtPerUnit, packName } from '../../utils/displayNames';
 
 function EditBtn({ step, goToStep }) {
   return (
@@ -69,9 +69,6 @@ function getLabelsSummary(labelConfig) {
 }
 
 // ─── copyTZ: формирует текстовое ТЗ и копирует в буфер ───
-/** Упаковка — подписи видов (`packOptions` прайса) */
-const PACK_NAMES = { none: 'Нет', bopp: 'БОПП пакет', zip: 'ЗИП пакет' };
-
 function buildItemTZBlock(item, idx, catalogs) {
   const colorEntry = findColorEntry(item.color);
   const qty = getItemTotalQty(item);
@@ -126,7 +123,7 @@ ${state.address ? 'Адрес: ' + state.address : ''}
 ${state.notes ? 'Примечания: ' + state.notes : ''}
 
 ОПЦИИ
-Упаковка: ${PACK_NAMES[state.packType] ?? (state.packOption ? 'Да' : 'Нет')}
+Упаковка: ${state.packType && state.packType !== 'none' ? packName(state.packType) : 'Нет'}
 Срочно: ${state.urgentOption ? 'Да' + (state.urgentDays ? ` (${urgentLabel(state.urgentDays)})` : '') : 'Нет'}
 
 ИТОГО: ${grandTotal.toLocaleString('ru-RU')} ₽
@@ -139,8 +136,7 @@ export default function StepSummary() {
     prevStep, resetOrder, fabricsCatalog, trimCatalog, extrasCatalog, usdRate, bitrixDeal, messenger,
     _editingOrderId, _editingOrderNumber, _lastSavedOrderNum } = useStore(
     useShallow(s => ({ items: s.items, name: s.name, contact: s.contact, email: s.email, phone: s.phone,
-      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption,
-      packType: s.packType || (s.packOption ? 'bopp' : 'none'),
+      deadline: s.deadline, address: s.address, notes: s.notes, role: s.role, packOption: s.packOption, packType: s.packType || (s.packOption ? 'bopp' : 'none'),
       urgentOption: s.urgentOption, urgentDays: s.urgentDays || (s.urgentOption ? 5 : 0), prevStep: s.prevStep, resetOrder: s.resetOrder,
       fabricsCatalog: s.fabricsCatalog, trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog,
       usdRate: s.usdRate, bitrixDeal: s.bitrixDeal, messenger: s.messenger,
@@ -164,10 +160,7 @@ export default function StepSummary() {
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
 
-  // packType обязателен: без него ядро считало ЗИП как БОПП (обход 16.10)
   const catalogs = { fabricsCatalog, trimCatalog, extrasCatalog, usdRate, packOption, packType, urgentOption, urgentDays };
-  // Надбавка за срочный пошив — из разбивки (только изделие, без нанесений)
-
   // Per-item calculations
   const itemCalcs = items.map(item => {
     const qty = getItemTotalQty(item);
@@ -180,8 +173,8 @@ export default function StepSummary() {
 
   const grandTotal = itemCalcs.reduce((sum, ic) => sum + ic.itemTotal, 0);
   const grandQty = itemCalcs.reduce((sum, ic) => sum + ic.qty, 0);
-  // Упаковка за штуку — из той же разбивки ядра, что итог (вид — packType)
   const packPerUnit = itemCalcs[0]?.breakdown?.pack || 0;
+  // Надбавка за срочный пошив — из разбивки (только изделие, без нанесений)
   const urgentTotal = itemCalcs.reduce((sum, ic) => sum + (ic.breakdown.urgent || 0) * ic.qty, 0);
 
   // ─── Validation ───
@@ -457,7 +450,7 @@ export default function StepSummary() {
                 </div>
               );
             })}
-            {packPerUnit > 0 && <div className="price-line"><span className="name">Упаковка — {PACK_NAMES[packType] ?? 'упаковка'}</span><span className="amount">{fmtPerUnit(packPerUnit)}</span></div>}
+            {packPerUnit > 0 && <div className="price-line"><span className="name">Упаковка — {packName(packType) || 'упаковка'}</span><span className="amount">{fmtPerUnit(packPerUnit)}</span></div>}
             {urgentOption && <div className="price-line price-line-urgent"><span className="name">⚡ Срочный пошив: {urgentLabel(urgentDays)}</span><span className="amount">+{urgentTotal.toLocaleString('ru-RU')} ₽</span></div>}
           </div>
         )}

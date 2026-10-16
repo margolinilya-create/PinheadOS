@@ -1,4 +1,4 @@
-import { FABRIC_NAMES } from '../data';
+import { FABRIC_NAMES, PRICES } from '../data';
 
 interface FabricLike {
   code: string;
@@ -22,4 +22,10 @@ export function fabricDisplayName(code: string | null | undefined, catalog: Fabr
 /** Надбавка за штуку для показа: целые рубли с разрядами («+1 123 ₽/шт», не «+1122.6») */
 export function fmtPerUnit(v: number): string {
   return `+${Math.round(v).toLocaleString('ru-RU')} ₽/шт`;
+}
+
+/** Вид упаковки по-русски — подписи из прайса (`packOptions`), как в визарде */
+export function packName(key: string | null | undefined): string {
+  const opt = (PRICES.packOptions as { key: string; name: string }[]).find((o) => o.key === key);
+  return opt?.name ?? '';
 }

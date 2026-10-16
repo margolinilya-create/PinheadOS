@@ -5,7 +5,7 @@ import { TECH_TABS, getZoneSurcharge, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, 
 import { useEffectiveRules } from '../../hooks/useEffectiveRules';
 import { isTechAllowed } from '../../utils/skuRules';
 import { EMB_SURCHARGES } from '../../utils/printRules';
-import { fmtPerUnit } from '../../utils/fabricName';
+import { fmtPerUnit } from '../../utils/displayNames';
 
 const SCREEN_FORMATS = ['A4', 'A3', 'A3+', 'Max'];
 const SCREEN_MAX_COLORS = 8;

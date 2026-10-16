@@ -7,7 +7,7 @@ import { findColorEntry } from '../../data';
 import { getGarmentSVG } from '../../utils/mockup';
 import PriceBreakdown from '../shared/PriceBreakdown';
 import { confirm } from '../../store/useConfirmStore';
-import { fabricDisplayName } from '../../utils/fabricName';
+import { fabricDisplayName } from '../../utils/displayNames';
 
 export default function StepItems() {
   const { items, activeItemIdx, nextStep, prevStep, addNewItem, editItem, removeItem,
