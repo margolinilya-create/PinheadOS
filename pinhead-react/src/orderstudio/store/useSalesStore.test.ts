@@ -162,3 +162,28 @@ describe('useSalesStore — создание и закрытие', () => {
     expect(useSalesStore.getState().current?.id).toBe('o-2');
   });
 });
+
+describe('useSalesStore — правки не теряются после сбоя', () => {
+  it('закрытие после сбоя повторяет сохранение и снова говорит о сбое', async () => {
+    await open();
+    api.saveSalesOrder.mockResolvedValue(null);
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'B' }));
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+    expect(useSalesStore.getState().saveState).toBe('error');
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    await useSalesStore.getState().close();
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(2);
+    expect(toast.error).toHaveBeenCalledTimes(2);
+  });
+
+  it('flush после сбоя повторяет сохранение', async () => {
+    await open();
+    api.saveSalesOrder.mockResolvedValueOnce(null).mockResolvedValue(ok());
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'B' }));
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+    expect(useSalesStore.getState().saveState).toBe('error');
+    await useSalesStore.getState().flush();
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(2);
+    expect(useSalesStore.getState().saveState).toBe('saved');
+  });
+});

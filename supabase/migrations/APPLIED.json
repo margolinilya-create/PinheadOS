@@ -2446,6 +2446,13 @@
       "files": [
         "20261013152421_order_v4_set_urgent_days.sql"
       ]
+    },
+    {
+      "version": "20261016182953",
+      "name": "order_v4_save_full",
+      "files": [
+        "20261016182953_order_v4_save_full.sql"
+      ]
     }
   ]
 }

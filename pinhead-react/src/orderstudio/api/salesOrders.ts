@@ -242,21 +242,19 @@ export interface SaveResult {
   updated_at: string;
 }
 
-/** Без тоста: автосохранение само решает, как показать сбой (статус карточки) */
+/**
+ * Без тоста: автосохранение само решает, как показать сбой (статус карточки).
+ *
+ * Один RPC `order_v4_save_full` — заказ и дни срочности одной транзакцией.
+ * Прежде было два вызова подряд, и сбой второго оставлял первый записанным:
+ * новый заказ появлялся в базе, а клиент терял его id и при повторе создавал
+ * ещё один (16.10).
+ */
 export async function saveSalesOrder(payload: Row): Promise<SaveResult | null> {
-  const { data, error } = await supabase.rpc('order_v4_save', { p_order: payload });
+  const { data, error } = await supabase.rpc('order_v4_save_full', { p_order: payload });
   if (error) {
-    console.error('order_v4_save', error);
+    console.error('order_v4_save_full', error);
     return null;
   }
-  const saved = data as SaveResult;
-  // Дни срочного пошива — отдельным RPC: order_v4_save пишет только флажок (13.10)
-  if (typeof payload.urgent_days === 'number') {
-    const res = await supabase.rpc('order_v4_set_urgent_days', { p_order_id: saved.id, p_days: payload.urgent_days });
-    if (res.error) {
-      console.error('order_v4_set_urgent_days', res.error);
-      return null;
-    }
-  }
-  return saved;
+  return data as SaveResult;
 }

@@ -143,8 +143,12 @@ export const useSalesStore = create<SalesState>((set, get) => {
 
     close: async () => {
       const mark = reopened;
-      if (timer || get().saveState === 'dirty' || get().saveState === 'error') await runSave();
-      else if (inFlight) await inFlight;
+      if (timer || get().saveState === 'dirty' || get().saveState === 'error') {
+        // Закрытие — последний шанс: о сбое говорим всегда, даже если прошлый
+        // тост уже был, иначе правки пропадают молча
+        lastFailed = false;
+        await runSave();
+      } else if (inFlight) await inFlight;
       if (mark !== reopened) return;
       session += 1;
       set({ current: null, currentLoading: false, saveState: 'idle' });
@@ -176,7 +180,8 @@ export const useSalesStore = create<SalesState>((set, get) => {
     },
 
     flush: async () => {
-      if (timer || get().saveState === 'dirty') await runSave();
+      const st = get().saveState;
+      if (timer || st === 'dirty' || st === 'error') await runSave();
       if (inFlight) await inFlight;
     },
 

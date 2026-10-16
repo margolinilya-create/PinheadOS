@@ -35,7 +35,8 @@ const StepSummary = lazy(() => import('../components/steps/StepSummary'));
 import RolePreviewBar from '../components/shared/RolePreviewBar'
 import OnboardingTips from '../components/shared/OnboardingTips'
 import CommandPalette from '../components/shared/CommandPalette'
-import { shouldBlockLeave } from './leaveGuard'
+import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
+import { useSalesStore } from './store/useSalesStore'
 
 const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
@@ -132,9 +133,17 @@ export default function OrderStudioApp({ user }) {
   // «Оформить как заказ v4» сбрасывает визард и тут же уходит в карточку —
   // замыкание рендера ещё видело шаг 4 и показывало «Заказ не сохранён»
   // (поймано обходом в браузере)
+  const [leaveReason, setLeaveReason] = useState('wizard');
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     const { step, saved } = useStore.getState();
-    return shouldBlockLeave({ step, saved, from: currentLocation.pathname, to: nextLocation.pathname });
+    const from = currentLocation.pathname;
+    const to = nextLocation.pathname;
+    if (shouldBlockSalesLeave({ saveState: useSalesStore.getState().saveState, from, to })) {
+      setLeaveReason('sales');
+      return true;
+    }
+    setLeaveReason('wizard');
+    return shouldBlockLeave({ step, saved, from, to });
   });
 
   useEffect(() => {
@@ -144,7 +153,7 @@ export default function OrderStudioApp({ user }) {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       const { step, saved } = useStore.getState();
-      if (step > 0 && !saved) {
+      if ((step > 0 && !saved) || salesHasUnsaved(useSalesStore.getState().saveState)) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -214,10 +223,12 @@ export default function OrderStudioApp({ user }) {
         <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">
           <div className={styles.blockerCard}>
             <div id="blocker-title" className={styles.blockerTitle}>
-              Заказ не сохранён
+              {leaveReason === 'sales' ? 'Правки заказа v4 не сохранены' : 'Заказ не сохранён'}
             </div>
             <div className={styles.blockerText}>
-              Если уйти сейчас — черновик сохранится, но несохранённые изменения потеряются.
+              {leaveReason === 'sales'
+                ? 'Последнее сохранение не удалось. Если уйти сейчас, правки потеряются — останьтесь и повторите после восстановления связи.'
+                : 'Если уйти сейчас — черновик сохранится, но несохранённые изменения потеряются.'}
             </div>
             <div className={styles.blockerActions}>
               <button className="btn btn-primary" onClick={() => blocker.reset()}>

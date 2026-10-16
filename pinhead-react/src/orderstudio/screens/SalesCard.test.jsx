@@ -103,6 +103,24 @@ describe('SalesCard — карточка заказа v4', () => {
     confirm.mockRestore();
   });
 
+  it('уход с карточки сразу после правки не затирает цену в базе', async () => {
+    const api = await import('../api/salesOrders');
+    api.saveSalesOrder.mockClear();
+    const { unmount } = renderCard(newSalesOrder({
+      id: 'o-1',
+      items: [newSalesItem({
+        sku_code: SKU.code,
+        size_grid: { sizes: ['S'], rows: [{ color: 'Белый', sizes: { S: 10 } }] },
+      })],
+    }));
+    fireEvent.change(screen.getByLabelText('Белый, S'), { target: { value: '20' } });
+    unmount();
+    await waitFor(() => expect(api.saveSalesOrder).toHaveBeenCalled());
+    const payload = api.saveSalesOrder.mock.calls.at(-1)[0];
+    expect(payload.price_total).toEqual(expect.any(Number));
+    expect(payload.items[0].price_unit).toEqual(expect.any(Number));
+  });
+
   it('модель без формулы не молчит — пометка «нужна ручная цена»', () => {
     renderCard(newSalesOrder({
       id: 'o-1',
