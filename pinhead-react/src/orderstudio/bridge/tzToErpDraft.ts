@@ -178,7 +178,10 @@ const mm = (v: number | null): string | number => (v == null ? '' : v);
 function mapPrint(p: SalesPrint): DraftPrint {
   const notes: string[] = [];
   if (METHOD_TO_ERP[p.method] === 'other') notes.push(METHOD_LABEL[p.method]);
-  if (p.method === 'embroidery' && EMBROIDERY_EFFECT_NOTE[p.special]) notes.push(EMBROIDERY_EFFECT_NOTE[p.special]);
+  // Надбавки вышивки — списком через «+» (металлик + объёмная)
+  if (p.method === 'embroidery') {
+    for (const fx of (p.special || '').split('+')) if (EMBROIDERY_EFFECT_NOTE[fx]) notes.push(EMBROIDERY_EFFECT_NOTE[fx]);
+  }
   if (p.sizes.length > 0) notes.push(`Размеры: ${p.sizes.join(', ')}`);
   if (p.comment.trim()) notes.push(p.comment.trim());
   return {

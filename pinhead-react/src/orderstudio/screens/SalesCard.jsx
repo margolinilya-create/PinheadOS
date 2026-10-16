@@ -7,7 +7,7 @@ import { newSalesItem } from '../model/factory';
 import ItemEditor from './ItemEditor';
 import PricePanel from './PricePanel';
 import { useOrderPrice } from './useOrderPrice';
-import { STATUS_LABELS } from './labels';
+import { PACKAGING_OPTIONS, STATUS_LABELS } from './labels';
 import BufferedInput from './BufferedInput';
 import { formatMoney, parseMoney } from './fieldParse';
 import styles from './Sales.module.css';
@@ -157,9 +157,7 @@ export default function SalesCard() {
                 </label>
                 <label className={styles.field}>Упаковка
                   <select className={styles.select} value={order.packaging} onChange={(e) => set({ packaging: e.target.value })}>
-                    <option value="none">Без упаковки</option>
-                    <option value="individual">Индивидуальная</option>
-                    <option value="bulk">Навалом</option>
+                    {PACKAGING_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
                   </select>
                 </label>
                 <label className={styles.field}>Требования к упаковке

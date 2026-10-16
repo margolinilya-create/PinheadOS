@@ -65,3 +65,15 @@ export const rub = (v: number | null | undefined): string =>
   v == null ? '—' : `${Math.round(v).toLocaleString('ru-RU')} ₽`;
 
 export const pct = (v: number): string => `${Math.round(v * 1000) / 10}%`;
+
+/**
+ * Виды упаковки — те же, что у ERP (`erp_orders_packaging_check`:
+ * none/bopp/zip/other; у позиции ещё `inherit`). Прежние «Индивидуальная»
+ * и «Навалом» в ERP не проходили CHECK, и запуск упал бы на мосте (16.10).
+ */
+export const PACKAGING_OPTIONS: { key: string; label: string }[] = [
+  { key: 'none', label: 'Без упаковки' },
+  { key: 'bopp', label: 'БОПП пакет' },
+  { key: 'zip', label: 'ЗИП пакет' },
+  { key: 'other', label: 'Другая — опишите в требованиях' },
+];

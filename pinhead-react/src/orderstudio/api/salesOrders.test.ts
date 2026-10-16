@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowToSalesOrder, salesOrderToPayload } from './salesOrders';
+import { packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
 import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**
@@ -63,7 +63,7 @@ const fullOrder = () => newSalesOrder({
   discount: { mode: 'pct', value: 5 },
   delivery_method: 'courier',
   delivery_address: 'Москва',
-  packaging: 'individual',
+  packaging: 'zip',
   packaging_width_mm: 250,
   packaging_height_mm: 350,
   no_chestny_znak: true,
@@ -143,5 +143,17 @@ describe('rowToSalesOrder — строка без вложений и с пус�
   it('битая сетка читается пустой', () => {
     const o = rowToSalesOrder({ id: 'x', order_items: [{ id: 'i', size_grid: null }] });
     expect(o.items[0].size_grid).toEqual({ sizes: [], rows: [] });
+  });
+});
+
+describe('packagingKind — упаковка видами ERP', () => {
+  it('прежние значения v4 переводятся: индивидуальная → other, навалом → none', () => {
+    expect(packagingKind('individual', 'none')).toBe('other');
+    expect(packagingKind('bulk', 'inherit')).toBe('none');
+  });
+  it('виды ERP — как есть, пусто и мусор — значение по умолчанию', () => {
+    for (const k of ['none', 'bopp', 'zip', 'other', 'inherit']) expect(packagingKind(k, 'none')).toBe(k);
+    expect(packagingKind('', 'inherit')).toBe('inherit');
+    expect(packagingKind('пакет', 'none')).toBe('none');
   });
 });

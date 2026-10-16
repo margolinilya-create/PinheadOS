@@ -16,6 +16,11 @@ export default function PricePanel({ order, price }) {
               <div className={styles.muted}>
                 {p.qty} шт. × {rub(p.unit)}{p.manual ? ' · ручная' : ''}
               </div>
+              {!p.manual && (p.labels_unit > 0 || p.pack_unit > 0) && (
+                <div className={styles.muted}>
+                  в т. ч. за штуку:{p.labels_unit > 0 ? ` бирки ${rub(p.labels_unit)}` : ''}{p.pack_unit > 0 ? ` упаковка ${rub(p.pack_unit)}` : ''}
+                </div>
+              )}
             </span>
             <span className={styles.num}>{rub(p.total)}</span>
           </div>

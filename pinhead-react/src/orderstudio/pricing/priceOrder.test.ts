@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { priceOrder, priceItem, fitFormat, DEFAULT_PRICE_RULES } from './priceOrder';
+import { priceOrder, priceItem, fitFormat, screenFormat, salesLabelPrice, itemPackaging, embroideryExtras, DEFAULT_PRICE_RULES } from './priceOrder';
 import type { PriceCatalogs, PriceRules } from './priceOrder';
 import * as core from '../../utils/pricingCore';
-import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
+import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
 import type { SalesItem } from '../model/types';
 import { PRICES } from '../../data/prices';
 import { SKU_CATALOG_DEFAULT } from '../../data/skuCatalog';
@@ -167,5 +167,48 @@ describe('priceOrder — заказ', () => {
     const o = newSalesOrder({ items: [item()] });
     const pricier = { ...P, overhead: 2 };
     expect(priceOrder(o, pricier, CAT).total).toBeGreaterThan(priceOrder(o, P, CAT).total);
+  });
+});
+
+
+describe('правки 16.10 — форматы, бирки, упаковка, вышивка', () => {
+  it('шелкография различает A3+ и Max, а не режет всё до A3', () => {
+    expect(screenFormat(297, 420)).toEqual({ fmt: 'A3' });
+    expect(screenFormat(329, 483)).toEqual({ fmt: 'A3+' });
+    expect(screenFormat(400, 500)).toEqual({ fmt: 'Max' });
+    expect(screenFormat(null, 10)).toEqual({ fmt: 'A4', issue: 'print_no_size' });
+  });
+
+  it('бирки — ставки визарда; без варианта — стандартная', () => {
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'composition' }))).toBe(10);
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'composition', variant_id: 'my-logo' }))).toBe(30);
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'brand', variant_id: 'custom:canvas' }))).toBe(55);
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'brand', variant_id: 'send-own' }))).toBe(0);
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'hangtag', variant_id: 'custom' }))).toBe(25);
+    expect(salesLabelPrice(newSalesLabel({ label_type: 'size' }))).toBe(0);
+  });
+
+  it('упаковка позиции: своя или заказа', () => {
+    expect(itemPackaging({ packaging: 'inherit' }, 'zip')).toBe('zip');
+    expect(itemPackaging({ packaging: '' }, '')).toBe('none');
+    expect(itemPackaging({ packaging: 'bopp' }, 'zip')).toBe('bopp');
+  });
+
+  it('бирки и упаковка входят в цену позиции', () => {
+    const plain = priceItem(item(), P, CAT, DEFAULT_PRICE_RULES, false);
+    const withBoth = priceItem(item({ labels: [newSalesLabel({ label_type: 'brand' })], packaging: 'zip' }), P, CAT, DEFAULT_PRICE_RULES, false);
+    expect(withBoth.labels_unit).toBe(30);
+    expect(withBoth.pack_unit).toBe(40);
+    expect(withBoth.calc_unit - plain.calc_unit).toBeGreaterThanOrEqual(65);
+    expect(withBoth.calc_unit - plain.calc_unit).toBeLessThanOrEqual(75);
+  });
+
+  it('вышивка: «на готовом» дороже «на крое» у своего пошива; надбавки списком', () => {
+    const emb = (on: 'cut' | 'finished') => priceItem(item({
+      prints: [newSalesPrint({ method: 'embroidery', width_mm: 80, height_mm: 60, on })],
+    }), P, CAT, DEFAULT_PRICE_RULES, false).prints[0].unit;
+    expect(emb('finished')).toBeGreaterThan(emb('cut'));
+    expect(embroideryExtras('puff+metallic')).toEqual(['puff', 'metallic']);
+    expect(embroideryExtras('stone')).toEqual([]);
   });
 });

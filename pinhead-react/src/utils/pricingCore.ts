@@ -305,27 +305,46 @@ export function skuCostOf(sku: SkuItem, state: PricingState): cost.SkuCost {
   });
 }
 
+/**
+ * Бирки, ₽ за штуку — ставки визарда. Одни и те же функции считают визард
+ * (`getLabelConfigPrice`) и Order v4 (`priceOrder`), чтобы при переносе
+ * заказа цена не расходилась (правка 16.10: v4 бирок не считал вовсе).
+ */
+const CARE_LABEL_BASE = 10;
+const CARE_LOGO_DELTA: Record<string, number> = { 'my-logo': 20, 'no-logo': 0, standard: 0 };
+const MAIN_LABEL_PRICE: Record<string, number> = { standard: 30, custom: 45 };
+const MAIN_LABEL_MATERIAL_DELTA: Record<string, number> = { woven: 0, polyester: -5, canvas: 10 };
+const HANG_TAG_PRICE: Record<string, number> = { standard: 15, custom: 25 };
+
+export function careLabelPrice(logoOption?: string): number {
+  return CARE_LABEL_BASE + (CARE_LOGO_DELTA[logoOption ?? ''] || 0);
+}
+
+/** `none` и `send-own` (бирка клиента) — бесплатно */
+export function mainLabelPrice(option?: string, material?: string): number {
+  if (option === 'none' || option === 'send-own') return 0;
+  return (MAIN_LABEL_PRICE[option ?? ''] || 0) + (MAIN_LABEL_MATERIAL_DELTA[material ?? ''] || 0);
+}
+
+export function hangTagPrice(option?: string): number {
+  return HANG_TAG_PRICE[option ?? ''] || 0;
+}
+
 export function getLabelConfigPrice(labelConfig: LabelConfig | null | undefined): number {
   if (!labelConfig) return 0;
   let total = 0;
-  // Care label
-  if (labelConfig.careLabel?.enabled) {
-    const opt = [{ key: 'my-logo', delta: 20 }, { key: 'no-logo', delta: 0 }, { key: 'standard', delta: 0 }]
-      .find(o => o.key === labelConfig.careLabel.logoOption);
-    total += 10 + (opt?.delta || 0);
+  if (labelConfig.careLabel?.enabled) total += careLabelPrice(labelConfig.careLabel.logoOption);
+  if (labelConfig.mainLabel?.option !== 'none') {
+    total += mainLabelPrice(labelConfig.mainLabel?.option, labelConfig.mainLabel?.material);
   }
-  // Main label
-  if (labelConfig.mainLabel?.option !== 'none' && labelConfig.mainLabel?.option !== 'send-own') {
-    const prices: Record<string, number> = { standard: 30, custom: 45 };
-    const matDelta: Record<string, number> = { woven: 0, polyester: -5, canvas: 10 };
-    total += (prices[labelConfig.mainLabel.option] || 0) + (matDelta[labelConfig.mainLabel.material] || 0);
-  }
-  // Hang tag
-  if (labelConfig.hangTag?.option !== 'none') {
-    const prices: Record<string, number> = { standard: 15, custom: 25 };
-    total += prices[labelConfig.hangTag.option] || 0;
-  }
+  if (labelConfig.hangTag?.option !== 'none') total += hangTagPrice(labelConfig.hangTag?.option);
   return total;
+}
+
+/** Упаковка, ₽ за штуку, по виду (`packOptions`: none/bopp/zip); `other` — по договорённости, 0 */
+export function packPrice(P: PricesExt, packType: string): number {
+  const opt = (P.packOptions || []).find((o: { key: string; price: number }) => o.key === packType);
+  return opt ? opt.price : 0;
 }
 
 // Наценка по группе изделия (А/Б/В) и тиражу — правка 13.10, п. 6
@@ -402,8 +421,8 @@ export function calcTotalBreakdown(P: PricesExt, state: PricingState): PriceBrea
   const labels = getLabelConfigPrice(state.labelConfig);
   const print = getTotalSurcharge(P, state);
   const packType = state.packType || (state.packOption ? 'bopp' : 'none');
-  const packOpt = (P.packOptions || []).find((o: { key: string; price: number }) => o.key === packType);
-  const pack = packOpt ? packOpt.price : (state.packOption ? (P.pack || 0) : 0);
+  const hasOpt = (P.packOptions || []).some((o: { key: string }) => o.key === packType);
+  const pack = hasOpt ? packPrice(P, packType) : (state.packOption ? (P.pack || 0) : 0);
 
   const unitPrice = garmentFinal + labels + print + pack;
   return {

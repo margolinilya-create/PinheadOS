@@ -17,6 +17,19 @@ import type {
 import type { OrderPrice } from '../pricing/priceOrder';
 import { orderUrgentDays } from '../pricing/priceOrder';
 
+
+/**
+ * Упаковка: виды ERP (none/bopp/zip/other, у позиции и inherit). Прежние
+ * значения v4 — «индивидуальная» (вид не назван: `other`, требования
+ * в заметке остаются) и «навалом» (`none`).
+ */
+const LEGACY_PACKAGING: Record<string, string> = { individual: 'other', bulk: 'none' };
+const PACKAGING_KINDS = new Set(['inherit', 'none', 'bopp', 'zip', 'other']);
+export function packagingKind(v: string, empty: string): string {
+  const k = LEGACY_PACKAGING[v] ?? v;
+  return PACKAGING_KINDS.has(k) ? k : empty;
+}
+
 // ── Строки базы ─────────────────────────────────────────────────────────────
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- строка PostgREST нетипизирована */
@@ -100,7 +113,7 @@ function itemFromRow(r: Row): SalesItem {
     cutting_note: str(r.cutting_note),
     sewing_note: str(r.sewing_note),
     labels_note: str(r.labels_note),
-    packaging: str(r.packaging) || 'inherit',
+    packaging: packagingKind(str(r.packaging), 'inherit'),
     packaging_size: str(r.packaging_size),
     sticker_place: str(r.sticker_place),
     marking_place: str(r.marking_place),
@@ -134,7 +147,7 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     contact: str(r.contact),
     manager: str(r.manager_name),
     due_date: str(r.due_date),
-    packaging: str(r.packaging) || 'none',
+    packaging: packagingKind(str(r.packaging), 'none'),
     packaging_note: str(r.packaging_note),
     packaging_width_mm: num(r.packaging_width_mm),
     packaging_height_mm: num(r.packaging_height_mm),

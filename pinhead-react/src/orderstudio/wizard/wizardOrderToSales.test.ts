@@ -60,19 +60,17 @@ describe('заказ визарда главной → заказ v4', () => {
     });
   });
 
-  it('упаковка: БОПП и ЗИП — индивидуальная с пометкой, без упаковки — none', () => {
-    const pack = (packType: string) => {
-      const { order } = wizardOrderToSalesOrder(state({ packType, packOption: packType !== 'none' }), CAT);
-      return [order.packaging, order.packaging_note];
-    };
-    expect(pack('bopp')).toEqual(['individual', 'БОПП пакет']);
-    expect(pack('zip')).toEqual(['individual', 'ЗИП пакет']);
-    expect(pack('none')).toEqual(['none', '']);
+  it('упаковка переносится видом ERP (bopp / zip / none), а не текстом', () => {
+    const pack = (packType: string) =>
+      wizardOrderToSalesOrder(state({ packType, packOption: packType !== 'none' }), CAT).order.packaging;
+    expect(pack('bopp')).toBe('bopp');
+    expect(pack('zip')).toBe('zip');
+    expect(pack('none')).toBe('none');
   });
 
   it('старый черновик без packType: packOption читается как БОПП (как в orderSlice)', () => {
     const { order } = wizardOrderToSalesOrder(state({ packType: undefined, packOption: true }), CAT);
-    expect(order.packaging_note).toBe('БОПП пакет');
+    expect(order.packaging).toBe('bopp');
   });
 
   it('общий комментарий возвращается отдельно — в шапке v4 ему нет поля', () => {
