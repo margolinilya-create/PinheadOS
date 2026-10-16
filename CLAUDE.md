@@ -92,6 +92,7 @@ pinhead-react/src/
 │   ├── validate.ts          # Валидация заказа
 │   ├── mockup.ts            # SVG-мокап генерация
 │   ├── deadline.ts          # Расчёт дедлайнов
+│   ├── displayNames.ts      # Показ: ткань названием, надбавка «+N ₽/шт», вид упаковки (16.10)
 │   └── i18n.ts              # Pluralize, translateSupabaseError
 ├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
 └── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
@@ -173,7 +174,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 | Таблица | Назначение |
 |---------|-----------|
 | `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3) |
-| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save(jsonb)` (security invoker) |
+| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10) |
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
@@ -335,7 +336,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (88 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (90 файлов, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |
