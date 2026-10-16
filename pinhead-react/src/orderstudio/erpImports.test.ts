@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
 
@@ -15,37 +16,59 @@ import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
  * Исключения — места, где связь с ERP и есть назначение модуля:
  * мост в ERP (`bridge/tzToErpDraft.ts`) и оболочка раздела с единой админкой.
  *
- * Примитивы и стили ERP (`erp/components/*`, `erp/erp.module.css`) разрешены
- * ЛЮБОМУ модулю Order: это общая вёрстка, а не логика ERP. Стор, утилиты и
- * экраны ERP запрещены всем, кроме моста и оболочки: стор тянет за собой весь
- * слой данных ERP и ломает бюджет чанка Order.
+ * Примитивы и стили ERP разрешены ЛЮБОМУ модулю Order: это общая вёрстка, а не
+ * логика ERP. Примитивы — явный белый список, а не маска `erp/components/*`:
+ * маска впускала компоненты, которые читают стор ERP (StaleDataBar, ErpKanban,
+ * RouteEditor), и хуки (useStageReports). Стор, утилиты и экраны ERP запрещены
+ * всем, кроме моста и оболочки: стор тянет за собой весь слой данных ERP и
+ * ломает бюджет чанка Order.
  */
 const ORDER_DIR = join(SRC_DIR, 'orderstudio');
+const COMPONENTS_DIR = join(SRC_DIR, 'erp', 'components');
 const ALLOWED_FILES = new Set(['bridge/tzToErpDraft.ts', 'OrderStudioApp.jsx']);
-const ALLOWED_TARGETS: RegExp[] = [/\/erp\/components\/[A-Za-z]+(\.jsx)?$/, /\/erp\/erp\.module\.css$/];
+
+/** Верхний уровень erp/components, которым разрешено импортироваться из Order (проверено: сами не тянут стор/supabase/api) */
+const ERP_PRIMITIVES = new Set([
+  'Button', 'Icon', 'icons', 'Badge', 'Field', 'Modal', 'Drawer', 'Tabs', 'PageHead', 'ErpStates',
+  'Pagination', 'FilterBar', 'FilterChip', 'DateField', 'SearchInput', 'SortableTh', 'ScrollHintBox', 'ErpSkeletons',
+]);
+
+/** Цель `…/erp/components/<Name>[.js|.jsx]` с Name из белого списка либо `…/erp/erp.module.css` */
+const PRIMITIVE_TARGET = /\/erp\/components\/([A-Za-z]+)(?:\.jsx?)?$/;
+const ERP_STYLES_TARGET = /\/erp\/erp\.module\.css$/;
 
 /**
- * Рантайм-импорты ERP: `import X from '…/erp/…'`, `import {…} from …` и
- * side-effect `import '…/erp/…css'`. `import type` стирается при сборке и не
- * попадает в список.
+ * Рантайм-импорты ERP, все три формы:
+ * - `import X from '…/erp/…'`, `import {…} from …`, side-effect `import '…/erp/…css'`;
+ * - реэкспорт `export {…} from '…/erp/…'` / `export * from …`;
+ * - динамический `import('…/erp/…')`.
+ * `import type` и `export type` стираются при сборке и не попадают в список.
  */
+const STATIC_IMPORT = /^import\s+(?!type\b)(?:[^;]*?from\s+)?'([^']*\/erp\/[^']*)'/gm;
+const REEXPORT = /^export\s+(?!type\b)[^;]*?from\s+'([^']*\/erp\/[^']*)'/gm;
+const DYNAMIC_IMPORT = /\bimport\(\s*'([^']*\/erp\/[^']*)'\s*\)/g;
+
 function runtimeErpImports(text: string): string[] {
-  return [...text.matchAll(/^import\s+(?!type\b)(?:[^;]*?from\s+)?'([^']*\/erp\/[^']*)'/gm)].map((m) => m[1]);
+  return [STATIC_IMPORT, REEXPORT, DYNAMIC_IMPORT].flatMap((re) => [...text.matchAll(re)].map((m) => m[1]));
 }
 
 /** Может ли модуль `rel` (путь от src/orderstudio, с `/`) импортировать цель `target` из ERP */
 function isAllowed(rel: string, target: string): boolean {
-  return ALLOWED_FILES.has(rel) || ALLOWED_TARGETS.some((re) => re.test(target));
+  if (ALLOWED_FILES.has(rel)) return true;
+  if (ERP_STYLES_TARGET.test(target)) return true;
+  const primitive = PRIMITIVE_TARGET.exec(target);
+  return primitive !== null && ERP_PRIMITIVES.has(primitive[1]);
 }
 
 describe('Order v4 не импортирует рантайм ERP', () => {
-  it('сторож видит и тип, и рантайм-импорт', () => {
+  it('сторож видит и тип, и рантайм-импорт, и реэкспорт, и динамический импорт', () => {
     expect(runtimeErpImports("import type { X } from '../../erp/types';")).toEqual([]);
     expect(runtimeErpImports("import { SIZE_PRESETS } from '../../erp/utils/orderForm';")).toEqual(['../../erp/utils/orderForm']);
-  });
-
-  it('side-effect импорт стилей ERP тоже виден сторожу', () => {
     expect(runtimeErpImports("import '../../erp/erp.module.css';")).toEqual(['../../erp/erp.module.css']);
+    expect(runtimeErpImports("export { SIZE_PRESETS } from '../../erp/utils/orderForm';")).toEqual(['../../erp/utils/orderForm']);
+    expect(runtimeErpImports("export * from '../../erp/utils/orderForm';")).toEqual(['../../erp/utils/orderForm']);
+    expect(runtimeErpImports("export type { X } from '../../erp/types';")).toEqual([]);
+    expect(runtimeErpImports("const S = lazy(() => import('../erp/screens/AdminScreen'));")).toEqual(['../erp/screens/AdminScreen']);
   });
 
   it('примитивы и стили ERP разрешены, стор — нет', () => {
@@ -53,6 +76,22 @@ describe('Order v4 не импортирует рантайм ERP', () => {
     expect(isAllowed('layout/OrderLayout.jsx', '../../erp/erp.module.css')).toBe(true);
     expect(isAllowed('screens/SalesList.jsx', '../../erp/store/useErpStore')).toBe(false);
     expect(isAllowed('OrderStudioApp.jsx', '../erp/screens/AdminScreen')).toBe(true);
+  });
+
+  it('компоненты ERP вне белого списка и хуки запрещены', () => {
+    expect(isAllowed('x.jsx', '../../erp/components/StaleDataBar')).toBe(false);
+    expect(isAllowed('x.jsx', '../../erp/components/useStageReports')).toBe(false);
+    expect(isAllowed('x.jsx', '../../erp/components/kanban/KanbanCard')).toBe(false);
+    expect(isAllowed('x.jsx', '../../erp/components/Button')).toBe(true);
+  });
+
+  it('примитивы из белого списка сами не тянут стор ERP', () => {
+    for (const name of ERP_PRIMITIVES) {
+      const file = [`${name}.jsx`, `${name}.js`].map((e) => join(COMPONENTS_DIR, e)).find((p) => existsSync(p));
+      expect(file, `нет файла для ${name}`).toBeDefined();
+      const specifiers = [...readSource(file!).matchAll(/\bfrom\s+'([^']+)'/g)].map((m) => m[1]);
+      expect(specifiers.filter((s) => /\/store\/|lib\/supabase|lib\/api/.test(s)), name).toEqual([]);
+    }
   });
 
   it('ни один модуль, кроме моста и оболочки', () => {
