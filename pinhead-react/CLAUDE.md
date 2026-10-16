@@ -111,7 +111,8 @@ URL: https://pinhead-os.vercel.app
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
 - **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
-  SKU, аналитика. Компоненты ниже — его состав.
+  SKU, Order v4 (без аналитики продаж и канбана v3 — убраны в вехе 1, 16.10). Оболочка —
+  `orderstudio/layout/` (OrderLayout/OrderSidebar/orderNav, стиль оболочки ERP). Компоненты ниже — его состав.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -119,14 +120,11 @@ URL: https://pinhead-os.vercel.app
 - components/ — UI-компоненты
   - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
   - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-  - orders/ — KanbanBoard, KanbanCard (keyboard DnD), OrderDrawer
   - editors/ — SkuEditor (8 табов), ExpressCalc
   - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-  - analytics/ — Dashboard (Chart.js)
   - auth/ — AuthScreen, AdminPanel
-  - layout/ — Header (dark mode toggle), ProgressBar (fill bar)
-  - output/ — PrintPreview
-  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, OnboardingTips, CommandPalette, PriceBreakdown, RolePreviewBar
+  - layout/ — ProgressBar (fill bar); шапка и сайдбар Order — orderstudio/layout/
+  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, PriceBreakdown
 - store/ — Zustand (все .ts)
   - useStore.ts — главный store (7 слайсов)
   - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
@@ -156,7 +154,7 @@ URL: https://pinhead-os.vercel.app
 - Пользователи: soft-delete (active=false), не hard delete
 - RLS: manager видит только свои заказы
 - Supabase ключи только через .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-- Dark mode: html[data-theme="dark"], toggle в Header, persist в localStorage
+- Dark mode: html[data-theme="dark"], переключатель в шапке оболочки (ERP и Order), persist в localStorage
 
 ## Где искать «как это устроено»
 

@@ -34,10 +34,9 @@ Pinhead — внутренняя ERP/CRM-система для типограф�
 - **Стейт:** Zustand 5 (слайсы), useShallow для селекторов
 - **Роутинг:** react-router-dom 7 (Routes/Route в App.jsx)
 - **БД/Auth:** Supabase (supabase-js)
-- **Графики:** Chart.js + react-chartjs-2. Recharts здесь числился ошибочно:
-  его нет ни в `package.json`, ни в `node_modules`, ни в одном импорте — при
-  этом два теста продолжали его мокать, а `vi.mock` несуществующего модуля
-  это тихий no-op. Остаток миграции на chart.js, снят вместе с моками
+- **Графики:** библиотеки графиков нет. Chart.js и react-chartjs-2 убраны вместе
+  с аналитикой продаж (веха 1 единого потока, 16.10; решение владельца); Recharts
+  не было никогда. Понадобятся графики — обсудить библиотеку заново
 - **Тесты:** Vitest + Testing Library (unit), Playwright (e2e)
 - **Линтинг:** ESLint 9, Husky + lint-staged
 - **CSS:** Vanilla CSS + CSS Modules (*.module.css), CSS-токены
@@ -50,15 +49,12 @@ pinhead-react/src/
 ├── main.jsx                 # Entry point
 ├── components/
 │   ├── auth/                # AuthScreen, AdminPanel
-│   ├── layout/              # Header, ProgressBar
+│   ├── layout/              # ProgressBar (шапка Order — orderstudio/layout/)
 │   ├── steps/               # Wizard: StepGarment → StepDesign → StepItems → StepDetails → StepSummary
 │   │   └── garment/         # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-│   ├── orders/              # KanbanBoard, KanbanCard, OrderDrawer
 │   ├── editors/             # SkuEditor (8 табов), ExpressCalc
 │   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-│   ├── output/              # PrintPreview (PDF)
-│   ├── analytics/           # Dashboard
-│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, RolePreviewBar, Skeleton, OnboardingTips, CommandPalette
+│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, Skeleton
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Главный Zustand store (собирает слайсы)
 │   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
@@ -95,7 +91,7 @@ pinhead-react/src/
 │   ├── displayNames.ts      # Показ: ткань названием, надбавка «+N ₽/шт», вид упаковки (16.10)
 │   └── i18n.ts              # Pluralize, translateSupabaseError
 ├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
-└── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
+└── orderstudio/             # Order v4: layout/ (оболочка раздела: OrderLayout, OrderSidebar, orderNav — снимок CSS оболочки ERP), model/ (заказ, имена полей как DraftItem, ряды размеров),
                              # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
                              # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
                              # ItemWizard), wizard/ (wizardAdapter, itemSession,
@@ -135,13 +131,10 @@ supabase/
 | Путь | Компонент | Доступ |
 |---|---|---|
 | `/` | WizardPage (5 шагов) | Все |
-| `/orders` | KanbanBoard | Все |
-| `/print` | PrintPreview | Все |
 | `/express` | ExpressCalc | Не production/designer |
 | `/prices` | → redirect `/sku?tab=pricing` | admin, director |
 | `/sku` | SkuEditor (8 табов) | admin, director |
 | `/admin` | AdminPanel | admin, director |
-| `/analytics` | Dashboard | admin, director, rop, production |
 | `/sales`, `/sales/:id` | Order v4: SalesList, SalesCard (пилот) | admin, director |
 | `/sales/:id/item/:key` | ItemWizard — шаги визарда «Изделие»/«Дизайн» для позиции v4 (`key` = `new` или ключ) | admin, director |
 
@@ -165,7 +158,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
-- Lazy loading: KanbanBoard, ExpressCalc, AdminPanel, Dashboard, StepDesign, StepItems, StepDetails, StepSummary
+- Lazy loading: ExpressCalc, AdminPanel, StepDesign, StepItems, StepDetails, StepSummary
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 
@@ -264,6 +257,15 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - ТЗ в PDF принадлежит ПОЗИЦИИ, видно всем цехам маршрута; гейт ТЗ fail-open
 - Ключ объекта в Storage — строго ASCII (`tzFilePath`)
 - Файл, видимый приложенным, обязан быть в бакете: загрузка при выборе, не в сабмите
+- **ERP заморожен** (веха 1, 16.10): сторож `orderstudio/erpFrozen.test.ts` сверяет
+  хэши `src/erp` и миграций ERP с `erpFrozen.json` и запрещает DDL по `erp_*` в новых
+  миграциях. Правка ERP с согласия владельца — затем `npm run erp:freeze`
+- **Order импортирует из ERP** только `erp/erp.module.css`, белый список примитивов
+  `ERP_PRIMITIVES` (`erp/components`) и стор для моста — сторож `erpImports.test.ts`
+  (реэкспорт и динамический `import()` тоже считаются)
+- Оболочка Order (`orderstudio/layout/`) — снимок CSS оболочки ERP (импорт `erp.module.css`
+  раздувал CSS оболочки ERP за бюджет); палитру и `--header-h: 0` у `.orderMain`
+  держит `orderLayoutCss.test.ts`. Меняете палитру `.shell` — обновите снимок
 
 ## Где искать правило
 
@@ -336,7 +338,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (90 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (91 файл, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |
