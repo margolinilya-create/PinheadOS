@@ -1,0 +1,46 @@
+/* Справочники заказа (веха 4, задача 2). Раскладка страницы — из Sales.module.css. */
+
+.subLine { margin: var(--space-xs) 0 0; }
+
+.subLine a { color: var(--accent); }
+
+/* Ряд вкладок длиннее экрана телефона — прокрутка ряда, а не страницы */
+.tabs {
+  overflow-x: auto;
+  margin-bottom: var(--space-lg);
+}
+
+.panel:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.readOnlyNote {
+  margin: 0 0 var(--space-md);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--card);
+  border: 1px solid var(--border-mid);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+}
+
+.notice p { margin: 0; flex: 1 1 320px; }
+
+.loading {
+  margin: 0 0 var(--space-lg);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+/* Тач-цель ≥ 44 px */
+@media (pointer: coarse) {
+  .notice :global(.btn) { min-height: 44px; }
+}

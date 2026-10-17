@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { switchToProduction } from './switchToProduction';
 import { useAuthStore } from '../store/useAuthStore';
+import { setCatalogUnsaved } from './leaveGuard';
 
 vi.mock('./switchToProduction', () => ({ switchToProduction: vi.fn() }));
 vi.mock('../lib/catalogs', () => ({ loadAllCatalogs: vi.fn().mockResolvedValue({}) }));
@@ -92,6 +93,22 @@ describe('OrderStudioApp — доступ по ролям', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
   });
 
+  it.each(['rop', 'director'])('%s открывает «Справочники заказа»', async (role) => {
+    const router = renderApp(prof(role), '/order-settings?tab=tz');
+    expect(await screen.findByRole('heading', { name: 'Справочники заказа' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Подвал ТЗ' })).toHaveAttribute('aria-selected', 'true');
+    expect(router.state.location.pathname).toBe('/order-settings');
+  });
+
+  it.each([
+    ['продавец', prof('manager', true)],
+    ['МС', { ...prof('manager'), is_ms: true }],
+  ])('%s на /order-settings — в список заказов', async (_who, user) => {
+    const router = renderApp(user, '/order-settings');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
+    expect(screen.queryByRole('link', { name: 'Справочники заказа' })).toBeNull();
+  });
+
   it('старый мастер позиции /sales/:id/item/:key больше не открывается', async () => {
     const router = renderApp(prof('admin'), '/sales/o-1/item/new');
     await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
@@ -122,5 +139,30 @@ describe('OrderStudioApp — диалог ухода с карточки v4', ()
     const { dialog } = await leaveWith('error');
     expect(dialog).toHaveTextContent('Последнее сохранение не удалось.');
     expect(dialog).not.toHaveTextContent('скопируйте изменения');
+  });
+});
+
+describe('OrderStudioApp — уход с несохранённым справочником', () => {
+  afterEach(() => setCatalogUnsaved('test', false));
+
+  it('уход со страницы — свой диалог; «Уйти без сохранения» уводит', async () => {
+    const router = renderApp(prof('rop'), '/order-settings');
+    await screen.findByRole('heading', { name: 'Справочники заказа' });
+    setCatalogUnsaved('test', true);
+    act(() => { void router.navigate('/sales'); });
+    const dialog = await screen.findByRole('dialog', { name: 'Правки справочника не сохранены' });
+    expect(dialog).toHaveTextContent('Если уйти, они пропадут.');
+    expect(router.state.location.pathname).toBe('/order-settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Уйти без сохранения' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
+  });
+
+  it('смена ?tab= роутером не блокируется (её спрашивает экран)', async () => {
+    const router = renderApp(prof('rop'), '/order-settings');
+    await screen.findByRole('heading', { name: 'Справочники заказа' });
+    setCatalogUnsaved('test', true);
+    act(() => { void router.navigate('/order-settings?tab=labels'); });
+    await waitFor(() => expect(router.state.location.search).toBe('?tab=labels'));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

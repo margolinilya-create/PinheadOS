@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  canCreateOrders, canManageSalesStaff, canUseSales, isSalesLead, legacyRedirect, navFor, ordersLabel,
+  canCreateOrders, canManageOrderCatalogs, canManageSalesStaff, canUseSales, isSalesLead, legacyRedirect, navFor, ordersLabel,
   ORDER_NAV, NEW_ORDER,
 } from './orderNav';
 import { ICONS } from '../../erp/components/icons';
@@ -65,14 +65,24 @@ describe('navFor — меню по профилю', () => {
     expect(labels(prof('manager', true))).toEqual(['Новый заказ', 'Мои заказы', 'Экспресс']);
   });
 
-  it('rop: «Новый заказ», «Заказы отдела», «Экспресс», «Сотрудники продаж»', () => {
-    expect(labels(prof('rop'))).toEqual(['Новый заказ', 'Заказы отдела', 'Экспресс', 'Сотрудники продаж']);
+  it('rop: «Новый заказ», «Заказы отдела», «Экспресс», «Справочники заказа», «Сотрудники продаж»', () => {
+    expect(labels(prof('rop'))).toEqual([
+      'Новый заказ', 'Заказы отдела', 'Экспресс', 'Справочники заказа', 'Сотрудники продаж',
+    ]);
   });
 
-  it.each(['admin', 'director'])('%s: шесть пунктов', (role) => {
+  it.each(['admin', 'director'])('%s: семь пунктов', (role) => {
     expect(labels(prof(role))).toEqual([
-      'Новый заказ', 'Все заказы', 'Экспресс', 'Каталог', 'Сотрудники продаж', 'Админка',
+      'Новый заказ', 'Все заказы', 'Экспресс', 'Каталог моделей и цен', 'Справочники заказа',
+      'Сотрудники продаж', 'Админка',
     ]);
+  });
+
+  it('«Справочники заказа» ведут на /order-settings; продавцу и МС пункта нет', () => {
+    const item = navFor(prof('rop')).flatMap((g) => g.items).find((i) => i.label === 'Справочники заказа');
+    expect(item?.to).toBe('/order-settings');
+    expect(labels(prof('manager', true))).not.toContain('Справочники заказа');
+    expect(labels(ms())).not.toContain('Справочники заказа');
   });
 
   it('МС без признака продавца: «Заказы в работе» и «Экспресс», без «Нового заказа»', () => {
@@ -134,5 +144,15 @@ describe('кто заводит заказы и отмечает сотрудн�
 describe('legacyRedirect — старые адреса ведут в список заказов', () => {
   it.each(['/orders', '/print', '/analytics', '/что-то'])('%s → /sales', (path) => {
     expect(legacyRedirect(path)).toBe('/sales');
+  });
+});
+
+describe('canManageOrderCatalogs — справочники заказа', () => {
+  it('admin, director, rop — да; продавец, МС, отключённый — нет', () => {
+    expect(['admin', 'director', 'rop'].every((r) => canManageOrderCatalogs(prof(r)))).toBe(true);
+    expect(canManageOrderCatalogs(prof('manager', true))).toBe(false);
+    expect(canManageOrderCatalogs(ms())).toBe(false);
+    expect(canManageOrderCatalogs(prof('rop', false, { active: false }))).toBe(false);
+    expect(canManageOrderCatalogs(null)).toBe(false);
   });
 });

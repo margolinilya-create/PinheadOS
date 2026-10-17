@@ -59,6 +59,14 @@ export function canManageSalesStaff(p: SalesProfile | null | undefined): boolean
 }
 
 /**
+ * Правит справочники заказа (`/order-settings`): admin, director, rop — как
+ * `catalog_put`/`prices_patch` для ключей продаж (миграция G)
+ */
+export function canManageOrderCatalogs(p: SalesProfile | null | undefined): boolean {
+  return isSalesLead(p);
+}
+
+/**
  * Старые адреса (канбан v3 `/orders`, аналитика, печать v3) — в список
  * заказов: закладки у людей остались, вести они должны на рабочий экран.
  */
@@ -77,7 +85,7 @@ export interface NavItem {
   label: string;
   /** Имя иконки из `erp/components/icons.js` */
   icon: string;
-  /** Кому пункт: admin/director, руководство продаж или кто заводит заказы */
+  /** Кому пункт: admin/director, руководство продаж (сотрудники, справочники заказа) или кто заводит заказы */
   access?: 'admin' | 'lead' | 'create';
 }
 
@@ -104,7 +112,8 @@ export const ORDER_NAV: NavGroup[] = [
   {
     title: 'Настройки',
     items: [
-      { to: '/sku', label: 'Каталог', icon: 'shirt', access: 'admin' },
+      { to: '/sku', label: 'Каталог моделей и цен', icon: 'shirt', access: 'admin' },
+      { to: '/order-settings', label: 'Справочники заказа', icon: 'box', access: 'lead' },
       { to: '/sales-staff', label: 'Сотрудники продаж', icon: 'users', access: 'lead' },
       { to: '/admin', label: 'Админка', icon: 'settings', access: 'admin' },
     ],

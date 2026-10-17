@@ -42,6 +42,9 @@ export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
     trimCatalog: s.trimCatalog,
     extrasCatalog: s.extrasCatalog,
     usdRate: s.usdRate,
+    // Справочники заказа (веха 4): в селекторе заранее, расчёт их пока не читает
+    labelLibrary: s.labelLibrary,
+    packOptions: (s.prices as { packOptions?: unknown } | undefined)?.packOptions,
   })));
 
   const pricer = useMemo(() => makeOrderPricer(cat as unknown as PricerSource), [cat]);

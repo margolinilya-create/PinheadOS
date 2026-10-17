@@ -47,3 +47,34 @@ const UNSAVED_STATES: ReadonlySet<string> = new Set(['dirty', 'saving', 'error',
 export function salesHasUnsaved(saveState: string): boolean {
   return UNSAVED_STATES.has(saveState);
 }
+
+/*
+ * Справочники заказа (веха 4): редактор с несохранёнными правками.
+ *
+ * Блокировщик перехода у роутера ОДИН (`useBlocker` в `OrderStudioApp`), а
+ * редакторов справочников на экране — по вкладке. Поэтому редактор не
+ * заводит свой блокировщик, а отмечается здесь (`useCatalogEditor`), и общий
+ * блокировщик спрашивает об уходе со страницы. Смену вкладки того же экрана
+ * (`?tab=`) спрашивает сам экран (`OrderSettings`): адрес тот же, роутер её
+ * уходом не считает.
+ */
+const unsavedCatalogs = new Set<string>();
+
+/** Редактор `id` отмечает, есть ли у него несохранённые правки */
+export function setCatalogUnsaved(id: string, unsaved: boolean): void {
+  if (unsaved) unsavedCatalogs.add(id);
+  else unsavedCatalogs.delete(id);
+}
+
+/** Хоть один редактор справочника держит несохранённые правки */
+export function catalogHasUnsaved(): boolean {
+  return unsavedCatalogs.size > 0;
+}
+
+/** Уход со страницы справочников с несохранёнными правками; смена `?tab=` — не уход */
+export function shouldBlockCatalogLeave(p: { from: string; to: string }): boolean {
+  return catalogHasUnsaved() && p.from !== p.to;
+}
+
+/** Текст подтверждения ухода и смены вкладки с несохранённым справочником */
+export const CATALOG_LEAVE_TEXT = 'Правки справочника не сохранены. Если уйти, они пропадут.';

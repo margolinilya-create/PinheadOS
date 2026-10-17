@@ -29,6 +29,7 @@ import type { PricesExt } from '../../utils/pricingCore';
 import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
+import type { LabelLibrary, PackOption } from '../catalog/types';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -36,6 +37,13 @@ export interface PriceCatalogs {
   trimCatalog: Trim[];
   extrasCatalog: { code: string; price: number }[];
   usdRate: number;
+  /**
+   * Справочники заказа (веха 4) — заготовка сигнатуры (задача 2): расчёт их
+   * пока НЕ читает, цена прежняя. Бирки из библиотеки (запасной путь —
+   * `salesLabelPrice`) — задача 4; упаковка из `prices.packOptions` — задача 5.
+   */
+  labelLibrary?: LabelLibrary;
+  packOptions?: PackOption[];
 }
 
 export interface PriceRules {

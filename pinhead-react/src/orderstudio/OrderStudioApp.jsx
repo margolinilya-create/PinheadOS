@@ -24,9 +24,12 @@ import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
 import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
-import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard'
+import {
+  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText,
+  shouldBlockCatalogLeave, catalogHasUnsaved, CATALOG_LEAVE_TEXT,
+} from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
-import { canManageSalesStaff, canUseSales, legacyRedirect } from './layout/orderNav'
+import { canManageOrderCatalogs, canManageSalesStaff, canUseSales, legacyRedirect } from './layout/orderNav'
 import { switchToProduction } from './switchToProduction'
 import OrderLayout from './layout/OrderLayout'
 
@@ -47,6 +50,8 @@ const SalesList = React.lazy(() => import('./screens/SalesList'));
 const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
 // Сотрудники продаж (вехи 3, 4): признаки is_sales и is_ms ставят admin, director, rop
 const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
+// Справочники заказа (веха 4): поставщики, бирки, упаковка, правила цены, подвал ТЗ — admin, director, rop
+const OrderSettings = React.lazy(() => import('./admin/OrderSettings'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
  * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
@@ -109,12 +114,14 @@ export default function OrderStudioApp({ user }) {
 
 function OrderStudioShell({ user }) {
   const [catalogsReady, setCatalogsReady] = useState(false);
-  // Состояние сохранения читается В МОМЕНТ перехода, а не из прошлого рендера
+  // Состояние сохранения читается В МОМЕНТ перехода, а не из прошлого рендера.
+  // Блокировщик у роутера один: он же спрашивает об уходе с несохранённым
+  // справочником (`/order-settings`; смена `?tab=` — не уход, путь тот же)
   const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockSalesLeave({
     saveState: useSalesStore.getState().saveState,
     from: currentLocation.pathname,
     to: nextLocation.pathname,
-  }));
+  }) || shouldBlockCatalogLeave({ from: currentLocation.pathname, to: nextLocation.pathname }));
 
   useEffect(() => {
     useStore.getState().loadCatalogs().finally(() => setCatalogsReady(true));
@@ -122,7 +129,7 @@ function OrderStudioShell({ user }) {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (salesHasUnsaved(useSalesStore.getState().saveState)) {
+      if (salesHasUnsaved(useSalesStore.getState().saveState) || catalogHasUnsaved()) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -153,12 +160,16 @@ function OrderStudioShell({ user }) {
         <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
         <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
         <Route path="/sales-staff" element={<RoleGuard allowed={canManageSalesStaff(user)}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
+        <Route path="/order-settings" element={<RoleGuard allowed={canManageOrderCatalogs(user)}><Suspense fallback={Fallback}><OrderSettings /></Suspense></RoleGuard>} />
         {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}
         <Route path="*" element={<Navigate to="/sales" replace />} />
       </Routes>
       </OrderLayout>
 
-      {blocker.state === 'blocked' && <SalesLeaveDialog blocker={blocker} />}
+      {/* Чей диалог — решает то, что держит правки: справочник или заказ */}
+      {blocker.state === 'blocked' && (catalogHasUnsaved()
+        ? <CatalogLeaveDialog blocker={blocker} />
+        : <SalesLeaveDialog blocker={blocker} />)}
     </>
   );
 }
@@ -182,6 +193,26 @@ function SalesLeaveDialog({ blocker }) {
           </button>
           <button className="btn" onClick={() => blocker.proceed()}>
             Всё равно уйти
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Диалог ухода со «Справочников заказа» с несохранённым справочником */
+function CatalogLeaveDialog({ blocker }) {
+  return (
+    <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title" aria-describedby="blocker-text">
+      <div className={styles.blockerCard}>
+        <div id="blocker-title" className={styles.blockerTitle}>Правки справочника не сохранены</div>
+        <div id="blocker-text" className={styles.blockerText}>{CATALOG_LEAVE_TEXT}</div>
+        <div className={styles.blockerActions}>
+          <button className="btn btn-primary" onClick={() => blocker.reset()}>
+            Остаться
+          </button>
+          <button className="btn" onClick={() => blocker.proceed()}>
+            Уйти без сохранения
           </button>
         </div>
       </div>
