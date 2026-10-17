@@ -92,7 +92,9 @@ pinhead-react/src/
 │   └── i18n.ts              # Pluralize, translateSupabaseError
 ├── styles/                  # CSS: auth, kanban (остаток: .kanban-page, .kb-search), wizard, forms, layout, garment, editors, extras-zones
 └── orderstudio/             # Order v4: layout/ (оболочка раздела: OrderLayout, OrderSidebar, orderNav — снимок CSS оболочки ERP), model/ (заказ, имена полей как DraftItem, ряды размеров),
-                             # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
+                             # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames; launch — прототип запуска через стор ERP,
+                             # динамический импорт трёх модулей ERP), api/salesOrders, api/salesTransitions (переходы,
+                             # проверка запуска, оплата), api/artworks (бакет order-artworks),
                              # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
                              # ItemWizard), wizard/ (wizardAdapter, itemSession,
                              # wizardOrderToSales + transferToSales — «Оформить как заказ v4»), leaveGuard
@@ -173,8 +175,10 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 
 | Таблица | Назначение |
 |---------|-----------|
-| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3) |
-| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10) |
+| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3). Веха 2 (миграции A `20261017053703`, B `20261017062110`): служебные колонки v4 — `paid_kind`/`paid_at`/`paid_override_reason`, `sent_at`, `launch_started_at`/`launch_by`, `launched_at`/`launched_by`, `erp_order_id`, `archived_at`, плюс `sticker_preview_path`; формат номера — `order_number_format(bigint)` (его зовёт `generate_order_number()`), уникальный индекс `orders_order_number_uniq` |
+| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10). С вехи 2 — поля ТЗ (поставщик, описание модели, цвета частей, комментарий и PDF ТЗ; раскладка, файл макета, отступ, эффекты, подрядчик; метод `other`; бирки — `blank`, превью, схема крепления) |
+| `order_notes_cards` | Order v4 (веха 2): карточки заметок ТЗ (`order_id`, `item_id` null, группа, подпись, ссылка, картинка); составной FK `(item_id, order_id)`; RLS через родителя |
+| `order_events` | Order v4 (веха 2): журнал статусов и оплаты (`kind` = `status` / `payment`, `actor` = `auth.uid()`); у клиента только SELECT через родителя, пишут только RPC |
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
@@ -193,13 +197,28 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
-| `storage-backup` | Ночная копия двух бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
+| `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md` |
+| `storage-backup` | Ночная копия трёх бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
 `npm run storage:gc`; носителей ключа четыре, уборщиков два, ошибка проверки =
 ничего не удалять. Подробно — `docs/rules/pravila-shemy-erp-podrobno.md`.
 
-Статусы заказа: draft → review → approved → production → done
+**Права Order v4 (веха 2)** — подробно `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`:
+- RPC (`security definer`, свой гейт): `order_v4_transition(p_id, p_to, p_reason)` — все переходы
+  статуса v4; `order_v4_launch_check(p_id)` — проверка запуска до создания заказа ERP;
+  `order_v4_set_payment(p_id, p_kind, p_override_reason)` — оплата и запуск без оплаты.
+- Хелперы: `sales_is_lead()` (admin/director/rop), `sales_is_ms()` (МС: `erp_employees.role =
+  'manager'`), `sales_is_seller()` (профиль `manager`); все требуют `active and approved`.
+- Стражи: `order_v4_guard` (`orders`, INSERT/UPDATE, белый список), `order_v4_delete_guard`
+  (удалить — только черновик без связи с ERP), `order_v4_child_guard` (позиции, нанесения,
+  бирки, карточки — только у черновика, пути `orders/<id>/…`).
+- Пробы на бою — `supabase/probes/` (README там же).
+
+Статусы заказа v3: draft → review → approved → production → done.
+Переходы v4 (RPC вехи 2): draft → ready_to_launch → production → done; ready_to_launch → draft
+(возврат с причиной); draft → archived. CHECK знает ещё `price_review`, `quoted`, `cancel_requested` —
+переходов в них пока нет
 
 Статусы профиля (ProfileStatus): active | pending_approval | disabled | no_profile
 - `active`: approved + active
@@ -239,6 +258,13 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
   проверять результат, toast.error при ошибке
 - **Order v4 пишется, ERP не трогается**: Order только читает типы и чистые хелперы ERP
 - Визард внутри «Заказов v4» — только через сессию позиции (`orderstudio/wizard/itemSession.ts`)
+- **Статус, оплата и связь с ERP у v4 — только RPC** (`order_v4_transition` / `_launch_check` /
+  `_set_payment`); прямую запись отклоняют стражи Order (`order_v4_guard` белым списком,
+  `_delete_guard`, `_child_guard`). Новая колонка `orders` — классифицировать в страже (сторож
+  `orderV4Rights.test.ts`). Подробно — `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`
+- Миграции на бой, пока MCP `execute_sql` виснет на `delete`/`drop`: сухой прогон
+  (`begin; …; PROBE_RESULT`) и применение — файлами через SQL Editor владельцем
+- Сторож импортов разрешает `bridge/launch.ts` ровно три модуля ERP и только динамически
 - ERP: доступ — `useErpAccess`, кнопки этапа — `useStagePermissions`; прогресс в штуках;
   финальный ОТК (`qc`) зависит от ВСЕХ терминальных этапов
 - ERP, realtime: `useErpStore()` без селектора запрещён; **живой канал ровно один**
@@ -345,7 +371,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (91 файл, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (92 файла, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |

@@ -113,6 +113,9 @@ URL: https://pinhead-os.vercel.app
 - **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
   SKU, Order v4 (без аналитики продаж и канбана v3 — убраны в вехе 1, 16.10). Оболочка —
   `orderstudio/layout/` (OrderLayout/OrderSidebar/orderNav, стиль оболочки ERP). Компоненты ниже — его состав.
+  Веха 2 (17.10): `api/salesTransitions` (статус и оплата v4 — только RPC), `api/artworks`
+  (закрытый бакет `order-artworks`), `bridge/launch` (прототип запуска через стор ERP).
+  Правила — `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -178,7 +181,11 @@ URL: https://pinhead-os.vercel.app
   срочность, DTF/DTG/вышивка); контрольные примеры документа — costRules.test.ts, printRules.test.ts
 - orderstudio/ — priceOrder (16), tzToErpDraft (22, сторож контракта с формой ERP),
   salesOrders (7, туда-обратно с RPC), useSalesStore (очередь автосохранения),
-  erpImports (сторож: без рантайм-импорта ERP), wizardAdapter (13), itemSession (5),
+  erpImports (сторож: без рантайм-импорта ERP; `bridge/launch.ts` — ровно три модуля ERP
+  динамически), salesTransitions (переходы v4, проверка запуска, оплата — только RPC),
+  bridge/launch (прототип запуска: launch_check → createOrder → transition), api/artworks
+  (бакет order-artworks), сторожа orderV4Rights (стражи и RPC вехи 2), orderArtworksBucket,
+  probesFiles (пробы `supabase/probes/`), wizardAdapter (13), itemSession (5),
   ItemWizard (4), leaveGuard (3), wizardOrderToSales (7), transferToSales (2)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
