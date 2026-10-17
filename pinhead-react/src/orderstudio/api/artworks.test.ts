@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import {
   ARTWORK_BUCKET, ARTWORK_MAX_BYTES, ARTWORK_MIME_TYPES, SIGNED_URL_TTL_SEC,
-  artworkContentType, artworkPath, artworkSignedUrl, artworkSignedUrls, isArtworkPath,
+  ARTWORK_FORMATS_HINT, artworkContentType, artworkDownloadUrl, artworkPath, artworkSignedUrl, artworkSignedUrls,
+  isArtworkPath,
   removeArtwork, uploadArtwork,
 } from './artworks';
 
@@ -82,7 +83,7 @@ describe('artworks: тип файла', () => {
   it('список типов — ровно тот, что разрешён бакету', () => {
     expect([...ARTWORK_MIME_TYPES].sort()).toEqual([
       'application/illustrator', 'application/pdf', 'application/postscript',
-      'image/jpeg', 'image/png', 'image/svg+xml', 'image/webp',
+      'image/jpeg', 'image/png', 'image/svg+xml', 'image/tiff', 'image/vnd.adobe.photoshop', 'image/webp',
     ]);
   });
 
@@ -91,6 +92,20 @@ describe('artworks: тип файла', () => {
     expect(artworkContentType(file('logo.EPS', ''))).toBe('application/postscript');
     expect(artworkContentType(file('a.JPG', ''))).toBe('image/jpeg');
     expect(artworkContentType(file('a.svg', ''))).toBe('image/svg+xml');
+    expect(artworkContentType(file('a.ps', ''))).toBe('application/postscript');
+  });
+
+  it('PSD и TIFF (решение владельца 17.10): тип по расширению, а не браузера', () => {
+    expect(artworkContentType(file('maket.psd', ''))).toBe('image/vnd.adobe.photoshop');
+    expect(artworkContentType(file('maket.PSD', 'application/octet-stream'))).toBe('image/vnd.adobe.photoshop');
+    expect(artworkContentType(file('scan.tif', ''))).toBe('image/tiff');
+    expect(artworkContentType(file('scan.TIFF', 'image/x-tiff'))).toBe('image/tiff');
+  });
+
+  it('подсказка тоста называет каждое принимаемое расширение', () => {
+    for (const ext of ['PNG', 'JPG', 'WEBP', 'SVG', 'PDF', 'AI', 'EPS', 'PS', 'PSD', 'TIFF']) {
+      expect(ARTWORK_FORMATS_HINT.split(', '), ext).toContain(ext);
+    }
   });
 
   it('незнакомое расширение — тип браузера, только из списка', () => {
@@ -124,6 +139,21 @@ describe('artworks: загрузка', () => {
     const [, body, opts] = b.upload.mock.calls[0];
     expect((body as Blob).type).toBe('application/postscript');
     expect(opts.contentType).toBe('application/postscript');
+  });
+
+  it('.psd с пустым типом уходит Blob-ом image/vnd.adobe.photoshop', async () => {
+    const b = mockBucket();
+    expect(await uploadArtwork(ORDER, 'logo', file('Макет.psd', ''))).toMatch(/-Maket\.psd$/);
+    const [, body, opts] = b.upload.mock.calls[0];
+    expect((body as Blob).type).toBe('image/vnd.adobe.photoshop');
+    expect(opts.contentType).toBe('image/vnd.adobe.photoshop');
+  });
+
+  it('чужой формат: тост называет и PS, PSD, TIFF', async () => {
+    mockBucket();
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    expect(await uploadArtwork(ORDER, 'logo', file('a.cdr', ''))).toBeNull();
+    expect(err.mock.calls[0][0]).toMatch(/формат не поддерживается \(.*\bPS\b.*\bPSD\b.*\bTIFF\b/);
   });
 
   it('файл больше 25 МБ не грузится: тост и null', async () => {
@@ -177,6 +207,27 @@ describe('artworks: подписанные ссылки', () => {
     const p = `orders/${ORDER}/logo/a.png`;
     expect(await artworkSignedUrl(p)).toBe('https://s/1?token=t');
     expect(b.createSignedUrl).toHaveBeenCalledWith(p, 600);
+  });
+
+  it('artworkDownloadUrl — ссылка на скачивание: createSignedUrl с { download: true }', async () => {
+    const b = mockBucket({ createSignedUrl: vi.fn().mockResolvedValue({ data: { signedUrl: 'https://s/1?token=t&download=' }, error: null }) });
+    const p = `orders/${ORDER}/logo/a.svg`;
+    expect(await artworkDownloadUrl(p)).toBe('https://s/1?token=t&download=');
+    expect(b.createSignedUrl).toHaveBeenCalledWith(p, 600, { download: true });
+  });
+
+  it('artworkSignedUrl (показ) — без download', async () => {
+    const b = mockBucket();
+    await artworkSignedUrl(`orders/${ORDER}/logo/a.svg`);
+    expect(b.createSignedUrl.mock.calls[0]).toHaveLength(2);
+  });
+
+  it('artworkDownloadUrl: ошибка — тост и null', async () => {
+    mockBucket({ createSignedUrl: vi.fn().mockResolvedValue({ data: null, error: { message: 'Object not found' } }) });
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await artworkDownloadUrl(`orders/${ORDER}/logo/a.svg`)).toBeNull();
+    expect(err).toHaveBeenCalledTimes(1);
   });
 
   it('artworkSignedUrl: ошибка — тост и null', async () => {
@@ -235,25 +286,46 @@ describe('artworks: удаление', () => {
     vi.restoreAllMocks();
   });
 
-  it('ждёт ответ и возвращает true', async () => {
+  it('ждёт ответ и возвращает removed', async () => {
     const b = mockBucket();
     const p = `orders/${ORDER}/logo/a.png`;
-    expect(await removeArtwork(p)).toBe(true);
+    expect(await removeArtwork(p)).toBe('removed');
     expect(b.remove).toHaveBeenCalledWith([p]);
   });
 
-  it('ошибка — тост и false', async () => {
+  it('ошибка — тост и null (и с missingOk тоже)', async () => {
     mockBucket({ remove: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }) });
     const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`)).toBe(false);
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`)).toBeNull();
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`, { missingOk: true })).toBeNull();
+    expect(err).toHaveBeenCalledTimes(2);
+  });
+
+  it('отказ сети — тост и null', async () => {
+    mockBucket({ remove: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')) });
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`, { missingOk: true })).toBeNull();
     expect(err).toHaveBeenCalledTimes(1);
   });
 
-  it('RLS не дал удалить (пустой ответ без ошибки) — тост и false, а не «удалено»', async () => {
+  it('пустой ответ без ошибки по умолчанию — отказ: тост и null, а не «удалено»', async () => {
     mockBucket({ remove: vi.fn().mockResolvedValue({ data: [], error: null }) });
     const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
-    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`)).toBe(false);
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`)).toBeNull();
     expect(err).toHaveBeenCalledTimes(1);
+  });
+
+  it('пустой ответ с missingOk (путь всё равно уходит из заказа) — missing без тоста', async () => {
+    mockBucket({ remove: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`, { missingOk: true })).toBe('missing');
+    expect(err).not.toHaveBeenCalled();
+  });
+
+  it('с missingOk удалённый файл — всё равно removed', async () => {
+    mockBucket();
+    expect(await removeArtwork(`orders/${ORDER}/logo/a.png`, { missingOk: true })).toBe('removed');
   });
 });

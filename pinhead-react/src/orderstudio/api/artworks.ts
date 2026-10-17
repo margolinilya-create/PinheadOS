@@ -9,6 +9,13 @@
  * читать — всякий, кому виден заказ, и только подписанной ссылкой на 10 минут,
  * выданной по требованию (ссылки не хранятся).
  *
+ * SVG может нести скрипт. Открытый по подписанной ссылке НАПРЯМУЮ (новая
+ * вкладка), он выполнится в origin Storage. Поэтому (правило вехи 3,
+ * `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`):
+ * превью — только `<img src={artworkSignedUrl}>` (скрипты в `<img>` не
+ * исполняются), а «открыть в новой вкладке» — только `artworkDownloadUrl`
+ * (ответ с `Content-Disposition: attachment`, браузер файл не рисует).
+ *
  * Ошибка → `toast.error` и `null`/`false` (правило проекта). Удаление не
  * оптимистичное: ответ Storage ждём и проверяем, что объект и правда удалён.
  */
@@ -27,6 +34,7 @@ export const SIGNED_URL_TTL_SEC = 600;
 export const ARTWORK_MIME_TYPES = [
   'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
   'application/pdf', 'application/postscript', 'application/illustrator',
+  'image/vnd.adobe.photoshop', 'image/tiff',
 ] as const;
 export type ArtworkMimeType = (typeof ARTWORK_MIME_TYPES)[number];
 
@@ -36,14 +44,18 @@ export type ArtworkKind = 'logo' | 'flat' | 'tz' | 'label' | 'sticker' | 'note';
  * Тип по расширению — раньше, чем тип браузера. supabase-js грузит File через
  * FormData, и Storage берёт тип из `File.type`, а опцию `contentType` для File
  * не смотрит. У .ai/.eps этот тип зависит от ОС (пусто, `application/postscript`,
- * `application/illustrator`), а пустой уходит как `application/octet-stream`,
+ * `application/illustrator`), у .psd/.tif — тоже (у .psd часто пусто), а пустой уходит как `application/octet-stream`,
  * которого бакет не принимает — и не должен.
  */
 const TYPE_BY_EXT: Record<string, ArtworkMimeType> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
   svg: 'image/svg+xml', pdf: 'application/pdf',
   ai: 'application/postscript', eps: 'application/postscript', ps: 'application/postscript',
+  psd: 'image/vnd.adobe.photoshop', tif: 'image/tiff', tiff: 'image/tiff',
 };
+
+/** Что назвать человеку, когда формат не принят (= ключи TYPE_BY_EXT, без дублей jpeg/tif) */
+export const ARTWORK_FORMATS_HINT = 'PNG, JPG, WEBP, SVG, PDF, AI, EPS, PS, PSD, TIFF';
 
 /** Тип, с которым файл уйдёт в бакет, либо `null` — формат бакетом не принимается */
 export function artworkContentType(file: Pick<File, 'name' | 'type'>): ArtworkMimeType | null {
@@ -81,7 +93,7 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   }
   if (file.size === 0) return fail('Файл не загружен', 'файл пустой');
   const type = artworkContentType(file);
-  if (!type) return fail('Файл не загружен', 'формат не поддерживается (PNG, JPG, WEBP, SVG, PDF, AI, EPS)');
+  if (!type) return fail('Файл не загружен', `формат не поддерживается (${ARTWORK_FORMATS_HINT})`);
   const path = artworkPath(orderId, kind, file.name);
   if (!isArtworkPath(orderId, path)) return fail('Файл не загружен', 'неверный заказ');
   const body = file.type === type ? file : new File([file], file.name, { type });
@@ -98,10 +110,12 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   }
 }
 
-/** Подписанная ссылка на 10 минут либо `null` */
-export async function artworkSignedUrl(path: string): Promise<string | null> {
+async function signOne(path: string, download: boolean): Promise<string | null> {
   try {
-    const { data, error } = await supabase.storage.from(ARTWORK_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SEC);
+    const bucket = supabase.storage.from(ARTWORK_BUCKET);
+    const { data, error } = download
+      ? await bucket.createSignedUrl(path, SIGNED_URL_TTL_SEC, { download: true })
+      : await bucket.createSignedUrl(path, SIGNED_URL_TTL_SEC);
     if (error || !data?.signedUrl) {
       console.error('artworkSignedUrl', error);
       return fail('Файл не открыт', translateSupabaseError(error?.message));
@@ -111,6 +125,21 @@ export async function artworkSignedUrl(path: string): Promise<string | null> {
     console.error('artworkSignedUrl', e);
     return fail('Файл не открыт', networkFailureMessage(e));
   }
+}
+
+/** Подписанная ссылка на 10 минут для ПОКАЗА (`<img src>`) либо `null`. В новую вкладку её не открывать — см. `artworkDownloadUrl` */
+export function artworkSignedUrl(path: string): Promise<string | null> {
+  return signOne(path, false);
+}
+
+/**
+ * Подписанная ссылка на 10 минут для «открыть в новой вкладке» / «скачать»
+ * либо `null`. supabase-js дописывает к ней `&download=`, и Storage отдаёт
+ * файл с `Content-Disposition: attachment`: браузер его сохраняет, а не
+ * рисует, — скрипт в SVG не исполняется в origin Storage.
+ */
+export function artworkDownloadUrl(path: string): Promise<string | null> {
+  return signOne(path, true);
 }
 
 /** Пакетно: карта «ключ → ссылка». Файлы без ссылки пропущены (и названы тостом); ошибка запроса — `null` */
@@ -136,27 +165,40 @@ export async function artworkSignedUrls(paths: string[]): Promise<Record<string,
   }
 }
 
+/** `removed` — объект удалён; `missing` — Storage ничего не удалил, а вызывающий согласен на «уже нет» */
+export type RemoveArtworkResult = 'removed' | 'missing';
+
 /**
- * Удаление: ждём ответ. Storage на объект, который RLS не дал удалить
- * (заказ уже отправлен, чужой заказ), отвечает БЕЗ ошибки пустым списком —
- * это тоже отказ, а не «удалено».
+ * Удаление: ждём ответ (не оптимистично). Ошибка → тост и `null`.
+ *
+ * Пустой список без ошибки Storage отдаёт в двух случаях, и различить их
+ * по ответу нельзя: файла уже нет ИЛИ RLS не дал удалить (заказ отправлен,
+ * чужой заказ). Поэтому решает вызывающий:
+ *   · по умолчанию пустой ответ — отказ: тост «нет прав или файла уже нет»
+ *     и `null`;
+ *   · `{ missingOk: true }` — вызывающий всё равно убирает путь из заказа
+ *     (позицию удалили, файл заменили): пустой ответ — `'missing'` без тоста.
+ *     Если на деле это был отказ RLS, отказ получит и сохранение заказа —
+ *     у них одно условие (черновик, автор или руководство), — так что файл
+ *     не «пропадёт» из видимого заказа молча.
  */
-export async function removeArtwork(path: string): Promise<boolean> {
+export async function removeArtwork(
+  path: string,
+  opts: { missingOk?: boolean } = {},
+): Promise<RemoveArtworkResult | null> {
   try {
     const { data, error } = await supabase.storage.from(ARTWORK_BUCKET).remove([path]);
     if (error) {
       console.error('removeArtwork', error);
-      fail('Файл не удалён', translateSupabaseError(error.message));
-      return false;
+      return fail('Файл не удалён', translateSupabaseError(error.message));
     }
     if (!data || data.length === 0) {
-      fail('Файл не удалён', 'нет прав или файла уже нет');
-      return false;
+      if (opts.missingOk) return 'missing';
+      return fail('Файл не удалён', 'нет прав или файла уже нет');
     }
-    return true;
+    return 'removed';
   } catch (e) {
     console.error('removeArtwork', e);
-    fail('Файл не удалён', networkFailureMessage(e));
-    return false;
+    return fail('Файл не удалён', networkFailureMessage(e));
   }
 }

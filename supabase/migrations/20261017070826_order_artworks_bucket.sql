@@ -40,7 +40,16 @@
 --   application/pdf — ТЗ, тех. рисунки, «сохранить как PDF» из Illustrator;
 --   application/postscript — .ai и .eps (так их называют mime-db, Chrome и
 --     Firefox на Windows/macOS);
---   application/illustrator — .ai в Linux (shared-mime-info).
+--   application/illustrator — .ai в Linux (shared-mime-info);
+--   image/vnd.adobe.photoshop — .psd, image/tiff — .tif/.tiff: исходники
+--     из Photoshop и растр под печать (решение владельца 17.10). Тип браузера
+--     у них тоже зависит от ОС (у .psd часто пустой) — клиент берёт его
+--     по расширению, как у .ai.
+-- SVG принят, но он может нести скрипт: открытый по подписанной ссылке
+-- напрямую, он выполнился бы в origin Storage. Поэтому показ — только
+-- `<img>`, а «открыть в новой вкладке» — только ссылкой на скачивание
+-- (`artworkDownloadUrl`, `download=`); правило — docs/rules
+-- `pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`.
 -- application/octet-stream НЕ разрешён. supabase-js 2.98 грузит File через
 -- FormData, и Storage берёт тип из части формы — то есть из `File.type`,
 -- а опцию `contentType` для File игнорирует. У файла, которого браузер не
@@ -52,7 +61,8 @@
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('order-artworks', 'order-artworks', false, 26214400, array[
   'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
-  'application/pdf', 'application/postscript', 'application/illustrator'
+  'application/pdf', 'application/postscript', 'application/illustrator',
+  'image/vnd.adobe.photoshop', 'image/tiff'
 ])
 on conflict (id) do update
   set public = false,

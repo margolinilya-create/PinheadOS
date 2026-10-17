@@ -32,33 +32,116 @@ const SQL = noComments(read(bucketFile));
 
 interface Policy { name: string; cmd: string; role: string; using: string | null; check: string | null; text: string }
 
-/** Политики `storage.objects`: имя, команда, роль, тела USING и WITH CHECK */
-function policiesOf(sql: string): Policy[] {
-  const out: Policy[] = [];
-  const re = /create policy\s+"?([a-z0-9_]+)"?\s+on\s+storage\.objects\s+for\s+(\w+)\s+to\s+(\w+)([^;]*);/gi;
-  for (const m of sql.matchAll(re)) {
-    const rest = m[4];
-    out.push({
-      name: m[1], cmd: m[2].toLowerCase(), role: m[3], text: m[0],
-      using: clause(rest, 'using'), check: clause(rest, 'with check'),
-    });
+/**
+ * ВСЕ `create policy … on storage.objects` — свободной регуляркой: без
+ * требований к `for`/`to`/`as`, в любом регистре и с переносами строк.
+ * Строгий разборщик ниже обязан распознать каждое найденное здесь — иначе
+ * политика, написанная непривычно, прошла бы мимо проверки бакета.
+ */
+const FREE_RE = /create\s+policy\s+("?[\w-]+"?)\s+on\s+storage\.objects\b[^;]*;/gi;
+const STRICT_RE = new RegExp(
+  '^create\\s+policy\\s+"?([\\w-]+)"?\\s+on\\s+storage\\.objects'
+  + '(?:\\s+as\\s+(?:permissive|restrictive))?'
+  + '(?:\\s+for\\s+(all|select|insert|update|delete))?'
+  + '(?:\\s+to\\s+("?[\\w-]+"?(?:\\s*,\\s*"?[\\w-]+"?)*))?'
+  + '(?=\\s|;)([\\s\\S]*);$',
+  'i',
+);
+
+/** Индекс закрывающей скобки для `(` на позиции `open`; строки в кавычках пропускаются */
+function closeParen(s: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'") {
+      i = s.indexOf("'", i + 1);
+      if (i < 0) break;
+    } else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return i;
   }
-  return out;
+  throw new Error(`скобка не закрыта: ${s.slice(open, open + 60)}`);
 }
 
-/** Тело `using (…)` / `with check (…)` по балансу скобок */
-function clause(rest: string, kw: string): string | null {
-  const re = new RegExp(`(?:^|\\s|\\))${kw.replace(' ', '\\s+')}\\s*\\(`, 'i');
-  const m = re.exec(rest);
-  if (!m) return null;
-  const start = m.index + m[0].length;
-  let depth = 1;
-  for (let i = start; i < rest.length; i++) {
-    if (rest[i] === '(') depth++;
-    else if (rest[i] === ')' && --depth === 0) return rest.slice(start, i).trim();
+/** Хвост после `to …`: `[using (…)] [with check (…)]` и ничего больше (`'` — конец строки EXECUTE); иначе null */
+function clauses(rest: string): { using: string | null; check: string | null } | null {
+  const out = { using: null as string | null, check: null as string | null };
+  let r = rest;
+  for (const [key, kw] of [['using', /^\s*using\s*\(/i], ['check', /^\s*with\s+check\s*\(/i]] as const) {
+    const m = kw.exec(r);
+    if (!m) continue;
+    const open = m[0].length - 1;
+    const close = closeParen(r, open);
+    out[key] = r.slice(open + 1, close).trim();
+    r = r.slice(close + 1);
   }
-  throw new Error(`скобка ${kw} не закрыта`);
+  return /^\s*'?\s*$/.test(r) ? out : null;
 }
+
+/** Строгий разбор одной найденной политики: имя, команда (по умолчанию all), роль (по умолчанию public), тела; не понял — null */
+function parsePolicy(text: string): Policy | null {
+  const m = STRICT_RE.exec(text);
+  const body = m ? clauses(m[4]) : null;
+  if (!m || !body) return null;
+  return { name: m[1], cmd: (m[2] ?? 'all').toLowerCase(), role: (m[3] ?? 'public').replace(/"/g, ''), text, ...body };
+}
+
+/** Найденные свободной регуляркой тексты и распознанные из них политики */
+function scan(sql: string): { found: string[]; policies: Policy[] } {
+  const found = [...sql.matchAll(FREE_RE)].map((m) => m[0]);
+  return { found, policies: found.map(parsePolicy).filter((p): p is Policy => p !== null) };
+}
+
+/** Политики `storage.objects`: имя, команда, роль, тела USING и WITH CHECK */
+const policiesOf = (sql: string): Policy[] => scan(sql).policies;
+
+/** Части выражения на верхнем уровне скобок, разделённые словом `word` (and / or) */
+function splitTop(e: string, word: 'and' | 'or'): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < e.length; i++) {
+    const c = e[i];
+    if (c === "'") { i = e.indexOf("'", i + 1); if (i < 0) break; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (depth === 0 && e.slice(i, i + word.length).toLowerCase() === word
+      && !/\w/.test(e[i - 1] ?? ' ') && !/\w/.test(e[i + word.length] ?? ' ')) {
+      parts.push(e.slice(from, i));
+      from = i + word.length;
+    }
+  }
+  parts.push(e.slice(from));
+  return parts.map((x) => x.trim());
+}
+
+/** Снять скобки, охватывающие выражение целиком */
+function unwrap(e: string): string {
+  let x = e.trim();
+  while (x.startsWith('(') && closeParen(x, 0) === x.length - 1) x = x.slice(1, -1).trim();
+  return x;
+}
+
+/**
+ * Литерал бакета, которым ОГРАНИЧЕНО тело политики, либо null. Ограничено —
+ * значит, `bucket_id = '<литерал>'` — первый конъюнкт верхнего уровня и
+ * на верхнем уровне нет `or` (`bucket_id = 'x' and a or b` = `(… and a) or b`
+ * — дыра). Кавычки удвоены (`''x''`) внутри строки EXECUTE.
+ */
+function bucketOf(body: string): string | null {
+  const e = unwrap(body);
+  if (splitTop(e, 'or').length > 1) return null;
+  const first = splitTop(e, 'and')[0];
+  const m = /^bucket_id\s*=\s*('{1,2})([\w-]+)\1$/i.exec(unwrap(first));
+  if (m) return m[2];
+  return unwrap(first) !== first.trim() ? bucketOf(first) : null;
+}
+
+/**
+ * Старые политики без фильтра по бакету — `"<файл>:<политика>": "причина"`.
+ * Пусто: на 17.10 все 18 политик миграций начинаются с `bucket_id = '…'`.
+ * Новое исключение — только с причиной и решением владельца.
+ */
+const BUCKET_EXCEPTIONS: Record<string, string> = {};
 
 const POLICIES = policiesOf(SQL);
 const byName = (n: string) => {
@@ -111,6 +194,73 @@ describe('хелпер order_artwork_order_id', () => {
   it('revoke from public, anon; grant authenticated', () => {
     expect(SQL).toMatch(/revoke execute on function public\.order_artwork_order_id\(text\) from public, anon;/);
     expect(SQL).toMatch(/grant execute on function public\.order_artwork_order_id\(text\) to authenticated;/);
+  });
+});
+
+describe('политики storage.objects во ВСЕХ миграциях — с фильтром по бакету', () => {
+  const ALL = files.map((f) => {
+    const sql = noComments(read(f));
+    const { found, policies } = scan(sql);
+    return { f, found, policies };
+  });
+
+  it('разборщик: политика без for/to/as распознаётся (cmd all, роль public)', () => {
+    const [p] = policiesOf(`CREATE POLICY y ON storage.objects\n  USING (bucket_id = 'z');`);
+    expect(p).toMatchObject({ name: 'y', cmd: 'all', role: 'public', using: "bucket_id = 'z'", check: null });
+    const [q] = policiesOf(`create policy "q-1" on storage.objects as restrictive for insert to anon, "authenticated" with check (true);`);
+    expect(q).toMatchObject({ name: 'q-1', cmd: 'insert', role: 'anon, authenticated', using: null, check: 'true' });
+    const junk = scan('create policy z on storage.objects for select using (true) garbage;');
+    expect(junk.found).toHaveLength(1);
+    expect(junk.policies).toEqual([]);
+  });
+
+  it('bucketOf: литерал только для тела, ограниченного бакетом', () => {
+    expect(bucketOf("bucket_id = 'a' and x")).toBe('a');
+    expect(bucketOf("( (bucket_id='a') and x )")).toBe('a');
+    expect(bucketOf("(bucket_id = 'a' and x) and y")).toBe('a');
+    expect(bucketOf("bucket_id = ''sku-photos''")).toBe('sku-photos');
+    expect(bucketOf("bucket_id = 'a' and (x or y)")).toBe('a');
+    expect(bucketOf('true')).toBeNull();
+    expect(bucketOf("x and bucket_id = 'a'")).toBeNull();
+    expect(bucketOf("bucket_id = 'a' or true")).toBeNull();
+    expect(bucketOf("bucket_id = 'a' and x or y")).toBeNull();
+    expect(bucketOf("((bucket_id = 'a') and x) or y")).toBeNull();
+    expect(bucketOf("(bucket_id = 'a' or x) and y")).toBeNull();
+    expect(bucketOf("bucket_id = 'a' || 'b'")).toBeNull();
+    expect(bucketOf("bucket_id <> 'a'")).toBeNull();
+  });
+
+  it('строгий разборщик распознал ровно столько политик, сколько нашла свободная регулярка', () => {
+    const lost = ALL.flatMap(({ f, found }) => found.filter((t) => !parsePolicy(t)).map((t) => `${f}: ${t}`));
+    expect(lost, 'политика есть, а разборщик её не понял — её тела никто не проверил').toEqual([]);
+    for (const { f, found, policies } of ALL) expect(policies.length, f).toBe(found.length);
+    // политик storage.objects в миграциях на 17.10 — 18 (14 старых + 4 order-artworks): регулярка не «ослепла»
+    expect(ALL.reduce((n, x) => n + x.found.length, 0)).toBeGreaterThanOrEqual(18);
+  });
+
+  it('каждое тело USING и WITH CHECK начинается с bucket_id = \'<литерал>\' (кроме перечисленных исключений)', () => {
+    const bad: string[] = [];
+    for (const { f, policies } of ALL) {
+      for (const p of policies) {
+        if (BUCKET_EXCEPTIONS[`${f}:${p.name}`]) continue;
+        const bodies = [p.using, p.check].filter((b): b is string => b !== null);
+        const buckets = bodies.map(bucketOf);
+        if (bodies.length === 0 || buckets.some((b) => b === null) || new Set(buckets).size > 1) bad.push(`${f}: ${p.name}`);
+      }
+    }
+    expect(bad, 'политика storage.objects без фильтра по бакету видит и пишет ЧУЖИЕ бакеты, в том числе order-artworks').toEqual([]);
+  });
+
+  it('исключения не устарели', () => {
+    const all = new Set(ALL.flatMap(({ f, policies }) => policies.map((p) => `${f}:${p.name}`)));
+    for (const [k, why] of Object.entries(BUCKET_EXCEPTIONS)) {
+      expect(all.has(k), k).toBe(true);
+      expect(why.length, k).toBeGreaterThan(10);
+    }
+  });
+
+  it('политики storage.objects не правятся через alter policy (её тело мимо проверки выше)', () => {
+    for (const f of files) expect(noComments(read(f)), f).not.toMatch(/alter\s+policy\s+\S+\s+on\s+storage\.objects/i);
   });
 });
 
