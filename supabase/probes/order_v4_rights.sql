@@ -1,9 +1,11 @@
 -- Пробы прав Order v4: миграции A (20261017053703_order_v4_tz_fields)
 -- и B (20261017062110_order_v4_rights), обе применены на бою 17.10, и миграция E
 -- (20261017093841_sales_staff_flag, признак «Менеджер продаж» — до применения
--- на бою запускать сухим прогоном вместе с ней в одной транзакции).
+-- на бою запускать сухим прогоном вместе с ней в одной транзакции), и миграция D
+-- (20261017101513_order_v4_client_rev: ревизия клиента и конкурентная правка
+-- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=107 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=119 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -30,7 +32,8 @@
 -- Заказы: a1 (SELLER, draft, к отправке), a2 (SELLER2, draft), a3 (SELLER, ready_to_launch),
 -- a4 (SELLER, v3), a5 (SELLER, draft, на удаление), a6 (SELLER, ready_to_launch, захват
 -- связи ERP до запуска), a7 (SELLER, ready_to_launch, возврат МС), a8 (отменённый
--- заказ ERP держит связь), a9 (черновик, уже связанный с ERP).
+-- заказ ERP держит связь), a9 (черновик, уже связанный с ERP), a10 (SELLER, draft,
+-- позиция b10 с поставщиком — сохранение без ревизии клиента и из «другой вкладки»).
 -- Если профили выше на бою изменятся (роль, active) — пробы покажут FAIL, правьте шапку и данные.
 --
 -- Вставка заказа v4 клиентом (успешная или отклонённая RLS) проходит страж B,
@@ -93,7 +96,8 @@ values
   ('00000000-0000-4000-8000-0000000000a6', 'PROBE-6', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 6', current_date + 10),
   ('00000000-0000-4000-8000-0000000000a7', 'PROBE-7', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 7', current_date + 10),
   ('00000000-0000-4000-8000-0000000000a8', 'PROBE-8', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 8', current_date + 10),
-  ('00000000-0000-4000-8000-0000000000a9', 'PROBE-9', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 9', null);
+  ('00000000-0000-4000-8000-0000000000a9', 'PROBE-9', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 9', null),
+  ('00000000-0000-4000-8000-000000000a10', 'PROBE-10', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 10', null);
 update public.orders set paid_at = now(), paid_kind = 'full'
  where id in ('00000000-0000-4000-8000-0000000000a6', '00000000-0000-4000-8000-0000000000a8');
 -- a3 (отправлен) — потомок черновика a5: удаление a5 обнуляет parent_id отправленного заказа
@@ -107,6 +111,8 @@ insert into public.order_items (id, order_id) values
   ('00000000-0000-4000-8000-0000000000b6', '00000000-0000-4000-8000-0000000000a6'),
   ('00000000-0000-4000-8000-0000000000b7', '00000000-0000-4000-8000-0000000000a7'),
   ('00000000-0000-4000-8000-0000000000b8', '00000000-0000-4000-8000-0000000000a8');
+insert into public.order_items (id, order_id, supplier) values
+  ('00000000-0000-4000-8000-000000000b10', '00000000-0000-4000-8000-000000000a10', 'Поставщик-проба');
 insert into public.order_item_prints (id, item_id, method) values
   ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000b1', 'dtf');
 insert into public.order_item_labels (id, item_id) values
@@ -126,7 +132,7 @@ values ('PROBE отменён', '00000000-0000-4000-8000-0000000000a8', 'PROBE-8
 select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
 set local role authenticated;
 
-select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE-7,PROBE-8,PROBE-9',
+select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-10,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE-7,PROBE-8,PROBE-9',
   $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
 -- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
@@ -187,6 +193,25 @@ select pg_temp.p('s_pay', 'OK {"id": "00000000-0000-4000-8000-0000000000a1", "pa
 select pg_temp.p('s_pay_override', '42501', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', null, 'без оплаты')$q$);
 select pg_temp.p('s_pay_bad_kind', '22023', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', 'partial')$q$);
 select pg_temp.p('s_launch_check', '42501', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')$q$);
+-- Миграция D: ревизия клиента — в ОБЕИХ функциях; позиция без поля supplier
+-- в аргументе (клиент до вехи 3) стёрла бы поставщика — отказ до записи
+select pg_temp.p('s_save_no_rev', 'P0001 Вышло обновление', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_no_rev_kept', 'OK Поставщик-проба', $q$select supplier from public.order_items where id = '00000000-0000-4000-8000-000000000b10'$q$);
+select pg_temp.p('s_save_rev_2', 'P0001 Вышло обновление', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 2, "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_inner_no_rev', 'P0001 Вышло обновление', $q$select public.order_v4_save('{"id": "00000000-0000-4000-8000-000000000a10", "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_inner_kept', 'OK Поставщик-проба', $q$select supplier from public.order_items where id = '00000000-0000-4000-8000-000000000b10'$q$);
+-- конкурентная правка: версия не та — отказ; та — запись
+select pg_temp.p('s_save_stale', 'P0001 Заказ изменён в другой вкладке', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "title": "из старой вкладки", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_stale_kept', 'OK true', $q$select (title is distinct from 'из старой вкладки')::text from public.orders where id = '00000000-0000-4000-8000-000000000a10'$q$);
+select pg_temp.p('s_save_ok', 'OK {"id": "00000000-0000-4000-8000-000000000a10"', $q$select public.order_v4_save_full(jsonb_build_object(
+    'id', '00000000-0000-4000-8000-000000000a10', 'client_rev', 3, 'title', 'проба D',
+    'expected_updated_at', (select updated_at from public.orders where id = '00000000-0000-4000-8000-000000000a10'),
+    'items', jsonb_build_array(jsonb_build_object('key', '00000000-0000-4000-8000-000000000b10', 'supplier', 'Поставщик-проба'))))::text$q$);
+select pg_temp.p('s_save_ok_effect', 'OK проба D/Поставщик-проба', $q$select o.title || '/' || i.supplier from public.orders o join public.order_items i on i.order_id = o.id where o.id = '00000000-0000-4000-8000-000000000a10'$q$);
+-- без версии (прямой вызов, клиент без ключа) — сверки нет, запись проходит
+select pg_temp.p('s_save_no_expected', 'OK {"id": "00000000-0000-4000-8000-000000000a10"', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "title": "проба D", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)::text$q$);
+-- отправленный заказ: правку закрывает страж, текст «правка закрыта» (клиент: locked)
+select pg_temp.p('s_save_sent', '42501 Заказ отправлен в работу — правка закрыта', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-0000000000a6", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-0000000000b6"}]}'::jsonb)$q$);
 -- v3 как раньше
 select pg_temp.p('s_v3_update', 'OK rows=1', $q$update public.orders set data = '{"x":2}' where id = '00000000-0000-4000-8000-0000000000a4'$q$);
 select pg_temp.p('s_v3_insert', 'OK rows=1', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-V3', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}')$q$);
@@ -198,6 +223,9 @@ select pg_temp.as_user('e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 set local role authenticated;
 select pg_temp.p('s2_sees', 'OK PROBE-2', $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s2_foreign_update', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
+-- чужой заказ с неверной версией: отказ «не найден», а не «изменён» — сверка
+-- версии не выдаёт существование невидимого заказа
+select pg_temp.p('s2_save_foreign_stale', '42501 Заказ не найден или недоступен', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z"}'::jsonb)$q$);
 reset role;
 
 -- ── HEAD: начальник цеха с профилем manager, без признака ────────────────

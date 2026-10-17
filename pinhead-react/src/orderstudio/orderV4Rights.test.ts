@@ -362,6 +362,48 @@ describe('миграция E: признак «Менеджер продаж»',
   });
 });
 
+const CLIENT_REV_CHECK = /^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < 3 then\s+raise exception using errcode = 'P0001',\s+message = 'Вышло обновление — обновите страницу, правка не сохранена';/;
+
+/** Тело функции с кодом от первого `begin` — без объявлений и комментариев */
+const codeAfterBegin = (body: string) => noComments(body.slice(body.search(/\bbegin\b/) + 'begin'.length));
+
+describe('миграция D: ревизия клиента и конкурентная правка', () => {
+  const fnOf = (n: string) => functionsOf(latestDefining(n)).find((f) => f.name === n);
+
+  it('обе функции сохранения ПЕРВЫМ делом отказывают клиенту без ревизии 3', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const f = fnOf(n);
+      expect(f, n).toBeTruthy();
+      expect(codeAfterBegin(f?.body ?? ''), n).toMatch(CLIENT_REV_CHECK);
+    }
+  });
+
+  it('обёртка сверяет expected_updated_at со строкой, взятой FOR UPDATE, до записи', () => {
+    const body = noComments(fnOf('order_v4_save_full')?.body ?? '');
+    expect(body).toMatch(/nullif\(p_order->>'expected_updated_at', ''\)::timestamptz/);
+    expect(body).toMatch(/select updated_at into v_current\s+from public\.orders\s+where id = v_id and schema_version = 4\s+for update;/);
+    expect(body).toMatch(/if found and v_current is distinct from v_expected then\s+raise exception using errcode = 'P0001',\s+message = 'Заказ изменён в другой вкладке — обновите страницу';/);
+    expect(body.indexOf('for update')).toBeLessThan(body.indexOf('public.order_v4_save(p_order)'));
+  });
+
+  it('обе остаются invoker и закрыты от anon', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const sql = latestDefining(n);
+      expect(fnOf(n)?.head, n).toMatch(/security invoker/);
+      expect(fnOf(n)?.head, n).not.toMatch(/security definer/);
+      expect(missingRevoke(sql), n).toEqual([]);
+      expect(sql, n).toMatch(new RegExp(`grant execute on function public\\.${n}\\(jsonb\\) to authenticated;`));
+    }
+  });
+
+  it('самопроверка: проверка не первой строкой или с порогом 2 — красный', () => {
+    const ok = "begin\n  if coalesce((p_order->>'client_rev')::int, 0) < 3 then\n    raise exception using errcode = 'P0001',\n      message = 'Вышло обновление — обновите страницу, правка не сохранена';";
+    expect(codeAfterBegin(ok)).toMatch(CLIENT_REV_CHECK);
+    expect(codeAfterBegin(ok.replace('< 3', '< 2'))).not.toMatch(CLIENT_REV_CHECK);
+    expect(codeAfterBegin(ok.replace('begin\n', 'begin\n  perform 1;\n'))).not.toMatch(CLIENT_REV_CHECK);
+  });
+});
+
 describe('самопроверка разборщиков', () => {
   it('rowColumnsOf видит вторую колонку стража', () => {
     expect(rowColumnsOf('if new.is_sales is distinct from old.is_sales or new.role <> old.role then')).toEqual(['is_sales', 'role']);
