@@ -1,9 +1,10 @@
 /**
  * Живая цена заказа v4: `priceOrder` по прайсу и каталогам стора визарда.
  *
- * Правила цены (ставка подготовки, порог маржи) — необязательные ключи
- * `prices.prepFees` / `prices.minMarginPct` в `app_config`; нет ключа —
- * `DEFAULT_PRICE_RULES`. Отдельная таблица правил — следующие срезы.
+ * Правила цены (ставка подготовки, порог маржи в процентах) — ключи
+ * `prices.prepFees` / `prices.minMarginPct` в `app_config`, их правит вкладка
+ * «Правила цены» экрана «Справочники заказа» (веха 4); нет ключа —
+ * `DEFAULT_PRICE_RULES`.
  */
 import { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -14,10 +15,25 @@ import { priceOrder, DEFAULT_PRICE_RULES } from '../pricing/priceOrder';
 import type { OrderPrice, PriceCatalogs, PriceRules } from '../pricing/priceOrder';
 import { useSalesStore } from '../store/useSalesStore';
 import type { SalesOrder } from '../model/types';
+import { SALES_PRINT_METHODS } from '../model/types';
 
+/**
+ * Правила цены из прайса. Порог маржи в прайсе — ПРОЦЕНТ (так его вводит
+ * «Справочники заказа» и проверяет `prices_patch`: 0–100 или пусто), расчёт
+ * сравнивает долю — делим на 100. Подготовка — только методы нанесения v4
+ * и числа не меньше 0; всё прочее — как будто ключа нет.
+ */
 export function rulesFromPrices(P: PricesExt): PriceRules {
-  const prep = P.prepFees && typeof P.prepFees === 'object' ? P.prepFees : {};
-  const min = typeof P.minMarginPct === 'number' ? P.minMarginPct : null;
+  const raw = P.prepFees && typeof P.prepFees === 'object' && !Array.isArray(P.prepFees)
+    ? P.prepFees as Record<string, unknown>
+    : {};
+  const prep: PriceRules['prepFees'] = {};
+  for (const m of SALES_PRINT_METHODS) {
+    const v = raw[m];
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) prep[m] = v;
+  }
+  const pct = P.minMarginPct;
+  const min = typeof pct === 'number' && Number.isFinite(pct) && pct >= 0 && pct <= 100 ? pct / 100 : null;
   return { ...DEFAULT_PRICE_RULES, prepFees: prep, minMarginPct: min };
 }
 

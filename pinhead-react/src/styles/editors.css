@@ -126,6 +126,10 @@
   opacity: .5;
 }
 .sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0 8px; border-bottom: 1px solid var(--border-light); font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); flex-wrap: wrap; position: sticky; top: calc(var(--header-h) + 52px + 40px); z-index: 15; background: var(--card); }
+/* Отказ записи по справочникам (веха 4): правки на экране, свежая версия — кнопкой */
+.sku-ed-save-failed { margin: var(--space-sm) 0; padding: var(--space-sm) var(--space-md); background: var(--bg-error); color: var(--color-error-ink); border-radius: var(--radius-sm); font-size: var(--type-body-sm); }
+.sku-ed-save-failed p { margin: 0 0 var(--space-xs); }
+@media (pointer: coarse) { .sku-ed-save-failed .pe-btn { min-height: 44px; } }
 .sku-ed-rate-cb      { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-cb b    { color: var(--text); font-size: 13px; font-weight: 700; }
 .sku-ed-rate-date    { font-size: 11px; color: var(--text-dim); letter-spacing: 0; text-transform: none; }

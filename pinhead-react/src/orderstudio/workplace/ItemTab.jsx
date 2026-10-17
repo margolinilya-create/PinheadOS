@@ -9,7 +9,7 @@ import PrintRow from '../screens/PrintRow';
 import LabelRow from '../screens/LabelRow';
 import BufferedInput from '../screens/BufferedInput';
 import { formatMoney, parseMoney } from '../screens/fieldParse';
-import { ISSUE_LABELS, PACKAGING_OPTIONS, rub } from '../screens/labels';
+import { ISSUE_LABELS, usePackagingOptions, rub } from '../screens/labels';
 import { bindBuffer, canLoadIntoBuffer, loadItemIntoBuffer } from './itemBuffer';
 import GarmentPanel from './GarmentPanel';
 import sales from '../screens/Sales.module.css';
@@ -57,6 +57,7 @@ function useItemBuffer(key, bufferable, readOnly) {
  */
 export default function ItemTab({ item, price, readOnly, onChange, onSplit }) {
   const bufferable = canLoadIntoBuffer(item);
+  const packOptions = usePackagingOptions();
   useItemBuffer(item.key, bufferable, readOnly);
 
   const { skuCatalog, zonesCatalog, extrasCatalog } = useStore(useShallow((s) => ({
@@ -168,7 +169,7 @@ export default function ItemTab({ item, price, readOnly, onChange, onSplit }) {
             <label className={sales.field}>Упаковка
               <select className={sales.select} value={item.packaging} onChange={(e) => onChange({ packaging: e.target.value })}>
                 <option value="inherit">Как в заказе</option>
-                {PACKAGING_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                {packOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
             </label>
             <label className={sales.field}>Ширина, мм

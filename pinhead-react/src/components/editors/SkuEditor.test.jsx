@@ -1,8 +1,29 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SkuEditor from './SkuEditor';
 import { useStore } from '../../store/useStore';
+import { useToastStore } from '../../store/useToastStore';
+import { supabase } from '../../lib/supabase';
+import { fetchCatalogKey } from '../../lib/catalogs';
+import { putCatalog, patchPrices } from '../../orderstudio/api/catalogAdmin';
+
+vi.mock('../../lib/catalogs', () => ({
+  fetchCatalogKey: vi.fn(),
+  clearCatalogsCache: vi.fn(),
+  loadAllCatalogs: vi.fn().mockResolvedValue({}),
+}));
+vi.mock('../../orderstudio/api/catalogAdmin', () => ({
+  PRICE_RULE_KEYS: ['packOptions', 'prepFees', 'minMarginPct'],
+  putCatalog: vi.fn(),
+  patchPrices: vi.fn(),
+}));
+
+const putMock = vi.mocked(putCatalog);
+const patchMock = vi.mocked(patchPrices);
+const fetchMock = vi.mocked(fetchCatalogKey);
+/** Настоящий `setField` стора: общий `beforeEach` подменяет его заглушкой */
+const realSetField = useStore.getState().setField;
 
 function renderSkuEditor() {
   return render(
@@ -92,5 +113,107 @@ describe('SkuEditor', () => {
   it('shows SKU count', () => {
     renderSkuEditor();
     expect(screen.getByText(/Всего: 1 SKU/)).toBeInTheDocument();
+  });
+});
+
+const SKU = [
+  { code: 'tee-001', name: 'T-Shirt Basic', category: 'tshirts', fit: 'regular', sewingPrice: 200, mainFabricUsage: 1.0, trimCode: 'ribana-1x1', trimUsage: 0.15, zones: ['front', 'back'] },
+];
+const TRIMS = [{ code: 'ribana-1x1', name: 'Рибана 1x1', priceRub: 100, unit: 'm' }];
+
+const tabDirty = (name) => Boolean(screen.getByRole('button', { name }).querySelector('.pe-tab-dot'));
+const toasts = () => useToastStore.getState().toasts.map((t) => t.message);
+const save = () => fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+describe('SkuEditor — запись без затирания (веха 4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useToastStore.setState({ toasts: [] });
+    useStore.setState({ skuCatalog: SKU, trimCatalog: TRIMS, usdRate: 90, setField: realSetField });
+    putMock.mockResolvedValue({ ok: true });
+    patchMock.mockResolvedValue({ ok: true });
+  });
+
+  it('пишет только изменённый справочник через catalog_put с базой от открытия', async () => {
+    renderSkuEditor();
+    fireEvent.change(screen.getByDisplayValue('T-Shirt Basic'), { target: { value: 'Футболка' } });
+    save();
+    await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+    expect(putMock).toHaveBeenCalledWith('app_config', 'sku_catalog', [{ ...SKU[0], name: 'Футболка' }], SKU);
+    expect(patchMock).not.toHaveBeenCalled();
+    expect(supabase.from).not.toHaveBeenCalled();
+    await waitFor(() => expect(toasts()).toContain('Каталог сохранён'));
+    expect(tabDirty('Изделия')).toBe(false);
+  });
+
+  it('без правок ничего не пишет — ни прайс целиком, ни умолчания кода', async () => {
+    renderSkuEditor();
+    save();
+    await waitFor(() => expect(toasts().length).toBeGreaterThan(0));
+    expect(putMock).not.toHaveBeenCalled();
+    expect(patchMock).not.toHaveBeenCalled();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('курс — одним ключом прайса (prices_patch), не прайсом целиком', async () => {
+    renderSkuEditor();
+    fireEvent.change(screen.getByDisplayValue('90'), { target: { value: '95' } });
+    save();
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
+    expect(patchMock).toHaveBeenCalledWith({ usdRate: 95 }, { usdRate: 90 });
+    expect(putMock).not.toHaveBeenCalled();
+  });
+
+  it('частичный отказ: флаги отказавшего справочника не сброшены, «Сохранено локально» не пишется', async () => {
+    putMock.mockImplementation(async (_t, key) => (key === 'sku_catalog'
+      ? { ok: false, kind: 'conflict', message: 'Справочник изменён — загрузите свежую версию' }
+      : { ok: true }));
+    renderSkuEditor();
+    fireEvent.change(screen.getByDisplayValue('T-Shirt Basic'), { target: { value: 'Футболка' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отделочная ткань' }));
+    fireEvent.change(screen.getByDisplayValue('100'), { target: { value: '120' } });
+    expect(tabDirty('Изделия')).toBe(true);
+    expect(tabDirty('Отделочная ткань')).toBe(true);
+    save();
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText(/Изделия/)).toBeInTheDocument();
+    expect(within(alert).queryByText(/Отделочная ткань/)).not.toBeInTheDocument();
+    expect(tabDirty('Изделия')).toBe(true);
+    expect(tabDirty('Отделочная ткань')).toBe(false);
+    expect(toasts().join(' ')).not.toMatch(/локально/);
+    expect(toasts()).not.toContain('Каталог сохранён');
+    // Правки на экране остались
+    expect(useStore.getState().skuCatalog[0].name).toBe('Футболка');
+  });
+
+  it('после конфликта: повтор сохранения идёт с прежней базой; «Загрузить свежую версию» берёт базу из базы данных', async () => {
+    putMock.mockResolvedValueOnce({ ok: false, kind: 'conflict', message: 'x' });
+    const FRESH = [{ ...SKU[0], name: 'Изменили в ERP' }];
+    fetchMock.mockResolvedValue({ exists: true, value: FRESH });
+    renderSkuEditor();
+    fireEvent.change(screen.getByDisplayValue('T-Shirt Basic'), { target: { value: 'Футболка' } });
+    save();
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить свежую версию' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith('app_config', 'sku_catalog');
+    expect(useStore.getState().skuCatalog).toEqual(FRESH);
+    expect(tabDirty('Изделия')).toBe(false);
+    // Новая правка — поверх свежей версии, база — она же
+    fireEvent.change(screen.getByDisplayValue('Изменили в ERP'), { target: { value: 'Футболка' } });
+    save();
+    await waitFor(() => expect(putMock).toHaveBeenCalledTimes(2));
+    expect(putMock).toHaveBeenLastCalledWith('app_config', 'sku_catalog', [{ ...SKU[0], name: 'Футболка' }], FRESH);
+  });
+
+  it('каталог пришёл из базы уже после открытия редактора — база следует за ним, пока правок нет', async () => {
+    useStore.setState({ skuCatalog: [] });
+    renderSkuEditor();
+    // loadCatalogs завершился позже открытия
+    useStore.setState({ skuCatalog: SKU });
+    fireEvent.change(await screen.findByDisplayValue('T-Shirt Basic'), { target: { value: 'Футболка' } });
+    save();
+    await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+    expect(putMock.mock.calls[0][3]).toEqual(SKU);
   });
 });

@@ -6,7 +6,12 @@ import { useAuthStore } from '../store/useAuthStore';
 import { setCatalogUnsaved } from './leaveGuard';
 
 vi.mock('./switchToProduction', () => ({ switchToProduction: vi.fn() }));
-vi.mock('../lib/catalogs', () => ({ loadAllCatalogs: vi.fn().mockResolvedValue({}) }));
+vi.mock('../lib/catalogs', () => ({
+  loadAllCatalogs: vi.fn().mockResolvedValue({}),
+  // Вкладки «Справочников заказа» читают справочник свежим запросом (веха 4)
+  fetchCatalogKey: vi.fn().mockResolvedValue({ exists: false, value: null }),
+  clearCatalogsCache: vi.fn(),
+}));
 vi.mock('./api/salesOrders', async (orig) => ({
   ...(await orig()),
   fetchSalesOrders: vi.fn().mockResolvedValue([]),

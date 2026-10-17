@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { orderUrgentDays } from '../pricing/priceOrder';
 import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
-import { PACKAGING_OPTIONS } from '../screens/labels';
+import { usePackagingOptions } from '../screens/labels';
 import DiscountField from './DiscountField';
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
@@ -13,6 +13,7 @@ import styles from './Workplace.module.css';
  */
 export default function ClientTab({ order, readOnly, onChange, focusFirst = false, onFocused }) {
   const firstRef = useRef(null);
+  const packOptions = usePackagingOptions();
   // Первое поле получает фокус, только когда сюда пришли кнопкой «Далее»;
   // стрелки и клик по вкладке фокус с tablist не уводят (WAI-ARIA Tabs).
   useEffect(() => {
@@ -76,7 +77,7 @@ export default function ClientTab({ order, readOnly, onChange, focusFirst = fals
           </label>
           <label className={sales.field}>Упаковка
             <select className={sales.select} value={order.packaging} onChange={(e) => onChange({ packaging: e.target.value })}>
-              {PACKAGING_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              {packOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
             </select>
           </label>
           <label className={sales.field}>Требования к упаковке

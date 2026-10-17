@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { fabricDisplayName, fmtPerUnit, packName } from './displayNames';
+import { useStore } from '../store/useStore';
+import { PRICES } from '../data/prices';
 
 describe('fabricDisplayName', () => {
   it('название и плотность из каталога, а не код', () => {
@@ -24,5 +26,26 @@ describe('packName', () => {
     expect(packName('zip')).toBe('ЗИП пакет');
     expect(packName('bopp')).toBe('БОПП пакет');
     expect(packName('x')).toBe('');
+  });
+
+  describe('подпись — из прайса стора (справочник упаковки, веха 4)', () => {
+    afterEach(() => useStore.setState({ prices: PRICES }));
+
+    it('переименованный в админке вид — новая подпись', () => {
+      useStore.setState({
+        prices: { ...PRICES, packOptions: [{ key: 'zip', name: 'ЗИП-лок с бегунком', price: 45 }] },
+      });
+      expect(packName('zip')).toBe('ЗИП-лок с бегунком');
+    });
+
+    it('вид, которого нет в справочнике стора, — подпись кода, а не пусто', () => {
+      useStore.setState({ prices: { ...PRICES, packOptions: [{ key: 'zip', name: 'ЗИП', price: 45 }] } });
+      expect(packName('bopp')).toBe('БОПП пакет');
+      expect(packName('other')).toBe('Другая — опишите в требованиях');
+    });
+
+    it('справочник передан явно — читается он', () => {
+      expect(packName('bopp', [{ key: 'bopp', name: 'Пакет БОПП 30 мкм', price: 20 }])).toBe('Пакет БОПП 30 мкм');
+    });
   });
 });

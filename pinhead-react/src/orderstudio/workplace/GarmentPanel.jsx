@@ -28,7 +28,7 @@ export default function GarmentPanel({ clientFabric, onClientFabric, readOnly })
 
   return (
     <div className={styles.garment}>
-      <SkuList readOnly={readOnly} reorderable={false} />
+      <SkuList readOnly={readOnly} />
       <label className={styles.checkRow}>
         <input
           type="checkbox"

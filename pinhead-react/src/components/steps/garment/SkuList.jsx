@@ -1,9 +1,7 @@
-import { useRef, useState, useDeferredValue } from 'react';
+import { useState, useDeferredValue } from 'react';
 import { skuDescription } from '../../../utils/skuDescription';
 import { useStore } from '../../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
-import { supabase } from '../../../lib/supabase';
-import { storageSet } from '../../../lib/storage';
 import { SKU_CATEGORIES } from '../../../data';
 import { ZONE_LABELS } from '../../../data/constants';
 import { getSkuFromPrice } from '../../../utils/pricing';
@@ -133,18 +131,17 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabric
 
 /**
  * Список моделей. `readOnly` — выбор закрыт (заказ не черновик): строки
- * раскрываются для просмотра, но модель не меняется. `reorderable` —
- * перетаскивание строк с записью порядка в каталог (`app_config`): в рабочем
- * месте заказа выключено, порядок каталога правит админка, а не менеджер.
+ * раскрываются для просмотра, но модель не меняется. Порядок каталога
+ * правит админка, а не менеджер: перетаскивание строк с записью каталога
+ * в `app_config` целиком (мимо `catalog_put`, без сверки с базой) убрано
+ * в вехе 4 — оно было выключено в единственном месте использования.
  */
-export default function SkuList({ readOnly = false, reorderable = true }) {
-  const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabric, fabricsCatalog, trimCatalog, usdRate } = useStore(
+export default function SkuList({ readOnly = false }) {
+  const { skuCatalog, skuFilter, setSkuFilter, selectSku, sku, fabric, fabricsCatalog, trimCatalog, usdRate } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
-      selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabric: s.fabric, fabricsCatalog: s.fabricsCatalog,
+      selectSku: s.selectSku, sku: s.sku, fabric: s.fabric, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, usdRate: s.usdRate }))
   );
-  const dragRef = useRef(null);
-  const [dragOver, setDragOver] = useState(null);
   const [fitFilter, setFitFilter] = useState('all');
   const [skuSearch, setSkuSearch] = useState('');
   const [expandedCode, setExpandedCode] = useState(null);
@@ -169,31 +166,6 @@ export default function SkuList({ readOnly = false, reorderable = true }) {
   const groups = {};
   filtered.forEach(s => { if (!groups[s.category]) groups[s.category] = []; groups[s.category].push(s); });
   const catOrder = SKU_CATEGORIES.map(c => c.id);
-
-  const onDragStart = (e, code) => {
-    dragRef.current = code;
-    e.dataTransfer.effectAllowed = 'move';
-    if (e.target && e.dataTransfer.setDragImage) {
-      e.dataTransfer.setDragImage(e.target, 20, 20);
-    }
-  };
-  const onDragEnd = () => { dragRef.current = null; setDragOver(null); };
-  const onDragOverRow = (e, code) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(code); };
-  const onDragLeaveRow = () => { setDragOver(null); };
-  const onDropRow = (e, code) => {
-    e.preventDefault();
-    setDragOver(null);
-    if (dragRef.current && dragRef.current !== code) {
-      reorderSku(dragRef.current, code);
-      try {
-        const updated = useStore.getState().skuCatalog;
-        storageSet('ph_sku', updated);
-        supabase.from('app_config')
-          .upsert({ key: 'sku_catalog', value: updated, updated_at: new Date().toISOString() })
-          .then(() => {});
-      } catch { /* ignore */ }
-    }
-  };
 
   const handleRowClick = (s) => {
     setExpandedCode(prev => prev === s.code ? null : s.code);
@@ -249,20 +221,12 @@ export default function SkuList({ readOnly = false, reorderable = true }) {
                 return (
                   <div key={s.code}>
                     <div
-                      className={`garment-row${isSelected ? ' selected' : ''}${isExpanded ? ' expanded' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
-                      draggable={reorderable}
+                      className={`garment-row${isSelected ? ' selected' : ''}${isExpanded ? ' expanded' : ''}`}
                       role="button"
                       tabIndex={0}
                       aria-pressed={isSelected}
                       aria-expanded={isExpanded}
                       aria-disabled={readOnly || undefined}
-                      {...(reorderable ? {
-                        onDragStart: e => onDragStart(e, s.code),
-                        onDragEnd,
-                        onDragOver: e => onDragOverRow(e, s.code),
-                        onDragLeave: onDragLeaveRow,
-                        onDrop: e => onDropRow(e, s.code),
-                      } : {})}
                       onClick={() => handleRowClick(s)}
                       onDoubleClick={() => handleSelect(s)}
                       onKeyDown={e => {
