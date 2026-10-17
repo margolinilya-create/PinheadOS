@@ -697,7 +697,9 @@ class RpcFailure {
 }
 
 /** Переходы, которые мок пускает (подмножество белого списка `order_v4_transition`) */
+// Повторяет белый список order_v4_transition (миграция 20261017062110_order_v4_rights.sql)
 const MOCK_TRANSITIONS: Record<string, string[]> = {
+  draft: ['ready_to_launch', 'archived'],
   ready_to_launch: ['production', 'draft'],
   production: ['done'],
 };
