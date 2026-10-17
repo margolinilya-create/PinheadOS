@@ -7,11 +7,9 @@ import { isAccessory } from '../../../utils/pricing';
 import { materialPrice } from '../../../utils/costRules';
 import { searchFabrics } from '../../../utils/materialSearch';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
+import { colorSupplierOf } from '../../../utils/colorSupplier';
 
 const SEARCH_FROM = 6;
-
-/** Поставщик ткани → палитра цветов (раньше «медас» сравнивался с «medastex» и не совпадал никогда) */
-const colorSupplierOf = (supplier) => (supplier === 'Медас' ? 'medastex' : 'cottonprom');
 
 export default function FabricGrid() {
   const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate, skuCatalog } = useStore(

@@ -115,6 +115,17 @@ export const orderSlice = (set: SetFn, get: GetFn) => ({
     });
   },
 
+  /**
+   * Поля позиции — к умолчаниям (буфер рабочего места заказа, веха 3).
+   * Каталоги, фильтр моделей (`skuFilter`) и палитру цветов (`colorSupplier`)
+   * не трогает: это настройки экрана, а не данные позиции. `clientFabric` —
+   * признак «ткань клиента» позиции v4, у визарда его нет.
+   */
+  resetItemFields: () => {
+    const { colorSupplier: _palette, skuFilter: _filter, ...fields } = JSON.parse(JSON.stringify(defaultItemFields));
+    set({ ...fields, clientFabric: false });
+  },
+
   restoreFromDraft: (data: Record<string, unknown>) => set((_s: Record<string, unknown>) => ({
     ...data,
     maxStep: (data.step as number) || 0,

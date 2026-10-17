@@ -192,8 +192,19 @@ function labelsFrom(snap: WizardItem, base: SalesLabel[]): SalesLabel[] {
   return out;
 }
 
+/** Ткань для ТЗ: «Кулирка, 100% хб, 180 г/м²» */
+function fabricText(fabric: Fabric): string {
+  return [fabric.name, fabric.composition, fabric.density ? `${fabric.density} г/м²` : '']
+    .filter(Boolean).join(', ');
+}
+
+/** «Цвет / поставщик»: имя цвета без кода палитры и поставщик ткани */
+function colorSupplierText(colorRowLabel: string, fabric: Fabric): string {
+  return [colorRowLabel.replace(/\s*\([^)]*\)$/, ''), fabric.supplier].filter(Boolean).join(' / ');
+}
+
 /** Размеры и количество визарда: стандартные без нулей + свои размеры */
-function wizardQty(snap: WizardItem): Record<string, number> {
+function wizardQty(snap: { sizes?: Record<string, unknown>; customSizes?: { label: string; qty: unknown }[] }): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [size, q] of Object.entries(snap.sizes ?? {})) {
     const n = parseInt(String(q)) || 0;
@@ -229,9 +240,8 @@ export function wizardToSalesItem(
   item.fabric_code = snap.fabric || '';
   const color = colorLabel(snap.color || '');
   if (fabric) {
-    item.main_fabric = [fabric.name, fabric.composition, fabric.density ? `${fabric.density} г/м²` : '']
-      .filter(Boolean).join(', ');
-    item.color_supplier = [color.replace(/\s*\([^)]*\)$/, ''), fabric.supplier].filter(Boolean).join(' / ');
+    item.main_fabric = fabricText(fabric);
+    item.color_supplier = colorSupplierText(color, fabric);
   }
 
   // Сетка: строка цвета визарда заменяется, остальные строки остаются
@@ -327,4 +337,83 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
     zoneArtworks,
     noPrint: item.prints.length === 0,
   };
+}
+
+// ── Буфер рабочего места → позиция (веха 3) ──────────────────────────────
+
+/**
+ * Поля «Изделия» из стора визарда, которые панели рабочего места пишут
+ * в позицию. Выборка — `selectGarment` в `workplace/itemBuffer.ts`.
+ */
+export interface GarmentSnap {
+  sku: SkuItem | null;
+  fabric: string;
+  color: string;
+  colorSupplier: string;
+  sizes: Record<string, number | string>;
+  customSizes: { label: string; qty: number | string }[];
+  extras: string[];
+  fit: string;
+  /** Ткань клиента (поле позиции v4, у визарда его нет) */
+  clientFabric: boolean;
+}
+
+const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+/** Размеры строки сетки равны — без учёта порядка ключей */
+function sameQty(a: Record<string, number>, b: Record<string, number>): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
+/**
+ * Разница буфера `prev → next` → новая позиция; менять нечего — `null`.
+ *
+ * Пишется ТОЛЬКО то, что изменилось, и только непустым значением: модель,
+ * цвет или ткань не из каталога (буфер их не знает и держит пустыми) и ручной
+ * текст `main_fabric`/`color_supplier` переживают правку размеров. Поэтому
+ * загрузка позиции и перезагрузка каталогов ничего не пишут.
+ *
+ * Позиция с несколькими строками сетки буфером не правится (один цвет —
+ * одна позиция): `null`. Нанесения и бирки — из `base` по ссылке.
+ */
+export function garmentPatch(prev: GarmentSnap, next: GarmentSnap, base: SalesItem, cat: WizardCatalogs): SalesItem | null {
+  const rows = base.size_grid.rows;
+  if (rows.length > 1) return null;
+  const clientFabric = base.client_fabric || next.clientFabric;
+  const fabricOf = (code: string) => cat.fabricsCatalog.find((f) => f.code === code);
+  const patch: Partial<SalesItem> = {};
+  let rowColor = rows[0]?.color ?? '';
+  let rowSizes = rows[0]?.sizes ?? {};
+
+  if (next.sku && prev.sku?.code !== next.sku.code) {
+    patch.sku_code = next.sku.code;
+    patch.product_type = next.sku.name;
+    patch.fit = next.sku.fit || next.fit || base.fit;
+  } else if (next.fit && prev.fit !== next.fit) {
+    patch.fit = next.fit;
+  }
+
+  if (next.color && prev.color !== next.color) rowColor = colorLabel(next.color);
+  if (!same(prev.sizes, next.sizes) || !same(prev.customSizes, next.customSizes)) rowSizes = wizardQty(next);
+
+  const fabricChanged = !!next.fabric && prev.fabric !== next.fabric;
+  if (!clientFabric && fabricChanged) patch.fabric_code = next.fabric;
+  // Цвет и поставщик пересобираются при смене ткани или цвета — и только по ткани из каталога
+  const fabric = clientFabric ? undefined : fabricOf(next.fabric || base.fabric_code);
+  if (fabric && fabricChanged) patch.main_fabric = fabricText(fabric);
+  if (fabric && (fabricChanged || rowColor !== (rows[0]?.color ?? ''))) {
+    patch.color_supplier = colorSupplierText(rowColor, fabric);
+  }
+
+  if (rowColor !== (rows[0]?.color ?? '') || !sameQty(rowSizes, rows[0]?.sizes ?? {})) {
+    const sizes = [...new Set([...base.size_grid.sizes, ...Object.keys(rowSizes)])]
+      .sort((a, b) => sizeOrder(a) - sizeOrder(b));
+    patch.size_grid = { sizes, rows: [{ color: rowColor, sizes: rowSizes }] };
+  }
+  if (!same(prev.extras, next.extras)) patch.extras = [...next.extras];
+
+  const changed = (Object.keys(patch) as (keyof SalesItem)[]).filter((k) => !same(patch[k], base[k]));
+  if (changed.length === 0) return null;
+  return { ...base, ...Object.fromEntries(changed.map((k) => [k, patch[k]])) };
 }
