@@ -289,9 +289,16 @@ describe('artworks: удаление', () => {
     vi.restoreAllMocks();
   });
 
-  it('ждёт ответ и возвращает removed', async () => {
+  it('ждёт ответ и возвращает removed; превью PDF/AI уходит тем же запросом (веха 5а, M3)', async () => {
     const b = mockBucket();
-    const p = `orders/${ORDER}/logo/a.png`;
+    const p = `orders/${ORDER}/logo/a.pdf`;
+    expect(await removeArtwork(p)).toBe('removed');
+    expect(b.remove).toHaveBeenCalledWith([p, `${p}.preview.png`]);
+  });
+
+  it('удаление самого превью не ищет «превью превью»', async () => {
+    const b = mockBucket();
+    const p = `orders/${ORDER}/logo/a.pdf.preview.png`;
     expect(await removeArtwork(p)).toBe('removed');
     expect(b.remove).toHaveBeenCalledWith([p]);
   });

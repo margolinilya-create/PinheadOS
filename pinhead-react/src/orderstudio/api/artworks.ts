@@ -21,6 +21,16 @@
  * Ошибка → `toast.error` и `null` (правило проекта). Удаление не
  * оптимистичное: ответ Storage ждём; `removeArtwork` возвращает `'removed'`,
  * `'missing'` (пустой ответ при `{ missingOk: true }` — без тоста) или `null`.
+ *
+ * Превью PDF/AI для холста (веха 5а, решение 3; проверка безопасности M3)
+ * лежит по ВЫВОДИМОМУ пути `<исходник>.preview.png`: путей в `layout` нет,
+ * сервер их не проверяет. Пишет его только `uploadArtworkPreview` (путь
+ * вычисляется, а не приходит; только PNG по сигнатуре; `upsert: false`),
+ * удаляется оно вместе с исходником (`removeArtwork`). Холст читает файлы
+ * только `downloadArtwork` → Blob (подписанная ссылка на холст не идёт).
+ * Уборка «ничьих» файлов и копирование в ERP (вехи 6–7) обязаны знать
+ * `.preview.png` (правило вехи 5а). Сторож `artworkWrites.test.ts`: запись
+ * в бакет — только из этого модуля.
  */
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
@@ -116,6 +126,75 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   }
 }
 
+// ── Превью PDF/AI и чтение для холста (веха 5а) ─────────────────────────
+
+/** Суффикс превью: `<исходник>.preview.png` (решение 3 плана вехи 5а) */
+export const PREVIEW_SUFFIX = '.preview.png';
+
+const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+export function isPreviewPath(path: string): boolean {
+  return path.endsWith(PREVIEW_SUFFIX);
+}
+
+/** Путь превью исходника; у самого превью превью нет — пустая строка */
+export function artworkPreviewPath(sourcePath: string): string {
+  return !sourcePath || isPreviewPath(sourcePath) ? '' : `${sourcePath}${PREVIEW_SUFFIX}`;
+}
+
+async function isPng(blob: Blob): Promise<boolean> {
+  const head = new Uint8Array(await blob.slice(0, PNG_SIG.length).arrayBuffer());
+  return PNG_SIG.every((v, i) => head[i] === v);
+}
+
+/**
+ * Превью PDF/AI рядом с исходником. Путь выводится из исходника (M3): клиент не
+ * может положить «превью» по произвольному ключу; только PNG по сигнатуре,
+ * тип `image/png`, `upsert: false`. Возвращает путь превью либо `null`.
+ */
+export async function uploadArtworkPreview(orderId: string, sourcePath: string, png: Blob): Promise<string | null> {
+  const context = 'Превью макета не загружено';
+  const path = artworkPreviewPath(sourcePath);
+  if (!path || !isArtworkPath(orderId, sourcePath) || !isArtworkPath(orderId, path)) return fail(context, 'неверный путь');
+  if (png.size === 0) return fail(context, 'файл пустой');
+  if (png.size > ARTWORK_MAX_BYTES) return fail(context, 'файл больше 25 МБ');
+  try {
+    if (!(await isPng(png))) return fail(context, 'превью не PNG');
+    const body = new Blob([png], { type: 'image/png' });
+    const { error } = await supabase.storage.from(ARTWORK_BUCKET).upload(path, body, { upsert: false, contentType: 'image/png' });
+    if (error) {
+      console.error('uploadArtworkPreview', error);
+      return fail(context, translateSupabaseError(error.message));
+    }
+    return path;
+  } catch (e) {
+    console.error('uploadArtworkPreview', e);
+    return fail(context, networkFailureMessage(e));
+  }
+}
+
+/**
+ * Файл заказа байтами — для холста (веха 5а): подписанная ссылка на холст
+ * не идёт, только `download()` → Blob. Путь обязан принадлежать заказу.
+ * Тип файла ответу не доверяется — его определяет вызывающий по байтам (H2).
+ */
+export async function downloadArtwork(orderId: string, path: string): Promise<Blob | null> {
+  const context = 'Макет не загружен с сервера';
+  if (!isArtworkPath(orderId, path)) return fail(context, 'неверный путь');
+  try {
+    const { data, error } = await supabase.storage.from(ARTWORK_BUCKET).download(path);
+    if (error || !data) {
+      console.error('downloadArtwork', error);
+      return fail(context, error ? translateSupabaseError(error.message) : 'пустой ответ');
+    }
+    if (data.size > ARTWORK_MAX_BYTES) return fail(context, 'файл больше 25 МБ');
+    return data;
+  } catch (e) {
+    console.error('downloadArtwork', e);
+    return fail(context, networkFailureMessage(e));
+  }
+}
+
 async function signOne(path: string, download: boolean): Promise<string | null> {
   try {
     const bucket = supabase.storage.from(ARTWORK_BUCKET);
@@ -192,8 +271,11 @@ export async function removeArtwork(
   path: string,
   opts: { missingOk?: boolean } = {},
 ): Promise<RemoveArtworkResult | null> {
+  // Превью PDF/AI уходит вместе с исходником одним запросом; его может и не быть —
+  // тогда Storage просто не назовёт его в ответе
+  const preview = artworkPreviewPath(path);
   try {
-    const { data, error } = await supabase.storage.from(ARTWORK_BUCKET).remove([path]);
+    const { data, error } = await supabase.storage.from(ARTWORK_BUCKET).remove(preview ? [path, preview] : [path]);
     if (error) {
       console.error('removeArtwork', error);
       return fail('Файл не удалён', translateSupabaseError(error.message));
