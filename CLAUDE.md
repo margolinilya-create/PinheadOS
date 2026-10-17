@@ -57,7 +57,7 @@ pinhead-react/src/
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Zustand store визарда — с вехи 3 БУФЕР ОДНОЙ позиции рабочего места (resetItemFields)
 │   ├── appReset.ts          # registerAppReset: сторы регистрируют сброс, выход зовёт все
-│   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
+│   ├── slices/              # wizardSlice, productSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts (действия зон визарда убраны в вехе 5а)
 │   ├── useAuthStore.ts      # Auth + роли
 │   ├── useOrdersStore.ts    # CRUD заказов v3 (вкладка ERP «Заказы ТЗ»; канбан v3 убран)
 │   ├── useCommentsStore.ts  # Комментарии к заказам

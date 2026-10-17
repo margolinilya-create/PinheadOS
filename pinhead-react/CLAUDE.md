@@ -146,9 +146,9 @@ URL: https://pinhead-os.vercel.app
   - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
   - шапка и сайдбар Order — orderstudio/layout/
 - store/ — Zustand (все .ts)
-  - useStore.ts — store визарда (7 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
+  - useStore.ts — store визарда (6 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
     (`resetItemFields`, сброс при выходе через `appReset.registerAppReset`)
-  - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
+  - slices/ — все .ts: wizardSlice, productSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice (действия зон визарда убраны в вехе 5а)
   - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
 - utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
