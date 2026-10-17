@@ -8,14 +8,18 @@
  *   (`STANDARD_PLACEMENT`: центр груди, центр спины) либо точка сброса при
  *   перетаскивании файла на холст (центр в точке, рамка внутри зоны);
  * - **без задвоения** (проверка скиллами, архитектура): если в зоне уже есть
- *   НЕразмещённая строка нанесения с тем же именем зоны, раскладка, файл, мм
- *   и отступ дописываются ей — новое нанесение не создаётся, цена та же.
- *   Техника и прочие поля строки (Pantone, цвета, комментарий) — её.
+ *   строка нанесения с тем же именем зоны, НЕ видная на этом холсте, раскладка,
+ *   файл, мм и отступ дописываются ей — новое нанесение не создаётся, цена
+ *   та же. Техника и прочие поля строки (Pantone, цвета, комментарий) — её.
+ *   «Не видна на холсте» = `placementOf(…, flat) === null`: раскладки нет,
+ *   она битая или стоит на другом/снятом флэте (5б: снятие и версии флэтов) —
+ *   такая строка в слияние холста не попадает, и новый логотип рядом с ней
+ *   задвоил бы цену.
  */
 import type { SalesPrint } from '../../model/types';
 import type { AssetMeta, DesignView, GarmentFlat } from '../types';
 import { viewZone } from '../geometry/view';
-import { applyPlacement, newPlacedPrint, parseLayout, placementOf, zoneNameOf, type NewPlacedCtx } from './layout';
+import { applyPlacement, newPlacedPrint, placementOf, zoneNameOf, type NewPlacedCtx } from './layout';
 
 export type PlaceArtworkCtx = NewPlacedCtx;
 
@@ -38,9 +42,9 @@ export function defaultAreaId(flat: GarmentFlat, view: DesignView): string | nul
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(Math.max(lo, hi), v));
 
-/** Неразмещённая строка той же зоны: сначала без файла или с тем же файлом */
-function unplacedRow(prints: SalesPrint[], zone: string, artworkPath: string): SalesPrint | undefined {
-  const free = prints.filter((p) => !parseLayout(p.layout) && p.zone.trim() === zone);
+/** Строка той же зоны, не видная на этом флэте: сначала без файла или с тем же файлом */
+function unplacedRow(prints: SalesPrint[], zone: string, artworkPath: string, flat: GarmentFlat): SalesPrint | undefined {
+  const free = prints.filter((p) => !placementOf(p, flat) && p.zone.trim() === zone);
   return free.find((p) => !p.artwork_path || p.artwork_path === artworkPath) ?? free[0];
 }
 
@@ -66,7 +70,7 @@ export function placeArtwork(
 ): PlaceArtworkResult | null {
   const area = ctx.flat.views.find((v) => v.kind === ctx.view)?.print_areas.find((a) => a.id === areaId);
   if (!area) return null;
-  const row = unplacedRow(prints, zoneNameOf(area, ctx.zonesCatalog), artworkPath);
+  const row = unplacedRow(prints, zoneNameOf(area, ctx.zonesCatalog), artworkPath, ctx.flat);
   const created = newPlacedPrint(asset, artworkPath, areaId, row ? { ...ctx, method: row.method } : ctx);
   if (!created) return null;
   const placed = opts.at ? moveTo(created, opts.at, ctx) : created;

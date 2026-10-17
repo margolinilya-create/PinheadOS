@@ -142,10 +142,10 @@ describe('кэш и object URL (L8)', () => {
 
   it('prime кладёт чистый Blob без скачивания; замена по пути освобождает прежний URL', async () => {
     const blob = new Blob([pngBytes(10, 10) as BlobPart], { type: 'image/png' });
-    expect(await primeArtworkImage(`${base}-logo.png`, false, blob)).toBeInstanceOf(FakeImage);
+    expect(await primeArtworkImage(`${base}-logo.png`, false, blob, { width: 10, height: 10 })).toBeInstanceOf(FakeImage);
     expect(await loadArtworkImage(ORDER, `${base}-logo.png`, false)).toBeInstanceOf(FakeImage);
     expect(api.downloadArtwork).not.toHaveBeenCalled();
-    await primeArtworkImage(`${base}-logo.png`, false, blob);
+    await primeArtworkImage(`${base}-logo.png`, false, blob, null);
     expect(revoked).toHaveBeenCalledWith('blob:1');
   });
 
@@ -161,7 +161,8 @@ describe('кэш и object URL (L8)', () => {
 });
 
 describe('большой растр уменьшается для показа', () => {
-  it(`сторона больше ${MAX_DISPLAY_PX} px — createImageBitmap с уменьшением, в картинку — PNG`, async () => {
+  /** createImageBitmap и canvas без браузера: уменьшенная картинка — PNG с текстом `small` */
+  function stubDownscale() {
     const close = vi.fn();
     const bitmap = vi.fn(async (_b: Blob, o: { resizeWidth: number; resizeHeight: number }) => ({ width: o.resizeWidth, height: o.resizeHeight, close }));
     vi.stubGlobal('createImageBitmap', bitmap);
@@ -170,12 +171,54 @@ describe('большой растр уменьшается для показа',
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb: BlobCallback) {
       cb(new Blob(['small'], { type: 'image/png' }));
     });
+    return { bitmap, drawImage, close };
+  }
+
+  it(`сторона больше ${MAX_DISPLAY_PX} px — createImageBitmap с уменьшением, в картинку — PNG`, async () => {
+    const { bitmap, drawImage, close } = stubDownscale();
     respond(pngBytes(8192, 1024));
     await loadArtworkImage(ORDER, `${base}-big.png`, false);
     expect(bitmap.mock.calls[0][1]).toMatchObject({ resizeWidth: 4096, resizeHeight: 512 });
     expect(drawImage).toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
     expect(await urls[0].text()).toBe('small');
+  });
+
+  it('только что загруженный растр (prime) тоже уменьшается: PNG A3 300 dpi', async () => {
+    const { bitmap, close } = stubDownscale();
+    const big = new Blob([pngBytes(3508, 4961) as BlobPart], { type: 'image/png' });
+    expect(await primeArtworkImage(`${base}-a3.png`, false, big, { width: 3508, height: 4961 })).toBeInstanceOf(FakeImage);
+    expect(bitmap).toHaveBeenCalledTimes(1);
+    expect(bitmap.mock.calls[0][0]).toBe(big);
+    expect(bitmap.mock.calls[0][1]).toMatchObject({ resizeWidth: Math.round(3508 * (4096 / 4961)), resizeHeight: 4096 });
+    expect(close).toHaveBeenCalled();
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).not.toBe(big);
+    expect(urls[0].type).toBe('image/png');
+    expect(await urls[0].text()).toBe('small');
+  });
+
+  it('prime без размера (SVG, превью PDF) и небольшой растр — без уменьшения', async () => {
+    const { bitmap } = stubDownscale();
+    const svg = new Blob(['<svg xmlns="http://www.w3.org/2000/svg"/>'], { type: 'image/svg+xml' });
+    await primeArtworkImage(`${base}-logo.svg`, false, svg, null);
+    const png = new Blob([pngBytes(4096, 100) as BlobPart], { type: 'image/png' });
+    await primeArtworkImage(`${base}-ok.png`, false, png, { width: 4096, height: 100 });
+    expect(bitmap).not.toHaveBeenCalled();
+    expect(urls).toEqual([svg, png]);
+  });
+
+  it('сброс, пока растр уменьшается, — URL не создаётся', async () => {
+    stubDownscale();
+    let finish!: (b: unknown) => void;
+    const bitmap = vi.fn(() => new Promise((r) => { finish = r; }));
+    vi.stubGlobal('createImageBitmap', bitmap);
+    const pending = primeArtworkImage(`${base}-big.png`, false, new Blob(['x'], { type: 'image/png' }), { width: 9000, height: 9000 });
+    await vi.waitFor(() => expect(bitmap).toHaveBeenCalled());
+    releaseArtworkImages();
+    finish({ width: 1, height: 1, close: vi.fn() });
+    expect(await pending).toBeNull();
+    expect(created).not.toHaveBeenCalled();
   });
 
   it('небольшой растр не трогается', async () => {

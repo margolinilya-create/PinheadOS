@@ -15,7 +15,8 @@
  * файл, и сбой — один тост на путь (неудача тоже кэшируется до сброса).
  * `releaseArtworkImages` (смена заказа, уход с вкладки, выход — стор
  * дизайна) освобождает все object URL; замена картинки по тому же пути
- * (`primeArtworkImage` после загрузки) освобождает прежний URL.
+ * (`primeArtworkImage` после загрузки) освобождает прежний URL. Уменьшение
+ * большого растра — на обоих путях: и при скачивании, и при `primeArtworkImage`.
  *
  * Модуль без React: хук — `useArtworkImage.ts`.
  */
@@ -137,15 +138,34 @@ export function loadArtworkImage(orderId: string, path: string, hasPreview: bool
   });
 }
 
+/** Размер растра в пикселях (из заголовка: `px_w`/`px_h` раскладки) */
+export interface RasterSize {
+  width: number;
+  height: number;
+}
+
 /**
  * Положить в кэш уже чистый Blob (только что загруженный логотип: SVG после
  * санитайзера, растр с типом по сигнатуре, PNG-превью PDF) — без скачивания.
  * Прежняя картинка по тому же пути освобождается (L8).
+ *
+ * `size` — пиксели растра из заголовка (`px_w`/`px_h`): растр больше 4096 px
+ * уменьшается для показа так же, как при скачивании, иначе холст держал бы
+ * исходник (PNG A3 300 dpi, до 80 Мп) до ухода с вкладки. SVG и превью PDF
+ * (≤ 2048 px) — `null`. Параметр обязательный, чтобы новый вызов не забыл его.
  */
-export function primeArtworkImage(path: string, hasPreview: boolean, blob: Blob): Promise<HTMLImageElement | null> {
+export function primeArtworkImage(
+  path: string,
+  hasPreview: boolean,
+  blob: Blob,
+  size: RasterSize | null,
+): Promise<HTMLImageElement | null> {
   const objectPath = displayPathOf(path, hasPreview);
   if (!objectPath) return Promise.resolve(null);
-  return store(objectPath, (entry) => decodeInto(objectPath, entry, blob));
+  return store(objectPath, async (entry) => {
+    const shown = size ? await downscale(blob, size.width, size.height) : blob;
+    return decodeInto(objectPath, entry, shown);
+  });
 }
 
 /** Освободить все object URL и забыть картинки (смена заказа, уход с вкладки, выход) */

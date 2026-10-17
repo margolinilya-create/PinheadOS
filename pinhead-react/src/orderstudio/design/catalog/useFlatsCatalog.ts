@@ -12,14 +12,20 @@
  *   (бюджет холста, README модуля);
  * - кэш — 10 минут на вкладку браузера; пустой справочник не кэшируется
  *   (после «Загрузить типовые флэты» вкладка увидит их при следующем
- *   открытии); `reload()` — свежий запрос; выход сбрасывает кэш.
+ *   открытии); `reload()` — свежий запрос; выход сбрасывает кэш;
+ * - чанк схемы не загрузился (устаревшая вкладка после выкладки) — общий
+ *   диалог «Вышло обновление» либо тост, `status: 'error'` (не вечная
+ *   «загрузка» и не необработанный отказ).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { fetchCatalogKey } from '../../../lib/catalogs';
+import { handlePossibleUpdate } from '../../../lib/appUpdate';
 import { registerAppReset } from '../../../store/appReset';
+import { toast } from '../../../store/useToastStore';
 import type { GarmentFlatsCatalog } from '../types';
 
 export const FLATS_CACHE_MS = 10 * 60 * 1000;
+export const MSG_FLATS_FAILED = 'Силуэты изделий не загрузились — обновите страницу';
 
 const EMPTY: GarmentFlatsCatalog = { version: 1, flats: [] };
 
@@ -43,14 +49,22 @@ function fresh(): FlatsCatalogLoad | null {
   return cache && Date.now() - cache.at < FLATS_CACHE_MS ? cache : null;
 }
 
-/** Справочник флэтов: из кэша или свежим запросом. Ошибка запроса — `null` (тост уже показан) */
+/** Справочник флэтов: из кэша или свежим запросом. Ошибка запроса или чанка схемы — `null` (тост уже показан), без исключения */
 export function loadFlatsCatalog(opts: { force?: boolean } = {}): Promise<FlatsCatalogLoad | null> {
   const hit = opts.force ? null : fresh();
   if (hit) return Promise.resolve(hit);
   if (inFlight) return inFlight;
   const myEpoch = epoch;
   inFlight = (async () => {
-    const [row, schema] = await Promise.all([fetchCatalogKey('app_config', 'garmentFlats'), import('./flatsSchema')]);
+    let row: Awaited<ReturnType<typeof fetchCatalogKey>>;
+    let schema: typeof import('./flatsSchema');
+    try {
+      [row, schema] = await Promise.all([fetchCatalogKey('app_config', 'garmentFlats'), import('./flatsSchema')]);
+    } catch (e) {
+      console.error('loadFlatsCatalog', e);
+      if (!handlePossibleUpdate(e)) toast.error(MSG_FLATS_FAILED);
+      return null;
+    }
     if (!row) return null;
     const parsed = row.exists ? schema.parseFlatsCatalog(row.value) : { catalog: EMPTY, issues: [] };
     const loaded: FlatsCatalogLoad = { catalog: parsed.catalog, issues: parsed.issues };

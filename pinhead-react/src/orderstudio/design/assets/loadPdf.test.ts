@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { pngBytes, textBytes } from './bytes.testutil';
 import {
-  MSG_PDF_BROKEN, MSG_PDF_PAGE, MSG_PDF_TIMEOUT, MSG_PDF_WORKER, PDF_MAX_IMAGE_PX, PDF_TIMEOUT_MS, PREVIEW_MAX_PX,
-  __resetPdfWorkerForTests, loadPdf,
+  MSG_PDF_BROKEN, MSG_PDF_PAGE, MSG_PDF_TIMEOUT, MSG_PDF_WORKER, PDF_DESTROY_WAIT_MS, PDF_MAX_IMAGE_PX, PDF_TIMEOUT_MS,
+  PREVIEW_MAX_PX, __resetPdfWorkerForTests, loadPdf,
 } from './loadPdf';
 import { MSG_AI } from './sniff';
 
@@ -17,7 +17,13 @@ vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '/assets/pd
 
 class FakeWorker {
   static created: { url: string; opts: unknown }[] = [];
-  constructor(url: string, opts: unknown) { FakeWorker.created.push({ url, opts }); }
+  static instances: FakeWorker[] = [];
+  terminated = false;
+  constructor(url: string, opts: unknown) {
+    FakeWorker.created.push({ url, opts });
+    FakeWorker.instances.push(this);
+  }
+  terminate() { this.terminated = true; }
 }
 
 const destroy = vi.fn(() => Promise.resolve());
@@ -35,6 +41,7 @@ let ctx: { fillStyle: string; fillRect: ReturnType<typeof vi.fn> };
 beforeEach(() => {
   __resetPdfWorkerForTests();
   FakeWorker.created = [];
+  FakeWorker.instances = [];
   pdf.getDocument.mockReset();
   pdf.GlobalWorkerOptions.workerPort = null;
   destroy.mockClear();
@@ -120,12 +127,57 @@ describe('loadPdf', () => {
     expect(await loadPdf(PDF, 'a.pdf')).toEqual({ ok: false, error: MSG_PDF_PAGE });
   });
 
-  it('PDF-бомба: 30 с — destroy и текст', async () => {
+  it('PDF-бомба: 30 с — destroy, текст; занятый воркер гасится, следующий файл — на новом', async () => {
     vi.useFakeTimers();
-    pdf.getDocument.mockReturnValue({ promise: new Promise(() => {}), destroy });
+    // Воркер занят бомбой: на destroy не отвечает никогда
+    pdf.getDocument.mockReturnValueOnce({ promise: new Promise(() => {}), destroy: vi.fn(() => new Promise(() => {})) });
     const pending = loadPdf(PDF, 'a.pdf');
     await vi.advanceTimersByTimeAsync(PDF_TIMEOUT_MS);
     expect(await pending).toEqual({ ok: false, error: MSG_PDF_TIMEOUT });
-    expect(destroy).toHaveBeenCalled();
+    expect(pdf.GlobalWorkerOptions.workerPort).toBeNull();
+    expect(FakeWorker.instances).toHaveLength(1);
+    expect(FakeWorker.instances[0].terminated).toBe(true);
+    pdf.getDocument.mockReturnValue(doc(100, 100));
+    expect((await loadPdf(PDF, 'b.pdf')).ok).toBe(true);
+    expect(FakeWorker.created).toHaveLength(2);
+    expect(pdf.GlobalWorkerOptions.workerPort).toBeInstanceOf(FakeWorker);
+  });
+
+  it('getDocument бросает синхронно (порт ещё в destroy) — отказ текстом, не исключение', async () => {
+    pdf.getDocument.mockImplementation(() => {
+      throw new Error('PDFWorker.fromPort - the worker is being destroyed.');
+    });
+    await expect(loadPdf(PDF, 'a.pdf')).resolves.toEqual({ ok: false, error: MSG_PDF_BROKEN });
+  });
+
+  it('destroy дожидается: следующий PDF не открывается, пока прежний не уничтожен', async () => {
+    let release!: () => void;
+    const slow = vi.fn(() => new Promise<void>((r) => { release = r; }));
+    pdf.getDocument.mockReturnValueOnce({ ...doc(100, 100), destroy: slow }).mockReturnValueOnce(doc(100, 100));
+    const a = loadPdf(PDF, 'a.pdf');
+    const b = loadPdf(PDF, 'b.pdf');
+    let aDone = false;
+    void a.then(() => { aDone = true; });
+    await vi.waitFor(() => expect(slow).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(aDone).toBe(false);
+    expect(pdf.getDocument).toHaveBeenCalledTimes(1);
+    release();
+    expect((await a).ok).toBe(true);
+    expect((await b).ok).toBe(true);
+    expect(pdf.getDocument).toHaveBeenCalledTimes(2);
+    expect(FakeWorker.created).toHaveLength(1);
+  });
+
+  it(`воркер не ответил на destroy за ${PDF_DESTROY_WAIT_MS} мс — гасится, следующий файл — на новом`, async () => {
+    vi.useFakeTimers();
+    pdf.getDocument.mockReturnValueOnce({ ...doc(100, 100), destroy: vi.fn(() => new Promise(() => {})) });
+    const pending = loadPdf(PDF, 'a.pdf');
+    await vi.advanceTimersByTimeAsync(PDF_DESTROY_WAIT_MS);
+    expect((await pending).ok).toBe(true);
+    expect(FakeWorker.instances.map((w) => w.terminated)).toEqual([true]);
+    pdf.getDocument.mockReturnValue(doc(100, 100));
+    await loadPdf(PDF, 'b.pdf');
+    expect(FakeWorker.instances.map((w) => w.terminated)).toEqual([true, false]);
   });
 });

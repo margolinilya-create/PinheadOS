@@ -11,7 +11,12 @@
  *   режима «воркер в главном потоке» нет — не запустился, значит ошибка;
  * - `isEvalSupported: false`, `enableXfa: false`, `maxImageSize` 16 Мп,
  *   аннотации не рисуются, внешних `cMapUrl`/`standardFontDataUrl` нет (L7);
- * - таймаут 30 с → `destroy()` (бомба не вешает вкладку);
+ * - таймаут 30 с → воркер гасится и заменяется (бомба не вешает вкладку
+ *   и следующий файл);
+ * - **один PDF за раз** (очередь) и `destroy()` задачи ДОЖИДАЕТСЯ: в pdfjs
+ *   4.10 `getDocument` на общем `workerPort`, пока прежний `destroy` не
+ *   завершён, бросает «the worker is being destroyed» (несколько файлов
+ *   перетаскиванием). Воркер не ответил на `destroy` за 5 с — он гасится;
  * - AI — только PDF-совместимый (начинается с `%PDF-`), иначе подсказка
  *   «Создать PDF-совместимый файл»;
  * - размер — точный, из MediaBox первой страницы (1 pt = 25,4/72 мм);
@@ -29,6 +34,8 @@ import { MAX_COORD_MM, MAX_SOURCE_FILE_LEN } from '../limits';
 import { MSG_AI } from './sniff';
 
 export const PDF_TIMEOUT_MS = 30_000;
+/** Сколько ждать ответа воркера на `destroy`; не ответил (занят) — воркер гасится */
+export const PDF_DESTROY_WAIT_MS = 5_000;
 /** Предел картинки внутри PDF, пикселей (M2) */
 export const PDF_MAX_IMAGE_PX = 16_000_000;
 /** Превью: плотность от размера и предел стороны */
@@ -64,6 +71,36 @@ function ensureWorker(): boolean {
     console.error('loadPdf: worker', e);
     return false;
   }
+}
+
+/** Погасить воркер (бомба после таймаута, не ответил на `destroy`): следующий файл получит новый */
+function dropWorker(): void {
+  try {
+    worker?.terminate();
+  } catch (e) {
+    console.error('loadPdf: terminate', e);
+  }
+  worker = null;
+  pdfjs.GlobalWorkerOptions.workerPort = null;
+}
+
+/**
+ * Уничтожить задачу и дождаться конца: пока `destroy` идёт, новый
+ * `getDocument` на том же порту бросает. `stuck` (таймаут — воркер, скорее
+ * всего, занят бомбой и `Terminate` не обработает) — воркер гасится сразу.
+ */
+async function finish(task: pdfjs.PDFDocumentLoadingTask | null, stuck: boolean): Promise<void> {
+  if (!task) return;
+  const destroyed = task.destroy().then(() => true, () => true);
+  if (stuck) {
+    dropWorker();
+    return;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), PDF_DESTROY_WAIT_MS); });
+  const done = await Promise.race([destroyed, late]);
+  clearTimeout(timer);
+  if (!done) dropWorker();
 }
 
 function startsWithPdf(bytes: Uint8Array): boolean {
@@ -106,32 +143,47 @@ async function renderFirstPage(task: pdfjs.PDFDocumentLoadingTask, fileName: str
   return { ok: true, asset: { meta, png } };
 }
 
-/** PDF/AI (байты уже прошли `sniffArtwork`) → превью и метаданные. Ошибка — текстом для показа */
-export async function loadPdf(bytes: Uint8Array, fileName: string): Promise<LoadPdfResult> {
+async function loadPdfNow(bytes: Uint8Array, fileName: string): Promise<LoadPdfResult> {
   if (!startsWithPdf(bytes)) return { ok: false, error: MSG_AI };
   if (!ensureWorker()) return { ok: false, error: MSG_PDF_WORKER };
-  // Копия: pdfjs передаёт буфер воркеру и отсоединяет его
-  const task = pdfjs.getDocument({
-    data: bytes.slice(),
-    isEvalSupported: false,
-    enableXfa: false,
-    maxImageSize: PDF_MAX_IMAGE_PX,
-  });
+  let task: pdfjs.PDFDocumentLoadingTask | null = null;
+  let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<typeof TIMEOUT>((resolve) => { timer = setTimeout(() => resolve(TIMEOUT), PDF_TIMEOUT_MS); });
   try {
+    // Копия: pdfjs передаёт буфер воркеру и отсоединяет его.
+    // Внутри try: `getDocument` бросает синхронно (порт в `destroy`) — это отказ, а не исключение наружу
+    task = pdfjs.getDocument({
+      data: bytes.slice(),
+      isEvalSupported: false,
+      enableXfa: false,
+      maxImageSize: PDF_MAX_IMAGE_PX,
+    });
+    const timeout = new Promise<typeof TIMEOUT>((resolve) => { timer = setTimeout(() => resolve(TIMEOUT), PDF_TIMEOUT_MS); });
     const res = await Promise.race([renderFirstPage(task, fileName), timeout]);
-    return res === TIMEOUT ? { ok: false, error: MSG_PDF_TIMEOUT } : res;
+    if (res !== TIMEOUT) return res;
+    timedOut = true;
+    return { ok: false, error: MSG_PDF_TIMEOUT };
   } catch (e) {
     console.error('loadPdf', e);
     return { ok: false, error: MSG_PDF_BROKEN };
   } finally {
     clearTimeout(timer);
-    task.destroy().catch(() => {});
+    await finish(task, timedOut);
   }
+}
+
+/** Очередь: следующий PDF открывается после того, как прежний уничтожен */
+let queue: Promise<unknown> = Promise.resolve();
+
+/** PDF/AI (байты уже прошли `sniffArtwork`) → превью и метаданные. Ошибка — текстом для показа, без исключения */
+export function loadPdf(bytes: Uint8Array, fileName: string): Promise<LoadPdfResult> {
+  const run = queue.then(() => loadPdfNow(bytes, fileName));
+  queue = run.catch(() => undefined);
+  return run;
 }
 
 /** Только для тестов: забыть воркер */
 export function __resetPdfWorkerForTests(): void {
   worker = null;
+  queue = Promise.resolve();
 }

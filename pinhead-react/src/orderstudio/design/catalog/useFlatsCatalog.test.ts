@@ -2,16 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { runAppResets } from '../../../store/appReset';
 import { catalog, clone, flat } from '../fixtures.testutil';
-import { FLATS_CACHE_MS, __resetFlatsCatalogForTests, loadFlatsCatalog, useFlatsCatalog } from './useFlatsCatalog';
+import { FLATS_CACHE_MS, MSG_FLATS_FAILED, __resetFlatsCatalogForTests, loadFlatsCatalog, useFlatsCatalog } from './useFlatsCatalog';
 
 const lib = vi.hoisted(() => ({ fetchCatalogKey: vi.fn() }));
 vi.mock('../../../lib/catalogs', () => lib);
+const upd = vi.hoisted(() => ({ handlePossibleUpdate: vi.fn(() => false) }));
+vi.mock('../../../lib/appUpdate', () => upd);
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
+vi.mock('../../../store/useToastStore', () => ({ toast }));
 
 const row = (value: unknown) => ({ exists: true, value });
 
 beforeEach(() => {
   __resetFlatsCatalogForTests();
   lib.fetchCatalogKey.mockReset();
+  upd.handlePossibleUpdate.mockReset();
+  upd.handlePossibleUpdate.mockReturnValue(false);
+  toast.error.mockReset();
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -92,5 +99,26 @@ describe('useFlatsCatalog', () => {
     lib.fetchCatalogKey.mockResolvedValue(null);
     const { result } = renderHook(() => useFlatsCatalog());
     await waitFor(() => expect(result.current.status).toBe('error'));
+  });
+
+  it('чанк схемы не загрузился (устаревшая вкладка) — error, а не вечная загрузка; диалог обновления или тост', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    lib.fetchCatalogKey.mockResolvedValue(row(catalog()));
+    vi.doMock('./flatsSchema', () => { throw new Error('Failed to fetch dynamically imported module'); });
+    try {
+      upd.handlePossibleUpdate.mockReturnValue(true);
+      const { result } = renderHook(() => useFlatsCatalog());
+      await waitFor(() => expect(result.current.status).toBe('error'));
+      expect(upd.handlePossibleUpdate).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      upd.handlePossibleUpdate.mockReturnValue(false);
+      await expect(loadFlatsCatalog()).resolves.toBeNull();
+      expect(toast.error).toHaveBeenCalledWith(MSG_FLATS_FAILED);
+    } finally {
+      vi.doUnmock('./flatsSchema');
+      vi.mocked(console.error).mockRestore();
+    }
+    const { result } = renderHook(() => useFlatsCatalog());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
   });
 });

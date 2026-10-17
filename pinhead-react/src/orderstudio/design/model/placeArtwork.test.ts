@@ -93,6 +93,17 @@ describe('placeArtwork', () => {
       expect(res.prints[1]).toBe(placed);
     });
 
+    it('строка на ДРУГОМ или снятом флэте (5б) — тоже кандидат: на холсте её не видно, цена не удваивается', () => {
+      const other = flat({ id: 'tshirt-other' });
+      const onOther = placeArtwork([], asset(), PATH, 'chest', { ...CTX, flat: other })!.prints[0];
+      expect(placementOf(onOther, FLAT)).toBeNull();
+      const res = placeArtwork([onOther], asset(), PATH, 'chest', CTX)!;
+      expect(res.prints).toHaveLength(1);
+      expect(res.key).toBe(onOther.key);
+      expect(parseLayout(res.prints[0].layout)).toMatchObject({ flat_id: FLAT.id, area_id: 'chest' });
+      expect(placementOf(res.prints[0], FLAT)).not.toBeNull();
+    });
+
     it('при нескольких строках зоны — сначала без файла или с тем же файлом', () => {
       const withFile = rowOf({ artwork_path: 'orders/x/logo/other.png' });
       const empty = rowOf();

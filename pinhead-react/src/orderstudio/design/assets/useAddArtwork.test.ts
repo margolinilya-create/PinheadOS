@@ -11,7 +11,8 @@ import { flat } from '../fixtures.testutil';
 import { pngBytes, textBytes } from './bytes.testutil';
 import { MSG_FORMAT } from './sniff';
 import {
-  MSG_READ_ONLY, MSG_TARGET_CHANGED, addArtworkFile, addExistingArtwork, useAddArtwork, type ArtworkTarget,
+  MSG_NO_AREA, MSG_OTHER_ITEM, MSG_PDF_UNAVAILABLE, MSG_READ_ONLY, MSG_TARGET_CHANGED,
+  addArtworkFile, addExistingArtwork, useAddArtwork, type ArtworkTarget,
 } from './useAddArtwork';
 
 vi.mock('../../api/salesOrders', async (orig) => ({
@@ -27,6 +28,8 @@ vi.mock('./artworkImages', () => images);
 vi.mock('./flatImages', () => ({ releaseFlatImages: vi.fn() }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 vi.mock('../../../store/useToastStore', () => ({ toast }));
+const upd = vi.hoisted(() => ({ handlePossibleUpdate: vi.fn(() => false) }));
+vi.mock('../../../lib/appUpdate', () => upd);
 
 const ORDER = '0b6c1f0e-1d2a-4c3b-8e4f-5a6b7c8d9e0f';
 const PATH = `orders/${ORDER}/logo/1b2c3d4e-0000-4000-8000-000000000000-logo.png`;
@@ -54,6 +57,8 @@ beforeEach(() => {
   pdf.loadPdf.mockReset();
   images.primeArtworkImage.mockReset();
   toast.error.mockReset();
+  upd.handlePossibleUpdate.mockReset();
+  upd.handlePossibleUpdate.mockReturnValue(false);
   api.uploadArtwork.mockResolvedValue(PATH);
   api.uploadArtworkPreview.mockImplementation(async (_o: string, p: string) => `${p}.preview.png`);
 });
@@ -73,8 +78,17 @@ describe('addArtworkFile — PNG', () => {
     expect(parseLayout(p.layout)?.asset).toMatchObject({ type: 'png', source_file: 'logo.png', px_w: 1417, has_preview: false });
     expect(useDesignStore.getState().selectedPrintKey).toBe(key);
     expect(useSalesStore.getState().saveState).toBe('dirty');
-    const [primedPath, primedPreview, blob] = images.primeArtworkImage.mock.calls[0];
+    const [primedPath, primedPreview, blob, size] = images.primeArtworkImage.mock.calls[0];
     expect([primedPath, primedPreview, (blob as Blob).type]).toEqual([PATH, false, 'image/png']);
+    // Пиксели из заголовка — большой растр уменьшится для показа и сразу после загрузки
+    expect(size).toEqual({ width: 1417, height: 945 });
+  });
+
+  it('SVG — без размера растра (уменьшать нечего)', async () => {
+    open();
+    const svg = new File([textBytes('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm"/>') as BlobPart], 'logo.svg');
+    await addArtworkFile(svg, T);
+    expect(images.primeArtworkImage.mock.calls[0][3]).toBeNull();
   });
 
   it('техника — по правилам категории в зоне (defaultMethod)', async () => {
@@ -120,7 +134,7 @@ describe('addArtworkFile — PDF/AI', () => {
     expect(api.uploadArtwork).toHaveBeenCalledWith(ORDER, 'logo', file);
     expect(api.uploadArtworkPreview).toHaveBeenCalledWith(ORDER, PATH, preview);
     expect(parseLayout(item().prints[0].layout)?.asset.has_preview).toBe(true);
-    expect(images.primeArtworkImage).toHaveBeenCalledWith(PATH, true, preview);
+    expect(images.primeArtworkImage).toHaveBeenCalledWith(PATH, true, preview, null);
   });
 
   it('превью не легло — исходник убран, нанесения нет', async () => {
@@ -130,6 +144,24 @@ describe('addArtworkFile — PDF/AI', () => {
     expect(await addArtworkFile(pdfFile(), T)).toBeNull();
     expect(api.removeArtwork).toHaveBeenCalledWith(PATH, { missingOk: true });
     expect(item().prints).toEqual([]);
+  });
+
+  it('модуль PDF не загрузился (устаревшая вкладка) — диалог обновления, в бакет ничего', async () => {
+    open();
+    const err = new Error('Failed to fetch dynamically imported module');
+    vi.doMock('./loadPdf', () => { throw err; });
+    try {
+      upd.handlePossibleUpdate.mockReturnValue(true);
+      expect(await addArtworkFile(pdfFile(), T)).toBeNull();
+      expect(upd.handlePossibleUpdate).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      upd.handlePossibleUpdate.mockReturnValue(false);
+      expect(await addArtworkFile(pdfFile(), T)).toBeNull();
+      expect(toast.error).toHaveBeenCalledWith(MSG_PDF_UNAVAILABLE);
+      expect(api.uploadArtwork).not.toHaveBeenCalled();
+    } finally {
+      vi.doMock('./loadPdf', () => pdf);
+    }
   });
 
   it('PDF не открылся — текст ошибки, в бакет ничего', async () => {
@@ -162,6 +194,24 @@ describe('addArtworkFile — отказы', () => {
     open('ready_to_launch');
     expect(await addArtworkFile(png(), T)).toBeNull();
     expect(toast.error).toHaveBeenCalledWith(MSG_READ_ONLY);
+    expect(api.uploadArtwork).not.toHaveBeenCalled();
+  });
+
+  it('холст на другой позиции — верная причина, в бакет ничего', async () => {
+    open();
+    useDesignStore.getState().bind(ORDER, 'b');
+    expect(await addArtworkFile(png(), T)).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(MSG_OTHER_ITEM);
+    expect(api.uploadArtwork).not.toHaveBeenCalled();
+    expect(addExistingArtwork({ path: PATH, asset: { type: 'svg', source_file: 'a.svg', intrinsic_w_mm: 10, intrinsic_h_mm: 10, size_estimated: false, has_preview: false } }, T)).toBeNull();
+    expect(toast.error).toHaveBeenLastCalledWith(MSG_OTHER_ITEM);
+  });
+
+  it('на виде нет зоны — отказ ДО загрузки (файл не ложится «ничьим»)', async () => {
+    open();
+    const noBack = { ...T, flat: flat({ views: [FLAT.views[0]] }), view: 'back' as const };
+    expect(await addArtworkFile(png(), noBack)).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(MSG_NO_AREA);
     expect(api.uploadArtwork).not.toHaveBeenCalled();
   });
 
