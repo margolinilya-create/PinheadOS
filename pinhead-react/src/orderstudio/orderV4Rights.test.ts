@@ -83,14 +83,35 @@ function updatedColumns(body: string): string[] {
   return [...cols].sort();
 }
 
-/** Белый список стража `order_v4_guard` */
-function guardAllowed(sql: string): string[] {
+/** Список-константа `<name> constant text[] := array[...]` стража `order_v4_guard` */
+function guardList(sql: string, name: string): string[] {
   const guard = functionsOf(sql).find((f) => f.name === 'order_v4_guard');
   if (!guard) throw new Error('нет order_v4_guard');
-  const arr = guard.body.match(/c_allowed\s+constant\s+text\[\]\s*:=\s*array\[([\s\S]*?)\];/);
-  if (!arr) throw new Error('нет c_allowed в order_v4_guard');
+  const arr = guard.body.match(new RegExp(`${name}\\s+constant\\s+text\\[\\]\\s*:=\\s*array\\[([\\s\\S]*?)\\];`));
+  if (!arr) throw new Error(`нет ${name} в order_v4_guard`);
   return [...arr[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
 }
+
+/** Белый список UPDATE стража */
+const guardAllowed = (sql: string) => guardList(sql, 'c_allowed');
+
+/** Колонки, добавленные в `public.orders` (`alter table public.orders … add column`) */
+function addedOrderColumns(sqls: string[]): string[] {
+  const cols = new Set<string>();
+  for (const sql of sqls) {
+    for (const stmt of noComments(sql).match(/alter table public\.orders\b[\s\S]*?;/gi) ?? []) {
+      for (const m of stmt.matchAll(/add column (?:if not exists )?([a-z_]+)/gi)) cols.add(m[1]);
+    }
+  }
+  return [...cols].sort();
+}
+
+/** Колонки `orders` до Order v4 (таблица визарда v3) */
+const BASE_ORDER_COLUMNS = [
+  'id', 'created_by', 'order_number', 'data', 'status', 'created_at', 'updated_at', 'bitrix_deal',
+  'total_sum', 'total_qty', 'item_type', 'artwork_link', 'notes', 'erp_order_id',
+];
+const V4_SINCE = '20260928213529';
 
 /** Нарушения парности метки режима RPC в теле функции */
 function rpcMarkProblems(body: string): string[] {
@@ -123,7 +144,8 @@ describe('миграция B: права Order v4', () => {
 
   it('функции на месте', () => {
     expect(fns.map((f) => f.name).sort()).toEqual([
-      'order_v4_child_guard', 'order_v4_guard', 'order_v4_has_erp', 'order_v4_launch_check',
+      'generate_order_number', 'order_number_format',
+      'order_v4_child_guard', 'order_v4_delete_guard', 'order_v4_guard', 'order_v4_launch_check',
       'order_v4_set_payment', 'order_v4_transition', 'sales_is_lead', 'sales_is_ms', 'sales_is_seller',
     ]);
   });
@@ -133,7 +155,7 @@ describe('миграция B: права Order v4', () => {
   });
 
   it('функции-триггеры закрыты и от authenticated', () => {
-    for (const n of ['order_v4_guard', 'order_v4_child_guard']) {
+    for (const n of ['order_v4_guard', 'order_v4_child_guard', 'order_v4_delete_guard']) {
       expect(RIGHTS).toMatch(new RegExp(
         `revoke execute on function public\\.${n}\\(\\) from public, anon, authenticated;`));
       expect(RIGHTS).not.toMatch(new RegExp(`grant execute on function public\\.${n}\\(`));
@@ -167,7 +189,8 @@ describe('миграция B: права Order v4', () => {
   it('журнал order_events: только политика select, запись отозвана', () => {
     const events = policiesOf(RIGHTS).filter((p) => /on public\.order_events/.test(p));
     expect(events.map((p) => p.match(/for (\w+)/)?.[1])).toEqual(['select']);
-    expect(RIGHTS).toMatch(/revoke insert, update, delete, truncate on public\.order_events from public, anon, authenticated;/);
+    expect(RIGHTS).toMatch(/revoke all on public\.order_events from public, anon, authenticated;\s*grant select on public\.order_events to authenticated;/);
+    expect(noComments(RIGHTS)).not.toMatch(/grant (insert|update|delete|all)[^;]*order_events/);
   });
 
   it('метка order_v4.rpc: каждое on закрыто off в той же функции', () => {
@@ -193,7 +216,10 @@ describe('миграция B: права Order v4', () => {
 
   it('стражи висят на INSERT/UPDATE/DELETE всех таблиц заказа', () => {
     const sql = noComments(RIGHTS);
-    expect(sql).toMatch(/create trigger orders_v4_guard\s+before insert or update or delete on public\.orders\s+for each row execute function public\.order_v4_guard\(\);/);
+    expect(sql).toMatch(/create trigger orders_v4_guard\s+before insert or update on public\.orders\s+for each row execute function public\.order_v4_guard\(\);/);
+    expect(sql).toMatch(/create trigger orders_v4_delete_guard\s+before delete on public\.orders\s+for each row execute function public\.order_v4_delete_guard\(\);/);
+    // оракула «есть ли у uuid заказ ERP» нет: проверка удаления — внутри definer-триггера
+    expect(sql).not.toMatch(/order_v4_has_erp/);
     for (const t of ['order_items', 'order_item_prints', 'order_item_labels', 'order_notes_cards']) {
       expect(sql).toMatch(new RegExp(
         `create trigger ${t}_v4_guard\\s+before insert or update or delete on public\\.${t}\\s+for each row execute function public\\.order_v4_child_guard\\(\\);`));
@@ -214,6 +240,31 @@ describe('миграция B: права Order v4', () => {
     expect(child).toMatch(/order_artwork_path_ok\(v_new_order, v_path\)/);
   });
 
+  it('каждая колонка orders v4 классифицирована стражем ровно один раз', () => {
+    const allowed = guardAllowed(RIGHTS);
+    const dbFilled = guardList(RIGHTS, 'c_db_filled');
+    const insertEmpty = guardList(RIGHTS, 'c_insert_empty');
+    const added = addedOrderColumns(files.filter((f) => f >= V4_SINCE).map(read));
+    expect(added.length).toBeGreaterThan(30);
+    const known = new Set([...BASE_ORDER_COLUMNS, ...added]);
+    for (const col of [...known]) {
+      const where = [allowed, dbFilled, insertEmpty].filter((l) => l.includes(col)).length;
+      expect(where, `колонка ${col}`).toBe(1);
+    }
+    for (const col of [...allowed, ...dbFilled, ...insertEmpty]) {
+      expect(known.has(col), `в списке стража лишняя колонка ${col}`).toBe(true);
+    }
+  });
+
+  it('номер заказа: формат в одной функции, номер уникален, подделка заменяется', () => {
+    const gen = fns.find((f) => f.name === 'generate_order_number');
+    expect(gen?.body).toMatch(/public\.order_number_format\(nextval\('public\.order_number_seq'\)\)/);
+    expect(RIGHTS).toMatch(/create unique index if not exists orders_order_number_uniq on public\.orders \(order_number\);/);
+    const guard = fns.find((f) => f.name === 'order_v4_guard')?.body ?? '';
+    expect(guard).toMatch(/order_number_format\(currval\('public\.order_number_seq'\)\)/);
+    expect(guard).toMatch(/new\.order_number := public\.generate_order_number\(\)/);
+  });
+
   it('DDL по erp_* нет — только чтение', () => {
     expect(noComments(RIGHTS)).not.toMatch(/\b(alter|create|drop)\s+(table|policy|trigger|index)[^;]*\berp_/i);
     expect(noComments(RIGHTS)).not.toMatch(/\b(insert into|update|delete from)\s+public\.erp_/i);
@@ -230,6 +281,14 @@ describe('самопроверка разборщиков', () => {
     const mutated = (save?.body ?? '').replace('updated_at       = now()', 'updated_at       = now(),\n    status = \'done\'');
     expect(updatedColumns(mutated)).toContain('status');
     expect(guardAllowed(RIGHTS)).not.toContain('status');
+  });
+
+  it('новая колонка orders без классификации — красный', () => {
+    const fake = 'alter table public.orders\n  add column if not exists fake_flag boolean;';
+    const added = addedOrderColumns([...files.filter((f) => f >= V4_SINCE).map(read), fake]);
+    const lists = [guardAllowed(RIGHTS), guardList(RIGHTS, 'c_db_filled'), guardList(RIGHTS, 'c_insert_empty')];
+    expect(added).toContain('fake_flag');
+    expect(lists.filter((l) => l.includes('fake_flag')).length).toBe(0);
   });
 
   it('rpcMarkProblems ловит незакрытую метку', () => {

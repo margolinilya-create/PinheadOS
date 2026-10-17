@@ -84,21 +84,43 @@ grant execute on function public.sales_is_ms() to authenticated;
 revoke execute on function public.sales_is_seller() from public, anon;
 grant execute on function public.sales_is_seller() to authenticated;
 
--- Есть ли у заказа заказ ERP (любой, в том числе невидимый вызывающему):
--- страж `orders` — security invoker, а RLS ERP не обязана показывать менеджеру
--- продаж чужие ей заказы
-create or replace function public.order_v4_has_erp(p_order uuid)
-returns boolean
+-- ── 1б. Номер заказа ─────────────────────────────────────────────────────
+-- Формат номера — в одной функции: его зовут умолчание колонки
+-- (generate_order_number) и страж INSERT v4 (сверка номера, выданного
+-- последовательностью в этом сеансе). Текст generate_order_number взят
+-- с живой базы 17.10 (pg_get_functiondef): sql, volatile, invoker,
+-- search_path = public; права те же, что на бою (authenticated, service_role;
+-- public/anon нет) — revoke/grant ниже их только повторяют.
+
+create or replace function public.order_number_format(n bigint)
+returns text
 language sql
-stable
-security definer
+immutable
+security invoker
 set search_path = public
 as $$
-  select exists (select 1 from public.erp_orders e where e.tz_order_id = p_order);
+  select 'PH-' || lpad(n::text, greatest(4, length(n::text)), '0');
 $$;
 
-revoke execute on function public.order_v4_has_erp(uuid) from public, anon;
-grant execute on function public.order_v4_has_erp(uuid) to authenticated;
+revoke execute on function public.order_number_format(bigint) from public, anon;
+grant execute on function public.order_number_format(bigint) to authenticated, service_role;
+
+create or replace function public.generate_order_number()
+returns text
+language sql
+security invoker
+set search_path = public
+as $$
+  select public.order_number_format(nextval('public.order_number_seq'));
+$$;
+
+revoke execute on function public.generate_order_number() from public, anon;
+grant execute on function public.generate_order_number() to authenticated, service_role;
+
+-- Номер уникален: страж оставляет номер, совпавший с currval сеанса, а в пуле
+-- PostgREST сеанс общий — подделку «чужого недавнего» номера ловит индекс.
+-- На бою 17.10: 7 строк, дублей и пустых номеров нет.
+create unique index if not exists orders_order_number_uniq on public.orders (order_number);
 
 -- ── 2. RLS orders: политики на команду ───────────────────────────────────
 -- v3 — как раньше (руководство или свой заказ менеджера), но профиль обязан
@@ -166,13 +188,21 @@ create policy order_events_select on public.order_events
   for select to authenticated
   using (exists (select 1 from public.orders o where o.id = order_id));
 
-revoke insert, update, delete, truncate on public.order_events from public, anon, authenticated;
+-- Пишут только definer-RPC этого файла (владелец таблицы): клиенту — одно чтение.
+-- Последовательность identity клиенту не нужна — вставки идут от владельца
+revoke all on public.order_events from public, anon, authenticated;
+grant select on public.order_events to authenticated;
 
 -- ── 4. Страж orders (v4) ─────────────────────────────────────────────────
--- BEFORE INSERT OR UPDATE OR DELETE. Срабатывает, если old ИЛИ new — v4:
--- через смену версии его не обойти. Перечисляет ИСКЛЮЧЕНИЯ (белый список):
--- вне режима RPC меняются только колонки, которые пишут `order_v4_save`
--- (миграция 20261017053703) и `order_v4_set_urgent_days`, и только у черновика.
+-- BEFORE INSERT OR UPDATE (удаление — отдельный definer-страж ниже).
+-- Срабатывает, если old ИЛИ new — v4: через смену версии его не обойти.
+-- Перечисляет ИСКЛЮЧЕНИЯ (белый список):
+--   · UPDATE вне режима RPC — только колонки, которые пишут `order_v4_save`
+--     (миграция 20261017053703) и `order_v4_set_urgent_days`, и только у черновика;
+--   · INSERT вне режима RPC — те же колонки плюс то, что заполняет база;
+--     всё остальное обязано совпасть с умолчанием (обычно null). Колонка,
+--     не попавшая ни в один список, вставку отклоняет (fail-closed);
+--     классификацию всех колонок держит сторож orderV4Rights.test.ts.
 -- Пути файлов и родитель проверяются в любом режиме.
 
 create or replace function public.order_v4_guard()
@@ -211,23 +241,57 @@ declare
     'urgent_days',
     'updated_at'
   ];
+  -- База заполняет сама: при INSERT вне RPC свободны (status и created_by
+  -- сверяются отдельно, номер — по последовательности)
+  c_db_filled constant text[] := array[
+    'id',
+    'order_number',
+    'created_at',
+    'created_by',
+    'schema_version',
+    'status',
+    'data'
+  ];
+  -- При INSERT вне RPC — только умолчание: null, кроме перечисленных в c_insert_defaults
+  c_insert_empty constant text[] := array[
+    'total_sum',
+    'total_qty',
+    'item_type',
+    'artwork_link',
+    'notes',
+    'erp_order_id',
+    'paid_at',
+    'tz_ready_at',
+    'tech_checked_at',
+    'archived_at',
+    'paid_kind',
+    'paid_override_reason',
+    'sent_at',
+    'launch_started_at',
+    'launch_by',
+    'launched_at',
+    'launched_by'
+  ];
+  c_insert_defaults constant jsonb := '{"total_sum": 0, "total_qty": 0}'::jsonb;
   c_hidden constant text := 'Заказ не найден или недоступен';
   v_uid uuid := (select auth.uid());
   v_rpc boolean := coalesce(current_setting('order_v4.rpc', true), '') = 'on'
                    and current_user <> 'authenticated';
   v_number text;
+  v_key text;
+  v_value jsonb;
 begin
   if tg_op = 'INSERT' then
     if new.schema_version is distinct from 4 then return new; end if;
-  elsif tg_op = 'DELETE' then
-    if old.schema_version is distinct from 4 then return old; end if;
   elsif old.schema_version is distinct from 4 and new.schema_version is distinct from 4 then
     return new;
   end if;
 
-  -- Служебный доступ (service_role, миграции): пользователя нет, роль не клиентская
-  if v_uid is null and current_user not in ('authenticated', 'anon') then
-    return case when tg_op = 'DELETE' then old else new end;
+  -- Служебный доступ (service_role, миграции): роль запроса и текущая роль
+  -- не клиентские
+  if coalesce((select auth.role()), '') not in ('authenticated', 'anon')
+     and current_user not in ('authenticated', 'anon') then
+    return new;
   end if;
   if v_uid is null then
     raise exception using errcode = '42501', message = 'Нужен вход в систему';
@@ -235,15 +299,6 @@ begin
 
   if tg_op = 'UPDATE' and new.schema_version is distinct from old.schema_version then
     raise exception using errcode = '42501', message = 'Версию заказа менять нельзя';
-  end if;
-
-  if tg_op = 'DELETE' then
-    if old.status is distinct from 'draft' or old.erp_order_id is not null
-       or public.order_v4_has_erp(old.id) then
-      raise exception using errcode = '42501',
-        message = 'Удалить можно только черновик, не запущенный в производство';
-    end if;
-    return old;
   end if;
 
   -- Путь превью стикера — только файл ЭТОГО заказа (как в order_v4_save)
@@ -269,45 +324,52 @@ begin
   end if;
 
   if tg_op = 'INSERT' then
-    if new.status is distinct from 'draft'
-       or new.created_by is distinct from v_uid
-       or new.erp_order_id is not null
-       or new.paid_at is not null or new.paid_kind is not null
-       or new.paid_override_reason is not null
-       or new.sent_at is not null
-       or new.launch_started_at is not null or new.launch_by is not null
-       or new.launched_at is not null or new.launched_by is not null
-       or new.archived_at is not null
-       or new.tz_ready_at is not null or new.tech_checked_at is not null then
+    if new.status is distinct from 'draft' or new.created_by is distinct from v_uid then
       raise exception using errcode = '42501',
         message = 'Новый заказ — только черновик без служебных отметок';
     end if;
-    -- Номер — только из умолчания колонки (generate_order_number): тот, что
-    -- последовательность только что выдала в этом сеансе. Формат — как
-    -- в generate_order_number()
+    for v_key, v_value in
+      select key, value from jsonb_each(to_jsonb(new) - c_allowed - c_db_filled)
+    loop
+      if not (v_key = any (c_insert_empty))
+         or v_value is distinct from coalesce(c_insert_defaults -> v_key, 'null'::jsonb) then
+        raise exception using errcode = '42501',
+          message = 'Новый заказ — только черновик без служебных отметок';
+      end if;
+    end loop;
+    -- Номер — только из последовательности: тот, что умолчание колонки
+    -- выдало в этом сеансе. Иной (подделка, своё значение) заменяется новым
+    -- номером; законная вставка номер не тратит дважды
     begin
-      select 'PH-' || lpad(s.n::text, greatest(4, length(s.n::text)), '0')
-        into v_number
-        from (select currval('public.order_number_seq') as n) s;
+      v_number := public.order_number_format(currval('public.order_number_seq'));
     exception when object_not_in_prerequisite_state then
       v_number := null;
     end;
     if new.order_number is distinct from v_number then
-      raise exception using errcode = '42501', message = 'Номер заказа присваивает база';
+      new.order_number := public.generate_order_number();
     end if;
     return new;
   end if;
 
   -- UPDATE вне RPC.
-  -- Ветка «родитель удалён»: `parent_id … on delete set null` обнуляет ссылку
-  -- и у отправленного заказа — пропускаем ровно это: прежнего родителя больше
-  -- нет, а кроме parent_id (и updated_at) ничего не меняется. Действие FK
-  -- выполняется от владельца таблицы — клиент (`authenticated`) сюда не попадёт
+  -- Действия FK `on delete set null` выполняются от владельца таблицы —
+  -- клиент (`authenticated`) в эти ветки не попадёт. Пропускается ровно
+  -- обнуление ссылки на удалённую строку, остальное не меняется.
+  -- Ветка «родитель удалён» (orders_parent_id_fkey)
   if current_user <> 'authenticated'
      and old.parent_id is not null and new.parent_id is null
      and not exists (select 1 from public.orders o where o.id = old.parent_id)
      and (to_jsonb(new) - array['parent_id', 'updated_at'])
          = (to_jsonb(old) - array['parent_id', 'updated_at']) then
+    return new;
+  end if;
+  -- Ветка «заказ ERP удалён» (orders_erp_order_id_fkey): ERP удаляет свой заказ,
+  -- заказ v4 сохраняет статус и теряет только ссылку
+  if current_user <> 'authenticated'
+     and old.erp_order_id is not null and new.erp_order_id is null
+     and not exists (select 1 from public.erp_orders e where e.id = old.erp_order_id)
+     and (to_jsonb(new) - array['erp_order_id', 'updated_at'])
+         = (to_jsonb(old) - array['erp_order_id', 'updated_at']) then
     return new;
   end if;
   if old.status is distinct from 'draft' then
@@ -325,8 +387,41 @@ revoke execute on function public.order_v4_guard() from public, anon, authentica
 
 drop trigger if exists orders_v4_guard on public.orders;
 create trigger orders_v4_guard
-  before insert or update or delete on public.orders
+  before insert or update on public.orders
   for each row execute function public.order_v4_guard();
+
+-- Удаление заказа v4 — только черновик без связи с ERP. Definer: заказ ERP
+-- может быть не виден вызывающему по RLS ERP, а отдельный открытый хелпер
+-- «есть ли у uuid заказ ERP» был бы оракулом существования
+create or replace function public.order_v4_delete_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.schema_version is distinct from 4 then
+    return old;
+  end if;
+  -- Служебный доступ (service_role, миграции)
+  if coalesce((select auth.role()), '') not in ('authenticated', 'anon') then
+    return old;
+  end if;
+  if old.status is distinct from 'draft' or old.erp_order_id is not null
+     or exists (select 1 from public.erp_orders e where e.tz_order_id = old.id) then
+    raise exception using errcode = '42501',
+      message = 'Удалить можно только черновик, не запущенный в производство';
+  end if;
+  return old;
+end;
+$$;
+
+revoke execute on function public.order_v4_delete_guard() from public, anon, authenticated;
+
+drop trigger if exists orders_v4_delete_guard on public.orders;
+create trigger orders_v4_delete_guard
+  before delete on public.orders
+  for each row execute function public.order_v4_delete_guard();
 
 -- ── 5. Стражи строк заказа ───────────────────────────────────────────────
 -- Позиции, нанесения, бирки, карточки заметок: запись — только пока заказ v4
@@ -355,8 +450,9 @@ declare
   v_version smallint;
   v_path text;
 begin
-  -- Служебный доступ (service_role, миграции): пользователя нет
-  if (select auth.uid()) is null then
+  -- Служебный доступ (service_role, миграции): роль запроса не клиентская.
+  -- Внутри definer current_user — владелец, поэтому смотрим роль запроса
+  if coalesce((select auth.role()), '') not in ('authenticated', 'anon') then
     return case when tg_op = 'DELETE' then old else new end;
   end if;
 
@@ -609,7 +705,7 @@ declare
   v_lead boolean;
   v_boss boolean;
   v_row public.orders%rowtype;
-  v_erp uuid;
+  v_erp_row record;
 begin
   if v_uid is null then
     raise exception using errcode = '42501', message = 'Нужен вход в систему';
@@ -647,16 +743,20 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'В заказе нет позиций');
   end if;
 
-  -- Заказ ERP с этой связью уже есть
-  if exists (select 1 from public.erp_orders e where e.tz_order_id = p_id) then
-    select e.id into v_erp from public.erp_orders e
-     where e.tz_order_id = p_id
-       and v_row.launch_started_at is not null
-       and e.created_at >= v_row.launch_started_at
-       and e.tz_number = v_row.order_number
-       and e.status <> 'cancelled';
-    if v_erp is not null then
-      return jsonb_build_object('ok', true, 'already', true, 'erp_order_id', v_erp,
+  -- Заказ ERP с этой связью уже есть (связь уникальна: erp_orders_tz_order_uniq)
+  select e.id, e.status, e.created_at, e.tz_number into v_erp_row
+    from public.erp_orders e
+   where e.tz_order_id = p_id;
+  if found then
+    if v_erp_row.status = 'cancelled' then
+      return jsonb_build_object('ok', false, 'reason',
+        'Прежний заказ ERP отменён — удалите его в ERP, чтобы запустить заново');
+    end if;
+    if v_row.launch_started_at is not null
+       and v_erp_row.created_at >= v_row.launch_started_at
+       and v_erp_row.tz_number = v_row.order_number then
+      -- Сирота прошлой попытки: заказ ERP этого запуска есть, переход не прошёл
+      return jsonb_build_object('ok', true, 'already', true, 'erp_order_id', v_erp_row.id,
                                 'launch_started_at', v_row.launch_started_at);
     end if;
     return jsonb_build_object('ok', false, 'reason',

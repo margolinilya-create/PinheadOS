@@ -25,6 +25,19 @@ import {
 
 const SQL = withoutComments(latestDefining('generate_order_number'));
 const BODY = functionBody(SQL, 'generate_order_number');
+/** Заголовок функции (до тела): файл может определять и другие функции */
+const HEAD = SQL.slice(
+  SQL.indexOf('create or replace function public.generate_order_number('),
+  SQL.indexOf('as $$', SQL.indexOf('create or replace function public.generate_order_number(')),
+);
+/**
+ * Формат с 17.10 (миграция …_order_v4_rights) — в `order_number_format(n)`:
+ * его зовут и функция, и страж INSERT заказа v4. До того — выражение в теле.
+ */
+const FORMAT_BODY = /order_number_format\(/.test(BODY)
+  ? functionBody(withoutComments(latestDefining('order_number_format')), 'order_number_format')
+  : BODY;
+const N = /order_number_format\(/.test(BODY) ? 'n' : 's.n';
 
 describe('номер заказа Order Studio', () => {
   it('функция берёт номер из последовательности базовой схемы', () => {
@@ -39,8 +52,9 @@ describe('номер заказа Order Studio', () => {
   });
 
   it('ширина номера растёт с числом — lpad не режет пятизначные', () => {
-    expect(BODY).toMatch(/lpad\(s\.n::text, greatest\(4, length\(s\.n::text\)\), '0'\)/);
-    expect(BODY).toMatch(/'PH-' \|\|/);
+    const n = N.replace('.', '\\.');
+    expect(FORMAT_BODY).toMatch(new RegExp(`lpad\\(${n}::text, greatest\\(4, length\\(${n}::text\\)\\), '0'\\)`));
+    expect(FORMAT_BODY).toMatch(/'PH-' \|\|/);
   });
 
   it('умолчание колонки зовёт функцию, а не держит свою копию формата', () => {
@@ -58,7 +72,7 @@ describe('номер заказа Order Studio', () => {
   });
 
   it('повышать права функции нечего — security invoker', () => {
-    expect(SQL).toMatch(/security invoker/);
-    expect(SQL).not.toMatch(/security definer/);
+    expect(HEAD).toMatch(/security invoker/);
+    expect(HEAD).not.toMatch(/security definer/);
   });
 });
