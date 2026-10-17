@@ -15,9 +15,13 @@
 -- КТО ЧТО МОЖЕТ (RLS `orders` из миграции B решает, виден ли заказ):
 --   · читать — всякий, кому виден заказ v4: автор, руководство (admin,
 --     director, rop), МС — заказы в `ready_to_launch`, `production`, `done`;
---   · писать, перезаписывать, удалять — автор-менеджер или руководство,
+--   · писать (новый ключ) и удалять — автор-менеджер или руководство,
 --     и ТОЛЬКО пока заказ в `draft` (после «Отправить в работу» файлы
 --     заморожены вместе со строками заказа). МС только читает.
+--   · UPDATE (перезапись, move внутрь и наружу) — никто: restrictive
+--     `order_artworks_no_update` ниже. `copy` — это INSERT: внутрь бакета его
+--     судит политика записи; наружу — политика бакета-получателя (читающий
+--     может скопировать видимый ему файл туда, куда и так может загрузить).
 -- Цеху ссылки на этот бакет не даются: при запуске (веха 6–7) макеты и PDF
 -- копируются в `erp-attachments` через `tz.documents`.
 --
@@ -122,41 +126,25 @@ create policy "order_artworks_insert" on storage.objects
     )
   );
 
--- Перезапись и перенос (upsert, move): USING решает, какой объект можно
--- взять, WITH CHECK — каким он станет. Оба условия те же, что у записи:
--- иначе `move` перенёс бы файл в папку чужого заказа или из отправленного.
--- Перенос СВОЕГО файла черновика в `erp-attachments`/`sku-photos` всё же
--- проходит: permissive-политики складываются через OR, и WITH CHECK
--- соседних `erp_att_update`/`sku_photos_update` пропускает новую строку.
--- Принято 17.10 — не новая возможность (скачать и загрузить туда автор
--- может и так), а закрыть можно только в замороженных политиках ERP.
-drop policy if exists "order_artworks_update" on storage.objects;
-create policy "order_artworks_update" on storage.objects
+-- UPDATE ЗАПРЕЩЁН ВСЕМ — restrictive-политикой. Клиенту он не нужен:
+-- загрузка без upsert (INSERT), новый файл — новый ключ, замена — загрузка
+-- нового + удаление старого; move/copy клиент не зовёт.
+-- Почему не permissive «как у записи»: permissive-политики складываются
+-- через OR — и по USING (какую строку взять), и по WITH CHECK (какой она
+-- станет). WITH CHECK соседних `erp_att_update` (owner = uid и член ERP)
+-- и `sku_photos_update` (owner = uid) пропускает новую строку своего
+-- бакета, и `move` выносил бы файл из `order-artworks` в чужой бакет МИМО
+-- лимитов типа и размера бакета-получателя (SVG/PDF — в публичный
+-- `sku-photos`). Restrictive складывается через AND с каждой permissive:
+-- строку `order-artworks` не взять на UPDATE и не сделать ею строку другого
+-- бакета (перенос внутрь) — ни владельцу, ни руководству. Политики ERP
+-- (заморожены) не трогаются.
+drop policy if exists "order_artworks_no_update" on storage.objects;
+create policy "order_artworks_no_update" on storage.objects
+  as restrictive
   for update to authenticated
-  using (
-    bucket_id = 'order-artworks'
-    and public.order_artwork_path_ok(public.order_artwork_order_id(name), name)
-    and exists (
-      select 1 from public.orders o
-       where o.id = public.order_artwork_order_id(objects.name)
-         and o.schema_version = 4
-         and o.status = 'draft'
-         and ((select public.sales_is_lead())
-              or (o.created_by = (select auth.uid()) and (select public.sales_is_seller())))
-    )
-  )
-  with check (
-    bucket_id = 'order-artworks'
-    and public.order_artwork_path_ok(public.order_artwork_order_id(name), name)
-    and exists (
-      select 1 from public.orders o
-       where o.id = public.order_artwork_order_id(objects.name)
-         and o.schema_version = 4
-         and o.status = 'draft'
-         and ((select public.sales_is_lead())
-              or (o.created_by = (select auth.uid()) and (select public.sales_is_seller())))
-    )
-  );
+  using (bucket_id <> 'order-artworks')
+  with check (bucket_id <> 'order-artworks');
 
 -- Удаление: как запись — только черновик, автор или руководство.
 drop policy if exists "order_artworks_delete" on storage.objects;

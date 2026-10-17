@@ -30,7 +30,10 @@ const bucketFile = files.filter((f) => f.endsWith('_order_artworks_bucket.sql'))
 if (!bucketFile) throw new Error('нет миграции *_order_artworks_bucket.sql');
 const SQL = noComments(read(bucketFile));
 
-interface Policy { name: string; cmd: string; role: string; using: string | null; check: string | null; text: string }
+interface Policy {
+  name: string; cmd: string; role: string; restrictive: boolean;
+  using: string | null; check: string | null; text: string;
+}
 
 /**
  * ВСЕ `create policy … on storage.objects` — свободной регуляркой: без
@@ -45,7 +48,7 @@ const NAME = '(?:"[^"]+"|[\\w-]+)';
 const FREE_RE = new RegExp(`create\\s+policy\\s+${NAME}\\s+on\\s+${OBJECTS}(?![\\w"])[^;]*;`, 'gi');
 const STRICT_RE = new RegExp(
   `^create\\s+policy\\s+(?:"(?<qname>[^"]+)"|(?<name>[\\w-]+))\\s+on\\s+${OBJECTS}`
-  + '(?:\\s+as\\s+(?:permissive|restrictive))?'
+  + '(?:\\s+as\\s+(?<kind>permissive|restrictive))?'
   + '(?:\\s+for\\s+(?<cmd>all|select|insert|update|delete))?'
   + '(?:\\s+to\\s+(?<role>"?[\\w-]+"?(?:\\s*,\\s*"?[\\w-]+"?)*))?'
   + '(?=\\s|;)(?<rest>[\\s\\S]*);$',
@@ -101,7 +104,7 @@ function parsePolicy(text: string): Policy | null {
   if (!g || !body) return null;
   return {
     name: g.qname ?? g.name, cmd: (g.cmd ?? 'all').toLowerCase(), role: (g.role ?? 'public').replace(/"/g, ''),
-    text, ...body,
+    restrictive: g.kind?.toLowerCase() === 'restrictive', text, ...body,
   };
 }
 
@@ -228,7 +231,8 @@ describe('политики storage.objects во ВСЕХ миграциях — 
     const [p] = policiesOf(`CREATE POLICY y ON storage.objects\n  USING (bucket_id = 'z');`);
     expect(p).toMatchObject({ name: 'y', cmd: 'all', role: 'public', using: "bucket_id = 'z'", check: null });
     const [q] = policiesOf(`create policy "q-1" on storage.objects as restrictive for insert to anon, "authenticated" with check (true);`);
-    expect(q).toMatchObject({ name: 'q-1', cmd: 'insert', role: 'anon, authenticated', using: null, check: 'true' });
+    expect(q).toMatchObject({ name: 'q-1', cmd: 'insert', role: 'anon, authenticated', restrictive: true, using: null, check: 'true' });
+    expect(p.restrictive).toBe(false);
     const [quoted] = policiesOf(`create policy "Allow all" on "storage"."objects" for select to authenticated using (bucket_id = 'a');`);
     expect(quoted).toMatchObject({ name: 'Allow all', cmd: 'select', using: "bucket_id = 'a'" });
     expect(roughCount(`create policy "Allow all" on "storage"."objects" using (true);`)).toBe(1);
@@ -266,11 +270,12 @@ describe('политики storage.objects во ВСЕХ миграциях — 
     expect(ALL.reduce((n, x) => n + x.found.length, 0)).toBeGreaterThanOrEqual(18);
   });
 
-  it('каждое тело USING и WITH CHECK начинается с bucket_id = \'<литерал>\' (кроме перечисленных исключений)', () => {
+  it('каждое тело USING и WITH CHECK permissive-политики начинается с bucket_id = \'<литерал>\' (кроме исключений)', () => {
     const bad: string[] = [];
     for (const { f, policies } of ALL) {
       for (const p of policies) {
-        if (BUCKET_EXCEPTIONS[`${f}:${p.name}`]) continue;
+        // restrictive только СУЖАЕТ (AND с каждой permissive) — чужой бакет ею не открыть
+        if (p.restrictive || BUCKET_EXCEPTIONS[`${f}:${p.name}`]) continue;
         const bodies = [p.using, p.check].filter((b): b is string => b !== null);
         const buckets = bodies.map(bucketOf);
         if (bodies.length === 0 || buckets.some((b) => b === null) || new Set(buckets).size > 1) bad.push(`${f}: ${p.name}`);
@@ -293,10 +298,12 @@ describe('политики storage.objects во ВСЕХ миграциях — 
 });
 
 describe('политики storage.objects для order-artworks', () => {
+  /** Permissive — на команду; UPDATE не открыт никому */
   const CMDS: Record<string, string> = {
-    order_artworks_select: 'select', order_artworks_insert: 'insert',
-    order_artworks_update: 'update', order_artworks_delete: 'delete',
+    order_artworks_select: 'select', order_artworks_insert: 'insert', order_artworks_delete: 'delete',
   };
+  const NO_UPDATE = 'order_artworks_no_update';
+  const PERMISSIVE = POLICIES.filter((p) => !p.restrictive);
 
   it('разборщик видит политику и её тела (самопроверка)', () => {
     const [p] = policiesOf(`create policy "x_p" on storage.objects for update to authenticated
@@ -304,17 +311,38 @@ describe('политики storage.objects для order-artworks', () => {
     expect(p).toMatchObject({ name: 'x_p', cmd: 'update', using: "bucket_id = 'b' and (a or (b))", check: "bucket_id = 'b'" });
   });
 
-  it('ровно четыре политики, на команду, для authenticated, пересоздаются явно', () => {
-    expect(POLICIES.map((p) => p.name).sort()).toEqual(Object.keys(CMDS).sort());
+  it('три permissive (select, insert, delete) и одна restrictive на update, для authenticated, пересоздаются явно', () => {
+    expect(PERMISSIVE.map((p) => p.name).sort()).toEqual(Object.keys(CMDS).sort());
+    expect(POLICIES.filter((p) => p.restrictive).map((p) => p.name)).toEqual([NO_UPDATE]);
+    for (const p of PERMISSIVE) expect(p.cmd, p.name).toBe(CMDS[p.name]);
     for (const p of POLICIES) {
-      expect(p.cmd, p.name).toBe(CMDS[p.name]);
       expect(p.role, p.name).toBe('authenticated');
       expect(SQL, p.name).toMatch(new RegExp(`drop policy if exists "?${p.name}"? on storage\\.objects;`));
     }
   });
 
-  it('каждое тело начинается с bucket_id = \'order-artworks\'', () => {
-    for (const p of POLICIES) {
+  it('UPDATE запрещён restrictive-политикой: using и with check ровно bucket_id <> \'order-artworks\'', () => {
+    // permissive складываются через OR: WITH CHECK соседних erp_att_update / sku_photos_update
+    // пропустил бы move из order-artworks к себе — мимо лимитов типа и размера получателя.
+    // Restrictive — AND с каждой: строку бакета не взять на UPDATE и не сделать ею чужую.
+    const p = byName(NO_UPDATE);
+    expect(p).toMatchObject({ restrictive: true, cmd: 'update', role: 'authenticated' });
+    expect(norm(p.using)).toBe("bucket_id <> 'order-artworks'");
+    expect(norm(p.check)).toBe("bucket_id <> 'order-artworks'");
+  });
+
+  it('ни в одной миграции нет permissive UPDATE (или ALL), открывающей order-artworks', () => {
+    for (const f of files) {
+      for (const p of policiesOf(noComments(read(f)))) {
+        if (p.restrictive || !['update', 'all'].includes(p.cmd)) continue;
+        const touches = [p.using, p.check].some((b) => b !== null && (bucketOf(b) === 'order-artworks' || /order-artworks/.test(b)));
+        expect(touches, `${f}: ${p.name}`).toBe(false);
+      }
+    }
+  });
+
+  it('каждое тело permissive-политики начинается с bucket_id = \'order-artworks\'', () => {
+    for (const p of PERMISSIVE) {
       for (const body of [p.using, p.check].filter(Boolean)) {
         expect(norm(body), p.name).toMatch(/^bucket_id = 'order-artworks' and /);
       }
@@ -322,7 +350,7 @@ describe('политики storage.objects для order-artworks', () => {
   });
 
   it('нет голого ::uuid, auth.uid() и хелперы прав — только в (select …)', () => {
-    for (const p of POLICIES) {
+    for (const p of PERMISSIVE) {
       expect(p.text, p.name).not.toMatch(/::uuid/);
       expect(p.text, p.name).not.toMatch(/foldername/);
       expect(p.text.replace(/\(select auth\.uid\(\)\)/g, ''), p.name).not.toMatch(/auth\.uid\(\)/);
@@ -340,13 +368,8 @@ describe('политики storage.objects для order-artworks', () => {
     expect(p.using).not.toMatch(/draft/);
   });
 
-  it('insert, update, delete: путь заказа, черновик v4, автор-менеджер или руководство', () => {
-    const bodies = [
-      byName('order_artworks_insert').check,
-      byName('order_artworks_update').using,
-      byName('order_artworks_update').check,
-      byName('order_artworks_delete').using,
-    ];
+  it('insert, delete: путь заказа, черновик v4, автор-менеджер или руководство', () => {
+    const bodies = [byName('order_artworks_insert').check, byName('order_artworks_delete').using];
     for (const b of bodies) {
       expect(b).toMatch(/public\.order_artwork_path_ok\(public\.order_artwork_order_id\(name\), name\)/);
       expect(b).toMatch(/o\.status = 'draft'/);
@@ -356,18 +379,11 @@ describe('политики storage.objects для order-artworks', () => {
     }
     expect(byName('order_artworks_insert').using).toBeNull();
     expect(byName('order_artworks_delete').check).toBeNull();
-  });
-
-  it('update: и USING, и WITH CHECK, одинаковые — move не уносит файл в чужой заказ', () => {
-    const p = byName('order_artworks_update');
-    expect(p.using).not.toBeNull();
-    expect(p.check).not.toBeNull();
-    expect(norm(p.check)).toBe(norm(p.using));
-    expect(norm(p.check)).toBe(norm(byName('order_artworks_insert').check));
+    expect(norm(byName('order_artworks_delete').using)).toBe(norm(byName('order_artworks_insert').check));
   });
 
   it('ни одна другая политика ни в одной миграции не упоминает order-artworks', () => {
-    const own = new Set(Object.keys(CMDS));
+    const own = new Set([...Object.keys(CMDS), NO_UPDATE]);
     for (const f of files) {
       for (const p of policiesOf(noComments(read(f)))) {
         if (!/order-artworks/.test(p.text)) continue;

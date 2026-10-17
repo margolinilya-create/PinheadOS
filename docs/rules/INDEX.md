@@ -95,7 +95,7 @@
 - `pravila-uborki-mertvogo-koda-sessiya-58.md`
 - `pravila-tehdolga-07-09-vtoraya-polovina-sessii-52.md`
 - `pravila-hvostov-14-09-15-09-limit-vlozheniya-i-razrabotka-bez-sdelki.md`
-- `pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`  ← `order-artworks`: SVG только `<img>` и скачиванием, тип по расширению, политика Storage — с фильтром по бакету
+- `pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`  ← `order-artworks`: SVG только `<img>` и скачиванием, тип по расширению, UPDATE запрещён restrictive, политика Storage — с фильтром по бакету
 
 ## Маршрут ERP, этапы, цеха
 
