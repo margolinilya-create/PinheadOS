@@ -611,3 +611,55 @@ describe('миграция F: МС на стороне ТЗ', () => {
     expect(noComments(MSF)).not.toMatch(/\berp_/);
   });
 });
+
+/**
+ * МИГРАЦИЯ H (веха 5а, `…_garment_flats.sql`): перегрузка
+ * `sales_set_staff(uuid, boolean)` (обёртка миграции F «до вехи 5») снята.
+ * Держим:
+ *   · снимается ровно двухаргументная — трёхаргументная (права, вид признака,
+ *     метка `sales.rpc`) остаётся последней редакцией F и не пересоздаётся;
+ *   · H сама меток `sales.rpc` не ставит и профили не пишет;
+ *   · клиент зовёт только трёхаргументную (`api/salesStaff.ts`);
+ *   · у каждой функции H — revoke, у security definer — search_path.
+ */
+const flatsFile = files.filter((f) => f.endsWith('_garment_flats.sql')).at(-1);
+if (!flatsFile) throw new Error('нет миграции *_garment_flats.sql');
+const HF = read(flatsFile);
+
+describe('миграция H: перегрузки sales_set_staff(uuid, boolean) нет', () => {
+  it('снимается ровно двухаргументная', () => {
+    const drops = noComments(HF).match(/drop function[^;]*sales_set_staff[^;]*;/g) ?? [];
+    expect(drops).toEqual(['drop function if exists public.sales_set_staff(uuid, boolean);']);
+  });
+
+  it('трёхаргументная на месте: последняя редакция — F, H её не трогает', () => {
+    expect(functionsOf(HF).map((f) => f.name)).not.toContain('sales_set_staff');
+    expect(latestDefining('sales_set_staff')).toBe(MSF);
+    const last = functionsOf(MSF).filter((f) => f.name === 'sales_set_staff').at(-1);
+    expect(last?.head).toMatch(/sales_set_staff\(p_profile uuid, p_kind text, p_on boolean\)/);
+    // после H ни одна миграция не заводит перегрузку заново
+    for (const f of files.filter((x) => x > flatsFile)) {
+      expect(read(f), f).not.toMatch(/function public\.sales_set_staff\(p_profile uuid, p_on boolean\)/);
+    }
+  });
+
+  it('метка sales.rpc в H не ставится, профили H не пишет', () => {
+    expect(HF).not.toMatch(/sales\.rpc/);
+    expect(noComments(HF)).not.toMatch(/update\s+public\.profiles/);
+  });
+
+  it('клиент зовёт только трёхаргументную', () => {
+    const client = readFileSync(join(process.cwd(), 'src/orderstudio/api/salesStaff.ts'), 'utf8');
+    const calls = client.match(/rpc\('sales_set_staff',\s*\{[^}]*\}/g) ?? [];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toMatch(/p_kind/);
+  });
+
+  it('у каждой функции H — revoke from public, anon; security definer — с search_path', () => {
+    expect(missingRevoke(HF)).toEqual([]);
+    const bad = functionsOf(HF).filter((f) => /security definer/.test(f.head) && !/set search_path = public/.test(f.head));
+    expect(bad.map((f) => f.name)).toEqual([]);
+    expect(HF).toMatch(/revoke execute on function public\.catalog_value_check\(text, text, jsonb\) from public, anon, authenticated;/);
+    expect(HF).not.toMatch(/grant execute on function public\.catalog_value_check\(/);
+  });
+});

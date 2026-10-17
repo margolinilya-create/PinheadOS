@@ -21,10 +21,10 @@ import { clearCatalogsCache } from '../../lib/catalogs';
 import { toast } from '../../store/useToastStore';
 import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
 
-/** Пары «таблица → ключи», которые принимает `catalog_put` (белый список миграции G) */
+/** Пары «таблица → ключи», которые принимает `catalog_put` (белый список миграции G; `garmentFlats` — H, веха 5а, только admin и director) */
 export const CATALOG_PUT_KEYS = {
   catalog_config: ['suppliers', 'fabricsCatalog', 'trimCatalog'],
-  app_config: ['labelLibrary', 'tzSettings', 'sku_catalog', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'zonesCatalog'],
+  app_config: ['labelLibrary', 'tzSettings', 'sku_catalog', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'zonesCatalog', 'garmentFlats'],
 } as const;
 
 /** Справочники заказа — их правит и руководитель продаж (rop) */

@@ -32,10 +32,12 @@ export function loadAllCatalogs(): Promise<Record<string, unknown>> {
 }
 
 async function fetchAllCatalogs(): Promise<Record<string, unknown>> {
-  // Загрузить из Supabase (catalog_config + app_config)
+  // Загрузить из Supabase (catalog_config + app_config). Флэты изделий
+  // (`app_config.garmentFlats`, веха 5а) — не сюда: справочник тяжёлый, нужен
+  // только вкладке «Дизайн», и та читает его сама (`fetchCatalogKey`)
   const [catalogRes, appRes] = await Promise.all([
     supabase.from('catalog_config').select('key, value'),
-    supabase.from('app_config').select('key, value'),
+    supabase.from('app_config').select('key, value').neq('key', 'garmentFlats'),
   ]);
   if (catalogRes.error && appRes.error) throw catalogRes.error;
   if (catalogRes.error) console.warn('[loadAllCatalogs] catalog_config failed:', catalogRes.error.message);

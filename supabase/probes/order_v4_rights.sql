@@ -6,9 +6,11 @@
 -- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном),
 -- и миграция F (20261017142210_sales_ms_flag: МС — признак profiles.is_ms,
 -- sales_set_staff по виду 'sales' / 'ms', отмечает и rop — до применения на бою
--- только сухим прогоном вместе с ней в одной транзакции: файл читает is_ms).
+-- только сухим прогоном вместе с ней в одной транзакции: файл читает is_ms),
+-- и миграция H (…_garment_flats: перегрузка sales_set_staff(uuid, boolean) снята —
+-- двухаргументный вызов отвечает 42883; до применения H — только сухим прогоном с ней).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=151 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=155 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -149,7 +151,9 @@ select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-10,PROBE-3,PROBE-4,PROBE-5,PROB
   $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
 -- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
-select pg_temp.p('seller_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
+-- миграция H: перегрузки (uuid, boolean) нет — 42883 до проверки прав
+select pg_temp.p('seller_set_staff', '42883', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
+select pg_temp.p('seller_set_staff3', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'sales', false)$q$);
 select pg_temp.p('seller_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
 select pg_temp.p('seller_set_ms', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'ms', true)$q$);
 select pg_temp.p('s_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = false where id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'$q$);
@@ -252,7 +256,7 @@ select pg_temp.p('head_sees', 'OK null', $q$select string_agg(order_number, ',')
 select pg_temp.p('head_insert', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-H1', '05bbc552-bca2-490d-b275-46a3084dca7c', '{}')$q$);
 select pg_temp.p('head_update_foreign', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('head_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
-select pg_temp.p('head_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('head_set_staff', '42883', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
 select pg_temp.p('head_set_ms', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', true)$q$);
 -- должность manager в ERP — не МС (миграция F)
 select pg_temp.p('head_erp_manager_not_ms', 'OK false', $q$select public.sales_is_ms()::text$q$);
@@ -286,9 +290,13 @@ select pg_temp.p('a_save_foreign_stale', 'P0001 Заказ изменён в д�
 -- остальные колонки профиля админ правит как раньше
 select pg_temp.p('admin_other_columns', 'OK rows=1', $q$update public.profiles set name = name where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('admin_list_staff', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and not is_sales)::text from public.sales_staff_list()$q$);
-select pg_temp.p('admin_set_staff_missing', 'P0002', $q$select public.sales_set_staff(gen_random_uuid(), true)$q$);
-select pg_temp.p('admin_set_staff_null', '22023', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null)$q$);
-select pg_temp.p('admin_set_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+-- миграция H: двухаргументной нет; отказы «не найден» и «пусто» — у трёхаргументной
+select pg_temp.p('admin_set_staff_missing', '42883', $q$select public.sales_set_staff(gen_random_uuid(), true)$q$);
+select pg_temp.p('admin_set_staff_null', '42883', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null)$q$);
+select pg_temp.p('admin_old_signature_gone', 'OK true', $q$select (to_regprocedure('public.sales_set_staff(uuid, boolean)') is null)::text$q$);
+select pg_temp.p('admin_set_staff_missing3', 'P0002', $q$select public.sales_set_staff(gen_random_uuid(), 'sales', true)$q$);
+select pg_temp.p('admin_set_staff_null3', '22023', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', null)$q$);
+select pg_temp.p('admin_set_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', true)$q$);
 select pg_temp.p('admin_set_staff_effect', 'OK true', $q$select is_sales::text from public.profiles where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('admin_set_ms', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', true)$q$);
 select pg_temp.p('admin_list_ms', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and is_ms and is_sales)::text from public.sales_staff_list()$q$);
@@ -300,7 +308,7 @@ select pg_temp.p('head_now_ms', 'OK true', $q$select public.sales_is_ms()::text$
 reset role;
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
-select pg_temp.p('admin_unset_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', false)$q$);
+select pg_temp.p('admin_unset_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', false)$q$);
 reset role;
 select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
 set local role authenticated;
@@ -311,8 +319,8 @@ reset role;
 select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
 set local role authenticated;
 select pg_temp.p('rop_set_ms_off', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', false)$q$);
--- прежняя сигнатура — «Ведёт заказы», права те же
-select pg_temp.p('rop_set_sales_old', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+-- «Ведёт заказы» — трёхаргументной (прежняя сигнатура снята миграцией H)
+select pg_temp.p('rop_set_sales_old', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', true)$q$);
 select pg_temp.p('rop_list', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and is_sales and not is_ms)::text from public.sales_staff_list()$q$);
 select pg_temp.p('rop_unset_sales', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', false)$q$);
 reset role;
@@ -328,7 +336,7 @@ select pg_temp.p('ms_is_ms', 'OK true', $q$select public.sales_is_ms()::text$q$)
 -- МС без признака продавца: своих заказов не заводит, сотрудников не отмечает
 select pg_temp.p('ms_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
 select pg_temp.p('ms_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'ms', false)$q$);
-select pg_temp.p('ms_set_staff_old', '42501 Отмечать', $q$select public.sales_set_staff('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', false)$q$);
+select pg_temp.p('ms_set_staff_old', '42883', $q$select public.sales_set_staff('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', false)$q$);
 select pg_temp.p('ms_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
 select pg_temp.p('ms_self_set_ms', 'OK rows=0', $q$update public.profiles set is_ms = false where id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9'$q$);
 select pg_temp.p('ms_draft_invisible', 'OK 0', $q$select count(*)::text from public.orders where id = '00000000-0000-4000-8000-0000000000a2'$q$);

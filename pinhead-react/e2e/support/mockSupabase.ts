@@ -676,11 +676,21 @@ export type MockExtras = {
   /** Отказ на КАЖДУЮ запись справочника (`catalog_put`/`prices_patch`), например `42501` */
   catalogPutFailure?: { code: string; message: string };
   /**
-   * Профили «Сотрудников продаж» (`sales_staff_list`). `sales_set_staff`
-   * понимает обе сигнатуры — `(p_profile, p_on)` вехи 3 и `(p_profile,
-   * p_kind 'sales'|'ms', p_on)` вехи 4 — и меняет `is_sales`/`is_ms` строки.
+   * Профили «Сотрудников продаж» (`sales_staff_list`). `sales_set_staff` —
+   * только `(p_profile, p_kind 'sales'|'ms', p_on)`: перегрузку `(p_profile,
+   * p_on)` миграция H (веха 5а) сняла, и мок, как PostgREST, отвечает на неё
+   * 404 `PGRST202`. Меняет `is_sales`/`is_ms` строки.
    */
   salesStaff?: Record<string, unknown>[];
+  /**
+   * Объекты Storage С ТЕЛОМ (веха 5а: флэты `garment-flats`, сид, превью):
+   * `{ '<bucket>/<path>': { type, body } }`. Загрузка кладёт тело сюда
+   * (повтор без `upsert` — 409 Duplicate, как у Storage), чтение
+   * (`GET object/[authenticated|sign/]<bucket>/<path>`) отдаёт его. Без ключа —
+   * прежнее поведение: загрузка — успех без хранения, чтение — 404, и снимки
+   * детерминированы.
+   */
+  storageObjects?: Record<string, { type: string; body: Buffer }>;
 };
 
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
@@ -715,9 +725,12 @@ function launchCheckAnswer(extra: MockExtras): unknown {
 class RpcFailure {
   readonly code: string;
   readonly message: string;
-  constructor(code: string, message: string) {
+  /** HTTP-статус ответа PostgREST: `raise exception` — 400, нет функции — 404 */
+  readonly status: number;
+  constructor(code: string, message: string, status = 400) {
     this.code = code;
     this.message = message;
+    this.status = status;
   }
 }
 
@@ -877,10 +890,10 @@ type OrderFx = { id: string; bitrix_id: string; status: string };
 type CatalogTableName = 'catalog_config' | 'app_config';
 const CATALOG_CONFLICT = 'Справочник изменён — загрузите свежую версию';
 
-/** Белый список `catalog_put` миграции G (сторож клиента — `catalogKeys.test.ts`) */
+/** Белый список `catalog_put` миграций G и H (сторож клиента — `catalogKeys.test.ts`, мока — `catalogMock.test.ts`) */
 const MOCK_CATALOG_PUT: Record<CatalogTableName, string[]> = {
   catalog_config: ['suppliers', 'fabricsCatalog', 'trimCatalog'],
-  app_config: ['labelLibrary', 'tzSettings', 'sku_catalog', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'zonesCatalog'],
+  app_config: ['labelLibrary', 'tzSettings', 'sku_catalog', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'zonesCatalog', 'garmentFlats'],
 };
 const MOCK_PRICE_RULE_KEYS = ['packOptions', 'prepFees', 'minMarginPct'];
 
@@ -911,8 +924,11 @@ function canonical(v: unknown): string {
 
 function catalogRows(table: CatalogTableName, params: URLSearchParams, extra: MockExtras) {
   const rows = Object.entries(catalogsOf(extra)[table]).map(([key, value]) => ({ key, value }));
-  const eq = params.get('key');
-  return eq?.startsWith('eq.') ? rows.filter((r) => r.key === eq.slice(3)) : rows;
+  const f = params.get('key');
+  if (f?.startsWith('eq.')) return rows.filter((r) => r.key === f.slice(3));
+  // `loadAllCatalogs` берёт всё, кроме тяжёлого `garmentFlats` (веха 5а)
+  if (f?.startsWith('neq.')) return rows.filter((r) => r.key !== f.slice(4));
+  return rows;
 }
 
 let catalogClock = 0;
@@ -948,11 +964,58 @@ function pricesPatchAnswer(body: Record<string, unknown>, extra: MockExtras): un
 }
 
 function salesSetStaffAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
-  const kind = body.p_kind === undefined ? 'sales' : body.p_kind;
+  // Миграция H: перегрузки (p_profile, p_on) нет — PostgREST не находит функцию
+  if (!('p_kind' in body)) {
+    return new RpcFailure('PGRST202', 'Could not find the function public.sales_set_staff(p_on, p_profile) in the schema cache', 404);
+  }
+  const kind = body.p_kind;
   if (kind !== 'sales' && kind !== 'ms') return new RpcFailure('22023', 'Неизвестный признак');
   const row = (extra.salesStaff ?? []).find((r) => r.id === body.p_profile);
   if (row) row[kind === 'ms' ? 'is_ms' : 'is_sales'] = Boolean(body.p_on);
   return null;
+}
+
+// ── Объекты Storage с телом (веха 5а) ───────────────────────────────────
+
+type StorageReply = { status: number; type?: string; body?: unknown };
+
+/** Файл из multipart/form-data supabase-js (часть с `Content-Type`); иначе тело как есть */
+function uploadedFile(contentType: string, buf: Buffer): { type: string; body: Buffer } {
+  const boundary = /boundary=([^;]+)/.exec(contentType)?.[1];
+  if (!contentType.startsWith('multipart/form-data') || !boundary) return { type: contentType, body: buf };
+  const sep = Buffer.from(`--${boundary}`);
+  let from = buf.indexOf(sep);
+  while (from >= 0) {
+    const next = buf.indexOf(sep, from + sep.length);
+    if (next < 0) break;
+    const part = buf.subarray(from + sep.length, next);
+    const headEnd = part.indexOf('\r\n\r\n');
+    const head = headEnd >= 0 ? part.subarray(0, headEnd).toString() : '';
+    const type = /content-type:\s*([^\r\n]+)/i.exec(head)?.[1];
+    if (type) return { type: type.trim(), body: part.subarray(headEnd + 4, part.length - 2) };
+    from = next;
+  }
+  return { type: contentType, body: buf };
+}
+
+/** Загрузка `<bucket>/<path>`: с картой — хранит тело, повтор без upsert — 409 Duplicate */
+function storageWrite(name: string, contentType: string, buf: Buffer, upsert: string | undefined, extra: MockExtras): StorageReply {
+  const objects = extra.storageObjects;
+  if (!objects) return { status: 200 };
+  if (objects[name] && upsert !== 'true') {
+    return { status: 400, body: { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' } };
+  }
+  objects[name] = uploadedFile(contentType, buf);
+  return { status: 200 };
+}
+
+/** Чтение `GET object/[authenticated/|sign/|public/]<bucket>/<path>`: тело из карты или 404 */
+function storageRead(method: string, key: string, extra: MockExtras): StorageReply {
+  if (method !== 'GET' || !extra.storageObjects) return { status: 404 };
+  const segs = key.split('/').map(decodeURIComponent);
+  const name = (['authenticated', 'sign', 'public'].includes(segs[0]) ? segs.slice(1) : segs).join('/');
+  const hit = extra.storageObjects[name];
+  return hit ? { status: 200, type: hit.type, body: hit.body } : { status: 404 };
 }
 
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
@@ -1379,6 +1442,8 @@ export const mockAnswersForTest = {
   table(table: string, query: string, extra: MockExtras): unknown[] {
     return dataForTable(table, new URLSearchParams(query), extra);
   },
+  storageRead,
+  storageWrite,
 };
 
 export async function installSupabaseMock(page: Page, extra: MockExtras = {}): Promise<void> {
@@ -1430,8 +1495,9 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
 
   /**
-   * Storage. ЧТЕНИЕ по-прежнему 404 — в фикстурах нет вложений, и сломанные
-   * картинки детерминированы (снимки не зависят от того, что лежит в бакете).
+   * Storage. ЧТЕНИЕ — 404, пока спека не дала `extra.storageObjects` (веха 5а:
+   * флэты и логотипы с телом); без карты сломанные картинки детерминированы
+   * (снимки не зависят от того, что лежит в бакете).
    * ЗАГРУЗКА (`POST|PUT …/object/<bucket>/<path>`) отвечает успехом и пишется
    * в журнал `extra.calls`: макеты нанесений и ТЗ грузятся при выборе файла
    * (правило проекта «файл, видимый приложенным, обязан быть в бакете»), и без
@@ -1442,11 +1508,19 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     const req = route.request();
     const method = req.method();
     const key = new URL(req.url()).pathname.split('/storage/v1/object/')[1];
-    const json = (body: unknown) => route.fulfill({
-      status: 200,
+    const json = (body: unknown, status = 200) => route.fulfill({
+      status,
       contentType: 'application/json',
       body: JSON.stringify(body),
     });
+    /** Загрузка: журнал `extra.calls` и, с `extra.storageObjects`, тело в карту */
+    const upload = (name: string) => {
+      const buf = req.postDataBuffer() ?? Buffer.alloc(0);
+      extra.calls?.push({ kind: 'storage', name, body: { size: buf.length } });
+      const headers = req.headers();
+      const w = storageWrite(name, headers['content-type'] ?? '', buf, headers['x-upsert'], extra);
+      return w.status === 200 ? json({ Key: name }) : json(w.body, w.status);
+    };
     if (method === 'POST' && key) {
       /*
        * ВЕХА 2: бакет `order-artworks` закрытый и читается ТОЛЬКО по подписанным
@@ -1494,26 +1568,16 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
         });
         return json(op === 'move' ? { message: 'Successfully moved' } : { Key: `${bucket}/${to}` });
       }
-      if (!NON_UPLOAD_SEGMENTS.has(op)) {
-        const name = segs.join('/');
-        extra.calls?.push({
-          kind: 'storage',
-          name,
-          body: { size: req.postDataBuffer()?.length ?? 0 },
-        });
-        return json({ Key: name });
-      }
+      if (!NON_UPLOAD_SEGMENTS.has(op)) return upload(segs.join('/'));
     }
     if (method === 'PUT' && key) {
       const segs = key.split('/').map(decodeURIComponent);
-      if (!NON_UPLOAD_SEGMENTS.has(segs[0])) {
-        const name = segs.join('/');
-        extra.calls?.push({
-          kind: 'storage',
-          name,
-          body: { size: req.postDataBuffer()?.length ?? 0 },
-        });
-        return json({ Key: name });
+      if (!NON_UPLOAD_SEGMENTS.has(segs[0])) return upload(segs.join('/'));
+    }
+    if (key) {
+      const read = storageRead(method, key, extra);
+      if (read.status === 200) {
+        return route.fulfill({ status: 200, contentType: read.type, body: read.body as Buffer });
       }
     }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
@@ -1548,7 +1612,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       const answer = dataForRpc(fn, payload, extra);
       if (answer instanceof RpcFailure) {
         return route.fulfill({
-          status: 400,
+          status: answer.status,
           contentType: 'application/json',
           body: JSON.stringify({ code: answer.code, message: answer.message, details: null, hint: null }),
         });
