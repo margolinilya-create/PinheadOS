@@ -10,6 +10,14 @@
  *   с `"><image onerror>` остаётся текстом; картинки — только data:image base64;
  * - готовая сцена проходит `sanitizeSvg` в режиме `scene` и уходит в PDF
  *   (svg2pdf, задача 7) очищенной; `style` у текста нет — санитайзер его режет.
+ *
+ * Задача 7 (PDF макета):
+ * - легенда внизу листа — строка на нанесение с его номером в позиции (номер
+ *   в ТЗ), номер повторяется на плашке Ш×В; строк больше четырёх — лист длиннее;
+ * - пометки шапки (`meta.notes`: «логотип N — растр») — одной строкой
+ *   с пометкой типового силуэта;
+ * - жирный — только словом `bold`: у шрифта PDF два начертания (normal, bold),
+ *   а «800» svg2pdf искал бы как отдельное и уходил бы на Times без кириллицы.
  */
 import type { FlatView, Placement, ProfileOf } from '../types';
 import { sanitizeSvg } from '../assets/sanitizeSvg';
@@ -18,8 +26,12 @@ import { recolorGarment } from './flatMarkup';
 import { clipRect, placementImage } from './placementSvg';
 import { esc, escAttr, innerSvg, num } from './svgText';
 
-/** Семейство шрифта листа: jsPDF регистрирует LiberationSans (кириллица), задача 7 */
-export const PDF_FONT_FAMILY = 'LiberationSans';
+/**
+ * Семейство шрифта листа: под этим именем `exportPdf` регистрирует в jsPDF подмножество
+ * Liberation Sans (кириллица). Имя — не «Liberation…»: у изменённой версии шрифта
+ * зарезервированное имя по OFL занимать нельзя (`export/fonts/OFL.txt`)
+ */
+export const PDF_FONT_FAMILY = 'PHMaketSans';
 
 export const TYPICAL_FLAT_NOTE = 'Силуэт типовой, не лекало модели';
 
@@ -35,6 +47,15 @@ export interface SceneMeta {
   statusLabel?: string;
   /** Флэт типовой — пометка в шапке */
   typicalFlat?: boolean;
+  /** Пометки шапки: «логотип N — растр» (PDF макета) */
+  notes?: string[];
+}
+
+/** Строка легенды: нанесение (`print_key`), его номер в позиции и подпись */
+export interface LegendRow {
+  printKey: string;
+  n: number;
+  text: string;
 }
 
 export interface SceneInput {
@@ -49,6 +70,8 @@ export interface SceneInput {
   meta: SceneMeta;
   /** Профиль техники (`model/printMethods.printMethodProfile`) — режим цвета слоя */
   profileOf?: ProfileOf;
+  /** Легенда листа (PDF макета); нет — без легенды и номеров на плашках */
+  legend?: LegendRow[];
 }
 
 const C = {
@@ -83,11 +106,12 @@ function offsetMarkup(scene: DimensionScene): string {
     + `<circle cx="${num(centerX)}" cy="${num(anchorY)}" r="3" fill="${C.anchor}"/>`;
 }
 
-/** Синяя плашка «Ш×В мм» у верха нанесения */
-function sizePlate(scene: DimensionScene): string {
+/** Синяя плашка «Ш×В мм» у верха нанесения; с легендой — «N · Ш×В мм» */
+function sizePlate(scene: DimensionScene, n?: number): string {
   const { aabb } = scene;
   const midX = aabb.x + aabb.w / 2;
-  const text = `${Math.round(aabb.w)}×${Math.round(aabb.h)} мм`;
+  const size = `${Math.round(aabb.w)}×${Math.round(aabb.h)} мм`;
+  const text = n === undefined ? size : `${n} · ${size}`;
   const half = text.length * 3.6 + 3;
   return `<rect x="${num(midX - half)}" y="${num(aabb.y + 3)}" width="${num(half * 2)}" height="16" rx="2" fill="${C.zone}"/>`
     + `<text x="${num(midX)}" y="${num(aabb.y + 14)}" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">${esc(text)}</text>`;
@@ -101,15 +125,32 @@ function header(W: number, meta: SceneMeta): string {
     ? `<rect x="${num(rx - 40)}" y="12.5" width="40" height="7" rx="2" fill="${C.chip}"/>`
       + `<text x="${num(rx - 20)}" y="17.5" font-size="5.5" fill="${C.label}" text-anchor="middle">${esc(meta.statusLabel)}</text>`
     : '';
-  const typical = meta.typicalFlat
-    ? `<text x="14" y="25" font-size="5.5" fill="${C.anchor}">${esc(TYPICAL_FLAT_NOTE)}</text>`
+  const marks = [meta.typicalFlat ? TYPICAL_FLAT_NOTE : '', ...(meta.notes ?? [])].filter(Boolean).join(' · ');
+  const typical = marks
+    ? `<text x="14" y="25" font-size="5.5" fill="${C.anchor}">${esc(marks)}</text>`
     : '';
   return `<g data-order-header="1">`
-    + `<text x="14" y="12" font-size="10" font-weight="800" fill="${C.ink}" letter-spacing="-0.3">PINHEAD</text>`
+    + `<text x="14" y="12" font-size="10" font-weight="bold" fill="${C.ink}" letter-spacing="-0.3">PINHEAD</text>`
     + `<text x="14" y="18.5" font-size="5.5" fill="${C.label}">Макет · масштаб 1:1 · мм · ${esc(meta.itemTitle)}</text>`
     + `<text x="${num(rx)}" y="9.5" font-size="6.5" fill="${C.ink}" text-anchor="end">${esc(line)}</text>`
     + `${chip}${typical}`
     + `<line x1="14" y1="28" x2="${num(rx)}" y2="28" stroke="${C.line}" stroke-width="0.6"/></g>`;
+}
+
+const LEGEND = { top: 10, lineH: 7, fontSize: 6 };
+
+/** Высота блока под рисунком: метка размера и шкала либо легенда, что выше */
+function bottomHeight(rows: number, sizeBlock: number): number {
+  return rows > 0 ? Math.max(sizeBlock, LEGEND.top + rows * LEGEND.lineH + 4) : sizeBlock;
+}
+
+/** Легенда слева под рисунком; строка длиннее места до метки размера — с многоточием */
+function legendMarkup(rows: LegendRow[], top: number, maxWidth: number): string {
+  if (rows.length === 0) return '';
+  const maxChars = Math.max(16, Math.floor(maxWidth / (LEGEND.fontSize * 0.55)));
+  const clip = (s: string) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s);
+  const lines = rows.map((r, i) => `<text x="14" y="${num(top + LEGEND.top + i * LEGEND.lineH)}" font-size="${LEGEND.fontSize}" fill="${C.ink}">${esc(clip(`${r.n}. ${r.text}`))}</text>`);
+  return `<g data-legend="1">${lines.join('')}</g>`;
 }
 
 /** Слой нанесения: техника и режим цвета — атрибутами данных */
@@ -121,22 +162,25 @@ function layerAttrs(p: Placement, profileOf?: ProfileOf): string {
 /** Собрать лист вида. Рисунок и страница — в мм. Итог очищен `sanitizeSvg(scene)` */
 export function buildSceneSvg(input: SceneInput): string {
   const { view, flatMm, placements, images, meta } = input;
+  const legend = input.legend ?? [];
+  const numberOf = new Map(legend.map((r) => [r.printKey, r.n]));
   const PAD = 14;
   const HEADER_H = 32;
   const SIZE_H = 42;
   const W = PAD + flatMm.w + PAD;
-  const H = HEADER_H + flatMm.h + SIZE_H + PAD;
+  const H = HEADER_H + flatMm.h + bottomHeight(legend.length, SIZE_H) + PAD;
 
   const clips = placements.map((p, i) => clipRect(view, p, `clip-${i}`)).join('');
   const art = placements.map((p, i) => placementImage(p, images[p.print_key], `clip-${i}`, layerAttrs(p, input.profileOf))).join('');
   const marks = placements.map((p) => {
     const scene = buildDimensionLines(view, { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm }, p.rotation_deg, undefined, p.area_id);
-    return offsetMarkup(scene) + sizePlate(scene);
+    return offsetMarkup(scene) + sizePlate(scene, numberOf.get(p.print_key));
   }).join('');
   const garment = `<g transform="scale(${num(view.scale_mm_per_unit)})">${innerSvg(recolorGarment(input.flatMarkup, input.garmentColor ?? ''))}</g>`;
 
   const sizeY = HEADER_H + flatMm.h + 30;
   const sizeFs = meta.size.length <= 3 ? 34 : 20;
+  const sizeHalf = meta.size.length * sizeFs * 0.35;
   const raw = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}mm" height="${num(H)}mm" viewBox="0 0 ${num(W)} ${num(H)}" font-family="${PDF_FONT_FAMILY}, Helvetica, sans-serif">`
     + `<defs>${clips}</defs>`
     + `<rect x="0" y="0" width="${num(W)}" height="${num(H)}" fill="#ffffff"/>`
@@ -145,7 +189,8 @@ export function buildSceneSvg(input: SceneInput): string {
     + `<g data-layer="garment">${garment}</g>`
     + `<g data-layer="production-artwork">${art}</g>`
     + `<g data-layer="markup">${marks}</g></g>`
-    + `<g data-size-label="${escAttr(meta.size)}"><text x="${num(W / 2)}" y="${num(sizeY + 4)}" font-size="${sizeFs}" font-weight="800" fill="${C.ink}" text-anchor="middle">${esc(meta.size)}</text></g>`
+    + legendMarkup(legend, HEADER_H + flatMm.h, W / 2 - sizeHalf - PAD - 6)
+    + `<g data-size-label="${escAttr(meta.size)}"><text x="${num(W / 2)}" y="${num(sizeY + 4)}" font-size="${sizeFs}" font-weight="bold" fill="${C.ink}" text-anchor="middle">${esc(meta.size)}</text></g>`
     + calibrationBar(W - PAD - 100, sizeY - 4)
     + '</svg>';
   const clean = sanitizeSvg(raw, 'scene');
