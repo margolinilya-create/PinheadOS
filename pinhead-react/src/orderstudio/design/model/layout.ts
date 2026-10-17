@@ -8,57 +8,25 @@
  * `tzToErpDraft`, ТЗ); в `layout` — только геометрия холста.
  *
  * `parseLayout` — строгий разбор (проверка безопасности H1): конечные числа
- * в границах, перечни, id по регулярке, имя файла ≤ 255, лишние ключи прочь.
+ * в границах, перечни, id по регулярке, имя файла ≤ 255, лишние ключи прочь
+ * (с задачи 6б — без zod, в `layoutMark.ts`).
  * Битая раскладка — «не размещено» без перезаписи: строка нанесения остаётся.
  */
-import * as z from 'zod/mini';
 import { newSalesPrint } from '../../model/factory';
 import type { SalesItemKind, SalesPrint, SalesPrintMethod } from '../../model/types';
 import type { ZoneDefinition } from '../../../types/catalog';
 import { getZoneName } from '../../../utils/skuRules';
-import { DESIGN_VIEWS, type AssetMeta, type DesignView, type FlatView, type GarmentFlat, type Placement, type PrintArea, type PrintLayoutV1 } from '../types';
-import {
-  AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_PX_SIDE, MAX_SOURCE_FILE_LEN,
-} from '../limits';
+import { type AssetMeta, type DesignView, type FlatView, type GarmentFlat, type Placement, type PrintArea, type PrintLayoutV1 } from '../types';
+import { parseLayout } from './layoutMark';
 import { fitToZone, placementInfo, presetPosition, viewZone, yForNecklineOffset } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { offsetFor } from './offset';
 
-const coord = z.number().check(z.gte(-MAX_COORD_MM), z.lte(MAX_COORD_MM));
-const sizeMm = z.number().check(z.gt(0), z.lte(MAX_COORD_MM));
-const px = z.int().check(z.gte(1), z.lte(MAX_PX_SIDE));
-
-const assetSchema = z.object({
-  type: z.enum(['svg', 'png']),
-  source_file: z.string().check(z.maxLength(MAX_SOURCE_FILE_LEN)),
-  intrinsic_w_mm: sizeMm,
-  intrinsic_h_mm: sizeMm,
-  px_w: z.optional(px),
-  px_h: z.optional(px),
-  dpi: z.optional(z.number().check(z.gt(0), z.lte(10000))),
-  size_estimated: z.boolean(),
-  has_preview: z.boolean(),
-});
-
-const layoutSchema = z.object({
-  v: z.literal(1),
-  flat_id: z.string().check(z.regex(FLAT_ID_RE)),
-  flat_version: z.int().check(z.gte(1), z.lte(MAX_FLAT_VERSION)),
-  view: z.enum(DESIGN_VIEWS),
-  area_id: z.string().check(z.regex(AREA_ID_RE)),
-  x_mm: coord,
-  y_mm: coord,
-  rotation_deg: z.number().check(z.gte(-360), z.lte(360)),
-  flip_h: z.boolean(),
-  flip_v: z.boolean(),
-  asset: assetSchema,
-});
-
-/** Строгий терпимый разбор: всё, что не по форме, — `null` («не размещено») */
-export function parseLayout(raw: unknown): PrintLayoutV1 | null {
-  const r = z.safeParse(layoutSchema, raw);
-  return r.success ? (r.data as PrintLayoutV1) : null;
-}
+/**
+ * Строгий разбор раскладки — `layoutMark.parseLayout` (без zod: чанк холста
+ * и оболочка Order, задача 6б); здесь — реэкспорт для прежних читателей.
+ */
+export { parseLayout };
 
 /** Вид и зона флэта по раскладке; нет — `null` */
 function locate(flat: GarmentFlat, view: DesignView, areaId: string): { view: FlatView; area: PrintArea } | null {

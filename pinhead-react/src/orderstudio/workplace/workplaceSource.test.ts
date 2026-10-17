@@ -32,6 +32,22 @@ describe('рабочее место — исходники', () => {
     expect(bad).toEqual([]);
   });
 
+  /*
+   * Веха 5а: холст — ленивый чанк. Рабочее место берёт из `design/` только
+   * лёгкий признак «на холсте» (`design/model/layoutMark`, без zod) и сам
+   * `DesignTab` — только через `import()`: статический импорт втянул бы konva,
+   * zod и панель в оболочку Order (бюджет, Review Focus 5).
+   */
+  it('из модуля дизайна — только layoutMark статически и DesignTab через import()', () => {
+    const DESIGN_STATIC = /from\s+['"]\.\.\/design\/([^'"]+)['"]/g;
+    const bad = files(DIR).flatMap((f) => [...f.text.matchAll(DESIGN_STATIC)]
+      .map((m) => m[1]).filter((p) => p !== 'model/layoutMark').map((p) => `${f.name}: ${p}`));
+    expect(bad).toEqual([]);
+    const wp = files(DIR).find((f) => f.name === 'OrderWorkplace.jsx')!.text;
+    expect(wp).toMatch(/lazy\(\(\) => import\('\.\.\/design\/ui\/DesignTab'\)\)/);
+    expect(readFileSync(join(DIR, '../design/model/layoutMark.ts'), 'utf8')).not.toMatch(/from\s+['"]zod/);
+  });
+
   it('самопроверка: образцы ловятся', () => {
     expect(NO_SELECTOR.test('const s = useStore();')).toBe(true);
     expect(NO_SELECTOR.test('useStore( )')).toBe(true);
