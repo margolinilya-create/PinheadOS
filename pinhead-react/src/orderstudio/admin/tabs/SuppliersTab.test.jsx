@@ -200,4 +200,12 @@ describe('SuppliersTab — конфликт и запасной путь', () =>
     expect(screen.queryByText('Снять с продажи')).toBeNull();
     expect(box('ТониТекс')).toBeDisabled();
   });
+
+  it('таблица палитры — именованная область в порядке Tab: на просмотре без кнопок её иначе не прокрутить (axe)', async () => {
+    await open({ readOnly: true });
+    const wrap = colorRow('01-02').closest('[role="region"]');
+    expect(wrap).not.toBeNull();
+    expect(wrap).toHaveAttribute('tabindex', '0');
+    expect(wrap).toHaveAttribute('aria-label', 'Цвета палитры Медастекс');
+  });
 });

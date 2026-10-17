@@ -179,7 +179,10 @@ export default function PaletteEditor({ list, supplier, savedCodes, editable, on
       {colors.length === 0 ? (
         <p className={styles.muted}>В палитре нет цветов — в заказе менеджер впишет свой цвет текстом, как в накладной.</p>
       ) : (
-        <div className={styles.tableWrap}>
+        // Таблица шире телефона прокручивается сама: область в порядке Tab и с именем,
+        // иначе на просмотре (без кнопок в строках) её не прокрутить с клавиатуры (axe)
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- axe scrollable-region-focusable
+        <div className={styles.tableWrap} role="region" aria-label={`Цвета палитры ${supplier.name}`} tabIndex={0}>
           <table className={styles.table}>
             <thead>
               <tr>
