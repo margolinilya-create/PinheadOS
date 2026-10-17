@@ -366,8 +366,9 @@ function findKey(name, srcPath) {
  *
  * `waitsFor` — исходник, через который модуль попадает в приложение. Пока его
  * нет, модуль ещё никто не подключил (`loadPdf` грузит `useAddArtwork`, а его —
- * вкладка «Дизайн», задача 6): «⧗ ещё не подключён», а не красный, — ветка
- * зелёная между слияниями задач 5 и 6. Появился `waitsFor`, а модуля в манифесте
+ * вкладка «Дизайн», задача 6; `exportPdf` грузит кнопка «Скачать PDF макета»,
+ * а её монтирует та же вкладка): «⧗ ещё не подключён», а не красный, — ветка
+ * зелёная между слияниями задач 5–7 и 6. Появился `waitsFor`, а модуля в манифесте
  * нет — красный, как и без `waitsFor`.
  */
 const DESIGN_REQUIRED = false;
@@ -446,7 +447,7 @@ const canvasKey = designKey('DesignTab', 'src/orderstudio/design/ui/DesignTab.js
 const canvasJs = canvasKey ? minus(staticGraph(manifest, [canvasKey]).js, order.js) : [];
 if (canvasKey) check('Холст «Дизайн», JS', report('Холст — JS (DesignTab минус оболочка Order)', canvasJs).total, BUDGETS.designCanvas);
 
-const pdfKey = designKey('exportPdf', 'src/orderstudio/design/export/exportPdf.ts');
+const pdfKey = designKey('exportPdf', 'src/orderstudio/design/export/exportPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
 if (pdfKey) {
   const files = minus(staticGraph(manifest, [pdfKey]).js, order.js, canvasJs);
   check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст и оболочка Order)', files).total, BUDGETS.designPdf);

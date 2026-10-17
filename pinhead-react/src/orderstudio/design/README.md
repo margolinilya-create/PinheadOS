@@ -32,6 +32,55 @@
 (нет импортов ERP, нет HTML-строкой в DOM, ядро без React); паритет цены холста и строки —
 `model/pricingParity.test.ts`.
 
+## PDF макета (задача 7, 17.10)
+
+| Модуль | Что |
+|---|---|
+| `export/maketPages` | листы PDF (вид с размещениями, перед раньше спины), номер нанесения = место в позиции, строка легенды, ASCII-имя `PH-1234-<модель>-<цвет>-maket.pdf`, `MaketPdfError`. Лёгкий: его статически читает кнопка |
+| `export/svgForPdf` | логотипы для сцены: SVG без вырезанного — вектором; что-то вырезано — растр 300 dpi от размера печати и пометка «логотип N — растр»; PNG как есть (крупнее 300 dpi — уменьшается), JPEG/WEBP → PNG; PDF/AI — превью `<путь>.preview.png`, пометка «растр из PDF» |
+| `export/exportPdf` | движок: jsPDF 4 + svg2pdf 2.8, лист на вид, сцена `buildSceneSvg` (+ легенда и пометки), шрифты. **Только `import()` по клику** (`pdfGuards.test.ts`) |
+| `ui/panel/ExportPdfButton` | слот «Скачать PDF макета» для T6б: `<ExportPdfButton order item flat disabled />`; preflight (вопрос, не запрет), «Готовлю PDF…», файл — `utils/saveBlob` |
+
+Растр SVG-логотипа рисует браузер в `<img>` из `data:`-URL (не `blob:`): скрипты в картинке
+не исполняются, сеть не трогается. Рисуется исходник (цвета из `style`, которые режет
+санитайзер, сохраняются), а с усилителями (`<use>`, вложенные `<image>`, `<foreignObject>`)
+— очищенный текст. Сцена — `DOMParser` + `importNode` в `createHTMLDocument()`, вне страницы.
+
+**svg2pdf меряет ширину текста шрифтом БРАУЗЕРА** (canvas/`getBBox` по имени семейства):
+движок регистрирует тот же TTF через `FontFace` из байтов, иначе правый край шапки и центр
+плашек съехали бы на ширину запасного шрифта. Жирный в сцене — только `bold`: «800» svg2pdf
+ищет как отдельное начертание и уходит на Times без кириллицы.
+
+### Шрифты PDF макета
+
+`export/fonts/LiberationSans-{Regular,Bold}.subset.ttf` — подмножество Liberation Sans 2.1.5
+(тот же файл, что в DM `public/fonts`): латиница, Latin-1, кириллица (+ Ґґ), типографика,
+№, €, ™, −, ≈, ≠, ≤, ≥; без хинтинга и таблиц вёрстки — **23 332 / 23 404 Б** (было 410 КБ).
+У изменённой версии основное имя не может быть зарезервированным «Liberation» (OFL, условие 3),
+поэтому внутреннее имя — «PH Maket Sans», семейство в jsPDF — `PHMaketSans`
+(`PDF_FONT_FAMILY`); лицензия — `fonts/OFL.txt`. В шрифте нет ₽ (его нет и в исходнике).
+
+Как получено (fontTools 4.67, разово):
+
+```bash
+U='U+0020-007E,U+00A0-00FF,U+0400-045F,U+0490-0491,U+2010-2027,U+2030,U+2032-2033,U+2039-203A,U+20AC,U+20BD,U+2116,U+2122,U+2212,U+2248,U+2260,U+2264-2265'
+for s in Regular Bold; do
+  pyftsubset LiberationSans-$s.ttf --unicodes="$U" --layout-features='' --no-hinting \
+    --drop-tables+=GDEF,GPOS,GSUB,FFTM --name-IDs='0,1,2,3,4,5,6,13,14' \
+    --name-languages='0x409' --name-legacy --output-file=LiberationSans-$s.subset.ttf
+done
+# имена: 1 «PH Maket Sans», 4 «PH Maket Sans[ Bold]», 6 «PHMaketSans-<Regular|Bold>»,
+# 3 «PHMaketSans-<…>;2.1.5-subset»; 0 (copyright) и 13/14 (OFL) — как в исходнике
+python3 -c "
+import sys; from fontTools.ttLib import TTFont
+for s in ('Regular','Bold'):
+    f=TTFont(f'LiberationSans-{s}.subset.ttf'); n=f['name']
+    for i in (1,3,4,6,16,17): n.removeNames(nameID=i)
+    full='PH Maket Sans' + ('' if s=='Regular' else ' Bold')
+    for i,v in ((1,'PH Maket Sans'),(3,f'PHMaketSans-{s};2.1.5-subset'),(4,full),(6,f'PHMaketSans-{s}')): n.setName(v,i,3,1,0x409)
+    f.save(f'LiberationSans-{s}.subset.ttf')"
+```
+
 ## Зависимости (задача 0, точные версии)
 
 | Пакет | Версия | Чанк |

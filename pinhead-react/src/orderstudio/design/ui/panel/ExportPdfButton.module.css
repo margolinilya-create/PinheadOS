@@ -1,0 +1,42 @@
+/* «Скачать PDF макета» (веха 5а, задача 7). Кнопка — глобальные .btn .btn-primary
+   языка Order; здесь только высота (тач ≥ 44 px — токен), подпись причины и диктор. */
+
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+/* --control-h-md: 40 px, на pointer: coarse — 44 px (index.css) */
+.button {
+  min-height: var(--control-h-md);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.button[aria-busy='true'] { cursor: progress; }
+
+.hint {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+/* Область `aria-live`: всегда в дереве доступности (не `display: none`),
+   иначе первое объявление теряется; видна только диктору */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

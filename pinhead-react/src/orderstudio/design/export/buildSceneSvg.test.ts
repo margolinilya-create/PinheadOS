@@ -113,6 +113,56 @@ describe('buildSceneSvg — лист макета (тесты DM)', () => {
   });
 });
 
+describe('buildSceneSvg — легенда и пометки PDF макета (задача 7)', () => {
+  const META = { client: 'К', orderNumber: 'PH-0001', itemTitle: 'Футболка', size: 'M', date: '17.10.2026' };
+
+  it('легенда: номер нанесения и строка внизу листа; номер — и на плашке Ш×В', () => {
+    const svg = scene({ legend: [{ printKey: 'p1', n: 2, text: 'Грудь (перед) — DTF, 100×100 мм' }] });
+    expect(svg).toContain('data-legend="1"');
+    expect(svg).toContain('>2. Грудь (перед) — DTF, 100×100 мм<');
+    expect(svg).toContain('>2 · 100×100 мм<');
+  });
+
+  it('без легенды плашка — как прежде, без номера', () => {
+    expect(scene()).toContain('>100×100 мм<');
+    expect(scene()).not.toContain('data-legend');
+  });
+
+  it('до четырёх строк лист не растёт; больше — удлиняется, а не налезает на шкалу', () => {
+    const rows = (k: number) => Array.from({ length: k }, (_, i) => ({ printKey: `k${i}`, n: i + 1, text: 'Спина — DTF' }));
+    expect(scene({ legend: rows(4) })).toMatch(/height="848mm"/);
+    // 32 + 760 + (10 + 8 × 7 + 4) + 14 = 876
+    expect(scene({ legend: rows(8) })).toMatch(/height="876mm"/);
+  });
+
+  it('длинная строка легенды обрезается многоточием до середины листа', () => {
+    const svg = scene({ legend: [{ printKey: 'p1', n: 1, text: 'Ж'.repeat(400) }] });
+    const row = svg.match(/data-legend="1">(<text[^>]*>)([^<]*)</)![2];
+    expect(row.endsWith('…')).toBe(true);
+    expect(row.length).toBeLessThan(120);
+  });
+
+  it('пометки шапки: типовой силуэт и растр логотипа — одной строкой', () => {
+    const svg = scene({ meta: { ...META, typicalFlat: true, notes: ['логотип 2 — растр'] } });
+    expect(svg).toContain(`${TYPICAL_FLAT_NOTE} · логотип 2 — растр`);
+    expect(scene({ meta: { ...META, notes: ['логотип 1 — растр из PDF'] } })).toContain('>логотип 1 — растр из PDF<');
+  });
+
+  it('жирный — словом bold: у шрифта PDF два начертания, «800» svg2pdf не нашёл бы', () => {
+    expect(scene()).not.toMatch(/font-weight="(?!bold")/);
+  });
+
+  it('легенда и пометки с разметкой остаются текстом (H1), сцена проходит санитайзер без потерь', () => {
+    const svg = scene({
+      legend: [{ printKey: 'p1', n: 1, text: '</text><script>alert(1)</script>' }],
+      meta: { ...META, notes: ['"><image href=x onerror=alert(1)>'] },
+    });
+    expect(svg).not.toMatch(/<script|onerror="/);
+    const again = sanitizeSvg(svg, 'scene');
+    expect(again.ok && again.removed).toEqual([]);
+  });
+});
+
 describe('buildSceneSvg — чужие данные (H1)', () => {
   it('клиент с разметкой остаётся текстом', () => {
     const evil = '"><image href=x onerror=alert(1)>';
