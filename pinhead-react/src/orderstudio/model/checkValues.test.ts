@@ -21,13 +21,16 @@ const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
 
 /** Значения `check (<column> in (...))` ограничения из последней миграции, что его ставит */
 function checkValues(constraint: string, column: string, sqlOf = (f: string) => readFileSync(join(MIGRATIONS, f), 'utf8')): string[] {
+  // Без учёта регистра (ADD CONSTRAINT … CHECK тоже SQL), имя — целым словом:
+  // `..._check` не должен совпасть с `..._check_old`
   const re = new RegExp(
-    `add constraint ${constraint}\\s+check \\(([\\s\\S]*?)\\);`,
+    `add\\s+constraint\\s+${constraint}\\b\\s+check\\s*\\(([\\s\\S]*?)\\);`,
+    'i',
   );
   const hits = files.map((f) => sqlOf(f).match(re)).filter((m): m is RegExpMatchArray => m !== null);
   if (hits.length === 0) throw new Error(`нет миграции с ограничением ${constraint}`);
   const body = hits[hits.length - 1][1];
-  const list = body.match(new RegExp(`${column} in \\(([^)]*)\\)`));
+  const list = body.match(new RegExp(`\\b${column}\\s+in\\s*\\(([^)]*)\\)`, 'i'));
   if (!list) throw new Error(`в ${constraint} нет списка ${column} in (...)`);
   return [...list[1].matchAll(/'([^']*)'/g)].map((m) => m[1]).sort();
 }
@@ -55,6 +58,15 @@ describe('сторож различает расхождение (самопро
     const vals = checkValues('order_item_prints_offset_dir_check', 'offset_dir',
       fake("add constraint order_item_prints_offset_dir_check\n  check (offset_dir in ('', 'up', 'down', 'left', 'right', 'diag'));"));
     expect(vals).not.toEqual(sorted(PRINT_OFFSET_DIR));
+  });
+  it('регистр SQL не важен: ADD CONSTRAINT … CHECK (… IN (…)) читается', () => {
+    const vals = checkValues('orders_v4_paid_kind_check', 'paid_kind',
+      fake("ALTER TABLE public.orders ADD CONSTRAINT orders_v4_paid_kind_check\n  CHECK (paid_kind IS NULL OR paid_kind IN ('prepaid', 'full'));"));
+    expect(vals).toEqual(sorted(PAID_KINDS));
+  });
+  it('имя — целым словом: ограничение с более длинным именем не подменяет нужное', () => {
+    expect(() => checkValues('orders_v4_paid_kind_check', 'paid_kind',
+      fake("add constraint orders_v4_paid_kind_check_old check (paid_kind in ('x'));"))).toThrow(/нет миграции/);
   });
   it('нет ограничения — ошибка, а не пустой зелёный список', () => {
     expect(() => checkValues('no_such_check', 'x', fake('select 1;'))).toThrow(/нет миграции/);

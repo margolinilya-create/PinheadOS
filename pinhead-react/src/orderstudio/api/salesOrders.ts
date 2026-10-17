@@ -226,7 +226,8 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     erp_order_id: r.erp_order_id ?? null,
     sticker_preview_path: str(r.sticker_preview_path),
     notes_cards: [...(r.order_notes_cards ?? [])].sort(bySort).map(noteCardFromRow),
-    paid_kind: r.paid_kind == null ? null : oneOf<PaidKind>(PAID_KINDS, r.paid_kind, 'prepaid'),
+    // Неизвестная отметка оплаты — «нет отметки», а не выдуманная предоплата
+    paid_kind: PAID_KINDS.includes(r.paid_kind) ? (r.paid_kind as PaidKind) : null,
     paid_override_reason: r.paid_override_reason ?? null,
     sent_at: r.sent_at ?? null,
     launch_started_at: r.launch_started_at ?? null,

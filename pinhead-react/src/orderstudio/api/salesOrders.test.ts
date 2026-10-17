@@ -237,6 +237,12 @@ describe('rowToSalesOrder — строка без вложений и с пус�
     expect(o.items[0].labels[0]).toMatchObject({ blank: false, preview_paths: [], attach_scheme: '' });
   });
 
+  it('неизвестный вид оплаты читается как «нет отметки», а не как предоплата', () => {
+    expect(rowToSalesOrder({ id: 'x', paid_kind: 'partial' }).paid_kind).toBeNull();
+    expect(rowToSalesOrder({ id: 'x', paid_kind: null }).paid_kind).toBeNull();
+    expect(rowToSalesOrder({ id: 'x', paid_kind: 'full' }).paid_kind).toBe('full');
+  });
+
   it('битая сетка читается пустой', () => {
     const o = rowToSalesOrder({ id: 'x', order_items: [{ id: 'i', size_grid: null }] });
     expect(o.items[0].size_grid).toEqual({ sizes: [], rows: [] });

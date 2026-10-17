@@ -162,13 +162,39 @@ begin
 end;
 $$;
 
+-- ── Путь файла заказа ─────────────────────────────────────────────────────
+-- Файлы заказа живут под `orders/<id заказа>/…` (бакет order-artworks,
+-- миграция C). Путь чужого заказа в своём поле — ссылка на чужой макет:
+-- сохранение такой путь отвергает. Только ASCII-сегменты, без `..`.
+
+create or replace function public.order_artwork_path_ok(p_order uuid, p_path text)
+returns boolean
+language sql
+immutable
+security invoker
+set search_path = public
+as $$
+  select p_order is not null
+     and p_path is not null
+     and position('..' in p_path) = 0
+     and p_path ~ ('^orders/' || p_order::text || '/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$');
+$$;
+
+revoke execute on function public.order_artwork_path_ok(uuid, text) from public, anon;
+grant execute on function public.order_artwork_path_ok(uuid, text) to authenticated;
+
 -- ── Сохранение заказа целиком: новая редакция ────────────────────────────
 -- Подлинный текст прежней редакции взят из живой базы 17.10
 -- (pg_get_functiondef) и совпал с 20260928213529_orders_v4.sql. Изменения:
 --   · новые поля позиции, нанесений, бирок; `sticker_preview_path` шапки;
 --   · карточки заметок `notes_cards` — удалить и вставить заново, как
---     нанесения; позиция карточки — `item_key` (= ключ позиции = её id);
---   · `parent_id` обязан быть виден вызывающему (invoker: под его RLS).
+--     нанесения, но ТОЛЬКО если ключ есть в payload (старый клиент без
+--     ключа карточки не стирает); позиция карточки — `item_key`
+--     (= ключ позиции = её id);
+--   · `parent_id` при смене (и у нового заказа) обязан быть виден
+--     вызывающему (invoker: под его RLS); сам себе родителем — нельзя;
+--   · пути файлов (стикер, PDF ТЗ, макет, превью и схема бирки, картинка
+--     карточки) — только `orders/<id этого заказа>/…` (order_artwork_path_ok).
 -- По-прежнему НЕ пишет status, created_by, erp_order_id, paid_*, sent_at,
 -- launch_*, launched_*, schema_version, order_number.
 
@@ -189,13 +215,26 @@ declare
   v_sub jsonb;
   v_sub_seq integer;
   v_card_item uuid;
+  v_old_parent uuid;
+  v_path text;
+  c_bad_path constant text := 'Путь файла не принадлежит заказу';
 begin
   if (select auth.uid()) is null then
     raise exception 'Нужен вход в систему' using errcode = '42501';
   end if;
 
-  -- Заказ-родитель (образец → тираж, переделка) — только видимый вызывающему
-  if v_parent is not null and not exists (select 1 from public.orders where id = v_parent) then
+  -- Заказ-родитель (образец → тираж, переделка) — только видимый вызывающему.
+  -- Проверяется при смене: прежний родитель мог стать невидимым, и это
+  -- не повод запрещать сохранение остального заказа
+  if v_id is not null then
+    select parent_id into v_old_parent from public.orders where id = v_id and schema_version = 4;
+  end if;
+  if v_parent is not null and v_parent = v_id then
+    raise exception using errcode = '42501', message = 'Заказ не найден или недоступен';
+  end if;
+  if v_parent is not null
+     and (v_id is null or v_parent is distinct from v_old_parent)
+     and not exists (select 1 from public.orders where id = v_parent) then
     raise exception using errcode = '42501', message = 'Заказ не найден или недоступен';
   end if;
 
@@ -203,6 +242,12 @@ begin
     insert into public.orders (schema_version, status, created_by, data)
     values (4, 'draft', (select auth.uid()), '{}'::jsonb)
     returning id into v_id;
+  end if;
+
+  -- Пути проверяются, когда id заказа уже известен (у нового — после вставки)
+  v_path := coalesce(p_order->>'sticker_preview_path', '');
+  if v_path <> '' and not public.order_artwork_path_ok(v_id, v_path) then
+    raise exception using errcode = '22023', message = c_bad_path;
   end if;
 
   update public.orders set
@@ -240,6 +285,11 @@ begin
   for v_item in select * from jsonb_array_elements(coalesce(p_order->'items', '[]'::jsonb)) loop
     v_item_id := coalesce(nullif(v_item->>'key', '')::uuid, gen_random_uuid());
     v_item_ids := array_append(v_item_ids, v_item_id);
+
+    v_path := coalesce(v_item->>'tz_pdf_path', '');
+    if v_path <> '' and not public.order_artwork_path_ok(v_id, v_path) then
+      raise exception using errcode = '22023', message = c_bad_path;
+    end if;
 
     insert into public.order_items as it (
       id, order_id, sort_order, kind, sku_code, sku_card_id, product_type, fit,
@@ -319,6 +369,10 @@ begin
     delete from public.order_item_prints where item_id = v_item_id;
     v_sub_seq := 0;
     for v_sub in select * from jsonb_array_elements(coalesce(v_item->'prints', '[]'::jsonb)) loop
+      v_path := coalesce(v_sub->>'artwork_path', '');
+      if v_path <> '' and not public.order_artwork_path_ok(v_id, v_path) then
+        raise exception using errcode = '22023', message = c_bad_path;
+      end if;
       insert into public.order_item_prints (
         id, item_id, sort_order, method, zone, sizes, width_mm, height_mm, offset_note,
         pantone, special, garment_kind, print_on, comment, colors, textile, fill,
@@ -357,6 +411,13 @@ begin
     delete from public.order_item_labels where item_id = v_item_id;
     v_sub_seq := 0;
     for v_sub in select * from jsonb_array_elements(coalesce(v_item->'labels', '[]'::jsonb)) loop
+      v_path := coalesce(v_sub->>'attach_image_path', '');
+      if (v_path <> '' and not public.order_artwork_path_ok(v_id, v_path))
+         or exists (
+           select 1 from jsonb_array_elements_text(coalesce(v_sub->'preview_paths', '[]'::jsonb)) as e(path)
+            where not public.order_artwork_path_ok(v_id, e.path)) then
+        raise exception using errcode = '22023', message = c_bad_path;
+      end if;
       insert into public.order_item_labels (
         id, item_id, sort_order, label_type, place, size, comment, variant_id,
         blank, preview_paths, attach_scheme, attach_image_path)
@@ -380,25 +441,32 @@ begin
   delete from public.order_items where order_id = v_id and not (id = any (v_item_ids));
 
   -- Карточки заметок — после позиций: каскад удалённых позиций уже прошёл,
-  -- и ссылка карточки сверяется с ИТОГОВЫМ набором позиций этого заказа
-  delete from public.order_notes_cards where order_id = v_id;
-  v_sub_seq := 0;
-  for v_sub in select * from jsonb_array_elements(coalesce(p_order->'notes_cards', '[]'::jsonb)) loop
-    v_card_item := nullif(v_sub->>'item_key', '')::uuid;
-    if v_card_item is not null and not (v_card_item = any (v_item_ids)) then
-      raise exception 'Карточка заметки ссылается на позицию не из этого заказа' using errcode = '22023';
-    end if;
-    insert into public.order_notes_cards (
-      id, order_id, item_id, group_title, caption, link, image_path, sort_order)
-    values (
-      coalesce(nullif(v_sub->>'key', '')::uuid, gen_random_uuid()), v_id, v_card_item,
-      coalesce(v_sub->>'group_title', ''),
-      coalesce(v_sub->>'caption', ''),
-      coalesce(v_sub->>'link', ''),
-      coalesce(v_sub->>'image_path', ''),
-      v_sub_seq);
-    v_sub_seq := v_sub_seq + 1;
-  end loop;
+  -- и ссылка карточки сверяется с ИТОГОВЫМ набором позиций этого заказа.
+  -- Нет ключа `notes_cards` (клиент до вехи 2) — карточки не трогаются
+  if p_order ? 'notes_cards' then
+    delete from public.order_notes_cards where order_id = v_id;
+    v_sub_seq := 0;
+    for v_sub in select * from jsonb_array_elements(coalesce(p_order->'notes_cards', '[]'::jsonb)) loop
+      v_card_item := nullif(v_sub->>'item_key', '')::uuid;
+      if v_card_item is not null and not (v_card_item = any (v_item_ids)) then
+        raise exception 'Карточка заметки ссылается на позицию не из этого заказа' using errcode = '22023';
+      end if;
+      v_path := coalesce(v_sub->>'image_path', '');
+      if v_path <> '' and not public.order_artwork_path_ok(v_id, v_path) then
+        raise exception using errcode = '22023', message = c_bad_path;
+      end if;
+      insert into public.order_notes_cards (
+        id, order_id, item_id, group_title, caption, link, image_path, sort_order)
+      values (
+        coalesce(nullif(v_sub->>'key', '')::uuid, gen_random_uuid()), v_id, v_card_item,
+        coalesce(v_sub->>'group_title', ''),
+        coalesce(v_sub->>'caption', ''),
+        coalesce(v_sub->>'link', ''),
+        v_path,
+        v_sub_seq);
+      v_sub_seq := v_sub_seq + 1;
+    end loop;
+  end if;
 
   return jsonb_build_object(
     'id', v_row.id,
