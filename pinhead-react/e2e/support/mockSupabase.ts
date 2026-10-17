@@ -696,8 +696,7 @@ class RpcFailure {
   }
 }
 
-/** Переходы, которые мок пускает (подмножество белого списка `order_v4_transition`) */
-// Повторяет белый список order_v4_transition (миграция 20261017062110_order_v4_rights.sql)
+/** Повторяет белый список `order_v4_transition` (миграция 20261017062110_order_v4_rights.sql) */
 const MOCK_TRANSITIONS: Record<string, string[]> = {
   draft: ['ready_to_launch', 'archived'],
   ready_to_launch: ['production', 'draft'],
@@ -707,6 +706,13 @@ const MOCK_TRANSITIONS: Record<string, string[]> = {
 function transitionAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
   const st = launchOf(extra);
   const to = String(body.p_to ?? '');
+  // Как сервер: повторный переход в production — идемпотентный успех
+  if (st.status === 'production' && to === 'production') {
+    return { id: body.p_id, status: to, erp_order_id: MOCK_ERP_ORDER };
+  }
+  if (st.status === 'ready_to_launch' && to === 'draft' && !String(body.p_reason ?? '').trim()) {
+    return new RpcFailure('P0001', 'Укажите причину возврата');
+  }
   if (!(MOCK_TRANSITIONS[st.status] ?? []).includes(to)) {
     return new RpcFailure('P0001', 'Такой переход статуса недоступен');
   }

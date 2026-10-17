@@ -8,7 +8,7 @@
 
 ## Состояние на 2026-10-17 (сессия 84) — веха 2 единого потока: данные, права, бакет, прототип запуска
 
-Ветка `claude/exciting-galileo-uk2po2` (коммиты `74ae03b9`…HEAD, не запушены). План —
+Ветка `claude/exciting-galileo-uk2po2` (коммиты `74ae03b9`…HEAD, запушены; PR в main). План —
 `docs/superpowers/plans/2026-10-17-order-flow-m2-data-rights.md` (с поправками проверки
 скиллами и безопасности), ledger — `.superpowers/sdd/2026-10-17-order-flow-m2-data-rights/`.
 Экранов в вехе нет, ERP не менялся (сторож «ERP заморожен» зелёный).
@@ -24,7 +24,7 @@
   `order_v4_transition` / `order_v4_launch_check` / `order_v4_set_payment`, стражи
   `order_v4_guard` (белый список) / `order_v4_delete_guard` / `order_v4_child_guard`,
   `order_number_format` + уникальный индекс номера. Клиент — `api/salesTransitions.ts`.
-- **Миграция C** `20261017070826_order_artworks_bucket` (на бою 17.10, сухой прогон 67/0):
+- **Миграция C** `20261017070826_order_artworks_bucket` (на бою 17.10, пробы на бою 67/0):
   приватный бакет `order-artworks` (25 МБ, `orders/<uuid>/…`, подписанные ссылки 600 с,
   SVG только `<img>` и скачиванием, UPDATE запрещён restrictive-политикой), в ночной копии.
   Клиент — `api/artworks.ts`.
@@ -57,6 +57,13 @@
 
 ### Отложено
 
+- **До вехи 3:** `order_v4_save` пишет умолчание вместо отсутствующего ключа — вкладка со
+  старой сборкой сотрёт новые поля ТЗ позиций, нанесений и бирок (`supplier`, `tz_comment`,
+  `artwork_path`, `blank`, `preview_paths`…). Новой миграцией: «нет ключа — прежнее значение»
+  (как у `notes_cards`), либо опереться на плашку `appVersion`.
+- Визуальный эталон `studio-*` после оболочки вехи 1 снимает только первый экран
+  (прокрутка внутри `.orderMain`) — снимать прокручиваемый контейнер целиком.
+- Запаса нет: lint 38/38, оболочка ERP JS 194175/195000 Б.
 - Уборщик ничьих файлов `order-artworks` и срок хранения.
 - Копия макетов в публичный `erp-attachments` при запуске — вехи 6–7 (`tz.documents`).
 - Копия ВНУТРЬ `order-artworks` из `erp-attachments` обходит MIME и размер бакета (Low).

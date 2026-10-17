@@ -78,10 +78,11 @@ test('запуск: проверка → справочники ERP → erp_crea
   expect(rpc[4].body).toEqual({ p_id: ORDER_ID, p_to: 'production', p_reason: null });
 });
 
-test('запуск: заказ уже в производстве — успех без перехода (у «уже» без launch_started_at)', async ({ page }) => {
+test('запуск: заказ уже запущен и сдан — успех без перехода (у «уже» без launch_started_at)', async ({ page }) => {
   const calls: MockCall[] = [];
-  // мок ведёт себя как сервер: переход production → production — ошибка 400
-  await installSupabaseMock(page, { calls, launch: { status: 'production' } });
+  // мок ведёт себя как сервер: из done в production перехода нет — ошибка 400
+  // (повтор production → production сервер пускает, поэтому берём done)
+  await installSupabaseMock(page, { calls, launch: { status: 'done' } });
   await page.goto('/?studio=1');
   await expect(page.locator('#root')).not.toBeEmpty();
   calls.length = 0;
