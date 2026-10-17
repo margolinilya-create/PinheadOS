@@ -4,6 +4,7 @@ import type { PriceCatalogs } from './priceOrder';
 import * as core from '../../utils/pricingCore';
 import { DTG_SIZES } from '../../utils/printRules';
 import { garmentPatch, salesItemToWizard } from '../wizard/wizardAdapter';
+import { SUPPLIERS_SEED } from '../catalog/seeds';
 import type { GarmentSnap } from '../wizard/wizardAdapter';
 import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint } from '../model/types';
@@ -40,6 +41,7 @@ const WIZ_CAT = {
   skuCatalog: PRICE_CAT.skuCatalog,
   fabricsCatalog: FABRICS_CATALOG_DEFAULT as unknown as Fabric[],
   zonesCatalog: ZONES,
+  suppliers: SUPPLIERS_SEED,
 };
 const SKU = PRICE_CAT.skuCatalog[2];
 const FABRIC = 'medas-kulirnaya-100-160';

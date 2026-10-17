@@ -59,11 +59,12 @@ export function loadItemIntoBuffer(item: SalesItem, cat: WizardCatalogs): void {
   const { sku, ...fields } = salesItemToWizard(item, cat);
   // Тип, крой и умолчания модели ставит штатный выбор модели визарда
   if (sku) store.selectSku(sku as SkuItem);
-  const palette = colorSupplierOfFabric(item.fabric_code, cat.fabricsCatalog);
   useStore.setState({
     ...fields,
     clientFabric: item.client_fabric,
-    ...(palette ? { colorSupplier: palette } : {}),
+    // Палитра — id поставщика ткани из справочника; ткани нет в каталоге — ''
+    // (`ColorPicker` покажет палитру по умолчанию)
+    colorSupplier: colorSupplierOfFabric(item.fabric_code, cat.fabricsCatalog, cat.suppliers),
   });
 }
 
