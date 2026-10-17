@@ -21,10 +21,11 @@ export const METHOD_LABELS: Record<SalesPrintMethod, string> = {
   dtg: 'DTG',
   sublimation: 'Сублимация',
   patch: 'Шевроны / нашивки',
+  other: 'Прочее / подряд',
 };
 
 export const METHOD_ORDER: SalesPrintMethod[] = [
-  'silkscreen', 'embroidery', 'dtf', 'heat_transfer', 'dtg', 'sublimation', 'patch',
+  'silkscreen', 'embroidery', 'dtf', 'heat_transfer', 'dtg', 'sublimation', 'patch', 'other',
 ];
 
 export const KIND_LABELS: Record<SalesItemKind, string> = {

@@ -170,6 +170,20 @@ describe('tzToErpDraft — нанесения и бирки', () => {
     expect(d.warnings).toContainEqual({ kind: 'method_as_other', item: d.items[0].key, method: 'sublimation' });
   });
 
+  it('«прочее» (П = прочее / подряд) — other ERP с предупреждением; подрядчик и срок — в комментарий', () => {
+    const p = newSalesPrint({ method: 'other', contractor: 'Подрядчик А', contractor_days: 3, comment: 'стразы' });
+    const d = tzToErpDraft(order([sku({ prints: [p] })]));
+    expect(d.items[0].prints[0]).toMatchObject({
+      method: 'other', comment: 'Прочее / подряд. Подрядчик: Подрядчик А. Срок подрядчика, дней: 3. стразы',
+    });
+    expect(d.warnings).toContainEqual({ kind: 'method_as_other', item: d.items[0].key, method: 'other' });
+  });
+
+  it('«прочее» без подрядчика — в комментарии только название техники', () => {
+    const d = tzToErpDraft(order([sku({ prints: [newSalesPrint({ method: 'other' })] })]));
+    expect(d.items[0].prints[0].comment).toBe('Прочее / подряд');
+  });
+
   it('DTG — метод сохраняется, этапа ERP не строит: предупреждение', () => {
     const d = tzToErpDraft(order([sku({ prints: [newSalesPrint({ method: 'dtg' })] })]));
     expect(d.items[0].prints[0].method).toBe('dtg');
