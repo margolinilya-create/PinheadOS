@@ -162,6 +162,12 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Lazy loading: ExpressCalc, AdminPanel, StepDesign, StepItems, StepDetails, StepSummary
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
+- **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
+  архитектура (`engineering:architecture`/`system-design`), тесты (`testing-strategy`),
+  безопасность (отдельный агент-атакующий для прав, RLS, Storage, RPC), выкатка
+  (`deploy-checklist`, если трогается база или прод), техдолг (`tech-debt`); для экранов —
+  `design-critique`, `accessibility-review`, `ux-copy`. Находки вносятся в план, и только
+  потом план идёт на одобрение
 
 ## Supabase — схема
 
