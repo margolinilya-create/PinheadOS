@@ -2474,6 +2474,13 @@
       "files": [
         "20261017070826_order_artworks_bucket.sql"
       ]
+    },
+    {
+      "version": "20261017093841",
+      "name": "sales_staff_flag",
+      "files": [
+        "20261017093841_sales_staff_flag.sql"
+      ]
     }
   ]
 }
