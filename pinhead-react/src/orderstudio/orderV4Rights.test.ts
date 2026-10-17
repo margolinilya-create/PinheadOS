@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { SALES_CLIENT_REV, saveFailureKind } from './api/salesOrders';
 
 /**
  * СТОРОЖ ПРАВ ORDER V4 (веха 2, миграция B `…_order_v4_rights.sql`).
@@ -362,7 +363,13 @@ describe('миграция E: признак «Менеджер продаж»',
   });
 });
 
-const CLIENT_REV_CHECK = /^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < 3 then\s+raise exception using errcode = 'P0001',\s+message = 'Вышло обновление — обновите страницу, правка не сохранена';/;
+/**
+ * Проверка ревизии первой строкой; порог — тот же `SALES_CLIENT_REV`, что
+ * шлёт клиент (поднял ревизию в клиенте — подними и в SQL). Группа 1 — текст отказа
+ */
+const CLIENT_REV_CHECK = new RegExp(String.raw`^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < ${SALES_CLIENT_REV} then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';`);
+/** Сверка версии в обёртке; группа 1 — текст отказа */
+const CONFLICT_CHECK = /if found and v_status = 'draft' and v_current is distinct from v_expected then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';/;
 
 /** Тело функции с кодом от первого `begin` — без объявлений и комментариев */
 const codeAfterBegin = (body: string) => noComments(body.slice(body.search(/\bbegin\b/) + 'begin'.length));
@@ -381,8 +388,9 @@ describe('миграция D: ревизия клиента и конкурен�
   it('обёртка сверяет expected_updated_at со строкой, взятой FOR UPDATE, до записи', () => {
     const body = noComments(fnOf('order_v4_save_full')?.body ?? '');
     expect(body).toMatch(/nullif\(p_order->>'expected_updated_at', ''\)::timestamptz/);
-    expect(body).toMatch(/select updated_at into v_current\s+from public\.orders\s+where id = v_id and schema_version = 4\s+for update;/);
-    expect(body).toMatch(/if found and v_current is distinct from v_expected then\s+raise exception using errcode = 'P0001',\s+message = 'Заказ изменён в другой вкладке — обновите страницу';/);
+    expect(body).toMatch(/select updated_at, status into v_current, v_status\s+from public\.orders\s+where id = v_id and schema_version = 4\s+for update;/);
+    // не черновик — сверки нет: причину отказа называет страж («правка закрыта»)
+    expect(body).toMatch(CONFLICT_CHECK);
     expect(body.indexOf('for update')).toBeLessThan(body.indexOf('public.order_v4_save(p_order)'));
   });
 
@@ -396,10 +404,28 @@ describe('миграция D: ревизия клиента и конкурен�
     }
   });
 
+  it('тексты отказов сервера распознаёт клиент: outdated / conflict / locked', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const outdated = codeAfterBegin(fnOf(n)?.body ?? '').match(CLIENT_REV_CHECK)?.[1];
+      expect(outdated, n).toBeTruthy();
+      expect(saveFailureKind({ code: 'P0001', message: outdated })).toBe('outdated');
+    }
+    const conflict = noComments(fnOf('order_v4_save_full')?.body ?? '').match(CONFLICT_CHECK)?.[1];
+    expect(conflict).toBeTruthy();
+    expect(saveFailureKind({ code: 'P0001', message: conflict })).toBe('conflict');
+    // Страж B: отказ правки не-черновика — тот, что клиент зовёт locked
+    const guard = functionsOf(RIGHTS).find((f) => f.name === 'order_v4_guard');
+    const locked = noComments(guard?.body ?? '')
+      .match(/if old\.status is distinct from 'draft' then\s+raise exception using errcode = '42501', message = '([^']+)';/)?.[1];
+    expect(locked).toBeTruthy();
+    expect(saveFailureKind({ code: '42501', message: locked })).toBe('locked');
+  });
+
   it('самопроверка: проверка не первой строкой или с порогом 2 — красный', () => {
-    const ok = "begin\n  if coalesce((p_order->>'client_rev')::int, 0) < 3 then\n    raise exception using errcode = 'P0001',\n      message = 'Вышло обновление — обновите страницу, правка не сохранена';";
+    const ok = `begin\n  if coalesce((p_order->>'client_rev')::int, 0) < ${SALES_CLIENT_REV} then`
+      + "\n    raise exception using errcode = 'P0001',\n      message = 'Вышло обновление — обновите страницу, правка не сохранена';";
     expect(codeAfterBegin(ok)).toMatch(CLIENT_REV_CHECK);
-    expect(codeAfterBegin(ok.replace('< 3', '< 2'))).not.toMatch(CLIENT_REV_CHECK);
+    expect(codeAfterBegin(ok.replace(`< ${SALES_CLIENT_REV}`, `< ${SALES_CLIENT_REV - 1}`))).not.toMatch(CLIENT_REV_CHECK);
     expect(codeAfterBegin(ok.replace('begin\n', 'begin\n  perform 1;\n'))).not.toMatch(CLIENT_REV_CHECK);
   });
 });

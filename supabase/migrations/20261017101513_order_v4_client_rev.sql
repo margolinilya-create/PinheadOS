@@ -22,8 +22,11 @@
 --      страницу». Ключа нет (новый заказ, прямой вызов) — проверки нет.
 --      Строка, которую вызывающий не видит или не может править, `for update`
 --      не возвращает: проверка пропускается, и отказ даёт сама `order_v4_save`
---      (42501 «Заказ не найден или недоступен» / страж «правка закрыта») —
---      существование чужого заказа по тексту ошибки не угадать.
+--      (42501 «Заказ не найден или недоступен») — существование чужого заказа
+--      по тексту ошибки не угадать. Заказ не в `draft` сверку тоже пропускает:
+--      переход статуса двигает `updated_at`, и устаревшая вкладка над
+--      отправленным заказом должна услышать причину стража (42501 «Заказ
+--      отправлен в работу — правка закрыта»), а не «изменён в другой вкладке».
 --
 -- Тексты функций — с боя (pg_get_functiondef, 17.10; тело `order_v4_save`
 -- совпадает с миграцией A 20261017053703 по md5 prosrc, `order_v4_save_full`
@@ -339,6 +342,7 @@ declare
   v_id uuid;
   v_expected timestamptz;
   v_current timestamptz;
+  v_status text;
 begin
   if coalesce((p_order->>'client_rev')::int, 0) < 3 then
     raise exception using errcode = 'P0001',
@@ -350,11 +354,13 @@ begin
   v_id := nullif(p_order->>'id', '')::uuid;
   v_expected := nullif(p_order->>'expected_updated_at', '')::timestamptz;
   if v_id is not null and v_expected is not null then
-    select updated_at into v_current
+    select updated_at, status into v_current, v_status
       from public.orders
      where id = v_id and schema_version = 4
        for update;
-    if found and v_current is distinct from v_expected then
+    -- Не черновик — сверку пропускаем: правку закрывает страж «правка закрыта»
+    -- (42501), и вкладка узнаёт настоящую причину, а не «изменён в другой вкладке»
+    if found and v_status = 'draft' and v_current is distinct from v_expected then
       raise exception using errcode = 'P0001',
         message = 'Заказ изменён в другой вкладке — обновите страницу';
     end if;

@@ -5,7 +5,7 @@
 -- (20261017101513_order_v4_client_rev: ревизия клиента и конкурентная правка
 -- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=119 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=121 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -212,6 +212,8 @@ select pg_temp.p('s_save_ok_effect', 'OK проба D/Поставщик-про�
 select pg_temp.p('s_save_no_expected', 'OK {"id": "00000000-0000-4000-8000-000000000a10"', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "title": "проба D", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)::text$q$);
 -- отправленный заказ: правку закрывает страж, текст «правка закрыта» (клиент: locked)
 select pg_temp.p('s_save_sent', '42501 Заказ отправлен в работу — правка закрыта', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-0000000000a6", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-0000000000b6"}]}'::jsonb)$q$);
+-- устаревшая вкладка над отправленным заказом: сверка версии пропущена, причину называет страж
+select pg_temp.p('s_save_sent_stale', '42501 Заказ отправлен в работу — правка закрыта', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-0000000000a6", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "items": [{"key": "00000000-0000-4000-8000-0000000000b6"}]}'::jsonb)$q$);
 -- v3 как раньше
 select pg_temp.p('s_v3_update', 'OK rows=1', $q$update public.orders set data = '{"x":2}' where id = '00000000-0000-4000-8000-0000000000a4'$q$);
 select pg_temp.p('s_v3_insert', 'OK rows=1', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-V3', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}')$q$);
@@ -253,6 +255,8 @@ set local role authenticated;
 select pg_temp.p('self_set_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
 select pg_temp.p('admin_direct_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('admin_insert_sales', '42501 Признак «Менеджер продаж»', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+-- руководитель правит чужой черновик: версия сверяется и для него
+select pg_temp.p('a_save_foreign_stale', 'P0001 Заказ изменён в другой вкладке', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)$q$);
 -- остальные колонки профиля админ правит как раньше
 select pg_temp.p('admin_other_columns', 'OK rows=1', $q$update public.profiles set name = name where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('admin_list_staff', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and not is_sales)::text from public.sales_staff_list()$q$);
