@@ -663,6 +663,24 @@ export type MockExtras = {
    * миграции D (`salesSaveAnswer`).
    */
   salesSaveFailure?: { code: string; message: string };
+  /**
+   * Справочники `catalog_config` / `app_config` С СОСТОЯНИЕМ (веха 4, миграция G):
+   * `{ таблица: { ключ: значение } }`. Чтение отдаёт строки по `key=eq.…`,
+   * запись — только RPC `catalog_put` / `prices_patch`, как у сервера: условно,
+   * при совпадении базы (`p_base`, равенство смысловое), иначе `P0001`
+   * «Справочник изменён — загрузите свежую версию». Без ключа — прежнее
+   * поведение: полный select пуст (стор берёт умолчания), `sku_catalog` по
+   * ключу — два кода прайса.
+   */
+  catalogs?: Partial<Record<'catalog_config' | 'app_config', Record<string, unknown>>>;
+  /** Отказ на КАЖДУЮ запись справочника (`catalog_put`/`prices_patch`), например `42501` */
+  catalogPutFailure?: { code: string; message: string };
+  /**
+   * Профили «Сотрудников продаж» (`sales_staff_list`). `sales_set_staff`
+   * понимает обе сигнатуры — `(p_profile, p_on)` вехи 3 и `(p_profile,
+   * p_kind 'sales'|'ms', p_on)` вехи 4 — и меняет `is_sales`/`is_ms` строки.
+   */
+  salesStaff?: Record<string, unknown>[];
 };
 
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
@@ -854,6 +872,89 @@ function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unkn
 type OrderFx = { id: string; bitrix_id: string; status: string };
 
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */
+// ── Справочники (веха 4, миграция G) ────────────────────────────────────
+
+type CatalogTableName = 'catalog_config' | 'app_config';
+const CATALOG_CONFLICT = 'Справочник изменён — загрузите свежую версию';
+
+/** Белый список `catalog_put` миграции G (сторож клиента — `catalogKeys.test.ts`) */
+const MOCK_CATALOG_PUT: Record<CatalogTableName, string[]> = {
+  catalog_config: ['suppliers', 'fabricsCatalog', 'trimCatalog'],
+  app_config: ['labelLibrary', 'tzSettings', 'sku_catalog', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'zonesCatalog'],
+};
+const MOCK_PRICE_RULE_KEYS = ['packOptions', 'prepFees', 'minMarginPct'];
+
+/** Состояние справочников — на каждый набор `MockExtras` своё (копия фикстуры) */
+const catalogState = new WeakMap<MockExtras, Record<CatalogTableName, Record<string, unknown>>>();
+
+function catalogsOf(extra: MockExtras) {
+  let st = catalogState.get(extra);
+  if (!st) {
+    st = {
+      catalog_config: structuredClone(extra.catalogs?.catalog_config ?? {}),
+      app_config: structuredClone(extra.catalogs?.app_config ?? {}),
+    };
+    catalogState.set(extra, st);
+  }
+  return st;
+}
+
+/** Канонический JSON: ключи по алфавиту — равенство как у jsonb (порядок не важен) */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+function catalogRows(table: CatalogTableName, params: URLSearchParams, extra: MockExtras) {
+  const rows = Object.entries(catalogsOf(extra)[table]).map(([key, value]) => ({ key, value }));
+  const eq = params.get('key');
+  return eq?.startsWith('eq.') ? rows.filter((r) => r.key === eq.slice(3)) : rows;
+}
+
+let catalogClock = 0;
+const catalogStamp = () => `2026-10-17T12:00:${String(catalogClock++ % 60).padStart(2, '0')}Z`;
+
+function catalogPutAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  if (extra.catalogPutFailure) return new RpcFailure(extra.catalogPutFailure.code, extra.catalogPutFailure.message);
+  const table = String(body.p_table ?? '') as CatalogTableName;
+  const key = String(body.p_key ?? '');
+  if (!(MOCK_CATALOG_PUT[table] ?? []).includes(key)) return new RpcFailure('22023', 'Такого справочника нет');
+  if (body.p_value == null) return new RpcFailure('22023', 'Пустой справочник не сохраняется');
+  const rows = catalogsOf(extra)[table];
+  const exists = Object.prototype.hasOwnProperty.call(rows, key);
+  const base = body.p_base ?? null;
+  const same = base === null ? !exists : exists && canonical(rows[key]) === canonical(base);
+  if (!same) return new RpcFailure('P0001', CATALOG_CONFLICT);
+  rows[key] = structuredClone(body.p_value);
+  return catalogStamp();
+}
+
+function pricesPatchAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  if (extra.catalogPutFailure) return new RpcFailure(extra.catalogPutFailure.code, extra.catalogPutFailure.message);
+  const patch = (body.p_patch ?? {}) as Record<string, unknown>;
+  const base = (body.p_base ?? {}) as Record<string, unknown>;
+  const rows = catalogsOf(extra).app_config;
+  const cur = (rows.prices ?? {}) as Record<string, unknown>;
+  for (const k of Object.keys(patch)) {
+    if (!MOCK_PRICE_RULE_KEYS.includes(k) && !(k in cur)) return new RpcFailure('22023', `Такого ключа прайса нет: ${k}`);
+    if (canonical(cur[k] ?? null) !== canonical(base[k] ?? null)) return new RpcFailure('P0001', CATALOG_CONFLICT);
+  }
+  rows.prices = { ...cur, ...structuredClone(patch) };
+  return { updated_at: catalogStamp() };
+}
+
+function salesSetStaffAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  const kind = body.p_kind === undefined ? 'sales' : body.p_kind;
+  if (kind !== 'sales' && kind !== 'ms') return new RpcFailure('22023', 'Неизвестный признак');
+  const row = (extra.salesStaff ?? []).find((r) => r.id === body.p_profile);
+  if (row) row[kind === 'ms' ? 'is_ms' : 'is_sales'] = Boolean(body.p_on);
+  return null;
+}
+
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
   switch (table) {
     case 'erp_departments':
@@ -953,11 +1054,15 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
      * на бою: каталог ERP и прайс совпадают не дословно, и именно это
      * несовпадение экран и показывает.
      */
-    case 'app_config':
-      if (params.get('key') === 'eq.sku_catalog') {
+    case 'app_config': {
+      const rows = catalogRows('app_config', params, extra);
+      if (params.get('key') === 'eq.sku_catalog' && rows.length === 0) {
         return [{ key: 'sku_catalog', value: [{ code: 'HOOD-320' }, { code: 'TEE-190' }] }];
       }
-      return [];
+      return rows;
+    }
+    case 'catalog_config':
+      return catalogRows('catalog_config', params, extra);
     // Order Studio и прочие таблицы: пустой набор → компоненты берут дефолты/пустые списки.
     default:
       return [];
@@ -1053,6 +1158,16 @@ resetChatMock();
 
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
+    /** Справочники с защитой от затирания — см. `MockExtras.catalogs` */
+    case 'catalog_put':
+      return catalogPutAnswer(body, extra);
+    case 'prices_patch':
+      return pricesPatchAnswer(body, extra);
+    /** «Сотрудники продаж» — см. `MockExtras.salesStaff` */
+    case 'sales_staff_list':
+      return extra.salesStaff ?? [];
+    case 'sales_set_staff':
+      return salesSetStaffAnswer(body, extra);
     /**
      * Сохранение Order v4 одной транзакцией (`order_v4_save_full`). Клиент
      * читает из ответа id (для нового заказа его назначает сервер), номер
@@ -1252,6 +1367,20 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
 /**
  * Ставит все перехватчики Supabase на страницу. Вызывать в beforeEach ДО goto.
  */
+/**
+ * Ответы мока без браузера — для unit-сторожа состояния справочников
+ * (`src/orderstudio/api/catalogMock.test.ts`). Ошибка RPC — `{ code, message }`.
+ */
+export const mockAnswersForTest = {
+  rpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
+    const a = dataForRpc(fn, body, extra);
+    return a instanceof RpcFailure ? { error: { code: a.code, message: a.message } } : { data: a };
+  },
+  table(table: string, query: string, extra: MockExtras): unknown[] {
+    return dataForTable(table, new URLSearchParams(query), extra);
+  },
+};
+
 export async function installSupabaseMock(page: Page, extra: MockExtras = {}): Promise<void> {
   /**
    * Realtime websocket — к реальному серверу не подключаемся, но ОТВЕЧАЕМ.

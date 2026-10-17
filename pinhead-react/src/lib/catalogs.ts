@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { sessionGet, sessionSet, sessionRemove } from './storage';
+import { toast } from '../store/useToastStore';
+import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 
 const CACHE_KEY = 'pinhead_catalogs_v1';
 const CACHE_TTL = 30 * 60 * 1000; // 30 минут
@@ -65,6 +67,40 @@ async function fetchAllCatalogs(): Promise<Record<string, unknown>> {
   sessionSet(CACHE_KEY, result, CACHE_TTL);
 
   return result;
+}
+
+/**
+ * Один справочник СВЕЖИМ запросом — мимо кэша `pinhead_catalogs_v1`
+ * (веха 4). Нужен редакторам: значение отсюда становится базой для
+ * `catalog_put` / `prices_patch`, и база из кэша получасовой давности
+ * давала бы ложный конфликт, а то и правку поверх устаревшего.
+ *
+ * Ответ: `{ exists, value }` (строки нет — `exists: false`, `value: null`);
+ * ошибка Supabase или сети — `toast.error` и `null`.
+ */
+export async function fetchCatalogKey(
+  table: 'catalog_config' | 'app_config',
+  key: string,
+): Promise<{ exists: boolean; value: unknown } | null> {
+  const fallback = 'Не удалось загрузить справочник';
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .select('key, value')
+      .eq('key', key)
+      .maybeSingle();
+    if (error) {
+      console.error('[fetchCatalogKey]', table, key, error);
+      toast.error(translateSupabaseError(error.message) || fallback);
+      return null;
+    }
+    const row = data as { key: string; value: unknown } | null;
+    return row ? { exists: true, value: row.value } : { exists: false, value: null };
+  } catch (e) {
+    console.error('[fetchCatalogKey]', table, key, e);
+    toast.error(`${fallback}: ${networkFailureMessage(e)}`);
+    return null;
+  }
 }
 
 /**
