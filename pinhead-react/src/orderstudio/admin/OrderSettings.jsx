@@ -1,12 +1,14 @@
 import { Link, useSearchParams } from 'react-router-dom';
 /*
  * БЮДЖЕТ ОБОЛОЧКИ ERP (замер 17.10): `Tabs` тянет `erp/styles`. Если в этом
- * ленивом чанке нет и `ErpStates` (его тянет `tabs/TabStub` через
- * `EmptyState`), Rollup выносит `erp.module.css` из CSS-чанка `ErpStates`
- * в отдельный — CSS оболочки ERP +404 Б gzip, бюджет 16000 не проходит.
- * Заменяя вкладки (задачи 3–5), сверять `npm run bundle:budget`.
+ * ленивом чанке нет и `ErpStates`, Rollup выносит `erp.module.css` из CSS-чанка
+ * `ErpStates` в отдельный — CSS оболочки ERP +404 Б gzip, бюджет 16000 не
+ * проходит. Раньше `ErpStates` тянула заглушка `tabs/TabStub`; с вехи 4 все
+ * вкладки настоящие, и `EmptyState` держит здесь запасная панель неизвестной
+ * вкладки. Убирая её, сверять `npm run bundle:budget`.
  */
 import { Tabs, TabPanel } from '../../erp/components/Tabs';
+import { EmptyState } from '../../erp/components/ErpStates';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -99,7 +101,11 @@ export default function OrderSettings() {
         />
       </div>
       <TabPanel idPrefix="order-settings" active={active} className={styles.panel}>
-        <Panel readOnly={readOnly} />
+        {Panel ? (
+          <Panel readOnly={readOnly} />
+        ) : (
+          <EmptyState icon="settings" title="Справочник не найден" text="Выберите вкладку выше." />
+        )}
       </TabPanel>
     </div>
   );
