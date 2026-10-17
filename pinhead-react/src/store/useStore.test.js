@@ -102,42 +102,6 @@ describe('useStore — extras', () => {
   });
 });
 
-describe('useStore — zones & tech', () => {
-  it('toggleZone adds zone with defaults', () => {
-    useStore.getState().toggleZone('front');
-    const s = useStore.getState();
-    expect(s.zones).toEqual(['front']);
-    expect(s.zoneTechs.front).toBe('screen');
-    expect(s.zonePrints.front).toBeDefined();
-    expect(s.noPrint).toBe(false);
-  });
-  it('toggleZone removes zone', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().toggleZone('front');
-    expect(useStore.getState().zones).toEqual([]);
-  });
-  it('setZoneTech changes tech', () => {
-    useStore.getState().toggleZone('back');
-    useStore.getState().setZoneTech('back', 'dtg');
-    const s = useStore.getState();
-    expect(s.zoneTechs.back).toBe('dtg');
-    expect(s.dtgZones.back).toBeDefined();
-  });
-  it('setZoneParam updates params', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().setZoneParam('front', 'screen', 'colors', 4);
-    expect(useStore.getState().zonePrints.front.colors).toBe(4);
-  });
-  it('toggleNoPrint clears zones', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().toggleZone('back');
-    useStore.getState().toggleNoPrint();
-    const s = useStore.getState();
-    expect(s.noPrint).toBe(true);
-    expect(s.zones).toEqual([]);
-  });
-});
-
 describe('useStore — details & options', () => {
   it('setField updates arbitrary field', () => {
     useStore.getState().setField('name', 'Test');
@@ -193,7 +157,7 @@ describe('useStore — loadOrder', () => {
     tech: 'screen', textileColor: 'white', zoneTechs: { front: 'screen' },
     zonePrints: { front: { colors: 1, size: 'A4', textile: 'white', fx: 'none' } },
     flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
-    zoneArtworks: {}, designNotes: '', sizeComment: '', noPrint: false,
+    sizeComment: '', noPrint: false,
     labelConfig: null, colorSupplier: 'medastex', skuFilter: 'all',
     ...overrides,
   });

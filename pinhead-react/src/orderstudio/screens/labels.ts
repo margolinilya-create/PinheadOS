@@ -1,7 +1,7 @@
 /** Подписи Order v4 — одно место для экранов */
 import { useMemo } from 'react';
 import { useStore } from '../../store/useStore';
-import type { SalesOrderStatus, SalesPrintMethod, SalesItemKind } from '../model/types';
+import type { SalesOrderStatus, SalesItemKind } from '../model/types';
 import type { PriceIssue } from '../pricing/priceOrder';
 
 export const STATUS_LABELS: Record<SalesOrderStatus, string> = {
@@ -15,20 +15,8 @@ export const STATUS_LABELS: Record<SalesOrderStatus, string> = {
   archived: 'В архиве',
 };
 
-export const METHOD_LABELS: Record<SalesPrintMethod, string> = {
-  silkscreen: 'Шелкография',
-  embroidery: 'Вышивка',
-  dtf: 'DTF',
-  heat_transfer: 'Флекс / термоперенос',
-  dtg: 'DTG',
-  sublimation: 'Сублимация',
-  patch: 'Шевроны / нашивки',
-  other: 'Прочее / подряд',
-};
-
-export const METHOD_ORDER: SalesPrintMethod[] = [
-  'silkscreen', 'embroidery', 'dtf', 'heat_transfer', 'dtg', 'sublimation', 'patch', 'other',
-];
+/** Подписи и порядок техник — единый модуль `model/printMethods` (веха 5а) */
+export { METHOD_LABELS, METHOD_ORDER } from '../model/printMethods';
 
 export const KIND_LABELS: Record<SalesItemKind, string> = {
   sku: 'Пошив по модели',

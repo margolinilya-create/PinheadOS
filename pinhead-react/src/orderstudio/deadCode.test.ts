@@ -34,6 +34,8 @@ const REMOVED = [
   'orderstudio/screens/SalesCard.jsx',
   'orderstudio/screens/ItemEditor.jsx',
   'orderstudio/screens/GridEditor.jsx',
+  // Веха 5а, задача 1: действия зон визарда v3 — читателей нет (зоны правит строка нанесения)
+  'store/slices/designSlice.ts',
 ];
 
 const moduleName = (path: string) => path.split('/').pop()!.replace(/\.(jsx?|tsx?)$/, '');

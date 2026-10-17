@@ -8,7 +8,6 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import {
   wizardSlice,
   productSlice,
-  designSlice,
   itemsSlice,
   detailsSlice,
   catalogSlice,
@@ -32,7 +31,6 @@ import { defaultItemFields } from './slices/helpers';
 type Slices =
   & ReturnType<typeof wizardSlice>
   & ReturnType<typeof productSlice>
-  & ReturnType<typeof designSlice>
   & ReturnType<typeof itemsSlice>
   & ReturnType<typeof detailsSlice>
   & ReturnType<typeof catalogSlice>
@@ -58,7 +56,6 @@ export const useStore = create<StoreState>()(
     // Combine all slices
     ...part(wizardSlice)(...a),
     ...part(productSlice)(...a),
-    ...part(designSlice)(...a),
     ...part(itemsSlice)(...a),
     ...part(detailsSlice)(...a),
     ...part(catalogSlice)(...a),

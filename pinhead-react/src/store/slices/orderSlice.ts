@@ -80,8 +80,6 @@ export const orderSlice = (set: SetFn, get: GetFn) => ({
         dtgZones: d.dtgZones ? JSON.parse(JSON.stringify(d.dtgZones)) : {},
         embZones: d.embZones ? JSON.parse(JSON.stringify(d.embZones)) : {},
         dtfZones: d.dtfZones ? JSON.parse(JSON.stringify(d.dtfZones)) : {},
-        zoneArtworks: d.zoneArtworks ? { ...(d.zoneArtworks as Record<string, string>) } : {},
-        designNotes: (d.designNotes as string) || '',
         sizeComment: (d.sizeComment as string) || '',
         noPrint: ((d.zones as string[]) || []).length === 0,
         labelConfig: d.labelConfig || defaultItemFields.labelConfig,

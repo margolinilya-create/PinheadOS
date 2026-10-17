@@ -42,7 +42,7 @@ function makeItemState(overrides = {}) {
     sizes: { S: 10, M: 20, L: 10 }, customSizes: [],
     extras: [], labels: [], zones: [], tech: 'screen', textileColor: 'white',
     zoneTechs: {}, zonePrints: {}, flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
-    zoneArtworks: {}, designNotes: '', sizeComment: '', noPrint: false,
+    sizeComment: '', noPrint: false,
     labelConfig: {
       careLabel: { enabled: false, logoOption: 'no-logo', composition: '', country: '', uploadData: null, comments: '' },
       mainLabel: { option: 'none', placement: 'neck', material: 'woven', color: 'white', uploadData: null, comments: '' },
@@ -638,21 +638,16 @@ describe('Single-item full flow', () => {
     expect(s.name).toBe('John');
   });
 
-  it('complete hoodie order with extras and zones', () => {
+  it('complete hoodie order with extras', () => {
     fillHoodieOrder();
     useStore.getState().toggleExtra('grommet');
     useStore.getState().toggleExtra('lace-flat');
-    useStore.getState().nextStep(); // 0→1 (Design)
-    // On Design step: add 'back' zone
-    useStore.getState().toggleZone('back');
-    useStore.getState().setZoneTech('back', 'dtg');
+    useStore.getState().nextStep(); // 0→1
     useStore.getState().nextStep(); // 1→2 (auto-saves item)
     const s = useStore.getState();
     expect(s.items[0].extras).toContain('grommet');
     expect(s.items[0].extras).toContain('lace-flat');
     expect(s.items[0].zones).toContain('front');
-    expect(s.items[0].zones).toContain('back');
-    expect(s.items[0].zoneTechs.back).toBe('dtg');
   });
 
   it('accessory order (shopper) completes', () => {
@@ -828,7 +823,7 @@ describe('loadOrder — new format (with items[])', () => {
           { type: 'tee', sku: { code: 'T-003' }, fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular',
             sizes: { S: 10, M: 20 }, customSizes: [], extras: [], zones: ['front'],
             zoneTechs: { front: 'screen' }, zonePrints: {}, flexZones: {}, dtgZones: {},
-            embZones: {}, dtfZones: {}, zoneArtworks: {}, designNotes: '', sizeComment: '',
+            embZones: {}, dtfZones: {}, sizeComment: '',
             noPrint: false, labelConfig: defaultItemFields.labelConfig,
             textileColor: 'white', colorSupplier: 'medastex', skuFilter: 'all' },
         ],
@@ -855,8 +850,8 @@ describe('loadOrder — new format (with items[])', () => {
           { type: 'hoodie', sku: { code: 'H-002' }, fabric: 'medas-futher-petlya-65-320',
             color: '01-01', fit: 'regular', sizes: { M: 10 }, customSizes: [],
             extras: [], zones: [], zoneTechs: {}, zonePrints: {}, flexZones: {},
-            dtgZones: {}, embZones: {}, dtfZones: {}, zoneArtworks: {},
-            designNotes: '', sizeComment: '', noPrint: true,
+            dtgZones: {}, embZones: {}, dtfZones: {},
+            sizeComment: '', noPrint: true,
             labelConfig: defaultItemFields.labelConfig,
             textileColor: 'white', colorSupplier: 'medastex', skuFilter: 'all' },
         ],
@@ -875,14 +870,14 @@ describe('loadOrder — new format (with items[])', () => {
         items: [
           { type: 'tee', sku: { code: 'T-003' }, sizes: { M: 10 }, extras: [], zones: [],
             zoneTechs: {}, zonePrints: {}, flexZones: {}, dtgZones: {}, embZones: {},
-            dtfZones: {}, zoneArtworks: {}, customSizes: [], designNotes: '',
+            dtfZones: {}, customSizes: [],
             sizeComment: '', noPrint: true, labelConfig: defaultItemFields.labelConfig,
             fabric: 'medas-kulirnaya-100-160', color: '01-01', fit: 'regular', textileColor: 'white',
             colorSupplier: 'medastex', skuFilter: 'all' },
           { type: 'hoodie', sku: { code: 'H-001' }, sizes: { L: 20 }, extras: ['grommet'],
             zones: ['front'], zoneTechs: { front: 'screen' }, zonePrints: {},
-            flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {}, zoneArtworks: {},
-            customSizes: [], designNotes: '', sizeComment: '', noPrint: false,
+            flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
+            customSizes: [], sizeComment: '', noPrint: false,
             labelConfig: defaultItemFields.labelConfig, fabric: 'medas-futher-petlya-65-320',
             color: '01-01', fit: 'regular', textileColor: 'white',
             colorSupplier: 'medastex', skuFilter: 'all' },
@@ -1092,70 +1087,6 @@ describe('Edge cases: extras toggle', () => {
     useStore.getState().toggleExtra('double-stitch');
     useStore.getState().toggleExtra('lace-flat');
     expect(useStore.getState().extras).toEqual(['grommet', 'double-stitch']);
-  });
-});
-
-describe('Edge cases: zones', () => {
-  it('toggle zone adds defaults then removes cleanly', () => {
-    useStore.getState().toggleZone('front');
-    expect(useStore.getState().zoneTechs.front).toBe('screen');
-    useStore.getState().toggleZone('front');
-    expect(useStore.getState().zones).toEqual([]);
-  });
-
-  it('multiple zones', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().toggleZone('back');
-    useStore.getState().toggleZone('sleeve-l');
-    expect(useStore.getState().zones).toHaveLength(3);
-  });
-
-  it('noPrint clears all zones', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().toggleZone('back');
-    useStore.getState().toggleNoPrint();
-    expect(useStore.getState().zones).toEqual([]);
-    expect(useStore.getState().noPrint).toBe(true);
-  });
-
-  it('toggling noPrint back allows adding zones', () => {
-    useStore.getState().toggleNoPrint();
-    useStore.getState().toggleNoPrint();
-    expect(useStore.getState().noPrint).toBe(false);
-    useStore.getState().toggleZone('front');
-    expect(useStore.getState().zones).toEqual(['front']);
-  });
-
-  it('setZoneTech to flex creates flexZones entry', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().setZoneTech('front', 'flex');
-    expect(useStore.getState().flexZones.front).toBeDefined();
-  });
-
-  it('setZoneTech to embroidery creates embZones entry', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().setZoneTech('front', 'embroidery');
-    expect(useStore.getState().embZones.front).toBeDefined();
-    expect(useStore.getState().embZones.front.width_mm).toBe(50);
-  });
-
-  it('setZoneTech to dtf creates dtfZones entry', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().setZoneTech('front', 'dtf');
-    expect(useStore.getState().dtfZones.front).toBeDefined();
-  });
-
-  it('setZoneParam updates specific param', () => {
-    useStore.getState().toggleZone('front');
-    useStore.getState().setZoneTech('front', 'embroidery');
-    useStore.getState().setZoneParam('front', 'embroidery', 'width_mm', 80);
-    expect(useStore.getState().embZones.front.width_mm).toBe(80);
-  });
-
-  it('setZoneParam for invalid tech returns empty', () => {
-    useStore.getState().setZoneParam('front', 'invalid', 'x', 1);
-    // Should not crash
-    expect(useStore.getState().zones).toEqual([]);
   });
 });
 
@@ -1607,9 +1538,3 @@ describe('Store: setOneSizeQty edge cases', () => {
   });
 });
 
-describe('Store: zoneArtwork', () => {
-  it('setZoneArtwork stores url', () => {
-    useStore.getState().setZoneArtwork('front', 'data:image/png;base64,abc');
-    expect(useStore.getState().zoneArtworks.front).toBe('data:image/png;base64,abc');
-  });
-});

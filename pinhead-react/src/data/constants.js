@@ -34,7 +34,8 @@ export const ZONE_LABELS = {
   'side-panel':'Боковая панель', 'side-a':'Сторона A', 'side-b':'Сторона B',
   hood:'Капюшон', pocket:'Карман',
   'sleeve-l':'Лев. рукав', 'sleeve-r':'Прав. рукав',
-  'leg-l':'Лев. штанина', 'leg-r':'Прав. штанина'
+  'leg-l':'Лев. штанина', 'leg-r':'Прав. штанина',
+  'pants-front':'Штанина перед', 'pants-back':'Штанина зад'
 };
 
 export const DEFAULT_USD_RATE = 92;
@@ -44,8 +45,8 @@ export const DEFAULT_USD_RATE = 92;
 // капюшон — только у моделей с капюшоном, карман — если он в конструкции или выбран
 const SLEEVE_CATEGORIES = ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers'];
 export const ZONES_CATALOG_DEFAULT = [
-  { id: 'front',    name: 'Грудь (перед)',  forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','pants','shorts'], sortOrder: 1 },
-  { id: 'back',     name: 'Спина',          forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','pants','shorts'], sortOrder: 2 },
+  { id: 'front',    name: 'Грудь (перед)',  forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','shorts'], sortOrder: 1 },
+  { id: 'back',     name: 'Спина',          forCategories: ['tshirts','longsleeves','sweatshirts','halfzips','hoodies','ziphoodies','polo','bombers','shorts'], sortOrder: 2 },
   { id: 'sleeve-l', name: 'Левый рукав',    forCategories: SLEEVE_CATEGORIES, sortOrder: 3 },
   { id: 'sleeve-r', name: 'Правый рукав',   forCategories: SLEEVE_CATEGORIES, sortOrder: 4 },
   { id: 'hood',     name: 'Капюшон',        forCategories: null, requiresHood: true, sortOrder: 5 },
@@ -54,4 +55,8 @@ export const ZONES_CATALOG_DEFAULT = [
   { id: 'side-b',   name: 'Сторона B',      forCategories: ['accessories'], sortOrder: 8 },
   { id: 'leg-l',    name: 'Левая штанина',  forCategories: ['pants','shorts'], sortOrder: 9 },
   { id: 'leg-r',    name: 'Правая штанина', forCategories: ['pants','shorts'], sortOrder: 10 },
+  // Веха 5а (ответ владельца 17.10): у штанов перед и зад — свои зоны, опора — пояс;
+  // «Грудь (перед)» и «Спина» штанам не предлагаются. Живой справочник дописывает миграция H
+  { id: 'pants-front', name: 'Штанина перед', forCategories: ['pants'], sortOrder: 11 },
+  { id: 'pants-back',  name: 'Штанина зад',   forCategories: ['pants'], sortOrder: 12 },
 ];
