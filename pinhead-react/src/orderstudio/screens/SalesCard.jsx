@@ -15,12 +15,16 @@ import { orderUrgentDays } from '../pricing/priceOrder';
 import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
 
 const SAVE_LABELS = {
-  idle: '',
+  clean: 'сохранено',
   dirty: 'есть правки…',
   saving: 'сохраняю…',
-  saved: 'сохранено',
   error: 'не сохранено — повторим при следующей правке',
+  locked: 'только чтение — заказ отправлен в работу',
+  outdated: 'не сохранено — вышло обновление, обновите страницу',
+  conflict: 'не сохранено — заказ изменён в другой вкладке, обновите страницу',
 };
+/** Состояния, о которых нужно сказать цветом ошибки */
+const SAVE_ALERT = new Set(['error', 'outdated', 'conflict']);
 
 /** Карточка заказа v4 (срез 1): шапка, позиции, живая цена, автосохранение */
 export default function SalesCard() {
@@ -84,7 +88,7 @@ export default function SalesCard() {
           <h1 className={styles.title}>{order.number || 'Новый заказ'}{order.title ? ` · ${order.title}` : ''}</h1>
           <div className={styles.row}>
             <span className={styles.badge}>{STATUS_LABELS[order.status]}</span>
-            <span className={`${styles.saveState}${saveState === 'error' ? ` ${styles.saveError}` : ''}`} role="status" aria-live="polite">
+            <span className={`${styles.saveState}${SAVE_ALERT.has(saveState) ? ` ${styles.saveError}` : ''}`} role="status" aria-live="polite">
               {SAVE_LABELS[saveState]}
             </span>
           </div>

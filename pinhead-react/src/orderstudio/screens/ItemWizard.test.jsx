@@ -43,7 +43,7 @@ vi.mock('../../components/steps/StepDesign', () => ({
 const MAIN = { step: 2, maxStep: 3, name: 'Главный визард', items: [{ type: 'tee' }], activeItemIdx: 0, saved: false };
 
 function renderAt(path, order) {
-  useSalesStore.setState({ current: order, currentLoading: false, saveState: 'idle' });
+  useSalesStore.setState({ current: order, currentLoading: false, saveState: 'clean' });
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
