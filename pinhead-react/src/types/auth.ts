@@ -11,6 +11,8 @@ export interface User {
   role: UserRole;
   approved: boolean;
   active: boolean;
+  /** Менеджер продаж: заводит заказы v4 (миграция E, ставят admin/director) */
+  is_sales: boolean;
 }
 
 export interface Profile {
@@ -20,4 +22,5 @@ export interface Profile {
   role: UserRole;
   approved: boolean;
   active: boolean;
+  is_sales: boolean;
 }

@@ -1,0 +1,39 @@
+/* Менеджеры продаж (веха 3, задача 0). Раскладка таблицы — из Sales.module.css; здесь переключатель. */
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: var(--type-body-sm);
+}
+
+.toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle input:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.toggle input:disabled { cursor: progress; }
+
+.count {
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.off { color: var(--text-dim); }
+
+/* Тач-цель ≥ 44 px: вся подпись — цель */
+@media (pointer: coarse) {
+  .toggle { min-height: 44px; }
+  .toggle input { width: 24px; height: 24px; }
+}
+
+@media (max-width: 480px) {
+  .email { word-break: break-all; }
+}

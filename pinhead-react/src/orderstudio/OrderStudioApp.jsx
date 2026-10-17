@@ -51,6 +51,8 @@ const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 const SalesList = React.lazy(() => import('./screens/SalesList'));
 const SalesCard = React.lazy(() => import('./screens/SalesCard'));
 const ItemWizard = React.lazy(() => import('./screens/ItemWizard'));
+// Менеджеры продаж (веха 3): признак is_sales ставят admin/director
+const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
  * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
@@ -182,6 +184,7 @@ export default function OrderStudioApp({ user }) {
         <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
         <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
         <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />
+        <Route path="/sales-staff" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesStaff /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </OrderLayout>

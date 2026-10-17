@@ -49,6 +49,7 @@ export const ORDER_NAV: NavGroup[] = [
     title: 'Настройки',
     items: [
       { to: '/sku', label: 'Каталог', icon: 'shirt', roles: ['admin', 'director'] },
+      { to: '/sales-staff', label: 'Менеджеры продаж', icon: 'users', roles: ['admin', 'director'] },
       { to: '/admin', label: 'Админка', icon: 'settings', roles: ['admin', 'director'] },
     ],
   },

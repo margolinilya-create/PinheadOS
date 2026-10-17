@@ -30,11 +30,19 @@ describe('navFor — пункты меню по роли', () => {
     const p = paths('manager')
     expect(p).toContain('/')
     expect(p).toContain('/express')
-    for (const hidden of ['/sales', '/sku', '/admin']) expect(p).not.toContain(hidden)
+    for (const hidden of ['/sales', '/sku', '/admin', '/sales-staff']) expect(p).not.toContain(hidden)
   })
 
-  it('director видит все пять пунктов', () => {
-    expect(paths('director')).toEqual(['/', '/sales', '/express', '/sku', '/admin'])
+  it('director видит все шесть пунктов', () => {
+    expect(paths('director')).toEqual(['/', '/sales', '/express', '/sku', '/sales-staff', '/admin'])
+  })
+
+  it('«Менеджеры продаж» — в «Настройках», только admin и director', () => {
+    const settings = ORDER_NAV.find((g) => g.title === 'Настройки')
+    const item = settings?.items.find((i) => i.to === '/sales-staff')
+    expect(item?.label).toBe('Менеджеры продаж')
+    expect(item?.roles).toEqual(['admin', 'director'])
+    for (const role of ['rop', 'manager', 'designer']) expect(paths(role)).not.toContain('/sales-staff')
   })
 
   it('production: только визард, пустые группы выкинуты', () => {
