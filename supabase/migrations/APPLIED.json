@@ -2453,6 +2453,20 @@
       "files": [
         "20261016182953_order_v4_save_full.sql"
       ]
+    },
+    {
+      "version": "20261017053703",
+      "name": "order_v4_tz_fields",
+      "files": [
+        "20261017053703_order_v4_tz_fields.sql"
+      ]
+    },
+    {
+      "version": "20261017062110",
+      "name": "order_v4_rights",
+      "files": [
+        "20261017062110_order_v4_rights.sql"
+      ]
     }
   ]
 }
