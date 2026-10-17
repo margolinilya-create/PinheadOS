@@ -11,7 +11,7 @@ import { SKU_CATALOG_DEFAULT } from '../../data/skuCatalog';
 vi.mock('../api/salesOrders', async (orig) => ({
   ...(await orig()),
   fetchSalesOrder: vi.fn(),
-  saveSalesOrder: vi.fn().mockResolvedValue({ id: 'o-1', order_number: 'PH-0042', updated_at: 'now' }),
+  saveSalesOrder: vi.fn().mockResolvedValue({ ok: true, saved: { id: 'o-1', order_number: 'PH-0042', updated_at: 'now' } }),
 }));
 
 const SKU = SKU_CATALOG_DEFAULT[2];

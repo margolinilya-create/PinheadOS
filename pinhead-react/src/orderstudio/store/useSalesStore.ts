@@ -10,6 +10,12 @@
  *
  * Цена считается снаружи (`priceOrder` нужны прайс и каталоги визарда) и
  * регистрируется `setPricer`: сохранение кладёт её снимок в строку заказа.
+ *
+ * Версия заказа (миграция D): `current.updated_at` приходит с чтением карточки
+ * и обновляется ответом каждого сохранения; следующее сохранение шлёт её как
+ * `expected_updated_at`. Сервер отказывает устаревшей вкладке (`outdated`)
+ * и правке поверх чужого сохранения из другой вкладки (`conflict`) — текст
+ * сервера показывается один раз, повтор записи его не повторяет.
  */
 import { create } from 'zustand';
 import { toast } from '../../store/useToastStore';
@@ -68,6 +74,12 @@ let session = 0;
 let reopened = 0;
 /** Прошлое сохранение упало — повторный сбой тоста не даёт */
 let lastFailed = false;
+/**
+ * Сессия карточки, где уже показан отказ «обновите страницу» (`outdated`,
+ * `conflict`). Повтор записи даст тот же отказ — второй тост не нужен даже
+ * при закрытии карточки (там `lastFailed` сбрасывается нарочно)
+ */
+let reloadToldSession: number | null = null;
 
 const clearTimer = () => {
   if (timer) clearTimeout(timer);
@@ -93,17 +105,28 @@ export const useSalesStore = create<SalesState>((set, get) => {
       const cur = get().current;
       // Карточку закрыли или открыли другой заказ, пока шёл запрос
       const same = mySession === session && cur != null;
-      if (!res) {
-        if (!lastFailed) toast.error(get().current?.id
-          ? 'Не удалось сохранить заказ — правки остаются в карточке, повторим при следующей правке'
-          : 'Не удалось создать заказ — проверьте связь и попробуйте ещё раз');
+      if (!res.ok) {
+        if (res.kind === 'outdated' || res.kind === 'conflict') {
+          if (reloadToldSession !== mySession) toast.error(res.message);
+          reloadToldSession = mySession;
+        } else if (!lastFailed) {
+          toast.error(get().current?.id
+            ? 'Не удалось сохранить заказ — правки остаются в карточке, повторим при следующей правке'
+            : 'Не удалось создать заказ — проверьте связь и попробуйте ещё раз');
+        }
         lastFailed = true;
         set({ saveState: 'error' });
         return;
       }
       lastFailed = false;
-      if (same && cur && !cur.id) {
-        set({ current: { ...cur, id: res.id, number: res.order_number } });
+      const saved = res.saved;
+      // Новая версия строки — основа следующего сохранения; у нового заказа ещё id и номер
+      if (same && cur && (!cur.id || cur.id === saved.id)) {
+        set({
+          current: cur.id
+            ? { ...cur, updated_at: saved.updated_at }
+            : { ...cur, id: saved.id, number: saved.order_number, updated_at: saved.updated_at },
+        });
       }
       if (dirtyDuringFlight) {
         await runSave();
@@ -199,6 +222,7 @@ export function __resetSalesStoreForTests(): void {
   pricer = null;
   session = 0;
   lastFailed = false;
+  reloadToldSession = null;
   reopened = 0;
   useSalesStore.setState({ list: [], listLoading: false, current: null, currentLoading: false, saveState: 'idle' });
 }

@@ -34,7 +34,7 @@ beforeEach(() => {
 
 describe('«Оформить как заказ v4»', () => {
   it('первая запись несёт позиции и снимок цены — список не покажет пустую сумму', async () => {
-    api.saveSalesOrder.mockResolvedValue({ id: 'o-1', order_number: 'PH-0042', updated_at: 'now' });
+    api.saveSalesOrder.mockResolvedValue({ ok: true, saved: { id: 'o-1', order_number: 'PH-0042', updated_at: 'now' } });
     const r = await transferWizardToSales('Илья');
     expect(r).toEqual({ id: 'o-1', number: 'PH-0042', notes: 'позвонить' });
     const payload = api.saveSalesOrder.mock.calls[0][0];
@@ -45,7 +45,7 @@ describe('«Оформить как заказ v4»', () => {
   });
 
   it('сбой создания — null, визард главной не тронут', async () => {
-    api.saveSalesOrder.mockResolvedValue(null);
+    api.saveSalesOrder.mockResolvedValue({ ok: false, kind: 'other', message: 'сеть' });
     expect(await transferWizardToSales()).toBeNull();
     expect(useStore.getState().items).toHaveLength(1);
     expect(useStore.getState().name).toBe('ООО Ромашка');

@@ -134,6 +134,7 @@ export function newSalesOrder(patch: Partial<SalesOrder> = {}): SalesOrder {
     launch_by: null,
     launched_at: null,
     launched_by: null,
+    updated_at: null,
     ...patch,
   };
 }

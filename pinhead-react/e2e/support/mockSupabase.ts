@@ -720,6 +720,54 @@ function transitionAnswer(body: Record<string, unknown>, extra: MockExtras): unk
   return { id: body.p_id, status: to, erp_order_id: to === 'production' ? MOCK_ERP_ORDER : null };
 }
 
+/**
+ * Версии заказов v4 (`orders.updated_at`) — на каждый набор `MockExtras` свои.
+ * Сохранение выдаёт новую, карточка читает текущую (`dataForTable('orders')`).
+ */
+const salesVersions = new WeakMap<MockExtras, { map: Map<string, string>; n: number }>();
+
+function salesVersionsOf(extra: MockExtras) {
+  let st = salesVersions.get(extra);
+  if (!st) {
+    st = { map: new Map(), n: 0 };
+    salesVersions.set(extra, st);
+  }
+  return st;
+}
+
+/** Текущая версия заказа: после сохранения — выданная, иначе — из фикстуры */
+function salesVersion(extra: MockExtras, id: string): string | undefined {
+  const saved = salesVersionsOf(extra).map.get(id);
+  if (saved) return saved;
+  const row = ((extra.salesOrders ?? []) as { id?: string; updated_at?: string }[]).find((r) => r.id === id);
+  return row?.updated_at;
+}
+
+/**
+ * `order_v4_save_full` после миграции D (20261017101513_order_v4_client_rev):
+ * без ревизии клиента 3 — отказ «Вышло обновление», при расхождении
+ * `expected_updated_at` с версией заказа — «изменён в другой вкладке».
+ * Успех — новая версия, строго больше прежней.
+ */
+function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  const order = (body.p_order ?? {}) as { id?: string | null; client_rev?: number; expected_updated_at?: string };
+  if (!(Number(order.client_rev) >= 3)) {
+    return new RpcFailure('P0001', 'Вышло обновление — обновите страницу, правка не сохранена');
+  }
+  const id = order.id || 'mock-sales-1';
+  if (order.id && order.expected_updated_at) {
+    const current = salesVersion(extra, order.id);
+    if (current && current !== order.expected_updated_at) {
+      return new RpcFailure('P0001', 'Заказ изменён в другой вкладке — обновите страницу');
+    }
+  }
+  const st = salesVersionsOf(extra);
+  st.n += 1;
+  const updated_at = `2026-10-17T10:00:${String(st.n).padStart(2, '0')}.000001+00:00`;
+  st.map.set(id, updated_at);
+  return { id, order_number: 'PH-9001', updated_at };
+}
+
 type OrderFx = { id: string; bitrix_id: string; status: string };
 
 /** Данные по таблице REST-запроса с учётом простых фильтров id/status. */
@@ -738,7 +786,9 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
      */
     case 'orders': {
       if (params.get('schema_version') !== 'eq.4') return [];
-      const rows = (extra.salesOrders ?? []) as { id?: string }[];
+      // Версия строки — текущая, как у базы после сохранений этой спеки
+      const rows = ((extra.salesOrders ?? []) as { id?: string; updated_at?: string }[])
+        .map((r) => (r.id ? { ...r, updated_at: salesVersion(extra, r.id) ?? r.updated_at } : r));
       const idFilter = params.get('id');
       if (idFilter?.startsWith('eq.')) return rows.filter((r) => r.id === idFilter.slice(3));
       return rows;
@@ -920,15 +970,10 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
      * Сохранение Order v4 одной транзакцией (`order_v4_save_full`). Клиент
      * читает из ответа id (для нового заказа его назначает сервер), номер
      * `PH-XXXX` и `updated_at` — по нему работает автосохранение.
+     * Отказы — как у сервера после миграции D, см. `salesSaveAnswer`.
      */
-    case 'order_v4_save_full': {
-      const order = (body.p_order ?? {}) as { id?: string };
-      return {
-        id: order.id ?? 'mock-sales-1',
-        order_number: 'PH-9001',
-        updated_at: FX_CREATED,
-      };
-    }
+    case 'order_v4_save_full':
+      return salesSaveAnswer(body, extra);
     /**
      * Запуск заказа в производство. Форма ответа ОПРЕДЕЛЕНА КЛИЕНТОМ:
      * `orderWriteSlice.createOrder` делает `newId = data as string` и сразу
