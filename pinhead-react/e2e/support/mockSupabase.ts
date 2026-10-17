@@ -656,6 +656,13 @@ export type MockExtras = {
    * (последний повторяется), например конфликт вторым ответом.
    */
   launch?: { checks?: unknown[]; status?: string };
+  /**
+   * Отказ на КАЖДОЕ сохранение заказа v4 — как PostgREST отвечает на
+   * `raise exception`: например `{ code: 'P0001', message: 'Вышло обновление…' }`
+   * (вкладка старше сервера) или `42501` стража. Без ключа — ответы сервера
+   * миграции D (`salesSaveAnswer`).
+   */
+  salesSaveFailure?: { code: string; message: string };
 };
 
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
@@ -735,6 +742,74 @@ function salesVersionsOf(extra: MockExtras) {
   return st;
 }
 
+/**
+ * Сохранённые заказы v4 — строкой `orders` с вложенными позициями, как её
+ * отдаёт `CARD_SELECT`. Чтение после сохранения возвращает то, что записано:
+ * без этого перезагрузка рабочего места открывала бы фикстуру (или «Заказ
+ * не найден» у нового), и e2e не видел бы, доезжает ли правка до базы.
+ */
+const salesSaved = new WeakMap<MockExtras, Map<string, Record<string, unknown>>>();
+
+function salesSavedOf(extra: MockExtras) {
+  let map = salesSaved.get(extra);
+  if (!map) {
+    map = new Map();
+    salesSaved.set(extra, map);
+  }
+  return map;
+}
+
+type PayloadRow = Record<string, unknown> & { key?: string };
+
+/**
+ * Payload `order_v4_save_full` → строка `orders` (зеркало записи сервера):
+ * ключи позиций, нанесений и бирок становятся `id`, порядок — `sort_order`,
+ * имена колонок шапки — как в таблице (`bitrix_deal`, `manager_name`,
+ * `discount_mode`/`discount_value`, `print_on`). Статус и автор — прежние:
+ * их пишет не сохранение, а свои RPC.
+ */
+function payloadToSalesRow(
+  order: Record<string, unknown>,
+  id: string,
+  updated_at: string,
+  prev: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const {
+    items, notes_cards, discount, bitrix_id, manager, client_rev: _rev, expected_updated_at: _exp, ...head
+  } = order as Record<string, unknown> & {
+    items?: PayloadRow[]; notes_cards?: PayloadRow[]; discount?: { mode: string; value: number } | null;
+  };
+  const withId = ({ key, ...rest }: PayloadRow, i: number) => ({ ...rest, id: key, sort_order: i });
+  return {
+    ...head,
+    id,
+    schema_version: 4,
+    status: prev?.status ?? 'draft',
+    created_by: prev?.created_by ?? null,
+    order_number: prev?.order_number ?? 'PH-9001',
+    bitrix_deal: bitrix_id ?? '',
+    manager_name: manager ?? '',
+    discount_mode: discount?.mode ?? null,
+    discount_value: discount?.value ?? null,
+    updated_at,
+    order_items: (items ?? []).map((it, i) => {
+      const { prints, labels, ...rest } = it as PayloadRow & { prints?: PayloadRow[]; labels?: PayloadRow[] };
+      return {
+        ...withId(rest, i),
+        order_item_prints: (prints ?? []).map((p, j) => {
+          const { on, ...pr } = p as PayloadRow & { on?: string };
+          return { ...withId(pr, j), print_on: on };
+        }),
+        order_item_labels: (labels ?? []).map(withId),
+      };
+    }),
+    order_notes_cards: (notes_cards ?? []).map((c, i) => {
+      const { item_key, ...rest } = c as PayloadRow & { item_key?: string | null };
+      return { ...withId(rest, i), item_id: item_key ?? null };
+    }),
+  };
+}
+
 /** Текущая версия заказа: после сохранения — выданная, иначе — из фикстуры */
 function salesVersion(extra: MockExtras, id: string): string | undefined {
   const saved = salesVersionsOf(extra).map.get(id);
@@ -750,6 +825,9 @@ function salesVersion(extra: MockExtras, id: string): string | undefined {
  * Успех — новая версия, строго больше прежней.
  */
 function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  if (extra.salesSaveFailure) {
+    return new RpcFailure(extra.salesSaveFailure.code, extra.salesSaveFailure.message);
+  }
   const order = (body.p_order ?? {}) as { id?: string | null; client_rev?: number; expected_updated_at?: string };
   if (!(Number(order.client_rev) >= 3)) {
     return new RpcFailure('P0001', 'Вышло обновление — обновите страницу, правка не сохранена');
@@ -765,7 +843,12 @@ function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unkn
   st.n += 1;
   const updated_at = `2026-10-17T10:00:${String(st.n).padStart(2, '0')}.000001+00:00`;
   st.map.set(id, updated_at);
-  return { id, order_number: 'PH-9001', updated_at };
+  const saved = salesSavedOf(extra);
+  const prev = saved.get(id)
+    ?? ((extra.salesOrders ?? []) as Record<string, unknown>[]).find((r) => r.id === id);
+  const row = payloadToSalesRow(order as Record<string, unknown>, id, updated_at, prev);
+  saved.set(id, row);
+  return { id, order_number: row.order_number, updated_at };
 }
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
@@ -786,9 +869,13 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
      */
     case 'orders': {
       if (params.get('schema_version') !== 'eq.4') return [];
-      // Версия строки — текущая, как у базы после сохранений этой спеки
-      const rows = ((extra.salesOrders ?? []) as { id?: string; updated_at?: string }[])
+      // Сохранённое этой спекой — поверх фикстуры, версия строки — текущая
+      const saved = salesSavedOf(extra);
+      const fixture = ((extra.salesOrders ?? []) as { id?: string; updated_at?: string }[])
+        .map((r) => (r.id && saved.has(r.id) ? saved.get(r.id) as typeof r : r))
         .map((r) => (r.id ? { ...r, updated_at: salesVersion(extra, r.id) ?? r.updated_at } : r));
+      const fresh = [...saved.values()].filter((r) => !fixture.some((f) => f.id === r.id));
+      const rows = [...fixture, ...fresh] as { id?: string; updated_at?: string }[];
       const idFilter = params.get('id');
       if (idFilter?.startsWith('eq.')) return rows.filter((r) => r.id === idFilter.slice(3));
       return rows;
