@@ -2467,6 +2467,13 @@
       "files": [
         "20261017062110_order_v4_rights.sql"
       ]
+    },
+    {
+      "version": "20261017070826",
+      "name": "order_artworks_bucket",
+      "files": [
+        "20261017070826_order_artworks_bucket.sql"
+      ]
     }
   ]
 }
