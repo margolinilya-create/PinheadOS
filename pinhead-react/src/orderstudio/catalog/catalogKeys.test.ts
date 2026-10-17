@@ -1,0 +1,87 @@
+// @vitest-environment node
+import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { CATALOG_PUT_KEYS, SALES_CATALOG_KEYS } from '../api/catalogAdmin';
+
+/**
+ * Сторож ключей справочников (веха 4, миграция G).
+ *
+ * Загрузчик (`lib/catalogs.loadAllCatalogs`) СКЛАДЫВАЕТ строки `catalog_config`
+ * и `app_config` в один объект по ключу: ключ, заведённый в обеих таблицах,
+ * молча перекрывается вторым. Поэтому справочник обязан жить ровно в одной
+ * таблице — и новый ключ не должен совпасть со старым ключом соседней таблицы.
+ * Единственное известное исключение — `prices` (старый `catalog_config.prices`
+ * читает только руководство, `app_config.prices` перекрывает его в загрузчике,
+ * и в белый список записи не входит ни тот, ни другой).
+ *
+ * Белый список `catalog_put` в миграции = `CATALOG_PUT_KEYS` клиента:
+ * клиент, пишущий ключ, которого сервер не примет, — ошибка, видимая только на бою.
+ */
+const MIGRATIONS = join(__dirname, '../../../../supabase/migrations');
+const G_FILE = readdirSync(MIGRATIONS).find((f) => f.endsWith('_order_catalogs.sql')) ?? 'нет';
+const G = readFileSync(join(MIGRATIONS, G_FILE), 'utf8');
+
+/** Ключи на бою 17.10 (SELECT key FROM …) — старые, в белый список не входят */
+const LIVE_KEYS = {
+  catalog_config: ['extras', 'fabrics', 'labels', 'prices', 'trimCatalog', 'fabricsCatalog'],
+  app_config: ['sku_catalog', 'feature_flags', 'extrasCatalog', 'hardwareCatalog', 'categoryRules', 'prices', 'zonesCatalog'],
+};
+/** Имена, которые загрузчик выводит сам (`sku_catalog`/`sku` → `skuCatalog`) */
+const LOADER_NAMES = ['skuCatalog', 'sku'];
+
+type Pairs = Record<'catalog_config' | 'app_config', string[]>;
+
+/** Пары из выражения `v_<имя> := (p_table = '…' and p_key …) or (…);` функции catalog_put */
+function pairsOf(variable: string): Pairs {
+  const m = new RegExp(`${variable} := ([\\s\\S]*?);`).exec(G);
+  if (!m) throw new Error(`нет ${variable} в ${G_FILE}`);
+  const out: Pairs = { catalog_config: [], app_config: [] };
+  const re = /p_table = '(\w+)'\s+and p_key (?:= '(\w+)'|in \(([^)]+)\))/g;
+  for (const g of m[1].matchAll(re)) {
+    const table = g[1] as keyof Pairs;
+    const keys = g[2] ? [g[2]] : g[3].split(',').map((k) => k.trim().replace(/'/g, ''));
+    out[table].push(...keys);
+  }
+  return out;
+}
+
+const sorted = (p: Pairs) => ({ catalog_config: [...p.catalog_config].sort(), app_config: [...p.app_config].sort() });
+
+describe('ключи справочников', () => {
+  it('ключ белого списка живёт ровно в одной таблице', () => {
+    const both = CATALOG_PUT_KEYS.catalog_config.filter((k) => (CATALOG_PUT_KEYS.app_config as readonly string[]).includes(k));
+    expect(both).toEqual([]);
+  });
+
+  it('новые ключи не совпадают со старыми ключами соседней таблицы и именами загрузчика', () => {
+    const all = [...CATALOG_PUT_KEYS.catalog_config, ...CATALOG_PUT_KEYS.app_config];
+    for (const k of CATALOG_PUT_KEYS.catalog_config) expect(LIVE_KEYS.app_config, k).not.toContain(k);
+    for (const k of CATALOG_PUT_KEYS.app_config) expect(LIVE_KEYS.catalog_config, k).not.toContain(k);
+    for (const k of all) expect(LOADER_NAMES, k).not.toContain(k);
+  });
+
+  it('старые ключи (prices, feature_flags, labels, extras, fabrics) в белый список записи не входят', () => {
+    const all: string[] = [...CATALOG_PUT_KEYS.catalog_config, ...CATALOG_PUT_KEYS.app_config];
+    for (const k of ['prices', 'feature_flags', 'labels', 'extras', 'fabrics']) expect(all, k).not.toContain(k);
+  });
+
+  it('белый список catalog_put в миграции = клиент', () => {
+    const sales = pairsOf('v_sales_pair');
+    const admin = pairsOf('v_admin_pair');
+    expect(sorted(sales)).toEqual(sorted({
+      catalog_config: [...SALES_CATALOG_KEYS.catalog_config], app_config: [...SALES_CATALOG_KEYS.app_config],
+    }));
+    expect(sorted({
+      catalog_config: [...sales.catalog_config, ...admin.catalog_config],
+      app_config: [...sales.app_config, ...admin.app_config],
+    })).toEqual(sorted({
+      catalog_config: [...CATALOG_PUT_KEYS.catalog_config], app_config: [...CATALOG_PUT_KEYS.app_config],
+    }));
+  });
+
+  it('разбор белого списка не пуст (сторож ловит переименование)', () => {
+    expect(pairsOf('v_sales_pair').catalog_config).toEqual(['suppliers']);
+    expect(pairsOf('v_admin_pair').app_config.length).toBe(5);
+  });
+});

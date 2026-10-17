@@ -18,10 +18,12 @@ vi.mock('./supabase', () => ({
   },
 }));
 
-const { loadAllCatalogs, clearCatalogsCache } = await import('./catalogs');
+const { loadAllCatalogs, clearCatalogsCache, fetchCatalogKey } = await import('./catalogs');
 const { sessionGet, sessionRemove } = await import('./storage');
+const { toast } = await import('../store/useToastStore');
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   (sessionGet as ReturnType<typeof vi.fn>).mockReturnValue(null);
 });
@@ -121,5 +123,48 @@ describe('clearCatalogsCache', () => {
   it('removes session cache key', () => {
     clearCatalogsCache();
     expect(sessionRemove).toHaveBeenCalledWith('pinhead_catalogs_v1');
+  });
+});
+
+describe('fetchCatalogKey — свежее чтение мимо кэша (редакторы справочников, веха 4)', () => {
+  const chain = (res: unknown) => {
+    const maybeSingle = vi.fn().mockResolvedValue(res);
+    const eq = vi.fn(() => ({ maybeSingle }));
+    return { eq, maybeSingle };
+  };
+
+  it('читает одну строку нужной таблицы по ключу и не трогает кэш', async () => {
+    const c = chain({ data: { key: 'suppliers', value: [{ id: 'medastex' }] }, error: null });
+    mockCatalogSelect.mockReturnValue({ eq: c.eq });
+    (sessionGet as ReturnType<typeof vi.fn>).mockReturnValue({ suppliers: 'из кэша' });
+
+    const res = await fetchCatalogKey('catalog_config', 'suppliers');
+    expect(res).toEqual({ exists: true, value: [{ id: 'medastex' }] });
+    expect(mockCatalogSelect).toHaveBeenCalledWith('key, value');
+    expect(c.eq).toHaveBeenCalledWith('key', 'suppliers');
+    expect(mockAppSelect).not.toHaveBeenCalled();
+  });
+
+  it('строки нет — exists: false, value: null', async () => {
+    const c = chain({ data: null, error: null });
+    mockAppSelect.mockReturnValue({ eq: c.eq });
+    expect(await fetchCatalogKey('app_config', 'tzSettings')).toEqual({ exists: false, value: null });
+  });
+
+  it('ошибка Supabase — toast.error и null', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const c = chain({ data: null, error: { message: 'permission denied for table app_config' } });
+    mockAppSelect.mockReturnValue({ eq: c.eq });
+    expect(await fetchCatalogKey('app_config', 'labelLibrary')).toBeNull();
+    expect(err).toHaveBeenCalledTimes(1);
+  });
+
+  it('отказ сети — toast.error и null, без исключения', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockAppSelect.mockReturnValue({ eq: () => ({ maybeSingle: () => Promise.reject(new TypeError('Failed to fetch')) }) });
+    expect(await fetchCatalogKey('app_config', 'labelLibrary')).toBeNull();
+    expect(err).toHaveBeenCalledTimes(1);
   });
 });
