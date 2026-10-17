@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -66,6 +66,12 @@ export default function OrderWorkplace() {
   })));
   const price = useOrderPrice(order);
   const tabRefs = useRef(new Map());
+  /*
+   * Фокус в первое поле «Клиента» — только после «Далее: клиент и доставка».
+   * Переход стрелками или кликом по вкладке оставляет фокус на tablist
+   * (образец WAI-ARIA Tabs), поэтому `autoFocus` у поля нет.
+   */
+  const [focusClient, setFocusClient] = useState(false);
 
   useEffect(() => {
     if (id) open(id);
@@ -219,7 +225,7 @@ export default function OrderWorkplace() {
                   onSplit={splitFromNotice}
                 />
                 <div className={styles.next}>
-                  <button type="button" className="btn btn-primary" onClick={() => go({ tab: 'client' })}>
+                  <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
                     Далее: клиент и доставка
                   </button>
                 </div>
@@ -227,7 +233,15 @@ export default function OrderWorkplace() {
             </div>
           )
         )}
-        {tab === 'client' && <ClientTab order={order} readOnly={readOnly} onChange={set} />}
+        {tab === 'client' && (
+          <ClientTab
+            order={order}
+            readOnly={readOnly}
+            onChange={set}
+            focusFirst={focusClient}
+            onFocused={() => setFocusClient(false)}
+          />
+        )}
         {tab === 'summary' && (
           <SummaryTab
             order={order}

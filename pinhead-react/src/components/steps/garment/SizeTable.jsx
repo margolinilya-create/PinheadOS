@@ -121,6 +121,9 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
             const rowSum = q * price;
             const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
             const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
+            const removeBtn = row.type === 'custom' && !readOnly
+              ? <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}>✕</button>
+              : null;
             return row.type === 'std' ? (
               <tr key={row.label} className={!available ? 'size-row-disabled' : ''} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
                 <td><b>{row.label}</b></td>
@@ -177,12 +180,16 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                     />
                     <button className="qty-btn" aria-label={`Увеличить ${row.label}`} disabled={readOnly} onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
                   </div>
+                  {/* Без цены колонок две, как в шапке: ✕ — рядом с количеством */}
+                  {!showPrice && removeBtn}
                 </td>
                 {showPrice && <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>}
-                <td className="size-td-sum">
-                  {showPrice && <span>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</span>}
-                  {!readOnly && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}>✕</button>}
-                </td>
+                {showPrice && (
+                  <td className="size-td-sum">
+                    <span>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</span>
+                    {removeBtn}
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -219,7 +226,7 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                 <button className="qty-btn" aria-label={`Увеличить ${row.label}`} disabled={!available || readOnly} onClick={() => row.type === 'std' ? setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1) : setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
               </div>
               <span className="size-mobile-unit">шт</span>
-              {row.type === 'custom' && !readOnly && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label="Удалить размер">✕</button>}
+              {row.type === 'custom' && !readOnly && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}>✕</button>}
             </div>
           );
         })}

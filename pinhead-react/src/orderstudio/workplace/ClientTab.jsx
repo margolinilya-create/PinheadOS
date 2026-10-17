@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { orderUrgentDays } from '../pricing/priceOrder';
 import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
 import { PACKAGING_OPTIONS } from '../screens/labels';
@@ -10,15 +11,24 @@ import styles from './Workplace.module.css';
  * срочность, скидка. Менеджер — только для чтения: это автор заказа,
  * имя приходит из его профиля при создании, а не набирается руками.
  */
-export default function ClientTab({ order, readOnly, onChange }) {
+export default function ClientTab({ order, readOnly, onChange, focusFirst = false, onFocused }) {
+  const firstRef = useRef(null);
+  // Первое поле получает фокус, только когда сюда пришли кнопкой «Далее»;
+  // стрелки и клик по вкладке фокус с tablist не уводят (WAI-ARIA Tabs).
+  useEffect(() => {
+    if (!focusFirst) return;
+    if (!readOnly) firstRef.current?.focus();
+    onFocused?.();
+    // только при монтировании вкладки
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <fieldset className={styles.fieldset} disabled={readOnly}>
       <section className={sales.panel} aria-labelledby="wp-client-head">
         <h2 id="wp-client-head" className={sales.panelTitle}>Клиент и заказ</h2>
         <div className={sales.grid2}>
           <label className={sales.field}>Клиент
-            {/* Первое поле формы получает фокус (правило проекта) */}
-            <input autoFocus={!readOnly} className={sales.input} value={order.customer} onChange={(e) => onChange({ customer: e.target.value })} />
+            <input ref={firstRef} className={sales.input} value={order.customer} onChange={(e) => onChange({ customer: e.target.value })} />
           </label>
           <label className={sales.field}>Контакт
             <input className={sales.input} value={order.contact} onChange={(e) => onChange({ contact: e.target.value })} placeholder="Имя, телефон" />

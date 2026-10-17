@@ -102,6 +102,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('OrderWorkplace — вкладка «Изделие»', () => {
@@ -193,6 +194,8 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     fireEvent.click(screen.getByText('Далее: клиент и доставка'));
     expect(screen.getByRole('tab', { name: /^Клиент/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('location').textContent).toContain('tab=client');
+    // Сюда пришли кнопкой «Далее» — фокус в первом поле формы
+    expect(document.activeElement).toBe(screen.getByLabelText('Клиент'));
   });
 });
 
@@ -222,6 +225,29 @@ describe('OrderWorkplace — вкладки', () => {
     fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });
     expect(summary).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /^Изделие/ })).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('стрелкой на «Клиент» фокус остаётся на вкладке, а не уходит в поле', () => {
+    renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
+    const item = screen.getByRole('tab', { name: /^Изделие/ });
+    item.focus();
+    fireEvent.keyDown(item, { key: 'Home' });
+    fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });
+    const client = screen.getByRole('tab', { name: /^Клиент/ });
+    expect(client).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Клиент')).toBeInTheDocument();
+    expect(document.activeElement).toBe(client);
+    // следующая стрелка снова переключает вкладку
+    fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: /^ТЗ и цена/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('клик по вкладке «Клиент» не переносит фокус в поле', () => {
+    renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
+    const client = screen.getByRole('tab', { name: /^Клиент/ });
+    client.focus();
+    fireEvent.click(client);
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Клиент'));
   });
 
   it('маркеры готовности: изделие готово, клиент не заполнен', () => {
@@ -368,10 +394,10 @@ describe('OrderWorkplace — перенесено из карточки зака
 
 describe('OrderWorkplace — компактная раскладка', () => {
   it('≤ 760: позиции — выпадающий список, рядом действия и «+ Изделие»', () => {
-    // В jsdom нет matchMedia — подставляем на время теста
-    window.matchMedia = (q) => ({
+    // В jsdom нет matchMedia — подставляем на время теста (снимает afterEach)
+    vi.stubGlobal('matchMedia', (q) => ({
       matches: q.includes('760'), media: q, addEventListener() {}, removeEventListener() {},
-    });
+    }));
     const a = itemA();
     const b = itemA({ size_grid: { sizes: ['S'], rows: [{ color: 'Чёрный', sizes: { S: 1 } }] } });
     renderWp(newSalesOrder({ id: 'o-1', items: [a, b] }));
@@ -380,6 +406,5 @@ describe('OrderWorkplace — компактная раскладка', () => {
     expect(screen.getByTestId('location').textContent).toContain(`item=${b.key}`);
     expect(screen.getByLabelText(/^Действия с изделием/).tagName).toBe('BUTTON');
     expect(screen.getByText('+ Изделие').tagName).toBe('BUTTON');
-    delete window.matchMedia;
   });
 });
