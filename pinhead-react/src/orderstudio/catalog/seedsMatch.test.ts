@@ -7,6 +7,7 @@ import { salesLabelPrice } from '../pricing/priceOrder';
 import { PACKAGING_OPTIONS } from '../screens/labels';
 import { SALES_PRINT_METHODS } from '../model/types';
 import { MEDASTEX_COLORS, COTTONPROM_COLORS } from '../../data/colors';
+import { FLEX_MATRIX } from '../../data/prices';
 import type { LabelKind } from './types';
 
 /**
@@ -67,6 +68,13 @@ describe('сиды миграции G = seeds.ts', () => {
     expect(seedOf('labelLibrary')).toEqual(LABEL_LIBRARY_SEED);
     expect(seedOf('tzSettings')).toEqual(TZ_SETTINGS_SEED);
     expect(seedOf('prices')).toEqual(PRICE_RULES_SEED);
+  });
+
+  it('матрица флекса в прайсе = FLEX_MATRIX кода (без сида вкладку «Флекс» в /sku не сохранить)', () => {
+    // prices_patch правит только существующие ключи прайса, а на бою flexMatrix нет
+    expect(seedOf('flexMatrix')).toEqual(FLEX_MATRIX);
+    expect(G).toMatch(/jsonb_build_object\('flexMatrix', \$seed_flexMatrix\$/);
+    expect(G).toMatch(/and not value \? 'flexMatrix';/);
   });
 
   it('палитры перенесены как есть: все цвета Медас и Коттонпром, ровно одна по умолчанию', () => {

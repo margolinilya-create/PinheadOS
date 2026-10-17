@@ -63,9 +63,6 @@
 .garment-row:hover { background: var(--surface); }
 .garment-row.expanded { background: var(--accent-light); border-left: 3px solid var(--accent); }
 .garment-row.selected { background: var(--accent); }
-.garment-row[draggable] { cursor: grab; }
-.garment-row[draggable]:active { cursor: grabbing; }
-.garment-row.drag-target { border-top: 2px solid var(--accent); }
 
 .garment-row-photo {
   width: 44px; height: 44px; border-radius: var(--radius-sm);

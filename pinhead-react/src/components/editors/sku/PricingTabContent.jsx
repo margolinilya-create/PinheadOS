@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { PRICES, FLEX_MATRIX as DEFAULT_FLEX_MATRIX } from '../../../data/prices';
-import { supabase } from '../../../lib/supabase';
 import { useStore } from '../../../store/useStore';
 import { toast } from '../../../store/useToastStore';
 import { invalidatePricesCache } from '../../../utils/pricing';
 import { confirm } from '../../../store/useConfirmStore';
-import { clearCatalogsCache } from '../../../lib/catalogs';
-import { storageGet, storageSet, storageRemove } from '../../../lib/storage';
+import { fetchCatalogKey } from '../../../lib/catalogs';
+import { storageGet, storageSet } from '../../../lib/storage';
 import { mergePrices } from '../../../store/slices/catalogSlice';
+import { patchPrices, PRICE_RULE_KEYS } from '../../../orderstudio/api/catalogAdmin';
+import { sameJson } from '../../../utils/sameJson';
 import { EmbroideryTab, DtfTab, DtgTab, MarkupGroupsTab } from './PricingRulesTabs';
 import { setIn, getIn } from '../../../utils/pathSet';
 
@@ -18,35 +19,25 @@ const FLEX_TIERS = [1, 20, 35, 50];
 const FLEX_FORMATS = ['A6', 'A5', 'A4', 'A3'];
 const FLEX_MAX_COLORS = 3;
 
-function clonePrices() {
-  const stored = storageGet(STORAGE_KEY);
-  if (stored) return stored;
-  return defaultPrices();
+const clone = (v) => JSON.parse(JSON.stringify(v));
+
+/**
+ * Умолчания кода для «Сброса» — поверх текущего прайса и только по ключам
+ * кода: ключ, которого в коде нет, и правила цены «Справочников заказа»
+ * (упаковка, подготовка, порог маржи — их правит руководство продаж)
+ * сброс не трогает.
+ */
+function withDefaults(current) {
+  const d = clone(PRICES);
+  for (const k of PRICE_RULE_KEYS) delete d[k];
+  if (current.flexMatrix) d.flexMatrix = clone(DEFAULT_FLEX_MATRIX);
+  return { ...current, ...d };
 }
 
-function defaultPrices() {
-  const base = JSON.parse(JSON.stringify(PRICES));
-  if (!base.flexMatrix) base.flexMatrix = JSON.parse(JSON.stringify(DEFAULT_FLEX_MATRIX));
-  return base;
-}
-
-async function loadPricesFromSupabase() {
-  try {
-    const { data, error } = await supabase
-      .from('app_config')
-      .select('value')
-      .eq('key', 'prices')
-      .single();
-    if (!error && data?.value) return data.value;
-  } catch (err) { console.error('[loadPrices]', err); toast.error('Не удалось загрузить цены из Supabase'); }
-  return null;
-}
-
-async function savePricesToSupabase(prices) {
-  const ts = new Date().toISOString();
-  const row = { key: 'prices', value: prices, updated_at: ts };
-  const { error } = await supabase.from('app_config').upsert(row);
-  if (error) throw error;
+/** Верхние ключи прайса, изменённые на экране относительно открытого */
+function changedKeys(prices, opened) {
+  return [...new Set([...Object.keys(prices), ...Object.keys(opened)])]
+    .filter((k) => !sameJson(prices[k], opened[k]));
 }
 
 function loadHistory() {
@@ -70,49 +61,83 @@ const TABS = [
  */
 export default function PricingTabContent({ onDirtyChange }) {
   const [tab, setTab] = useState('screen');
-  const [prices, setPrices] = useState(clonePrices);
+  // До ответа базы — прайс стора; сохранять можно только поверх прочитанного
+  const [prices, setPrices] = useState(() => useStore.getState().prices);
+  // `db` — прайс базы при открытии (база записи), `opened` — он же поверх
+  // умолчаний кода, как его видит экран: правкой считается отличие от него
+  const [loaded, setLoaded] = useState({ db: null, opened: null, state: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   const [history, setHistory] = useState(loadHistory);
   const [changed, setChanged] = useState(0);
   const [saving, setSaving] = useState(false);
 
+  // Свежим запросом, мимо кэша каталогов (веха 4): прочитанное — база записи
   useEffect(() => {
-    loadPricesFromSupabase().then(remote => {
-      if (remote) {
-        // Поверх умолчаний: ключ, которого в базе нет, редактор видит из кода
-        const merged = mergePrices(remote);
-        setPrices(merged);
-        storageSet(STORAGE_KEY, merged);
+    let alive = true;
+    fetchCatalogKey('app_config', 'prices').then((res) => {
+      if (!alive) return;
+      if (!res || !res.exists || !res.value || typeof res.value !== 'object') {
+        setLoaded({ db: null, opened: null, state: 'fallback' });
+        return;
       }
+      // Поверх умолчаний: ключ, которого в базе нет, редактор видит из кода
+      const merged = mergePrices(res.value);
+      setPrices(merged);
+      setChanged(0);
+      setLoaded({ db: res.value, opened: merged, state: 'ready' });
     });
-  }, []);
+    return () => { alive = false; };
+  }, [attempt]);
 
-  // Report dirty state to parent
+  const reload = () => {
+    setLoaded((l) => ({ ...l, state: 'loading' }));
+    setAttempt((n) => n + 1);
+  };
+
+  // Report dirty state to parent; уход с вкладки уносит правки — флаг снимается
   useEffect(() => {
     onDirtyChange?.(changed > 0);
   }, [changed, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
+  /**
+   * Только изменённые верхние ключи — `prices_patch` с их значениями при
+   * открытии: прайс целиком и умолчания кода в базу не уходят, правка
+   * поверх чужой (другая вкладка, админ, ERP) — конфликт.
+   */
   const save = useCallback(async () => {
+    if (loaded.state !== 'ready') return;
+    const { db, opened } = loaded;
+    const keys = changedKeys(prices, opened);
+    if (keys.length === 0) {
+      setChanged(0);
+      toast.success('Изменений нет — цены совпадают с сохранёнными');
+      return;
+    }
+    const patch = {};
+    const base = {};
+    for (const k of keys) {
+      patch[k] = prices[k] === undefined ? null : prices[k];
+      base[k] = db[k];
+    }
     setSaving(true);
-    storageSet(STORAGE_KEY, prices);
-    invalidatePricesCache();
-    useStore.setState({ prices });
-    if (prices.usdRate) {
-      useStore.setState({ usdRate: prices.usdRate });
-    }
-    let ok = false;
-    try {
-      await savePricesToSupabase(prices);
-      ok = true;
-      clearCatalogsCache();
-    } catch (err) { console.error('[savePrices]', err); }
+    const res = await patchPrices(patch, base);
     setSaving(false);
-    setChanged(0);
-    if (ok) {
-      toast.success('Цены сохранены');
-    } else {
-      toast.warning('Сохранено локально (Supabase недоступен)');
+    if (!res.ok) {
+      // Правки остаются на экране; на конфликт — только «Загрузить свежую версию»
+      if (res.kind === 'conflict') setLoaded((l) => ({ ...l, state: 'conflict' }));
+      return;
     }
-  }, [prices]);
+    const nextDb = { ...db, ...patch };
+    const merged = mergePrices(nextDb);
+    useStore.setState({ prices: merged });
+    if (typeof patch.usdRate === 'number') useStore.setState({ usdRate: patch.usdRate });
+    invalidatePricesCache();
+    storageSet(STORAGE_KEY, merged);
+    setLoaded({ db: nextDb, opened: prices, state: 'ready' });
+    setChanged(0);
+    toast.success('Цены сохранены');
+  }, [loaded, prices]);
 
   const addHistory = (field, was, now) => {
     const entry = { field, was, now, time: new Date().toLocaleTimeString('ru-RU'), date: new Date().toLocaleDateString('ru-RU') };
@@ -142,16 +167,24 @@ export default function PricingTabContent({ onDirtyChange }) {
     const isMult = key.endsWith('Mult');
     const capped = Math.min(num, isMult ? 10 : 1000000);
     setPrices(p => ({ ...p, [key]: capped }));
+    // addHistory сам считает правку — второй счётчик здесь давал «2 изм.» на одну
     addHistory(key, old, capped);
-    setChanged(c => c + 1);
   };
+
+  /**
+   * Матрица, которой в прайсе нет (флекс до сида миграции G), начинается
+   * с умолчаний кода — иначе ушла бы разреженная матрица из одной ячейки
+   * и расчёт перестал бы брать FLEX_MATRIX для остальных форматов.
+   */
+  const matrixOf = (p, matrixKey) => p[matrixKey]
+    ?? (matrixKey === 'flexMatrix' ? clone(DEFAULT_FLEX_MATRIX) : {});
 
   const updateMatrix = (matrixKey, fmt, col, tierIdx, value) => {
     const num = Number(value);
     if (isNaN(num) || num < 0) return;
-    const old = prices[matrixKey]?.[fmt]?.[col]?.[tierIdx];
+    const old = matrixOf(prices, matrixKey)?.[fmt]?.[col]?.[tierIdx];
     setPrices(p => {
-      const m = { ...p[matrixKey] };
+      const m = { ...matrixOf(p, matrixKey) };
       m[fmt] = { ...m[fmt] };
       m[fmt][col] = [...(m[fmt][col] || [])];
       m[fmt][col][tierIdx] = num;
@@ -177,7 +210,9 @@ export default function PricingTabContent({ onDirtyChange }) {
       try {
         const text = await file.text();
         const data = JSON.parse(text);
-        setPrices(data);
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object');
+        // Поверх текущего: ключ, которого в файле нет, не пропадает (сервер не даёт очистить ключ прайса)
+        setPrices(p => ({ ...p, ...data }));
         setChanged(c => c + 1);
       } catch (err) { console.error('[importJSON]', err); toast.error('Ошибка импорта файла'); }
     };
@@ -185,16 +220,15 @@ export default function PricingTabContent({ onDirtyChange }) {
   };
 
   const reset = async () => {
-    const ok = await confirm({ title: 'Сбросить все цены?', message: 'Цены будут возвращены к значениям по умолчанию.', variant: 'danger', confirmLabel: 'Сбросить' });
+    const ok = await confirm({
+      title: 'Сбросить цены к умолчаниям?',
+      message: 'Цены на экране вернутся к значениям по умолчанию. В базу они попадут после «Сохранить цены». Упаковку, подготовку и порог маржи сброс не трогает — их правят «Справочники заказа».',
+      variant: 'danger',
+      confirmLabel: 'Сбросить к умолчаниям',
+    });
     if (!ok) return;
-    const base = defaultPrices();
-    setPrices(base);
-    storageRemove(STORAGE_KEY);
-    invalidatePricesCache();
-    useStore.setState({ prices: base });
-    try { await savePricesToSupabase(base); clearCatalogsCache(); } catch (err) { console.error('[savePrices]', err); toast.error('Не удалось сбросить цены в Supabase'); }
-    setChanged(0);
-    toast.success('Цены сброшены к умолчаниям');
+    setPrices(p => withDefaults(p));
+    setChanged(c => c + 1);
   };
 
   /* ── Render helpers ── */
@@ -360,16 +394,29 @@ export default function PricingTabContent({ onDirtyChange }) {
 
   return (
     <div className="pricing-tab-content">
+      {loaded.state === 'conflict' && (
+        <div className="sku-ed-save-failed" role="alert">
+          <p>Прайс уже изменили — в другой вкладке, другой администратор или ERP. Ваши правки не сохранены. Загрузите свежую версию и внесите их снова.</p>
+          <button type="button" className="pe-btn" onClick={reload}>Загрузить свежую версию</button>
+        </div>
+      )}
+      {loaded.state === 'fallback' && (
+        <div className="sku-ed-save-failed" role="status">
+          <p>Прайс не загрузился — сохранение недоступно, чтобы не записать встроенные значения поверх базы.</p>
+          <button type="button" className="pe-btn" onClick={reload}>Загрузить снова</button>
+        </div>
+      )}
+
       {/* ── Actions ── */}
       <div className="pricing-tab-actions">
         <span className="pricing-tab-status">
           {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
         </span>
         <div className="pricing-tab-actions-right">
-          <button className="pe-btn" onClick={reset}>Сброс</button>
+          <button className="pe-btn" onClick={reset}>Сбросить к умолчаниям</button>
           <button className="pe-btn" onClick={importJSON}>Импорт</button>
           <button className="pe-btn" onClick={exportJSON}>Экспорт</button>
-          <button className="pe-btn pe-btn-primary" onClick={save} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить цены'}</button>
+          <button className="pe-btn pe-btn-primary" onClick={save} disabled={saving || loaded.state !== 'ready'}>{saving ? 'Сохраняю...' : 'Сохранить цены'}</button>
         </div>
       </div>
 

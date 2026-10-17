@@ -6,10 +6,10 @@ import { useAuthStore } from '../store/useAuthStore';
 import { setCatalogUnsaved } from './leaveGuard';
 
 vi.mock('./switchToProduction', () => ({ switchToProduction: vi.fn() }));
-// Вкладки «Справочников заказа» читают справочник свежим запросом (`useCatalogEditor`)
 vi.mock('../lib/catalogs', () => ({
   loadAllCatalogs: vi.fn().mockResolvedValue({}),
-  fetchCatalogKey: vi.fn().mockResolvedValue(null),
+  // Вкладки «Справочников заказа» читают справочник свежим запросом (веха 4)
+  fetchCatalogKey: vi.fn().mockResolvedValue({ exists: false, value: null }),
   clearCatalogsCache: vi.fn(),
 }));
 vi.mock('./api/salesOrders', async (orig) => ({
