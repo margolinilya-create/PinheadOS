@@ -1,17 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { canUseSales, isSalesLead, legacyRedirect, navFor, ORDER_NAV, NEW_ORDER } from './orderNav';
+import {
+  canCreateOrders, canManageSalesStaff, canUseSales, isSalesLead, legacyRedirect, navFor, ordersLabel,
+  ORDER_NAV, NEW_ORDER,
+} from './orderNav';
 import { ICONS } from '../../erp/components/icons';
 
-type P = { role: string; is_sales?: boolean; active?: boolean; approved?: boolean };
+type P = { role: string; is_sales?: boolean; is_ms?: boolean; active?: boolean; approved?: boolean };
 const prof = (role: string, is_sales = false, extra: Partial<P> = {}): P =>
   ({ role, is_sales, active: true, approved: true, ...extra });
 
+/** МС без признака продавца (миграция F) */
+const ms = (role = 'manager', extra: Partial<P> = {}): P => prof(role, false, { is_ms: true, ...extra });
+
 /**
- * Зеркало `sales_is_seller() or sales_is_lead()` (миграции 20261017062110,
- * 20261017093841): продавец — признак `is_sales`, руководство — роль
- * admin/director/rop; оба только у активного и одобренного профиля.
+ * Зеркало `sales_is_seller() or sales_is_lead() or sales_is_ms()` (миграции
+ * 20261017062110, 20261017093841, 20261017142210): продавец — признак `is_sales`,
+ * МС — признак `is_ms`, руководство — роль admin/director/rop; всё только
+ * у активного и одобренного профиля.
  */
-describe('canUseSales — зеркало sales_is_seller() or sales_is_lead()', () => {
+describe('canUseSales — зеркало sales_is_seller() or sales_is_lead() or sales_is_ms()', () => {
   it.each([
     ['admin', false, true],
     ['director', false, true],
@@ -24,6 +31,15 @@ describe('canUseSales — зеркало sales_is_seller() or sales_is_lead()', 
     ['production', false, false],
   ])('%s, is_sales=%s → %s', (role, isSales, expected) => {
     expect(canUseSales(prof(role, isSales))).toBe(expected);
+  });
+
+  it.each(['manager', 'designer', 'production'])('МС (%s, is_ms) без признака продавца — входит', (role) => {
+    expect(canUseSales(ms(role))).toBe(true);
+  });
+
+  it('МС отключён или не одобрен — нет', () => {
+    expect(canUseSales(ms('manager', { active: false }))).toBe(false);
+    expect(canUseSales(ms('manager', { approved: false }))).toBe(false);
   });
 
   it('неактивный или неодобренный профиль — нет, даже с признаком и ролью руководства', () => {
@@ -49,14 +65,22 @@ describe('navFor — меню по профилю', () => {
     expect(labels(prof('manager', true))).toEqual(['Новый заказ', 'Мои заказы', 'Экспресс']);
   });
 
-  it('rop: «Новый заказ», «Заказы отдела», «Экспресс»', () => {
-    expect(labels(prof('rop'))).toEqual(['Новый заказ', 'Заказы отдела', 'Экспресс']);
+  it('rop: «Новый заказ», «Заказы отдела», «Экспресс», «Сотрудники продаж»', () => {
+    expect(labels(prof('rop'))).toEqual(['Новый заказ', 'Заказы отдела', 'Экспресс', 'Сотрудники продаж']);
   });
 
   it.each(['admin', 'director'])('%s: шесть пунктов', (role) => {
     expect(labels(prof(role))).toEqual([
-      'Новый заказ', 'Все заказы', 'Экспресс', 'Каталог', 'Менеджеры продаж', 'Админка',
+      'Новый заказ', 'Все заказы', 'Экспресс', 'Каталог', 'Сотрудники продаж', 'Админка',
     ]);
+  });
+
+  it('МС без признака продавца: «Заказы в работе» и «Экспресс», без «Нового заказа»', () => {
+    expect(labels(ms())).toEqual(['Заказы в работе', 'Экспресс']);
+  });
+
+  it('МС с признаком продавца — меню продавца', () => {
+    expect(labels(prof('manager', true, { is_ms: true }))).toEqual(['Новый заказ', 'Мои заказы', 'Экспресс']);
   });
 
   it('руководство с признаком продавца видит меню руководства', () => {
@@ -82,6 +106,28 @@ describe('navFor — меню по профилю', () => {
 
   it('иконка каждого пункта есть в наборе ERP', () => {
     for (const g of ORDER_NAV) for (const i of g.items) expect(ICONS).toHaveProperty(i.icon);
+  });
+});
+
+describe('кто заводит заказы и отмечает сотрудников', () => {
+  it('canCreateOrders — продавец и руководство; МС без признака продавца — нет', () => {
+    expect(canCreateOrders(prof('manager', true))).toBe(true);
+    expect(canCreateOrders(prof('rop'))).toBe(true);
+    expect(canCreateOrders(ms())).toBe(false);
+    expect(canCreateOrders(prof('manager', true, { active: false }))).toBe(false);
+    expect(canCreateOrders(null)).toBe(false);
+  });
+
+  it('canManageSalesStaff — admin, director, rop (как sales_set_staff); продавец и МС — нет', () => {
+    expect(['admin', 'director', 'rop'].every((r) => canManageSalesStaff(prof(r)))).toBe(true);
+    expect(canManageSalesStaff(prof('manager', true))).toBe(false);
+    expect(canManageSalesStaff(ms())).toBe(false);
+    expect(canManageSalesStaff(prof('rop', false, { approved: false }))).toBe(false);
+  });
+
+  it('ordersLabel: продавец — «Мои заказы», МС — «Заказы в работе»', () => {
+    expect(ordersLabel(prof('manager', true))).toBe('Мои заказы');
+    expect(ordersLabel(ms())).toBe('Заказы в работе');
   });
 });
 
