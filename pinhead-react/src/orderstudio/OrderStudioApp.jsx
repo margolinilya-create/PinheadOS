@@ -24,7 +24,7 @@ import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
 import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
-import { shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
+import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
 import { canUseSales, legacyRedirect } from './layout/orderNav'
 import { switchToProduction } from './switchToProduction'
@@ -158,24 +158,33 @@ function OrderStudioShell({ user }) {
       </Routes>
       </OrderLayout>
 
-      {blocker.state === 'blocked' && (
-        <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">
-          <div className={styles.blockerCard}>
-            <div id="blocker-title" className={styles.blockerTitle}>Правки заказа не сохранены</div>
-            <div className={styles.blockerText}>
-              Последнее сохранение не удалось. Если уйти сейчас, правки потеряются — останьтесь и повторите после восстановления связи.
-            </div>
-            <div className={styles.blockerActions}>
-              <button className="btn btn-primary" onClick={() => blocker.reset()}>
-                Остаться
-              </button>
-              <button className="btn" onClick={() => blocker.proceed()}>
-                Всё равно уйти
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {blocker.state === 'blocked' && <SalesLeaveDialog blocker={blocker} />}
     </>
+  );
+}
+
+/**
+ * Диалог ухода с карточки v4. Подписка на состояние сохранения живёт только
+ * пока диалог открыт — оболочка из-за неё не перерисовывается.
+ */
+function SalesLeaveDialog({ blocker }) {
+  const saveState = useSalesStore((s) => s.saveState);
+  return (
+    <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title" aria-describedby="blocker-text">
+      <div className={styles.blockerCard}>
+        <div id="blocker-title" className={styles.blockerTitle}>Правки заказа не сохранены</div>
+        <div id="blocker-text" className={styles.blockerText}>
+          {salesLeaveDialogText(saveState)}
+        </div>
+        <div className={styles.blockerActions}>
+          <button className="btn btn-primary" onClick={() => blocker.reset()}>
+            Остаться
+          </button>
+          <button className="btn" onClick={() => blocker.proceed()}>
+            Всё равно уйти
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

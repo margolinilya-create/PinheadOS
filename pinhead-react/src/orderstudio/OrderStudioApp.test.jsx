@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { switchToProduction } from './switchToProduction';
 import { useAuthStore } from '../store/useAuthStore';
@@ -9,11 +9,13 @@ vi.mock('../lib/catalogs', () => ({ loadAllCatalogs: vi.fn().mockResolvedValue({
 vi.mock('./api/salesOrders', async (orig) => ({
   ...(await orig()),
   fetchSalesOrders: vi.fn().mockResolvedValue([]),
+  fetchSalesOrder: vi.fn().mockResolvedValue(null),
 }));
 
 // Старт раздела стирает черновик визарда v3: кладём его ДО импорта модуля
 localStorage.setItem('pinhead_draft', '{"step":2,"name":"Ромашка"}');
 const { default: OrderStudioApp } = await import('./OrderStudioApp');
+const { useSalesStore } = await import('./store/useSalesStore');
 
 const prof = (role, is_sales = false) => ({ id: 'u-1', name: 'Тест', email: 't@pinhead.ru', role, is_sales, active: true, approved: true });
 
@@ -71,5 +73,32 @@ describe('OrderStudioApp — доступ по ролям', () => {
   it('старый мастер позиции /sales/:id/item/:key больше не открывается', async () => {
     const router = renderApp(prof('admin'), '/sales/o-1/item/new');
     await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
+  });
+});
+
+describe('OrderStudioApp — диалог ухода с карточки v4', () => {
+  /** Карточка открыта, сохранение в состоянии saveState; уход в список */
+  async function leaveWith(saveState) {
+    const router = renderApp(prof('admin'), '/sales/o-1');
+    await waitFor(() => expect(useSalesStore.getState().currentLoading).toBe(false));
+    act(() => useSalesStore.setState({ saveState }));
+    act(() => { void router.navigate('/sales'); });
+    const dialog = await screen.findByRole('dialog', { name: 'Правки заказа не сохранены' });
+    return { router, dialog };
+  }
+
+  it.each(['outdated', 'conflict'])('%s — уход остановлен, текст «скопируйте и обновите»', async (saveState) => {
+    const { router, dialog } = await leaveWith(saveState);
+    expect(dialog).toHaveTextContent('Правка не сохранена — скопируйте изменения и обновите страницу. Уйти без сохранения?');
+    expect(router.state.location.pathname).toBe('/sales/o-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Остаться' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(router.state.location.pathname).toBe('/sales/o-1');
+  });
+
+  it('error — прежний текст про сбой сохранения', async () => {
+    const { dialog } = await leaveWith('error');
+    expect(dialog).toHaveTextContent('Последнее сохранение не удалось.');
+    expect(dialog).not.toHaveTextContent('скопируйте изменения');
   });
 });

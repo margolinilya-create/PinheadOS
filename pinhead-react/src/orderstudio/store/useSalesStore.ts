@@ -162,9 +162,13 @@ export const useSalesStore = create<SalesState>((set, get) => {
     set({ saveState: 'saving' });
     const payload = salesOrderToPayload(order, pricer ? pricer(order) : null);
     const mySession = session;
-    inFlight = (async () => {
+    // Полёт обнуляет только СВОЮ ссылку: после выхода (`runAppResets`) ответ
+    // запроса, ушедшего до сброса, иначе затёр бы ссылку на новое сохранение,
+    // и следующая правка ушла бы параллельным RPC
+    let myFlight: Promise<void> | null = null;
+    myFlight = (async () => {
       const res = await saveSalesOrder(payload);
-      inFlight = null;
+      if (inFlight === myFlight) inFlight = null;
       // Карточку закрыли, открыли другой заказ или вышли, пока шёл запрос:
       // ответ ничей — ни тоста, ни состояния
       if (mySession !== session) return;
@@ -199,7 +203,8 @@ export const useSalesStore = create<SalesState>((set, get) => {
       }
       set({ saveState: 'clean' });
     })();
-    return inFlight;
+    inFlight = myFlight;
+    return myFlight;
   }
 
   return {

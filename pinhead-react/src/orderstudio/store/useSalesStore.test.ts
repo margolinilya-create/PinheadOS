@@ -433,4 +433,35 @@ describe('useSalesStore — сброс при выходе', () => {
     expect(useSalesStore.getState().saveState).toBe('clean');
     expect(toast.error).not.toHaveBeenCalled();
   });
+
+  it('ответ старого полёта после выхода не обнуляет ссылку на новое сохранение — параллельного RPC нет', async () => {
+    await open('o-1', 't0');
+    const oldSave = deferred();
+    api.saveSalesOrder.mockReturnValueOnce(oldSave.promise);
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'B' }));
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(1);
+    runAppResets();
+
+    await open('o-2', 't1');
+    const saveB = deferred();
+    api.saveSalesOrder.mockReturnValueOnce(saveB.promise).mockResolvedValue(ok('o-2', 't3'));
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'C' }));
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(2);
+
+    // Ответ запроса, ушедшего до выхода: ничей, и ссылку на полёт B не трогает
+    oldSave.resolve(ok('o-1', 't2'));
+    await vi.advanceTimersByTimeAsync(0);
+    useSalesStore.getState().edit((o) => ({ ...o, title: 'D' }));
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 3);
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(2);
+
+    // Правка D уходит вдогонку за B, а не рядом с ним
+    saveB.resolve(ok('o-2', 't2'));
+    await vi.runAllTimersAsync();
+    expect(api.saveSalesOrder).toHaveBeenCalledTimes(3);
+    expect(api.saveSalesOrder.mock.calls[2][0].title).toBe('D');
+    expect(useSalesStore.getState().saveState).toBe('clean');
+  });
 });

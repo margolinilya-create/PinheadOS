@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard';
+import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard';
 
 describe('shouldBlockSalesLeave — уход с карточки v4 после сбоя сохранения', () => {
   it('сбой сохранения и уход в список — спросить', () => {
@@ -9,12 +9,35 @@ describe('shouldBlockSalesLeave — уход с карточки v4 после �
   it('вложенный адрес того же заказа — не уход', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales/o-1', to: '/sales/o-1/item/new' })).toBe(false);
   });
+  it('outdated и conflict — запись остановлена, правки только в карточке: спросить', () => {
+    for (const saveState of ['outdated', 'conflict']) {
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales/o-1', to: '/sales' })).toBe(true);
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales/o-1', to: '/sales/o-1/item/new' })).toBe(false);
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales', to: '/' })).toBe(false);
+    }
+  });
+  it('locked — правка закрыта, терять нечего: не спрашиваем', () => {
+    expect(shouldBlockSalesLeave({ saveState: 'locked', from: '/sales/o-1', to: '/sales' })).toBe(false);
+  });
   it('без сбоя не спрашиваем: несохранённое догоняет flush при уходе', () => {
     expect(shouldBlockSalesLeave({ saveState: 'dirty', from: '/sales/o-1', to: '/sales' })).toBe(false);
     expect(shouldBlockSalesLeave({ saveState: 'clean', from: '/sales/o-1', to: '/sales' })).toBe(false);
   });
   it('уход не с карточки — не наше дело', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales', to: '/' })).toBe(false);
+  });
+});
+
+describe('salesLeaveDialogText — текст диалога ухода', () => {
+  it('outdated и conflict — скопировать и обновить страницу', () => {
+    const text = 'Правка не сохранена — скопируйте изменения и обновите страницу. Уйти без сохранения?';
+    expect(salesLeaveDialogText('outdated')).toBe(text);
+    expect(salesLeaveDialogText('conflict')).toBe(text);
+  });
+  it('error — прежний текст про повтор после восстановления связи', () => {
+    expect(salesLeaveDialogText('error')).toBe(
+      'Последнее сохранение не удалось. Если уйти сейчас, правки потеряются — останьтесь и повторите после восстановления связи.',
+    );
   });
 });
 
