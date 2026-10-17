@@ -165,9 +165,10 @@ select pg_temp.p('admin_newline', '42501',
   $q$insert into storage.objects (bucket_id, name, owner) values ('garment-flats', E'flats/probe-new/v1/back.svg\n', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c')$q$);
 select pg_temp.p('admin_upper', '42501',
   $q$insert into storage.objects (bucket_id, name, owner) values ('garment-flats', 'flats/Probe-new/v1/front.svg', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c')$q$);
--- upsert (Storage `upsert: true`) = insert … on conflict do update: UPDATE запрещён
+-- upsert (Storage `upsert: true`) = insert … on conflict do update: UPDATE запрещён.
+-- С 17.10 у storage.objects версии: уникальность — частичный индекс (bucket_id, name collate "C") where archived_at is null
 select pg_temp.p('admin_upsert', '42501',
-  $q$insert into storage.objects (bucket_id, name, owner) values ('garment-flats', 'flats/probe-tee/v1/front.svg', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c') on conflict (bucket_id, name) do update set metadata = '{"x":1}'$q$);
+  $q$insert into storage.objects (bucket_id, name, owner) values ('garment-flats', 'flats/probe-tee/v1/front.svg', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c') on conflict (bucket_id, name collate "C") where archived_at is null do update set metadata = '{"x":1}'$q$);
 select pg_temp.p('admin_update_meta', 'OK rows=0',
   $q$update storage.objects set metadata = '{"x":1}' where bucket_id = 'garment-flats' and name = 'flats/probe-tee/v1/front.svg'$q$);
 select pg_temp.p('admin_rename', 'OK rows=0',
