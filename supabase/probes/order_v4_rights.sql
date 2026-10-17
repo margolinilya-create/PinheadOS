@@ -1,7 +1,11 @@
 -- Пробы прав Order v4: миграции A (20261017053703_order_v4_tz_fields)
--- и B (20261017062110_order_v4_rights), обе применены на бою 17.10.
+-- и B (20261017062110_order_v4_rights), обе применены на бою 17.10, и миграция E
+-- (20261017093841_sales_staff_flag, признак «Менеджер продаж» — до применения
+-- на бою запускать сухим прогоном вместе с ней в одной транзакции), и миграция D
+-- (20261017101513_order_v4_client_rev: ревизия клиента и конкурентная правка
+-- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=83 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=121 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -16,15 +20,26 @@
 -- pinhead-react/src/orderstudio/probesFiles.test.ts). Роли — существующие
 -- профили боя:
 --   ADMIN   b9c3e42e-9e07-44c2-8b15-839ce327c40c  profiles.role = admin
---   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  profiles.role = manager (ERP production_head)
---   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  profiles.role = manager (ERP production_head)
+--   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  profiles.role = manager (ERP production_head);
+--           внутри транзакции получает is_sales = true (откат вернёт)
+--   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  то же, что SELLER
+--   HEAD    05bbc552-bca2-490d-b275-46a3084dca7c  profiles.role = manager (ERP production_head),
+--           БЕЗ is_sales — начальник цеха: заказы продаж ему закрыты
+--   PENDING cc9ed453-d3d7-4add-a361-8719a7701f97  profiles.role = manager, отключён и не одобрен;
+--           внутри транзакции: active = true, is_sales = true, approved остаётся false
 --   MS      f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9  profiles.role = manager; внутри транзакции
 --           его строка erp_employees получает role = 'manager' (откат вернёт)
 -- Заказы: a1 (SELLER, draft, к отправке), a2 (SELLER2, draft), a3 (SELLER, ready_to_launch),
 -- a4 (SELLER, v3), a5 (SELLER, draft, на удаление), a6 (SELLER, ready_to_launch, захват
 -- связи ERP до запуска), a7 (SELLER, ready_to_launch, возврат МС), a8 (отменённый
--- заказ ERP держит связь), a9 (черновик, уже связанный с ERP).
+-- заказ ERP держит связь), a9 (черновик, уже связанный с ERP), a10 (SELLER, draft,
+-- позиция b10 с поставщиком — сохранение без ревизии клиента и из «другой вкладки»).
 -- Если профили выше на бою изменятся (роль, active) — пробы покажут FAIL, правьте шапку и данные.
+--
+-- Вставка заказа v4 клиентом (успешная или отклонённая RLS) проходит страж B,
+-- а он выдаёт номер из order_number_seq ДО проверки RLS — на бою это трата
+-- номера. Поэтому «может ли вставить» проверяется v3-вставкой (та же политика
+-- orders_insert, страж v3 не трогает); v4-вставки — в локальном прогоне.
 
 begin;
 set local lock_timeout = '3s';
@@ -62,6 +77,14 @@ select pg_temp.as_user(null);
 
 update public.erp_employees set role = 'manager'
  where profile_id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
+-- Миграция E: продавцы — по признаку (служебный доступ страж пропускает).
+-- HEAD и ADMIN — явно без признака: владелец мог отметить их на бою
+update public.profiles set is_sales = false
+ where id in ('05bbc552-bca2-490d-b275-46a3084dca7c', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c');
+update public.profiles set is_sales = true
+ where id in ('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
+update public.profiles set active = true, is_sales = true
+ where id = 'cc9ed453-d3d7-4add-a361-8719a7701f97';
 
 insert into public.orders (id, order_number, schema_version, status, created_by, data, customer, due_date)
 values
@@ -73,7 +96,8 @@ values
   ('00000000-0000-4000-8000-0000000000a6', 'PROBE-6', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 6', current_date + 10),
   ('00000000-0000-4000-8000-0000000000a7', 'PROBE-7', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 7', current_date + 10),
   ('00000000-0000-4000-8000-0000000000a8', 'PROBE-8', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 8', current_date + 10),
-  ('00000000-0000-4000-8000-0000000000a9', 'PROBE-9', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 9', null);
+  ('00000000-0000-4000-8000-0000000000a9', 'PROBE-9', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 9', null),
+  ('00000000-0000-4000-8000-000000000a10', 'PROBE-10', 4, 'draft', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент 10', null);
 update public.orders set paid_at = now(), paid_kind = 'full'
  where id in ('00000000-0000-4000-8000-0000000000a6', '00000000-0000-4000-8000-0000000000a8');
 -- a3 (отправлен) — потомок черновика a5: удаление a5 обнуляет parent_id отправленного заказа
@@ -87,6 +111,8 @@ insert into public.order_items (id, order_id) values
   ('00000000-0000-4000-8000-0000000000b6', '00000000-0000-4000-8000-0000000000a6'),
   ('00000000-0000-4000-8000-0000000000b7', '00000000-0000-4000-8000-0000000000a7'),
   ('00000000-0000-4000-8000-0000000000b8', '00000000-0000-4000-8000-0000000000a8');
+insert into public.order_items (id, order_id, supplier) values
+  ('00000000-0000-4000-8000-000000000b10', '00000000-0000-4000-8000-000000000a10', 'Поставщик-проба');
 insert into public.order_item_prints (id, item_id, method) values
   ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000b1', 'dtf');
 insert into public.order_item_labels (id, item_id) values
@@ -106,8 +132,13 @@ values ('PROBE отменён', '00000000-0000-4000-8000-0000000000a8', 'PROBE-8
 select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
 set local role authenticated;
 
-select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE-7,PROBE-8,PROBE-9',
+select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-10,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE-7,PROBE-8,PROBE-9',
   $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
+select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
+-- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
+select pg_temp.p('seller_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
+select pg_temp.p('seller_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
+select pg_temp.p('s_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = false where id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'$q$);
 select pg_temp.p('s_status_direct', '42501', $q$update public.orders set status = 'production' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_paid_direct', '42501', $q$update public.orders set paid_kind = 'full', paid_at = now() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_erp_link_direct', '42501', $q$update public.orders set erp_order_id = gen_random_uuid() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
@@ -162,6 +193,27 @@ select pg_temp.p('s_pay', 'OK {"id": "00000000-0000-4000-8000-0000000000a1", "pa
 select pg_temp.p('s_pay_override', '42501', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', null, 'без оплаты')$q$);
 select pg_temp.p('s_pay_bad_kind', '22023', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', 'partial')$q$);
 select pg_temp.p('s_launch_check', '42501', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')$q$);
+-- Миграция D: ревизия клиента — в ОБЕИХ функциях; позиция без поля supplier
+-- в аргументе (клиент до вехи 3) стёрла бы поставщика — отказ до записи
+select pg_temp.p('s_save_no_rev', 'P0001 Вышло обновление', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_no_rev_kept', 'OK Поставщик-проба', $q$select supplier from public.order_items where id = '00000000-0000-4000-8000-000000000b10'$q$);
+select pg_temp.p('s_save_rev_2', 'P0001 Вышло обновление', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 2, "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_inner_no_rev', 'P0001 Вышло обновление', $q$select public.order_v4_save('{"id": "00000000-0000-4000-8000-000000000a10", "items": [{"key": "00000000-0000-4000-8000-000000000b10"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_inner_kept', 'OK Поставщик-проба', $q$select supplier from public.order_items where id = '00000000-0000-4000-8000-000000000b10'$q$);
+-- конкурентная правка: версия не та — отказ; та — запись
+select pg_temp.p('s_save_stale', 'P0001 Заказ изменён в другой вкладке', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "title": "из старой вкладки", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)$q$);
+select pg_temp.p('s_save_stale_kept', 'OK true', $q$select (title is distinct from 'из старой вкладки')::text from public.orders where id = '00000000-0000-4000-8000-000000000a10'$q$);
+select pg_temp.p('s_save_ok', 'OK {"id": "00000000-0000-4000-8000-000000000a10"', $q$select public.order_v4_save_full(jsonb_build_object(
+    'id', '00000000-0000-4000-8000-000000000a10', 'client_rev', 3, 'title', 'проба D',
+    'expected_updated_at', (select updated_at from public.orders where id = '00000000-0000-4000-8000-000000000a10'),
+    'items', jsonb_build_array(jsonb_build_object('key', '00000000-0000-4000-8000-000000000b10', 'supplier', 'Поставщик-проба'))))::text$q$);
+select pg_temp.p('s_save_ok_effect', 'OK проба D/Поставщик-проба', $q$select o.title || '/' || i.supplier from public.orders o join public.order_items i on i.order_id = o.id where o.id = '00000000-0000-4000-8000-000000000a10'$q$);
+-- без версии (прямой вызов, клиент без ключа) — сверки нет, запись проходит
+select pg_temp.p('s_save_no_expected', 'OK {"id": "00000000-0000-4000-8000-000000000a10"', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "title": "проба D", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)::text$q$);
+-- отправленный заказ: правку закрывает страж, текст «правка закрыта» (клиент: locked)
+select pg_temp.p('s_save_sent', '42501 Заказ отправлен в работу — правка закрыта', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-0000000000a6", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-0000000000b6"}]}'::jsonb)$q$);
+-- устаревшая вкладка над отправленным заказом: сверка версии пропущена, причину называет страж
+select pg_temp.p('s_save_sent_stale', '42501 Заказ отправлен в работу — правка закрыта', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-0000000000a6", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "items": [{"key": "00000000-0000-4000-8000-0000000000b6"}]}'::jsonb)$q$);
 -- v3 как раньше
 select pg_temp.p('s_v3_update', 'OK rows=1', $q$update public.orders set data = '{"x":2}' where id = '00000000-0000-4000-8000-0000000000a4'$q$);
 select pg_temp.p('s_v3_insert', 'OK rows=1', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-V3', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}')$q$);
@@ -173,6 +225,57 @@ select pg_temp.as_user('e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 set local role authenticated;
 select pg_temp.p('s2_sees', 'OK PROBE-2', $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s2_foreign_update', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
+-- чужой заказ с неверной версией: отказ «не найден», а не «изменён» — сверка
+-- версии не выдаёт существование невидимого заказа
+select pg_temp.p('s2_save_foreign_stale', '42501 Заказ не найден или недоступен', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z"}'::jsonb)$q$);
+reset role;
+
+-- ── HEAD: начальник цеха с профилем manager, без признака ────────────────
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('head_sees', 'OK null', $q$select string_agg(order_number, ',') from public.orders where order_number like 'PROBE-%'$q$);
+select pg_temp.p('head_insert', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-H1', '05bbc552-bca2-490d-b275-46a3084dca7c', '{}')$q$);
+select pg_temp.p('head_update_foreign', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
+select pg_temp.p('head_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('head_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+reset role;
+
+-- ── PENDING: признак есть, профиль не одобрен ────────────────────────────
+select pg_temp.as_user('cc9ed453-d3d7-4add-a361-8719a7701f97');
+set local role authenticated;
+select pg_temp.p('pending_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('pending_save', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-P1', 'cc9ed453-d3d7-4add-a361-8719a7701f97', '{}')$q$);
+reset role;
+
+-- ── ADMIN: признак продавца ─────────────────────────────────────────────
+select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
+set local role authenticated;
+-- прямая запись признака — отказ стража даже у админа (политика profiles_update его пускает)
+select pg_temp.p('self_set_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
+select pg_temp.p('admin_direct_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_insert_sales', '42501 Признак «Менеджер продаж»', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+-- руководитель правит чужой черновик: версия сверяется и для него
+select pg_temp.p('a_save_foreign_stale', 'P0001 Заказ изменён в другой вкладке', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)$q$);
+-- остальные колонки профиля админ правит как раньше
+select pg_temp.p('admin_other_columns', 'OK rows=1', $q$update public.profiles set name = name where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_list_staff', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and not is_sales)::text from public.sales_staff_list()$q$);
+select pg_temp.p('admin_set_staff_missing', 'P0002', $q$select public.sales_set_staff(gen_random_uuid(), true)$q$);
+select pg_temp.p('admin_set_staff_null', '22023', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null)$q$);
+select pg_temp.p('admin_set_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('admin_set_staff_effect', 'OK true', $q$select is_sales::text from public.profiles where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+reset role;
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_now_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
+reset role;
+select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
+set local role authenticated;
+select pg_temp.p('admin_unset_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', false)$q$);
+reset role;
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_seller_again_off', 'OK false', $q$select public.sales_is_seller()::text$q$);
 reset role;
 
 -- ── MS ──────────────────────────────────────────────────────────────────

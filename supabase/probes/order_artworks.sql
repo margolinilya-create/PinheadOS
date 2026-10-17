@@ -1,6 +1,8 @@
 -- Пробы бакета order-artworks: миграция C (20261017070826_order_artworks_bucket),
 -- применена на бою 17.10. Миграции A и B — тоже на бою; их пробы —
--- supabase/probes/order_v4_rights.sql.
+-- supabase/probes/order_v4_rights.sql. С миграции E (20261017093841, признак
+-- «Менеджер продаж») файл требует колонку profiles.is_sales — до её применения
+-- запускать вместе с ней в одной транзакции (сухой прогон).
 --
 -- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=67 {…}
 --
@@ -21,8 +23,8 @@
 -- ДО `set local role` (страж B пропускает служебный доступ; последовательность
 -- не тратится). Роли — существующие профили боя:
 --   ADMIN   b9c3e42e-9e07-44c2-8b15-839ce327c40c  admin
---   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  manager
---   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  manager
+--   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  manager; is_sales — внутри транзакции
+--   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  manager; is_sales — внутри транзакции
 --   MS      f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9  manager; его строка erp_employees
 --           внутри транзакции получает role = 'manager' (откат вернёт)
 -- Заказы: f1 (SELLER, draft v4), f2 (SELLER2, draft v4), f3 (SELLER, ready_to_launch),
@@ -65,6 +67,10 @@ select set_config('storage.allow_delete_query', 'true', true);
 
 update public.erp_employees set role = 'manager'
  where profile_id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
+-- Миграция E (20261017093841): продавец — по признаку is_sales; SELLER и SELLER2
+-- получают его внутри транзакции (откат вернёт)
+update public.profiles set is_sales = true
+ where id in ('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 
 insert into public.orders (id, order_number, schema_version, status, created_by, data, customer, due_date)
 values

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const setFeature = vi.fn();
 vi.mock('../../config/features', () => ({ setFeature: (...a) => setFeature(...a) }));
@@ -8,10 +8,10 @@ vi.mock('../../config/features', () => ({ setFeature: (...a) => setFeature(...a)
 const confirm = vi.fn();
 vi.mock('../../store/useConfirmStore', () => ({ confirm: (...a) => confirm(...a) }));
 
-// useDraft НЕ мокается: сторож проверяет, что оболочка правда пишет черновик
+vi.mock('../api/salesOrders', async (orig) => ({ ...(await orig()), findOwnEmptyDraft: vi.fn() }));
 import OrderLayout from './OrderLayout';
-import { useStore } from '../../store/useStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { findOwnEmptyDraft } from '../api/salesOrders';
 
 function renderLayout(user, path = '/') {
   return render(
@@ -21,7 +21,8 @@ function renderLayout(user, path = '/') {
   );
 }
 
-const ADMIN = { role: 'admin', name: 'Илья' };
+const ADMIN = { id: 'u-1', role: 'admin', name: 'Илья', active: true, approved: true, is_sales: false };
+const SELLER = { id: 'u-2', role: 'manager', name: 'Анна', active: true, approved: true, is_sales: true };
 
 describe('OrderLayout', () => {
   beforeEach(() => {
@@ -29,16 +30,42 @@ describe('OrderLayout', () => {
     confirm.mockReset();
     localStorage.clear();
   });
-  afterEach(() => vi.useRealTimers());
 
-  it('показывает ссылки сайдбара', () => {
-    renderLayout({ role: 'admin', name: 'Илья' });
-    expect(screen.getByRole('link', { name: 'Новый заказ' })).toBeTruthy();
+  it('показывает пункты сайдбара: «Новый заказ» — кнопка, остальные — ссылки', () => {
+    renderLayout(ADMIN);
+    expect(screen.getByRole('button', { name: 'Новый заказ' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Все заказы' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Каталог' })).toBeTruthy();
   });
 
+  it('продавец видит «Мои заказы» и не видит настроек', () => {
+    renderLayout(SELLER);
+    expect(screen.getByRole('link', { name: 'Мои заказы' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Каталог' })).toBeNull();
+  });
+
+  it('«Новый заказ» в меню открывает свой пустой черновик на вкладке «Изделие»', async () => {
+    vi.mocked(findOwnEmptyDraft).mockResolvedValue({ ok: true, id: 'o-empty' });
+    useAuthStore.setState({ user: SELLER });
+    function Where() {
+      const loc = useLocation();
+      return <div data-testid="where">{loc.pathname}{loc.search}</div>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/sales']}>
+        <Routes>
+          <Route path="/sales" element={<OrderLayout user={SELLER}><div>список</div></OrderLayout>} />
+          <Route path="/sales/:id" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Новый заказ' }));
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/sales/o-empty?tab=item'));
+    expect(findOwnEmptyDraft).toHaveBeenCalledWith('u-2');
+  });
+
   it('подписи: навигация, логотип и заголовок раздела', () => {
-    renderLayout({ role: 'admin', name: 'Илья' });
+    renderLayout(ADMIN);
     expect(screen.getByRole('navigation', { name: 'Разделы заказа' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'На главную раздела заказов' })).toBeTruthy();
     expect(screen.getByText('Оформление заказа')).toBeTruthy();
@@ -46,18 +73,18 @@ describe('OrderLayout', () => {
   });
 
   it('«Перейти в Производство» выключает флаг orderStudio', () => {
-    renderLayout({ role: 'admin', name: 'Илья' });
+    renderLayout(ADMIN);
     fireEvent.click(screen.getByRole('button', { name: 'Перейти в Производство' }));
     expect(setFeature).toHaveBeenCalledWith('orderStudio', false);
   });
 
-  it('у менеджера кнопки перехода в Производство нет', () => {
-    renderLayout({ role: 'manager', name: 'Анна' });
+  it('у продавца кнопки перехода в Производство нет', () => {
+    renderLayout(SELLER);
     expect(screen.queryByRole('button', { name: 'Перейти в Производство' })).toBeNull();
   });
 
   it('«Меню» открывает сайдбар, переход по ссылке закрывает', () => {
-    renderLayout({ role: 'admin', name: 'Илья' });
+    renderLayout(ADMIN);
     const toggle = screen.getByRole('button', { name: 'Меню' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
@@ -67,66 +94,17 @@ describe('OrderLayout', () => {
   });
 
   it('main#main-content прокручивается сам и обнуляет --header-h', () => {
-    const { container } = renderLayout({ role: 'admin', name: 'Илья' });
+    const { container } = renderLayout(ADMIN);
     const main = container.querySelector('main#main-content');
     expect(main.className).toMatch(/orderMain/);
   });
 
-  it('автосохранение: правка визарда попадает в pinhead_draft', () => {
-    vi.useFakeTimers();
-    renderLayout(ADMIN);
-    act(() => useStore.setState({ notes: 'черновик из оболочки' }));
-    // SAVE_DELAY в hooks/useDraft.js — 800 мс
-    act(() => vi.advanceTimersByTime(800));
-    expect(JSON.parse(localStorage.getItem('pinhead_draft')).notes).toBe('черновик из оболочки');
-    expect(screen.getByText('сохранено')).toBeTruthy();
-  });
-
-  it('индикатор и «Сбросить черновик» есть на /', () => {
-    renderLayout(ADMIN, '/');
-    expect(screen.getByRole('button', { name: 'Сбросить черновик' })).toBeTruthy();
-    expect(screen.getByText('черновик')).toBeTruthy();
-  });
-
-  it('«Сбросить черновик» на /express тоже есть', () => {
-    renderLayout(ADMIN, '/express');
-    expect(screen.getByRole('button', { name: 'Сбросить черновик' })).toBeTruthy();
-  });
-
-  it('на /sales индикатора черновика нет', () => {
-    renderLayout(ADMIN, '/sales');
-    expect(screen.queryByRole('button', { name: 'Сбросить черновик' })).toBeNull();
-  });
-
-  it('сброс черновика: подтверждение → черновик удалён и визард сброшен', async () => {
-    const resetOrder = vi.fn();
-    const prev = useStore.getState().resetOrder;
-    useStore.setState({ resetOrder });
-    localStorage.setItem('pinhead_draft', '{"notes":"x"}');
-    confirm.mockResolvedValue(true);
-    renderLayout(ADMIN, '/');
-    fireEvent.click(screen.getByRole('button', { name: 'Сбросить черновик' }));
-    await waitFor(() => expect(resetOrder).toHaveBeenCalled());
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Сбросить черновик?',
-      message: 'Введённые данные заказа будут удалены.',
-      confirmLabel: 'Сбросить',
-    }));
-    expect(localStorage.getItem('pinhead_draft')).toBeNull();
-    useStore.setState({ resetOrder: prev });
-  });
-
-  it('сброс черновика: отмена → ничего не сброшено', async () => {
-    const resetOrder = vi.fn();
-    const prev = useStore.getState().resetOrder;
-    useStore.setState({ resetOrder });
-    confirm.mockResolvedValue(false);
-    renderLayout(ADMIN, '/');
-    fireEvent.click(screen.getByRole('button', { name: 'Сбросить черновик' }));
-    await waitFor(() => expect(confirm).toHaveBeenCalled());
-    await Promise.resolve();
-    expect(resetOrder).not.toHaveBeenCalled();
-    useStore.setState({ resetOrder: prev });
+  it('индикатора черновика визарда больше нет — ни на /express, ни на /sales', () => {
+    for (const path of ['/express', '/sales']) {
+      const { unmount } = renderLayout(ADMIN, path);
+      expect(screen.queryByRole('button', { name: 'Сбросить черновик' })).toBeNull();
+      unmount();
+    }
   });
 
   it('«Выйти»: подтверждение → logout', async () => {

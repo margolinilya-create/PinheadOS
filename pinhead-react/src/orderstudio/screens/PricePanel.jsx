@@ -42,7 +42,7 @@ export default function PricePanel({ order, price }) {
       </div>
       {order.urgent && <div className={styles.muted}>Срочный пошив включён в цену изделия; нанесения — без надбавки</div>}
       {price.below_threshold && (
-        <div className={styles.alert} role="status">Маржа ниже порога — цену согласует РОП или директор</div>
+        <div className={styles.alert} role="status">Маржа ниже порога — проверьте скидку и ручные цены</div>
       )}
       {price.incomplete && (
         <div className={styles.alert} role="status">Не все позиции посчитаны — задайте ручную цену</div>

@@ -177,30 +177,6 @@
   color: var(--text-dim);
 }
 
-/* Индикатор черновика визарда: точка-статус, подпись, сброс */
-.draft {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-.draftDot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--text-dim);
-  transition: background var(--dur-base) var(--ease-out);
-}
-.draft_saving { background: var(--color-warning); }
-.draft_saved { background: var(--color-success); }
-.draftText {
-  font-size: var(--type-label);
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
 /* Прокручивается `.main`, а не окно, и шапка не липкая: липкие панели визарда
    и каталога (`ProgressBar`, `.pe-tabs`, `.sku-ed-rate-bar`) считают отступ
    от `--header-h` и без обнуления оставили бы щель в 52 px под шапкой. */
@@ -321,10 +297,19 @@
   justify-content: center;
 }
 .navLabel { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+/* Пункт-действие («Новый заказ») — кнопка с видом ссылки меню */
+.navButton {
+  width: 100%;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.navButton:disabled { cursor: progress; opacity: 0.7; }
 
 @media (max-width: 768px) {
   .userChip { display: none; }
-  .draftText { display: none; }
   .topbar { padding: 0 14px; gap: var(--space-sm); }
   .orderMain { padding: var(--space-lg) 14px var(--space-3xl); }
 }

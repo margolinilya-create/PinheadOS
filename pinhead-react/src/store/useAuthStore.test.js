@@ -553,6 +553,20 @@ describe('useAuthStore — profileStatus', () => {
     expect(useAuthStore.getState().profileStatus).toBe('active');
   });
 
+  it('fetchProfile читает признак is_sales; нет колонки (база до миграции E) — не продавец', async () => {
+    const { supabase } = await import('../lib/supabase');
+    const maybeSingle = vi.fn().mockResolvedValueOnce({
+      data: { name: 'Продавец', role: 'manager', approved: true, active: true, is_sales: true },
+    });
+    supabase.from.mockReturnValue({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle });
+    await useAuthStore.getState().fetchProfile('uid-5', 'seller@test.com');
+    expect(useAuthStore.getState().user.is_sales).toBe(true);
+
+    maybeSingle.mockResolvedValueOnce({ data: { name: 'Цех', role: 'manager', approved: true, active: true } });
+    await useAuthStore.getState().fetchProfile('uid-6', 'head@test.com');
+    expect(useAuthStore.getState().user.is_sales).toBe(false);
+  });
+
   it('fetchProfile sets no_profile and user=null when no data', async () => {
     const { supabase } = await import('../lib/supabase');
     supabase.from.mockReturnValue({

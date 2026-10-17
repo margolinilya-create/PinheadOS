@@ -19,13 +19,36 @@ const SALES_ROW = {
   schema_version: 4,
 };
 
-test('оболочка раздела ТЗ: сайдбар и переход в заказы v4', async ({ page }) => {
+test('оболочка раздела ТЗ: сайдбар и список заказов', async ({ page }) => {
   await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
   await page.goto('/sales?studio=1');
 
   const nav = page.getByRole('navigation', { name: 'Разделы заказа' });
-  await expect(nav.getByRole('link', { name: 'Новый заказ' })).toBeVisible();
+  // «Новый заказ» — кнопка-действие, а не ссылка на визард
+  await expect(nav.getByRole('button', { name: 'Новый заказ' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Все заказы' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Все заказы' })).toBeVisible();
   await expect(page.getByText('PH-9001')).toBeVisible();
+});
+
+test('/ раздела ТЗ ведёт в список заказов', async ({ page }) => {
+  await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
+  await page.goto('/?studio=1');
+  await expect(page).toHaveURL(/\/sales(\?|$)/);
+  await expect(page.getByText('PH-9001')).toBeVisible();
+});
+
+test('«Новый заказ» создаёт черновик и открывает его на вкладке «Изделие»', async ({ page }) => {
+  const calls: MockCall[] = [];
+  await installSupabaseMock(page, { salesOrders: [SALES_ROW], calls });
+  await page.goto('/sales?studio=1');
+  await expect(page.getByText('PH-9001')).toBeVisible();
+
+  // Кнопка в шапке списка: на телефоне меню свёрнуто, кнопку меню проверяет OrderLayout.test
+  await page.getByRole('main').getByRole('button', { name: 'Новый заказ' }).click();
+  // Dev-вход (`dev`, не uuid) своих черновиков в базе не имеет — создаётся новый
+  await expect(page).toHaveURL(/\/sales\/mock-sales-1\?tab=item$/);
+  expect(calls.filter((c) => c.kind === 'rpc' && c.name === 'order_v4_save_full')).toHaveLength(1);
 });
 
 test('мок пишет журнал RPC и Storage', async ({ page }) => {
@@ -41,6 +64,29 @@ test('мок пишет журнал RPC и Storage', async ({ page }) => {
 
   expect(calls).toContainEqual(expect.objectContaining({ kind: 'rpc', name: 'erp_create_order' }));
   expect(calls).toContainEqual(expect.objectContaining({ kind: 'storage', name: 'order-artworks/t/a.txt' }));
+});
+
+test('мок сохранения v4 отвечает как сервер миграции D: ревизия клиента и версия заказа', async ({ page }) => {
+  await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
+  await page.goto('/?studio=1');
+
+  const r = await page.evaluate(async (created) => {
+    const { saveSalesOrder } = await import('/src/orderstudio/api/salesOrders.ts');
+    const noRev = await saveSalesOrder({ id: 'sales-1' });
+    const first = await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: created });
+    const stale = await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: created });
+    const next = first.ok
+      ? await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: first.saved.updated_at })
+      : null;
+    const fresh = await saveSalesOrder({ id: null, client_rev: 3 });
+    return { noRev, first, stale, next, fresh };
+  }, FX_CREATED);
+
+  expect(r.noRev).toEqual({ ok: false, kind: 'outdated', message: 'Вышло обновление — обновите страницу, правка не сохранена' });
+  expect(r.first).toMatchObject({ ok: true, saved: { id: 'sales-1', order_number: 'PH-9001' } });
+  expect(r.stale).toEqual({ ok: false, kind: 'conflict', message: 'Заказ изменён в другой вкладке — обновите страницу' });
+  expect(r.next).toMatchObject({ ok: true });
+  expect(r.fresh).toMatchObject({ ok: true, saved: { id: 'mock-sales-1' } });
 });
 
 test('мок Storage различает sign, list, move, copy и загрузку', async ({ page }) => {
@@ -98,6 +144,5 @@ test('старые адреса', async ({ page }) => {
   await expect(page).toHaveURL(/\/sales(\?|$)/);
 
   await page.goto('/print?studio=1');
-  await expect(page).toHaveURL(/\/(\?.*)?$/);
-  expect(new URL(page.url()).pathname).toBe('/');
+  await expect(page).toHaveURL(/\/sales(\?|$)/);
 });

@@ -7,7 +7,9 @@ function PriceBadge({ price }) {
   return <span className="extra-price">+{price} ₽</span>;
 }
 
-export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtra }) {
+/** `readOnly` — обработки видны, отметка закрыта (`aria-disabled`) */
+export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtra, readOnly = false }) {
+  const toggle = (code) => { if (!readOnly) toggleExtra(code); };
   const [showExtras, setShowExtras] = useState(false);
   const totalExtrasCost = calcExtrasCost(extras, extrasCatalog);
   let availableExtras = extrasCatalog.filter(e => !e.forCategories?.length || e.forCategories.includes(sku.category));
@@ -44,8 +46,9 @@ export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtr
                       tabIndex={0}
                       aria-checked={sel}
                       aria-label={e.name}
-                      onClick={() => toggleExtra(e.code)}
-                      onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleExtra(e.code); } }}
+                      aria-disabled={readOnly || undefined}
+                      onClick={() => toggle(e.code)}
+                      onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(e.code); } }}
                       title={desc || e.name}
                     >
                       <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>
@@ -66,8 +69,9 @@ export default function ExtrasAccordion({ sku, extras, extrasCatalog, toggleExtr
                 tabIndex={0}
                 aria-checked={sel}
                 aria-label={e.name}
-                onClick={() => toggleExtra(e.code)}
-                onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleExtra(e.code); } }}
+                aria-disabled={readOnly || undefined}
+                onClick={() => toggle(e.code)}
+                onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(e.code); } }}
                 title={EXTRAS_DESCS[e.code] || e.name}
               >
                 <div className="extra-check">{sel && <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}</div>

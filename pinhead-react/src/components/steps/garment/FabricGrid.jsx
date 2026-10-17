@@ -7,13 +7,12 @@ import { isAccessory } from '../../../utils/pricing';
 import { materialPrice } from '../../../utils/costRules';
 import { searchFabrics } from '../../../utils/materialSearch';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
+import { colorSupplierOf } from '../../../utils/colorSupplier';
 
 const SEARCH_FROM = 6;
 
-/** Поставщик ткани → палитра цветов (раньше «медас» сравнивался с «medastex» и не совпадал никогда) */
-const colorSupplierOf = (supplier) => (supplier === 'Медас' ? 'medastex' : 'cottonprom');
-
-export default function FabricGrid() {
+/** `readOnly` — ткани видны, выбор закрыт (`aria-disabled`) */
+export default function FabricGrid({ readOnly = false }) {
   const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate, skuCatalog } = useStore(
     useShallow(s => ({ type: s.type, fabric: s.fabric, selectFabric: s.selectFabric, setColorSupplier: s.setColorSupplier,
       sku: s.sku, fabricsCatalog: s.fabricsCatalog, colorSupplier: s.colorSupplier, usdRate: s.usdRate, skuCatalog: s.skuCatalog }))
@@ -58,6 +57,7 @@ export default function FabricGrid() {
   if (!fabrics.length && !query.trim()) return null;
 
   const handleSelectFabric = (f) => {
+    if (readOnly) return;
     selectFabric(f.key);
     const catEntry = catalogFabrics.find(cf => cf.code === f.key);
     if (catEntry?.supplier) {
@@ -86,6 +86,7 @@ export default function FabricGrid() {
             role="button"
             tabIndex={0}
             aria-pressed={fabric === f.key}
+            aria-disabled={readOnly || undefined}
             onClick={() => handleSelectFabric(f)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectFabric(f); } }}
           >

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { wizardToSalesItem, salesItemToWizard, colorLabel, colorCodeOf } from './wizardAdapter';
-import type { WizardCatalogs, WizardItem } from './wizardAdapter';
+import { wizardToSalesItem, salesItemToWizard, colorLabel, colorCodeOf, garmentPatch } from './wizardAdapter';
+import type { WizardCatalogs, WizardItem, GarmentSnap } from './wizardAdapter';
 import { defaultItemFields } from '../../store/slices/helpers';
-import { newSalesLabel, newSalesPrint } from '../model/factory';
+import { newSalesItem, newSalesLabel, newSalesPrint } from '../model/factory';
 import { SKU_CATALOG_DEFAULT } from '../../data/skuCatalog';
 import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { ZONES_CATALOG_DEFAULT } from '../../data/constants';
@@ -226,5 +226,99 @@ describe('перенос без потерь цены (16.10)', () => {
     expect(item.prints[0]).toMatchObject({ special: 'puff+metallic', on: 'finished' });
     const patch = tech({ chest: 'embroidery' }, { embZones: { chest: { width_mm: 80, height_mm: 60, mode: 'patch' } } });
     expect(patch.prints[0].garment_kind).toBe('Шеврон');
+  });
+});
+
+describe('буфер позиции → позиция (garmentPatch)', () => {
+  const g = (over: Partial<GarmentSnap> = {}): GarmentSnap => ({
+    sku: SKU, fabric: FABRIC, color: '01-01', colorSupplier: 'medastex',
+    sizes: { ...defaultItemFields.sizes, S: 10 }, customSizes: [], extras: [],
+    fit: SKU.fit || 'regular', clientFabric: false,
+    ...over,
+  });
+  /** Позиция с ручными текстами: их не должна переписать правка размеров */
+  const base = (over: Partial<SalesItem> = {}): SalesItem => newSalesItem({
+    sku_code: SKU.code, product_type: 'Футболка своими словами', fit: 'regular',
+    fabric_code: FABRIC, main_fabric: 'Кулирка, ручной текст', color_supplier: 'Белый / ручной текст',
+    size_grid: { sizes: ['S'], rows: [{ color: 'Белый (01-01)', sizes: { S: 10 } }] },
+    prints: [newSalesPrint({ zone: 'Грудь' })], labels: [newSalesLabel({ label_type: 'brand' })],
+    ...over,
+  });
+  const moreSizes = { ...defaultItemFields.sizes, S: 10, M: 5 };
+
+  it('правка только размеров не трогает ткань, тип и ручной color_supplier', () => {
+    const b = base();
+    const out = garmentPatch(g(), g({ sizes: moreSizes }), b, CAT)!;
+    expect(out).not.toBeNull();
+    expect(out).toMatchObject({
+      main_fabric: 'Кулирка, ручной текст',
+      product_type: 'Футболка своими словами',
+      color_supplier: 'Белый / ручной текст',
+    });
+    expect(out.size_grid).toEqual({ sizes: ['S', 'M'], rows: [{ color: 'Белый (01-01)', sizes: { S: 10, M: 5 } }] });
+  });
+
+  it('цвет свободным текстом сохраняется при правке размеров', () => {
+    const b = base({ size_grid: { sizes: ['S'], rows: [{ color: 'Свой зелёный', sizes: { S: 10 } }] } });
+    const out = garmentPatch(g({ color: '' }), g({ color: '', sizes: moreSizes }), b, CAT)!;
+    expect(out.size_grid.rows).toEqual([{ color: 'Свой зелёный', sizes: { S: 10, M: 5 } }]);
+  });
+
+  it('модель не из каталога сохраняется', () => {
+    const b = base({ sku_code: 'СВОЯ-1', product_type: 'Своя модель', fit: 'oversize' });
+    const out = garmentPatch(g({ sku: null }), g({ sku: null, sizes: moreSizes, extras: ['x'] }), b, CAT)!;
+    expect(out).toMatchObject({ sku_code: 'СВОЯ-1', product_type: 'Своя модель', fit: 'oversize', extras: ['x'] });
+  });
+
+  it('смена модели пишет код, тип и крой', () => {
+    const other = CAT.skuCatalog[0];
+    const out = garmentPatch(g(), g({ sku: other, fit: other.fit || 'regular' }), base(), CAT)!;
+    expect(out).toMatchObject({ sku_code: other.code, product_type: other.name, fit: other.fit || 'regular' });
+  });
+
+  it('смена ткани переписывает main_fabric и color_supplier', () => {
+    const out = garmentPatch(g(), g({ fabric: 'cotton-kulirnaya-100-180' }), base(), CAT)!;
+    expect(out).toMatchObject({
+      fabric_code: 'cotton-kulirnaya-100-180',
+      main_fabric: 'Кулирка, 100% хб, 180 г/м²',
+      color_supplier: 'Белый / ТД Коттон',
+    });
+  });
+
+  it('смена ткани со сбросом цвета не стирает подпись строки', () => {
+    const out = garmentPatch(g(), g({ fabric: 'cotton-kulirnaya-100-180', color: '' }), base(), CAT)!;
+    expect(out.size_grid.rows[0].color).toBe('Белый (01-01)');
+    expect(out.color_supplier).toBe('Белый / ТД Коттон');
+  });
+
+  it('client_fabric — ткань не пишется', () => {
+    const b = base({ client_fabric: true, fabric_code: '', main_fabric: 'Ткань клиента', color_supplier: 'клиент' });
+    expect(garmentPatch(g({ fabric: '' }), g({ fabric: 'cotton-kulirnaya-100-180' }), b, CAT)).toBeNull();
+    const viaBuffer = garmentPatch(g({ clientFabric: true }), g({ clientFabric: true, fabric: 'cotton-kulirnaya-100-180' }), base(), CAT);
+    expect(viaBuffer).toBeNull();
+  });
+
+  it('смена цвета — подпись единственной строки и color_supplier', () => {
+    const out = garmentPatch(g(), g({ color: '15-01' }), base(), CAT)!;
+    expect(out.size_grid.rows).toEqual([{ color: 'Светло-фиолетовый (15-01)', sizes: { S: 10 } }]);
+    expect(out.color_supplier).toBe('Светло-фиолетовый / Медас');
+  });
+
+  it('нанесения и бирки — те же объекты по ссылке', () => {
+    const b = base();
+    const out = garmentPatch(g(), g({ sizes: moreSizes }), b, CAT)!;
+    expect(out.prints).toBe(b.prints);
+    expect(out.labels).toBe(b.labels);
+  });
+
+  it('нет разницы → null', () => {
+    expect(garmentPatch(g(), g(), base(), CAT)).toBeNull();
+    // Разница только в палитре — писать нечего
+    expect(garmentPatch(g(), g({ colorSupplier: 'cottonprom' }), base(), CAT)).toBeNull();
+  });
+
+  it('позиция с несколькими строками сетки не пишется', () => {
+    const b = base({ size_grid: { sizes: ['S'], rows: [{ color: 'A', sizes: { S: 1 } }, { color: 'B', sizes: { S: 2 } }] } });
+    expect(garmentPatch(g(), g({ sizes: moreSizes }), b, CAT)).toBeNull();
   });
 });

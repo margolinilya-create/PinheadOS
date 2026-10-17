@@ -3,8 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { useAuthStore } from './store/useAuthStore';
-import { useStore } from './store/useStore';
 import { setFeature, clearFeature } from './config/features';
+import { switchToProduction } from './orderstudio/switchToProduction';
 
 // Mock catalogs loader
 vi.mock('./lib/catalogs', () => ({
@@ -31,6 +31,7 @@ vi.mock('./lib/supabase', () => ({
       update: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null }),
@@ -46,10 +47,8 @@ vi.mock('agentation', () => ({
   Agentation: () => null,
 }));
 
-// Mock useDraft
-vi.mock('./hooks/useDraft', () => ({
-  useDraft: () => ({ draftStatus: 'idle', resetDraft: vi.fn() }),
-}));
+// Переход в «Производство» перезагружает страницу — в jsdom навигации нет
+vi.mock('./orderstudio/switchToProduction', () => ({ switchToProduction: vi.fn() }));
 
 // Mock pricing
 vi.mock('./utils/pricing', () => ({
@@ -203,36 +202,35 @@ describe('App', () => {
     expect(screen.getByText('Производство')).toBeInTheDocument();
   });
 
-  it('shows main wizard for authenticated admin when orderStudio flag is on', async () => {
+  it('при флаге orderStudio admin попадает в список заказов', async () => {
     setFeature('orderStudio', true);
     useAuthStore.setState({
-      user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
-      logout: vi.fn(),
-    });
-    useStore.setState({ step: 0 });
-    renderApp();
-    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
-  });
-
-  it('показывает визард менеджеру при флаге orderStudio (старой шапки нет)', async () => {
-    setFeature('orderStudio', true);
-    useAuthStore.setState({
-      user: { id: '1', role: 'manager', email: 'test@test.com', approved: true },
+      user: { id: '1', role: 'admin', email: 'test@test.com', approved: true, active: true, is_sales: false },
       logout: vi.fn(),
     });
     renderApp();
-    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
-    expect(screen.queryByText('Заказы')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Все заказы' })).toBeInTheDocument(), { timeout: 10000 });
   });
 
-  it('redirects unknown routes to home (orderStudio flag on)', async () => {
+  it('менеджер без признака продавца при флаге orderStudio уходит в «Производство»', async () => {
+    setFeature('orderStudio', true);
+    vi.mocked(switchToProduction).mockClear();
+    useAuthStore.setState({
+      user: { id: '1', role: 'manager', email: 'test@test.com', approved: true, active: true, is_sales: false },
+      logout: vi.fn(),
+    });
+    renderApp();
+    await waitFor(() => expect(switchToProduction).toHaveBeenCalledTimes(1), { timeout: 10000 });
+    expect(screen.queryByRole('navigation', { name: 'Разделы заказа' })).toBeNull();
+  });
+
+  it('redirects unknown routes to the order list (orderStudio flag on)', async () => {
     setFeature('orderStudio', true);
     useAuthStore.setState({
-      user: { id: '1', role: 'admin', email: 'test@test.com', approved: true },
+      user: { id: '1', role: 'admin', email: 'test@test.com', approved: true, active: true, is_sales: false },
       logout: vi.fn(),
     });
     renderApp('/unknown-route');
-    // Should redirect and show wizard
-    await waitFor(() => expect(screen.getByText('ИЗДЕЛИЕ')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Все заказы' })).toBeInTheDocument(), { timeout: 10000 });
   });
 });

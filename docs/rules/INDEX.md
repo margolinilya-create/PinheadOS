@@ -32,6 +32,7 @@
 - `pravila-erp-pred-prodakshen-audit-22-08-sessiya-35.md`
 - `pravila-kataloga-sku-v-erp-pravka-14-09-p-6-pr-3-sessiya-61.md`
 - `pravila-hvostov-obzora-24-09-sessiya-68.md`  ← стражи на исключениях: семь из девяти; ссылка `on delete set null` у таблицы со стражем — ветка «родитель удалён»
+- `pravila-rabochego-mesta-i-revizii-klienta-veha-3-17-10.md`  ← Order v4, веха 3: `SALES_CLIENT_REV` — пара «клиент + миграция», миграция после выкладки фронта, откат фронта — сначала откат миграции; `expected_updated_at`, конечные состояния сохранения, буфер позиции `useStore`, `profiles.is_sales`, бюджет оболочки ERP на разбиении чанков
 - `pravila-obzora-26-09-sessiya-69.md`  ← пакет оболочки — первый кадр; коалесценция realtime; один init; сторожа в node; индекс снимается по статистике, не по имени
 - `pravila-pravok-27-09-sessiya-72.md`  ← действие чужой роли делает сервер под меткой; гейт завершения и на прямом переходе в done; сигнатура с default требует drop прежней
 - `pravila-metrov-27-09-sessiya-72.md`  ← invoker наследует права вызывающего: отозванный EXECUTE и RLS дочерней таблицы видны только пробой от лица роли; у журнала один писатель под меткой транзакции; сервер проверяет, чей объект трогает RPC (сверка 28.09)

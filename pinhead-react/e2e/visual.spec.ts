@@ -1,5 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { installSupabaseMock } from './support/mockSupabase';
+import { test, expect, type Locator, type Page } from '@playwright/test';
+import { installSupabaseMock, FX_CREATED } from './support/mockSupabase';
 
 /**
  * Visual-регрешн ключевых экранов.
@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_TIME);
 });
 
-async function shoot(page: Page, name: string) {
+async function shoot(page: Page, name: string, target?: Locator) {
   /**
    * КУРСОР УВОДИТСЯ ИЗ УГЛА ПЕРЕД СНИМКОМ (правка 22.09).
    *
@@ -40,8 +40,14 @@ async function shoot(page: Page, name: string) {
    * Теперь причина убрана в корне, и потолок вернулся к 40.
    */
   await page.mouse.move(2000, 2000);
-  await expect(page).toHaveScreenshot(`${name}.png`, {
-    fullPage: true,
+  /*
+   * `target` — снимок ЭЛЕМЕНТА, а не страницы. Нужен оболочке Order: там
+   * прокручивается `.orderMain`, а не окно, и `fullPage` снял бы ровно
+   * высоту окна — то же, что без него, только с ложным обещанием «всё».
+   */
+  const subject = target ?? page;
+  await expect(subject).toHaveScreenshot(`${name}.png`, {
+    ...(target ? {} : { fullPage: true }),
     threshold: 0.15,
     /**
      * ДОПУСК НА РАССЫПАННОЕ СГЛАЖИВАНИЕ. Прогоны 04.09 дважды подряд валили
@@ -183,4 +189,47 @@ test('visual: studio-sku', async ({ page }) => {
   await page.goto('/sku?studio=1');
   await expect(page.getByText('Каталог SKU')).toBeVisible();
   await shoot(page, 'studio-sku');
+});
+
+/**
+ * Рабочее место заказа v4 (`/sales/:id`, веха 3): вкладка «Изделие» —
+ * список позиций и панели визарда. Снимается прокручиваемый контейнер
+ * оболочки (`main#main-content`, класс `.orderMain`), а не страница:
+ * окно в оболочке Order не прокручивается. Эталоны (desktop/mobile)
+ * снимает владелец — `update_snapshots` визуальной джобы CI.
+ */
+test('visual: studio-workplace', async ({ page }) => {
+  const id = '6f1c2d3e-0000-4000-8000-0000000000ee';
+  // Мок из beforeEach перекрывается: Playwright отдаёт запрос последнему перехватчику
+  await installSupabaseMock(page, {
+    salesOrders: [{
+      id,
+      schema_version: 4,
+      order_number: 'PH-9100',
+      title: 'Худи для команды',
+      customer: 'ООО Тест',
+      status: 'draft',
+      kind: 'run',
+      price_total: null,
+      due_date: null,
+      updated_at: FX_CREATED,
+      created_by: null,
+      order_items: [{
+        id: '6f1c2d3e-0000-4000-8000-0000000000e1',
+        kind: 'sku',
+        sku_code: 'H-002',
+        product_type: 'Худи',
+        size_grid: { sizes: ['M', 'L'], rows: [{ color: 'Чёрный (40-01)', sizes: { M: 10, L: 5 } }] },
+        extras: [],
+        sort_order: 0,
+        order_item_prints: [],
+        order_item_labels: [],
+      }],
+      order_notes_cards: [],
+    }],
+  });
+  await page.goto(`/sales/${id}?tab=item&studio=1`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('PH-9100 · ООО Тест');
+  await expect(page.getByRole('spinbutton', { name: 'Размер M', exact: true })).toHaveValue('10');
+  await shoot(page, 'studio-workplace', page.locator('#main-content'));
 });

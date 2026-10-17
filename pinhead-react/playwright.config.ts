@@ -145,7 +145,7 @@ export default defineConfig({
       // прокрутка внутри доски и проход из выезжающего меню проверяются
       // в erp-mobile.spec.ts — своим сценарием, а не desktop-разметкой
       testIgnore: [
-        /erp-queue\.spec\.ts/, /wizard-flow\.spec\.ts/, /routes-smoke\.spec\.ts/,
+        /erp-queue\.spec\.ts/, /routes-smoke\.spec\.ts/,
         /erp-tablet\.spec\.ts/, /erp-plan\.spec\.ts/,
         // erp-audit проверяет десктопную таблицу заказов, сортируемые
         // заголовки и вкладки карточки — на 375px этой разметки нет

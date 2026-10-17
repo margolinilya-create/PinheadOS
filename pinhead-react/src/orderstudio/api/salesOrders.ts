@@ -2,8 +2,10 @@
  * Order v4 ↔ база (срез 1). Таблицы — миграция 20260928213529_orders_v4:
  * `orders` (schema_version = 4) + `order_items` / `order_item_prints` /
  * `order_item_labels`, с вехи 2 (миграция 20261017053703_order_v4_tz_fields) —
- * поля ТЗ и `order_notes_cards`; запись — одним RPC `order_v4_save` (транзакция,
- * RLS вызывающего). Чтение — вложенным select PostgREST.
+ * поля ТЗ и `order_notes_cards`; запись — одним RPC `order_v4_save_full`
+ * (транзакция, RLS вызывающего; с вехи 3 — ревизия клиента и проверка
+ * конкурентной правки, миграция D `…_order_v4_client_rev`). Чтение — вложенным
+ * select PostgREST.
  *
  * Перевод строк в модель и обратно — чистые функции (`rowToSalesOrder`,
  * `salesOrderToPayload`), вызовы — тонкие обёртки: ошибка Supabase →
@@ -52,9 +54,13 @@ export interface SalesOrderListRow {
   price_total: number | null;
   due_date: string | null;
   updated_at: string | null;
+  /** Автор заказа (`auth.uid()` при создании) — фильтр «Мои» у руководства */
+  created_by: string | null;
+  /** «Менеджер» шапки — колонка списка у руководства */
+  manager_name: string | null;
 }
 
-const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at';
+const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at, created_by, manager_name';
 /**
  * Связи названы явно (`!fkey`): у `order_notes_cards` два внешних ключа —
  * к заказу и составной к позиции, и без подсказки PostgREST мог бы счесть
@@ -234,8 +240,16 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     launch_by: r.launch_by ?? null,
     launched_at: r.launched_at ?? null,
     launched_by: r.launched_by ?? null,
+    updated_at: r.updated_at ?? null,
   });
 }
+
+/**
+ * Ревизия клиента: сервер (миграция D) отказывает сохранению с меньшей —
+ * вкладка, открытая до выкладки, не сотрёт поля, о которых не знает.
+ * Поднимать, когда payload получает поле, которое старый клиент затёр бы.
+ */
+export const SALES_CLIENT_REV = 3;
 
 /**
  * Заказ → аргумент `order_v4_save`. Цена — снимок расчёта на момент
@@ -243,10 +257,16 @@ export function rowToSalesOrder(r: Row): SalesOrder {
  *
  * Шапка перечислена поимённо: служебные поля (статус, оплата, отправка,
  * запуск, связь с ERP) пишут только RPC, и в payload их нет вовсе.
+ *
+ * `expected_updated_at` — версия заказа, которую видел клиент: сервер сверяет
+ * её со строкой и отказывает, если заказ успели сохранить из другой вкладки.
+ * У нового заказа (и у строки без версии) ключа нет — сверять не с чем.
  */
 export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null): Row {
   const byKey = new Map((price?.items ?? []).map((p) => [p.key, p]));
   return {
+    client_rev: SALES_CLIENT_REV,
+    ...(order.id && order.updated_at ? { expected_updated_at: order.updated_at } : {}),
     id: order.id || null,
     kind: order.kind,
     parent_id: order.parent_id,
@@ -303,6 +323,43 @@ export async function fetchSalesOrders(): Promise<SalesOrderListRow[] | null> {
   return (data ?? []) as SalesOrderListRow[];
 }
 
+/** Ответ поиска своего пустого черновика: `ok: false` — запрос упал (тост уже показан) */
+export type OwnDraftLookup = { ok: true; id: string | null } | { ok: false };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Свой пустой черновик — расчёт без позиций и без клиента, заведённый мной.
+ * «Новый заказ» открывает его вместо второго пустого (решение контроллера):
+ * иначе каждый промах по кнопке оставлял бы в списке пустышку.
+ *
+ * Условия проверяются и здесь, после ответа: выборка — подсказка базе,
+ * а решение «пустой» принимает клиент по тем же полям, что видит человек.
+ * Профиль без uuid (режим разработки, `dev`) черновиков в базе не имеет.
+ */
+export async function findOwnEmptyDraft(uid: string): Promise<OwnDraftLookup> {
+  if (!UUID.test(uid)) return { ok: true, id: null };
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, customer, status, created_by, order_items!order_items_order_id_fkey(id)')
+    .eq('schema_version', 4)
+    .eq('status', 'draft')
+    .eq('created_by', uid)
+    .is('archived_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    console.error('findOwnEmptyDraft', error);
+    toast.error('Не удалось проверить черновики — новый заказ не создан');
+    return { ok: false };
+  }
+  const empty = ((data ?? []) as Row[]).find((r) => r.status === 'draft'
+    && r.created_by === uid
+    && !str(r.customer).trim()
+    && (r.order_items ?? []).length === 0);
+  return { ok: true, id: empty?.id ?? null };
+}
+
 export async function fetchSalesOrder(id: string): Promise<SalesOrder | null> {
   const { data, error } = await supabase
     .from('orders')
@@ -328,19 +385,49 @@ export interface SaveResult {
   updated_at: string;
 }
 
+/** Почему сохранение не прошло — от этого зависит, что делать карточке */
+export type SaveFailure = 'outdated' | 'conflict' | 'locked' | 'other';
+
+export type SaveOutcome =
+  | { ok: true; saved: SaveResult }
+  | { ok: false; kind: SaveFailure; message: string };
+
+/**
+ * Вид отказа — по коду и тексту сервера (миграции D и B):
+ * - `P0001` «Вышло обновление…» — вкладка старше сервера (`outdated`);
+ * - `P0001` «…изменён в другой вкладке…» — заказ сохранили из другой вкладки (`conflict`);
+ * - `42501` «…правка закрыта» — заказ отправлен в работу (`locked`);
+ * - остальное (сеть, RLS, пути файлов) — `other`.
+ */
+export function saveFailureKind(error: { code?: string | null; message?: string | null } | null): SaveFailure {
+  const code = error?.code ?? '';
+  const message = error?.message ?? '';
+  if (code === 'P0001' && message.includes('Вышло обновление')) return 'outdated';
+  if (code === 'P0001' && message.includes('изменён в другой вкладке')) return 'conflict';
+  if (code === '42501' && message.includes('правка закрыта')) return 'locked';
+  return 'other';
+}
+
 /**
  * Без тоста: автосохранение само решает, как показать сбой (статус карточки).
+ * Отказ возвращается с видом и текстом сервера — устаревшая вкладка и правка
+ * из другой вкладки требуют обновить страницу, а не повторять запись.
  *
  * Один RPC `order_v4_save_full` — заказ и дни срочности одной транзакцией.
  * Прежде было два вызова подряд, и сбой второго оставлял первый записанным:
  * новый заказ появлялся в базе, а клиент терял его id и при повторе создавал
  * ещё один (16.10).
  */
-export async function saveSalesOrder(payload: Row): Promise<SaveResult | null> {
-  const { data, error } = await supabase.rpc('order_v4_save_full', { p_order: payload });
-  if (error) {
-    console.error('order_v4_save_full', error);
-    return null;
+export async function saveSalesOrder(payload: Row): Promise<SaveOutcome> {
+  try {
+    const { data, error } = await supabase.rpc('order_v4_save_full', { p_order: payload });
+    if (error) {
+      console.error('order_v4_save_full', error);
+      return { ok: false, kind: saveFailureKind(error), message: error.message ?? '' };
+    }
+    return { ok: true, saved: data as SaveResult };
+  } catch (e) {
+    console.error('order_v4_save_full', e);
+    return { ok: false, kind: 'other', message: e instanceof Error ? e.message : String(e) };
   }
-  return data as SaveResult;
 }

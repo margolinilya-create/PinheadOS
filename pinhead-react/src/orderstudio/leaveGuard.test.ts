@@ -1,41 +1,55 @@
 import { describe, it, expect } from 'vitest';
-import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard';
-
-describe('shouldBlockLeave — диалог «Заказ не сохранён»', () => {
-  it('уход с визарда с недоделанным заказом — спросить', () => {
-    expect(shouldBlockLeave({ step: 1, saved: false, from: '/', to: '/orders' })).toBe(true);
-  });
-  it('навигация внутри «Заказов v4» при недоделанном заказе на главной — не спрашивать', () => {
-    expect(shouldBlockLeave({ step: 3, saved: false, from: '/sales', to: '/sales/o-1' })).toBe(false);
-    expect(shouldBlockLeave({ step: 3, saved: false, from: '/sales/o-1', to: '/sales/o-1/item/new' })).toBe(false);
-  });
-  it('шаг 0, сохранённый заказ, тот же адрес — не спрашивать', () => {
-    expect(shouldBlockLeave({ step: 0, saved: false, from: '/', to: '/orders' })).toBe(false);
-    expect(shouldBlockLeave({ step: 2, saved: true, from: '/', to: '/orders' })).toBe(false);
-    expect(shouldBlockLeave({ step: 2, saved: false, from: '/', to: '/' })).toBe(false);
-  });
-});
+import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard';
 
 describe('shouldBlockSalesLeave — уход с карточки v4 после сбоя сохранения', () => {
   it('сбой сохранения и уход в список — спросить', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales/o-1', to: '/sales' })).toBe(true);
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales/o-1', to: '/sales/o-2' })).toBe(true);
   });
-  it('визард позиции того же заказа — не уход', () => {
+  it('вложенный адрес того же заказа — не уход', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales/o-1', to: '/sales/o-1/item/new' })).toBe(false);
+  });
+  it('outdated и conflict — запись остановлена, правки только в карточке: спросить', () => {
+    for (const saveState of ['outdated', 'conflict']) {
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales/o-1', to: '/sales' })).toBe(true);
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales/o-1', to: '/sales/o-1/item/new' })).toBe(false);
+      expect(shouldBlockSalesLeave({ saveState, from: '/sales', to: '/' })).toBe(false);
+    }
+  });
+  it('locked — правка закрыта, терять нечего: не спрашиваем', () => {
+    expect(shouldBlockSalesLeave({ saveState: 'locked', from: '/sales/o-1', to: '/sales' })).toBe(false);
   });
   it('без сбоя не спрашиваем: несохранённое догоняет flush при уходе', () => {
     expect(shouldBlockSalesLeave({ saveState: 'dirty', from: '/sales/o-1', to: '/sales' })).toBe(false);
-    expect(shouldBlockSalesLeave({ saveState: 'saved', from: '/sales/o-1', to: '/sales' })).toBe(false);
+    expect(shouldBlockSalesLeave({ saveState: 'clean', from: '/sales/o-1', to: '/sales' })).toBe(false);
   });
   it('уход не с карточки — не наше дело', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales', to: '/' })).toBe(false);
   });
 });
 
+describe('salesLeaveDialogText — текст диалога ухода', () => {
+  it('outdated и conflict — скопировать и обновить страницу', () => {
+    const text = 'Правка не сохранена — скопируйте изменения и обновите страницу. Уйти без сохранения?';
+    expect(salesLeaveDialogText('outdated')).toBe(text);
+    expect(salesLeaveDialogText('conflict')).toBe(text);
+  });
+  it('error — прежний текст про повтор после восстановления связи', () => {
+    expect(salesLeaveDialogText('error')).toBe(
+      'Последнее сохранение не удалось. Если уйти сейчас, правки потеряются — останьтесь и повторите после восстановления связи.',
+    );
+  });
+});
+
 describe('salesHasUnsaved — предупреждение при закрытии вкладки', () => {
   it('правка не ушла или ушла с ошибкой', () => {
     expect(['dirty', 'saving', 'error'].every(salesHasUnsaved)).toBe(true);
-    expect(['idle', 'saved'].some(salesHasUnsaved)).toBe(false);
+    expect(salesHasUnsaved('clean')).toBe(false);
+  });
+  it('outdated и conflict — правки в карточке так и не ушли: предупредить', () => {
+    expect(['outdated', 'conflict'].every(salesHasUnsaved)).toBe(true);
+  });
+  it('locked — правка закрыта, терять нечего', () => {
+    expect(salesHasUnsaved('locked')).toBe(false);
   });
 });

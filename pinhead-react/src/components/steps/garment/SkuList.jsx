@@ -52,7 +52,7 @@ function PhotoLightbox({ photos, startIdx, onClose }) {
   );
 }
 
-function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabricCode }) {
+function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabricCode, readOnly }) {
   // Состав, плотность и поставщик — из ткани, а не зашитым текстом (правка 13.10)
   const desc = skuDescription(s, fabricCode, fabricsCatalog);
   const photos = s.photos || [];
@@ -121,7 +121,7 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabric
 
         <div>
           <span className="garment-expand-price">от {est.toLocaleString('ru-RU')} ₽</span>
-          <button className="garment-expand-select" onClick={e => { e.stopPropagation(); onSelect(s); }}>Выбрать</button>
+          {!readOnly && <button className="garment-expand-select" onClick={e => { e.stopPropagation(); onSelect(s); }}>Выбрать</button>}
         </div>
       </div>
       {lightbox !== null && photos.length > 0 && (
@@ -131,7 +131,13 @@ function ExpandPanel({ s, fabricsCatalog, trimCatalog, usdRate, onSelect, fabric
   );
 }
 
-export default function SkuList() {
+/**
+ * Список моделей. `readOnly` — выбор закрыт (заказ не черновик): строки
+ * раскрываются для просмотра, но модель не меняется. `reorderable` —
+ * перетаскивание строк с записью порядка в каталог (`app_config`): в рабочем
+ * месте заказа выключено, порядок каталога правит админка, а не менеджер.
+ */
+export default function SkuList({ readOnly = false, reorderable = true }) {
   const { skuCatalog, skuFilter, setSkuFilter, selectSku, reorderSku, sku, fabric, fabricsCatalog, trimCatalog, usdRate } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, skuFilter: s.skuFilter, setSkuFilter: s.setSkuFilter,
       selectSku: s.selectSku, reorderSku: s.reorderSku, sku: s.sku, fabric: s.fabric, fabricsCatalog: s.fabricsCatalog,
@@ -194,6 +200,7 @@ export default function SkuList() {
   };
 
   const handleSelect = (s) => {
+    if (readOnly) return;
     selectSku(s);
     setExpandedCode(null);
   };
@@ -243,16 +250,19 @@ export default function SkuList() {
                   <div key={s.code}>
                     <div
                       className={`garment-row${isSelected ? ' selected' : ''}${isExpanded ? ' expanded' : ''}${dragOver === s.code ? ' drag-target' : ''}`}
-                      draggable
+                      draggable={reorderable}
                       role="button"
                       tabIndex={0}
                       aria-pressed={isSelected}
                       aria-expanded={isExpanded}
-                      onDragStart={e => onDragStart(e, s.code)}
-                      onDragEnd={onDragEnd}
-                      onDragOver={e => onDragOverRow(e, s.code)}
-                      onDragLeave={onDragLeaveRow}
-                      onDrop={e => onDropRow(e, s.code)}
+                      aria-disabled={readOnly || undefined}
+                      {...(reorderable ? {
+                        onDragStart: e => onDragStart(e, s.code),
+                        onDragEnd,
+                        onDragOver: e => onDragOverRow(e, s.code),
+                        onDragLeave: onDragLeaveRow,
+                        onDrop: e => onDropRow(e, s.code),
+                      } : {})}
                       onClick={() => handleRowClick(s)}
                       onDoubleClick={() => handleSelect(s)}
                       onKeyDown={e => {
@@ -281,6 +291,7 @@ export default function SkuList() {
                           trimCatalog={trimCatalog}
                           usdRate={usdRate}
                           onSelect={handleSelect}
+                          readOnly={readOnly}
                         />
                       )}
                     </div>

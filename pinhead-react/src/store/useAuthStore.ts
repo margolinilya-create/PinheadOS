@@ -28,7 +28,7 @@ const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === '1';
 
 const DEV_USER: User = {
   id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode',
-  role: 'admin', approved: true, active: true,
+  role: 'admin', approved: true, active: true, is_sales: false,
 };
 
 /**
@@ -195,7 +195,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     let error: { message: string } | null = null;
     try {
       ({ data, error } = await supabase.from('profiles')
-      .select('name, role, approved, active').eq('id', id).maybeSingle());
+      .select('*').eq('id', id).maybeSingle());
     } catch (e) {
       // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS)
       error = { message: networkFailureMessage(e) };
@@ -214,7 +214,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const approved = data.approved === true;
       const status: ProfileStatus = !active ? 'disabled' : approved ? 'active' : 'pending_approval';
       set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active },
+        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active, is_sales: data.is_sales === true },
         profileStatus: status,
         loading: false,
         error: null,

@@ -16,8 +16,9 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('Dark mode', () => {
   test('theme toggle switches to dark mode', async ({ page }) => {
+    // `/` раздела «ТЗ» — список заказов (веха 3: визард v3 убран)
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Все заказы' })).toBeVisible();
 
     // Кнопка темы ищется по роли и подписи: класс уехал в CSS-модуль
     // (`styles['theme-toggle']` → хэш), и селектор по классу перестал совпадать.

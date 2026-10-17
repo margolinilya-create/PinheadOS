@@ -252,4 +252,9 @@ export interface SalesOrder {
   launch_by: string | null;
   launched_at: string | null;
   launched_by: string | null;
+  /**
+   * Версия строки `orders.updated_at` (с чтения или из ответа сохранения):
+   * уходит в сохранение как `expected_updated_at`. У несохранённого — null
+   */
+  updated_at: string | null;
 }

@@ -204,7 +204,14 @@ describe('storageClearAll — полнота списка ключей', () => {
      */
     const USED_AS_KEY = /(?:storageGet|storageSet|storageRemove|sessionGet|sessionSet|sessionRemove|localStorage\.\w+|sessionStorage\.\w+)\s*(?:<[^>]*>)?\(\s*([A-Z][A-Z0-9_]*)\b/g;
 
-    /** имя константы → её значение (по всем файлам, объявление и вызов часто врозь) */
+    /**
+     * имя константы → ВСЕ её значения по файлам (объявление и вызов часто
+     * врозь). Значения копятся, а не перезаписываются: `STORAGE_KEY` объявлен
+     * в нескольких модулях, и с картой «имя → одно значение» последний файл
+     * обхода прятал ключи остальных. Так `erp_offline_queue` (STORAGE_KEY
+     * очереди ERP) прятался за `pinhead_draft` (STORAGE_KEY автосохранения
+     * визарда) — всплыл, когда визард убрали (веха 3, 17.10).
+     */
     const constValues = new Map();
     const constUsedAsKey = new Set();
 
@@ -221,7 +228,7 @@ describe('storageClearAll — полнота списка ключей', () => {
         }
         KEY_CONST.lastIndex = 0;
         let c;
-        while ((c = KEY_CONST.exec(src)) !== null) constValues.set(c[1], c[2]);
+        while ((c = KEY_CONST.exec(src)) !== null) constValues.set(c[1], [...(constValues.get(c[1]) ?? []), c[2]]);
         USED_AS_KEY.lastIndex = 0;
         let u;
         while ((u = USED_AS_KEY.exec(src)) !== null) constUsedAsKey.add(u[1]);
@@ -230,8 +237,8 @@ describe('storageClearAll — полнота списка ключей', () => {
     // globalThis.process, а не голый process: конфиг ESLint здесь браузерный.
     // import.meta.url не годится — Vite переписывает его, и это не file:-URL.
     walk(join(globalThis.process.cwd(), 'src'));
-    for (const [name, value] of constValues) {
-      if (constUsedAsKey.has(name)) found.add(value);
+    for (const [name, values] of constValues) {
+      if (constUsedAsKey.has(name)) for (const value of values) found.add(value);
     }
     return [...found];
   }

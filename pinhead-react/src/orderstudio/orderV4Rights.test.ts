@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { SALES_CLIENT_REV, saveFailureKind } from './api/salesOrders';
 
 /**
  * СТОРОЖ ПРАВ ORDER V4 (веха 2, миграция B `…_order_v4_rights.sql`).
@@ -113,9 +114,10 @@ const BASE_ORDER_COLUMNS = [
 ];
 const V4_SINCE = '20260928213529';
 
-/** Нарушения парности метки режима RPC в теле функции */
-function rpcMarkProblems(body: string): string[] {
-  const marks = [...body.matchAll(/set_config\(\s*'order_v4\.rpc'\s*,\s*'(on|off)'/g)].map((x) => x[1]);
+/** Нарушения парности метки режима RPC (`order_v4.rpc`, `sales.rpc`) в теле функции */
+function rpcMarkProblems(body: string, key = 'order_v4.rpc'): string[] {
+  const re = new RegExp(`set_config\\(\\s*'${key.replace('.', '\\.')}'\\s*,\\s*'(on|off)'`, 'g');
+  const marks = [...body.matchAll(re)].map((x) => x[1]);
   const problems: string[] = [];
   let open = false;
   for (const mark of marks) {
@@ -271,7 +273,174 @@ describe('миграция B: права Order v4', () => {
   });
 });
 
+/**
+ * МИГРАЦИЯ E (веха 3, `…_sales_staff_flag.sql`): продавец — явный признак
+ * `profiles.is_sales`. Держим то, что ломается молча:
+ *   · последняя редакция `sales_is_seller()` смотрит на признак, а не на роль
+ *     (иначе начальники цехов с профилем manager снова продавцы);
+ *   · признак меняет только `sales_set_staff` (admin/director) — страж
+ *     `profiles` верит метке `sales.rpc` только вне клиентских ролей (authenticated, anon), метка
+ *     парная; исключение у стража ровно одно — `is_sales`;
+ *   · revoke у каждой функции, триггер закрыт и от authenticated.
+ */
+const staffFile = files.filter((f) => f.endsWith('_sales_staff_flag.sql')).at(-1);
+if (!staffFile) throw new Error('нет миграции *_sales_staff_flag.sql');
+const STAFF = read(staffFile);
+
+/** Колонки строки, которые читает тело стража (`new.x` / `old.x`) */
+const rowColumnsOf = (body: string) =>
+  [...new Set([...noComments(body).matchAll(/\b(?:new|old)\.([a-z_]+)/g)].map((m) => m[1]))].sort();
+
+describe('миграция E: признак «Менеджер продаж»', () => {
+  const fns = functionsOf(STAFF);
+  const fn = (n: string) => fns.find((f) => f.name === n);
+
+  it('функции на месте', () => {
+    expect(fns.map((f) => f.name).sort()).toEqual(
+      ['profiles_sales_guard', 'sales_is_seller', 'sales_set_staff', 'sales_staff_list']);
+  });
+
+  it('колонка is_sales — not null default false', () => {
+    expect(noComments(STAFF)).toMatch(
+      /alter table public\.profiles\s+add column if not exists is_sales boolean not null default false;/);
+  });
+
+  it('у каждой функции — revoke execute from public, anon; триггер закрыт и от authenticated', () => {
+    expect(missingRevoke(STAFF)).toEqual([]);
+    expect(STAFF).toMatch(/revoke execute on function public\.profiles_sales_guard\(\) from public, anon, authenticated;/);
+    expect(STAFF).not.toMatch(/grant execute on function public\.profiles_sales_guard\(/);
+    for (const n of ['sales_set_staff\\(uuid, boolean\\)', 'sales_staff_list\\(\\)', 'sales_is_seller\\(\\)']) {
+      expect(STAFF).toMatch(new RegExp(`grant execute on function public\\.${n} to authenticated;`));
+    }
+  });
+
+  it('у каждой security definer — set search_path = public; страж — invoker', () => {
+    const bad = fns.filter((f) => /security definer/.test(f.head) && !/set search_path = public/.test(f.head));
+    expect(bad.map((f) => f.name)).toEqual([]);
+    expect(fn('profiles_sales_guard')?.head).toMatch(/security invoker/);
+    for (const n of ['sales_is_seller', 'sales_set_staff', 'sales_staff_list']) {
+      expect(fn(n)?.head, n).toMatch(/security definer/);
+    }
+  });
+
+  it('последняя редакция sales_is_seller — по признаку, не по роли', () => {
+    expect(latestDefining('sales_is_seller')).toBe(STAFF);
+    const body = fn('sales_is_seller')?.body ?? '';
+    expect(body).toMatch(/p\.is_sales is true/);
+    expect(body).toMatch(/p\.active is true and p\.approved is true/);
+    expect(body).not.toMatch(/p\.role\b/);
+  });
+
+  it('RPC — только admin/director активного одобренного профиля, иначе 42501', () => {
+    for (const n of ['sales_set_staff', 'sales_staff_list']) {
+      const body = fn(n)?.body ?? '';
+      expect(body, n).toMatch(/p\.active is true and p\.approved is true\s+and p\.role in \('admin', 'director'\)\) then\s+raise exception using errcode = '42501'/);
+    }
+  });
+
+  it('метка sales.rpc: только в sales_set_staff и закрыта off', () => {
+    const withMarks = fns.filter((f) => /sales\.rpc'\s*,\s*'on'/.test(f.body));
+    expect(withMarks.map((f) => f.name)).toEqual(['sales_set_staff']);
+    for (const f of fns) expect(rpcMarkProblems(f.body, 'sales.rpc'), f.name).toEqual([]);
+  });
+
+  it('страж верит метке только вне клиентских ролей (authenticated, anon); исключение ровно одно — is_sales', () => {
+    const guard = fn('profiles_sales_guard')?.body ?? '';
+    expect(guard).toMatch(/current_setting\('sales\.rpc', true\)[\s\S]{0,80}current_user not in \('authenticated', 'anon'\)/);
+    expect(rowColumnsOf(guard)).toEqual(['is_sales']);
+    expect(guard).toMatch(/errcode = '42501'/);
+  });
+
+  it('страж висит на INSERT и UPDATE profiles', () => {
+    expect(noComments(STAFF)).toMatch(
+      /create trigger profiles_sales_guard\s+before insert or update on public\.profiles\s+for each row execute function public\.profiles_sales_guard\(\);/);
+    expect(STAFF).toContain('drop trigger if exists profiles_sales_guard on public.profiles;');
+  });
+
+  it('политик не создаёт, DDL по erp_* нет', () => {
+    expect(policiesOf(STAFF)).toEqual([]);
+    expect(noComments(STAFF)).not.toMatch(/\berp_/);
+  });
+});
+
+/**
+ * Проверка ревизии первой строкой; порог — тот же `SALES_CLIENT_REV`, что
+ * шлёт клиент (поднял ревизию в клиенте — подними и в SQL). Группа 1 — текст отказа
+ */
+const CLIENT_REV_CHECK = new RegExp(String.raw`^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < ${SALES_CLIENT_REV} then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';`);
+/** Сверка версии в обёртке; группа 1 — текст отказа */
+const CONFLICT_CHECK = /if found and v_status = 'draft' and v_current is distinct from v_expected then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';/;
+
+/** Тело функции с кодом от первого `begin` — без объявлений и комментариев */
+const codeAfterBegin = (body: string) => noComments(body.slice(body.search(/\bbegin\b/) + 'begin'.length));
+
+describe('миграция D: ревизия клиента и конкурентная правка', () => {
+  const fnOf = (n: string) => functionsOf(latestDefining(n)).find((f) => f.name === n);
+
+  it('обе функции сохранения ПЕРВЫМ делом отказывают клиенту без ревизии 3', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const f = fnOf(n);
+      expect(f, n).toBeTruthy();
+      expect(codeAfterBegin(f?.body ?? ''), n).toMatch(CLIENT_REV_CHECK);
+    }
+  });
+
+  it('обёртка сверяет expected_updated_at со строкой, взятой FOR UPDATE, до записи', () => {
+    const body = noComments(fnOf('order_v4_save_full')?.body ?? '');
+    expect(body).toMatch(/nullif\(p_order->>'expected_updated_at', ''\)::timestamptz/);
+    expect(body).toMatch(/select updated_at, status into v_current, v_status\s+from public\.orders\s+where id = v_id and schema_version = 4\s+for update;/);
+    // не черновик — сверки нет: причину отказа называет страж («правка закрыта»)
+    expect(body).toMatch(CONFLICT_CHECK);
+    expect(body.indexOf('for update')).toBeLessThan(body.indexOf('public.order_v4_save(p_order)'));
+  });
+
+  it('обе остаются invoker и закрыты от anon', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const sql = latestDefining(n);
+      expect(fnOf(n)?.head, n).toMatch(/security invoker/);
+      expect(fnOf(n)?.head, n).not.toMatch(/security definer/);
+      expect(missingRevoke(sql), n).toEqual([]);
+      expect(sql, n).toMatch(new RegExp(`grant execute on function public\\.${n}\\(jsonb\\) to authenticated;`));
+    }
+  });
+
+  it('тексты отказов сервера распознаёт клиент: outdated / conflict / locked', () => {
+    for (const n of ['order_v4_save', 'order_v4_save_full']) {
+      const outdated = codeAfterBegin(fnOf(n)?.body ?? '').match(CLIENT_REV_CHECK)?.[1];
+      expect(outdated, n).toBeTruthy();
+      expect(saveFailureKind({ code: 'P0001', message: outdated })).toBe('outdated');
+    }
+    const conflict = noComments(fnOf('order_v4_save_full')?.body ?? '').match(CONFLICT_CHECK)?.[1];
+    expect(conflict).toBeTruthy();
+    expect(saveFailureKind({ code: 'P0001', message: conflict })).toBe('conflict');
+    // Страж B: отказ правки не-черновика — тот, что клиент зовёт locked
+    const guard = functionsOf(RIGHTS).find((f) => f.name === 'order_v4_guard');
+    const locked = noComments(guard?.body ?? '')
+      .match(/if old\.status is distinct from 'draft' then\s+raise exception using errcode = '42501', message = '([^']+)';/)?.[1];
+    expect(locked).toBeTruthy();
+    expect(saveFailureKind({ code: '42501', message: locked })).toBe('locked');
+  });
+
+  it('самопроверка: проверка не первой строкой или с порогом 2 — красный', () => {
+    const ok = `begin\n  if coalesce((p_order->>'client_rev')::int, 0) < ${SALES_CLIENT_REV} then`
+      + "\n    raise exception using errcode = 'P0001',\n      message = 'Вышло обновление — обновите страницу, правка не сохранена';";
+    expect(codeAfterBegin(ok)).toMatch(CLIENT_REV_CHECK);
+    expect(codeAfterBegin(ok.replace(`< ${SALES_CLIENT_REV}`, `< ${SALES_CLIENT_REV - 1}`))).not.toMatch(CLIENT_REV_CHECK);
+    expect(codeAfterBegin(ok.replace('begin\n', 'begin\n  perform 1;\n'))).not.toMatch(CLIENT_REV_CHECK);
+  });
+});
+
 describe('самопроверка разборщиков', () => {
+  it('rowColumnsOf видит вторую колонку стража', () => {
+    expect(rowColumnsOf('if new.is_sales is distinct from old.is_sales or new.role <> old.role then')).toEqual(['is_sales', 'role']);
+    expect(rowColumnsOf('-- new.role в комментарии\nif new.is_sales then')).toEqual(['is_sales']);
+  });
+
+  it('rpcMarkProblems ловит незакрытую метку sales.rpc', () => {
+    expect(rpcMarkProblems(`perform set_config('sales.rpc', 'on', true); update x;`, 'sales.rpc')).toEqual(['on без off']);
+    expect(rpcMarkProblems(`perform set_config('sales.rpc', 'on', true);`)).toEqual([]);
+  });
+
   it('updatedColumns видит колонку с запятыми в выражении', () => {
     expect(updatedColumns(`update public.orders set a = coalesce(x, 'y'),\n b = 1 where id = 1`)).toEqual(['a', 'b']);
   });

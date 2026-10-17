@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
+import { SALES_CLIENT_REV, packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
 import { newSalesItem, newSalesLabel, newSalesNoteCard, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**
@@ -194,6 +194,25 @@ describe('salesOrderToPayload', () => {
 
   it('новый заказ уходит без id — RPC создаст строку', () => {
     expect(salesOrderToPayload(newSalesOrder()).id).toBeNull();
+  });
+
+  it('ревизия клиента — в каждом сохранении (сервер отказывает устаревшей вкладке)', () => {
+    expect(SALES_CLIENT_REV).toBe(3);
+    expect(salesOrderToPayload(newSalesOrder()).client_rev).toBe(3);
+    expect(salesOrderToPayload(fullOrder()).client_rev).toBe(3);
+  });
+
+  it('версия заказа уходит как expected_updated_at; у нового и у строки без версии ключа нет', () => {
+    const v = '2026-10-17T10:00:00.123456+00:00';
+    expect(salesOrderToPayload(newSalesOrder({ id: 'o-1', updated_at: v })).expected_updated_at).toBe(v);
+    expect(salesOrderToPayload(newSalesOrder({ updated_at: v }))).not.toHaveProperty('expected_updated_at');
+    expect(salesOrderToPayload(newSalesOrder({ id: 'o-1' }))).not.toHaveProperty('expected_updated_at');
+  });
+
+  it('версия читается из строки как есть — строкой, без потери микросекунд', () => {
+    const v = '2026-10-17T10:00:00.123456+00:00';
+    expect(rowToSalesOrder({ id: 'x', updated_at: v }).updated_at).toBe(v);
+    expect(rowToSalesOrder({ id: 'x' }).updated_at).toBeNull();
   });
 
   it('снимок цены — в заказ и в позиции по ключу', () => {

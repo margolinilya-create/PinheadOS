@@ -61,11 +61,11 @@ test.describe('SKU editor', () => {
 });
 
 test.describe('Убранные адреса', () => {
-  test('/analytics и /print ведут на визард', async ({ page }) => {
+  test('/analytics и /print ведут в список заказов', async ({ page }) => {
     for (const old of ['/analytics', '/print']) {
       await page.goto(old);
-      await expect(page).toHaveURL(/\/$/);
-      await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible({ timeout: 10000 });
+      await expect(page).toHaveURL(/\/sales$/);
+      await expect(page.getByRole('heading', { name: 'Все заказы' })).toBeVisible({ timeout: 10000 });
     }
   });
 });

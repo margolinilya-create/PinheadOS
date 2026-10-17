@@ -1,4 +1,4 @@
-import React, { lazy, useEffect, useState, Suspense } from 'react'
+import React, { useEffect, useState, Suspense } from 'react'
 import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
 import styles from '../App.module.css'
 /**
@@ -22,18 +22,12 @@ import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
-import ProgressBar from '../components/layout/ProgressBar'
-import StepGarment from '../components/steps/StepGarment'
-
-// Lazy-load wizard steps 2-5 (rendered only when user advances)
+import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
-const StepDesign = lazy(() => import('../components/steps/StepDesign'));
-const StepItems = lazy(() => import('../components/steps/StepItems'));
-const StepDetails = lazy(() => import('../components/steps/StepDetails'));
-const StepSummary = lazy(() => import('../components/steps/StepSummary'));
-import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
+import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
-import { legacyRedirect } from './layout/orderNav'
+import { canUseSales, legacyRedirect } from './layout/orderNav'
+import { switchToProduction } from './switchToProduction'
 import OrderLayout from './layout/OrderLayout'
 
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
@@ -47,10 +41,12 @@ const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc')
  */
 const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
-// Order v4 (срез 1) — пилот владельца, admin/director
+// Заказы v4: продавцы (`is_sales`) и руководство продаж — `canUseSales`
 const SalesList = React.lazy(() => import('./screens/SalesList'));
-const SalesCard = React.lazy(() => import('./screens/SalesCard'));
-const ItemWizard = React.lazy(() => import('./screens/ItemWizard'));
+// Рабочее место заказа (веха 3): изделия, клиент, ТЗ и цена — ленивый чанк
+const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
+// Менеджеры продаж (веха 3): признак is_sales ставят admin/director
+const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
  * смонтированный один раз в `GlobalHosts` (`App.jsx`). Здесь он висел под
@@ -60,51 +56,33 @@ const ItemWizard = React.lazy(() => import('./screens/ItemWizard'));
  */
 
 /**
- * Старт раздела: черновик визарда и каталоги.
+ * Старт раздела: каталоги и уборка черновика визарда v3.
  *
- * ЖИЛО В `main.jsx` — под проверкой `if (FEATURES.orderStudio)`, но с обычным
- * импортом стора наверху файла. Проверка рантайм, импорт статический: стор
- * Order Studio со всеми слайсами, весь `src/data` (SKU, цвета, ткани, цены,
- * обработки), `utils/pricing` и `lib/catalogs` ехали ВО ВХОДНОМ ЧАНКЕ — то есть
- * каждому, кто открыл «Производство», где этот раздел выключен флагом и не
- * используется ни одной строкой. Ровно тот же класс отказа, что был у CSS
- * Order Studio 22.08: условие в коде есть, а в графе сборки его нет.
+ * ЗДЕСЬ — МОДУЛЬНАЯ ОБЛАСТЬ, А НЕ `main.jsx`: стор Order Studio со всеми
+ * слайсами и каталогами ехал бы во входном чанке каждому, кто открыл только
+ * «Производство» (там раздел выключен флагом). Код модуля выполняется один
+ * раз — при загрузке чанка раздела, до его первого рендера.
  *
- * ЗДЕСЬ — МОДУЛЬНАЯ ОБЛАСТЬ, А НЕ `useEffect`. Эффект выполняется ПОСЛЕ первого
- * рендера: визард успел бы отрисоваться с пустой формой и заполниться следом,
- * то есть черновик мигал бы на глазах. Код модуля выполняется при загрузке
- * чанка раздела, до его первого рендера, — тот же момент, что и в `main.jsx`.
+ * `pinhead_draft` — автосохранение визарда v3 (веха 3: визард убран, решение
+ * владельца 17.10 — старые черновики из браузера удаляются). Удаляется РАЗОВО
+ * при старте раздела; ключ остаётся и в `APP_KEYS` (выход), пометкой «наследие».
  */
-try {
-  const draft = localStorage.getItem('pinhead_draft');
-  if (draft) useStore.getState().restoreFromDraft(JSON.parse(draft));
-} catch {
-  // Битый черновик убираем: иначе он ломает восстановление при каждом старте
-  localStorage.removeItem('pinhead_draft');
-}
+storageRemove('pinhead_draft');
 useStore.getState().loadCatalogs().catch(() => {});
 
-const STEPS = [StepGarment, StepDesign, StepItems, StepDetails, StepSummary];
-
-// Wizard page — main step-based flow
-function WizardPage() {
-  const step = useStore(s => s.step);
-  const CurrentStep = STEPS[step] || StepGarment;
-  return (
-    <>
-      <ProgressBar />
-      <div className="container">
-        <Suspense fallback={<div className="panel-loading">Загрузка...</div>}>
-          <CurrentStep />
-        </Suspense>
-      </div>
-    </>
-  );
+/** Без доступа к заказам v4 — уход в «Производство» (один раз, без рендера маршрутов) */
+function LeaveToProduction() {
+  useEffect(() => { switchToProduction(); }, []);
+  return <LoadingScreen />;
 }
 
-// Role guard — redirects to / if role doesn't match
+/**
+ * Экран не для этой роли — в список заказов. До маршрутов доходят только те,
+ * у кого `canUseSales` (остальных `OrderStudioApp` отправил в «Производство»),
+ * а `/sales` открыт им всем — значит, петли редиректов нет.
+ */
 function RoleGuard({ allowed, children }) {
-  if (!allowed) return <Navigate to="/" replace />;
+  if (!allowed) return <Navigate to="/sales" replace />;
   return children;
 }
 
@@ -117,28 +95,26 @@ function LoadingScreen() {
   );
 }
 
+const Fallback = <div className="panel-loading">Загрузка...</div>;
+
 /**
- * Order Studio — визард оформления заказа + цены (заархивировано за feature-flag).
+ * Раздел «ТЗ»: заказы v4, экспресс-расчёт, каталог и админка.
  * Показывается только при FEATURES.orderStudio === true.
  */
 export default function OrderStudioApp({ user }) {
+  // Профиль без продаж в раздел не входит: ни маршрутов, ни загрузки — сразу «Производство»
+  if (!canUseSales(user)) return <LeaveToProduction />;
+  return <OrderStudioShell user={user} />;
+}
+
+function OrderStudioShell({ user }) {
   const [catalogsReady, setCatalogsReady] = useState(false);
-  // Состояние визарда читается В МОМЕНТ перехода, а не из прошлого рендера:
-  // «Оформить как заказ v4» сбрасывает визард и тут же уходит в карточку —
-  // замыкание рендера ещё видело шаг 4 и показывало «Заказ не сохранён»
-  // (поймано обходом в браузере)
-  const [leaveReason, setLeaveReason] = useState('wizard');
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    const { step, saved } = useStore.getState();
-    const from = currentLocation.pathname;
-    const to = nextLocation.pathname;
-    if (shouldBlockSalesLeave({ saveState: useSalesStore.getState().saveState, from, to })) {
-      setLeaveReason('sales');
-      return true;
-    }
-    setLeaveReason('wizard');
-    return shouldBlockLeave({ step, saved, from, to });
-  });
+  // Состояние сохранения читается В МОМЕНТ перехода, а не из прошлого рендера
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockSalesLeave({
+    saveState: useSalesStore.getState().saveState,
+    from: currentLocation.pathname,
+    to: nextLocation.pathname,
+  }));
 
   useEffect(() => {
     useStore.getState().loadCatalogs().finally(() => setCatalogsReady(true));
@@ -146,8 +122,7 @@ export default function OrderStudioApp({ user }) {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      const { step, saved } = useStore.getState();
-      if ((step > 0 && !saved) || salesHasUnsaved(useSalesStore.getState().saveState)) {
+      if (salesHasUnsaved(useSalesStore.getState().saveState)) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -160,54 +135,56 @@ export default function OrderStudioApp({ user }) {
     return <LoadingScreen />;
   }
 
-  const role = user.role;
-  const isAdmin = ['admin', 'director'].includes(role);
-  const isProduction = role === 'production';
-  const isDesigner = role === 'designer';
-  const canEdit = !isProduction && !isDesigner;
+  const isAdmin = ['admin', 'director'].includes(user.role);
 
   return (
     <>
       <OrderLayout user={user}>
       <Routes>
-        <Route path="/" element={<WizardPage />} />
-        {/* Убраны канбан v3, аналитика продаж и печать v3 — закладки ведут на рабочие экраны */}
-        <Route path="/orders" element={<Navigate to={legacyRedirect('/orders', role)} replace />} />
-        <Route path="/print" element={<Navigate to={legacyRedirect('/print', role)} replace />} />
-        <Route path="/analytics" element={<Navigate to={legacyRedirect('/analytics', role)} replace />} />
-        <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
+        <Route path="/" element={<Navigate to="/sales" replace />} />
+        {/* Убраны канбан v3, аналитика продаж и печать v3 — закладки ведут в список заказов */}
+        <Route path="/orders" element={<Navigate to={legacyRedirect('/orders')} replace />} />
+        <Route path="/print" element={<Navigate to={legacyRedirect('/print')} replace />} />
+        <Route path="/analytics" element={<Navigate to={legacyRedirect('/analytics')} replace />} />
+        <Route path="/express" element={<Suspense fallback={Fallback}><ExpressCalc /></Suspense>} />
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
-        <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
-        <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
-        <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
-        <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
-        <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><SkuEditor /></Suspense></RoleGuard>} />
+        <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
+        <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
+        <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
+        <Route path="/sales-staff" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
+        {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}
+        <Route path="*" element={<Navigate to="/sales" replace />} />
       </Routes>
       </OrderLayout>
 
-      {blocker.state === 'blocked' && (
-        <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">
-          <div className={styles.blockerCard}>
-            <div id="blocker-title" className={styles.blockerTitle}>
-              {leaveReason === 'sales' ? 'Правки заказа v4 не сохранены' : 'Заказ не сохранён'}
-            </div>
-            <div className={styles.blockerText}>
-              {leaveReason === 'sales'
-                ? 'Последнее сохранение не удалось. Если уйти сейчас, правки потеряются — останьтесь и повторите после восстановления связи.'
-                : 'Если уйти сейчас — черновик сохранится, но несохранённые изменения потеряются.'}
-            </div>
-            <div className={styles.blockerActions}>
-              <button className="btn btn-primary" onClick={() => blocker.reset()}>
-                Остаться
-              </button>
-              <button className="btn" onClick={() => blocker.proceed()}>
-                Всё равно уйти
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {blocker.state === 'blocked' && <SalesLeaveDialog blocker={blocker} />}
     </>
+  );
+}
+
+/**
+ * Диалог ухода с карточки v4. Подписка на состояние сохранения живёт только
+ * пока диалог открыт — оболочка из-за неё не перерисовывается.
+ */
+function SalesLeaveDialog({ blocker }) {
+  const saveState = useSalesStore((s) => s.saveState);
+  return (
+    <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title" aria-describedby="blocker-text">
+      <div className={styles.blockerCard}>
+        <div id="blocker-title" className={styles.blockerTitle}>Правки заказа не сохранены</div>
+        <div id="blocker-text" className={styles.blockerText}>
+          {salesLeaveDialogText(saveState)}
+        </div>
+        <div className={styles.blockerActions}>
+          <button className="btn btn-primary" onClick={() => blocker.reset()}>
+            Остаться
+          </button>
+          <button className="btn" onClick={() => blocker.proceed()}>
+            Всё равно уйти
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
