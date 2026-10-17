@@ -1,6 +1,6 @@
 // Разметка флэта: перекраска силуэта и data URL. Перенос DM
 // `lib/export/flatMarkup.ts` без загрузки по сети (флэт читается из бакета
-// `garment-flats` — `api/garmentFlats.downloadFlatSvg`, задача 2) и без Buffer.
+// флэтов (`FLATS_BUCKET`) — `api/garmentFlats.downloadFlatSvg`, задача 2) и без Buffer.
 import { sanitizeHex } from '../../../utils/sanitizeHex';
 
 /**

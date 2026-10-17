@@ -8,7 +8,7 @@
  */
 import type { FlatViewKind } from './types';
 
-/** id флэта — та же форма, что в пути бакета `garment-flats` и CHECK `order_items.flat_id` */
+/** id флэта — та же форма, что в пути бакета флэтов (`FLATS_BUCKET`) и CHECK `order_items.flat_id` */
 export const FLAT_ID_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** id зоны флэта и `zone_id` справочника зон */
 export const AREA_ID_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;

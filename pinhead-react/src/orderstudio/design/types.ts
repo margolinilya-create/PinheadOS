@@ -24,7 +24,7 @@ export type GarmentType = (typeof GARMENT_TYPES)[number];
 
 /**
  * Виды флэта в справочнике. Перечень совпадает с формой пути в бакете
- * `garment-flats` (миграция H): рукава — под веху 5б.
+ * флэтов `FLATS_BUCKET` (миграция H): рукава — под веху 5б.
  */
 export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
 export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
@@ -84,7 +84,7 @@ export interface PrintArea {
 
 export interface FlatView {
   kind: FlatViewKind;
-  /** Путь в бакете `garment-flats`: `flats/<id>/v<версия>/<вид>.svg` */
+  /** Путь в бакете флэтов (`FLATS_BUCKET`): `flats/<id>/v<версия>/<вид>.svg` */
   svg_path: string;
   /** Единица SVG → мм (1 — viewBox в мм) */
   scale_mm_per_unit: number;

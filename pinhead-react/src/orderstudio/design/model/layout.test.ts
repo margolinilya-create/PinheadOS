@@ -114,7 +114,9 @@ describe('applyPlacement', () => {
 
   it('zoneNameOf: нет зоны в справочнике — подпись ZONE_LABELS или id', () => {
     expect(zoneNameOf(area({ zone_id: 'pocket' }), [])).toBe('Карман');
-    expect(zoneNameOf(area({ zone_id: 'pants-front' }), [])).toBe('pants-front');
+    // зоны штанов подписаны в ZONE_LABELS с задачи 1 вехи 5а
+    expect(zoneNameOf(area({ zone_id: 'pants-front' }), [])).toBe('Штанина перед');
+    expect(zoneNameOf(area({ zone_id: 'no-such-zone' }), [])).toBe('no-such-zone');
   });
 });
 
