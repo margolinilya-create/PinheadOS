@@ -195,7 +195,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     let error: { message: string } | null = null;
     try {
       ({ data, error } = await supabase.from('profiles')
-      .select('name, role, approved, active, is_sales').eq('id', id).maybeSingle());
+      .select('*').eq('id', id).maybeSingle());
     } catch (e) {
       // supabase-js БРОСАЕТ, когда ответа не было вовсе (нет сети, CORS)
       error = { message: networkFailureMessage(e) };

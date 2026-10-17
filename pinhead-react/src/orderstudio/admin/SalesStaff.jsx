@@ -52,7 +52,8 @@ export default function SalesStaff() {
     markSaving(row.id, false);
   };
 
-  const count = rows ? rows.filter((r) => r.is_sales).length : 0;
+  // Отключённый с признаком не продаёт — в счётчик не входит
+  const count = rows ? rows.filter((r) => r.is_sales && r.active).length : 0;
 
   return (
     <div className={base.page}>

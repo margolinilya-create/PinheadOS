@@ -278,7 +278,7 @@ describe('миграция B: права Order v4', () => {
  *   · последняя редакция `sales_is_seller()` смотрит на признак, а не на роль
  *     (иначе начальники цехов с профилем manager снова продавцы);
  *   · признак меняет только `sales_set_staff` (admin/director) — страж
- *     `profiles` верит метке `sales.rpc` только вне роли authenticated, метка
+ *     `profiles` верит метке `sales.rpc` только вне клиентских ролей (authenticated, anon), метка
  *     парная; исключение у стража ровно одно — `is_sales`;
  *   · revoke у каждой функции, триггер закрыт и от authenticated.
  */
@@ -343,9 +343,9 @@ describe('миграция E: признак «Менеджер продаж»',
     for (const f of fns) expect(rpcMarkProblems(f.body, 'sales.rpc'), f.name).toEqual([]);
   });
 
-  it('страж верит метке только вне роли authenticated; исключение ровно одно — is_sales', () => {
+  it('страж верит метке только вне клиентских ролей (authenticated, anon); исключение ровно одно — is_sales', () => {
     const guard = fn('profiles_sales_guard')?.body ?? '';
-    expect(guard).toMatch(/current_setting\('sales\.rpc', true\)[\s\S]{0,80}current_user <> 'authenticated'/);
+    expect(guard).toMatch(/current_setting\('sales\.rpc', true\)[\s\S]{0,80}current_user not in \('authenticated', 'anon'\)/);
     expect(rowColumnsOf(guard)).toEqual(['is_sales']);
     expect(guard).toMatch(/errcode = '42501'/);
   });

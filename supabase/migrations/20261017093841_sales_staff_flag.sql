@@ -20,11 +20,14 @@
 --     `is_admin()`, директор иначе видел бы один свой профиль;
 --   · страж `profiles_sales_guard` (BEFORE INSERT OR UPDATE): исключение
 --     ровно одно — `is_sales`. Меняется только внутри `sales_set_staff`
---     (метка `sales.rpc` + `current_user <> 'authenticated'`, как у
+--     (метка `sales.rpc` + `current_user not in ('authenticated', 'anon')`, как у
 --     `order_v4_guard`) или служебным доступом (SQL Editor, service_role,
 --     миграции). Остальные колонки `profiles` страж не смотрит: одобрение,
 --     роль, `active` админ правит как раньше (политика `profiles_update` —
 --     `is_admin()`).
+--     Почему страж охраняет одну колонку: остальные колонки `profiles` уже
+--     закрыты политикой `profiles_update = is_admin()`, а `is_sales` ставит
+--     и директор — политикой этого не выразить, нужен свой RPC-путь.
 --
 -- На бою 17.10 (SELECT pg_policies / pg_trigger): у `profiles` четыре политики
 -- на команду — select (свой или `is_admin()`), insert/update/delete
@@ -74,8 +77,8 @@ grant execute on function public.sales_is_seller() to authenticated;
 
 -- ── 3. Страж признака ────────────────────────────────────────────────────
 -- invoker: внутри definer-RPC `current_user` — владелец функции, у клиента —
--- `authenticated`. Даже если метка `sales.rpc` окажется выставленной
--- в транзакции клиента, вне definer он остаётся `authenticated` — страж не верит.
+-- `authenticated` или `anon`. Даже если метка `sales.rpc` окажется выставленной
+-- в транзакции клиента, вне definer роль клиентская — страж не верит.
 
 create or replace function public.profiles_sales_guard()
 returns trigger
@@ -85,7 +88,7 @@ set search_path = public
 as $$
 declare
   v_rpc boolean := coalesce(current_setting('sales.rpc', true), '') = 'on'
-                   and current_user <> 'authenticated';
+                   and current_user not in ('authenticated', 'anon');
 begin
   -- Исключение ровно одно: is_sales. Всё остальное страж не смотрит
   if tg_op = 'UPDATE' and new.is_sales is not distinct from old.is_sales then

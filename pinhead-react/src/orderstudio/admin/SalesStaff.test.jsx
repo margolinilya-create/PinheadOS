@@ -11,6 +11,8 @@ vi.mock('../api/salesStaff', () => ({
 const ROWS = [
   { id: 'p-1', name: 'Анна', email: 'a@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: false },
   { id: 'p-2', name: 'Борис', email: 'b@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: true },
+  // отключённый с признаком: в счётчик «Отмечено» не входит
+  { id: 'p-3', name: 'Вера', email: 'v@pinhead.ru', role: 'manager', active: false, approved: true, is_sales: true },
 ];
 
 /** Переключатель строки по доступному имени */
@@ -27,6 +29,8 @@ describe('SalesStaff', () => {
     expect(await screen.findByText('Анна')).toBeInTheDocument();
     expect(toggleOf('Анна')).not.toBeChecked();
     expect(toggleOf('Борис')).toBeChecked();
+    expect(toggleOf('Вера')).toBeChecked();
+    // Вера отключена — признак есть, но продавцом не считается
     expect(screen.getByText('Отмечено: 1')).toBeInTheDocument();
   });
 

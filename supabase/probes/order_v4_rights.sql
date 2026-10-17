@@ -74,7 +74,10 @@ select pg_temp.as_user(null);
 
 update public.erp_employees set role = 'manager'
  where profile_id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
--- Миграция E: продавцы — по признаку (служебный доступ страж пропускает)
+-- Миграция E: продавцы — по признаку (служебный доступ страж пропускает).
+-- HEAD и ADMIN — явно без признака: владелец мог отметить их на бою
+update public.profiles set is_sales = false
+ where id in ('05bbc552-bca2-490d-b275-46a3084dca7c', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 update public.profiles set is_sales = true
  where id in ('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 update public.profiles set active = true, is_sales = true
@@ -127,8 +130,8 @@ select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE
   $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
 -- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
-select pg_temp.p('seller_set_staff', '42501', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
-select pg_temp.p('seller_list_staff', '42501', $q$select count(*)::text from public.sales_staff_list()$q$);
+select pg_temp.p('seller_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
+select pg_temp.p('seller_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
 select pg_temp.p('s_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = false where id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'$q$);
 select pg_temp.p('s_status_direct', '42501', $q$update public.orders set status = 'production' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_paid_direct', '42501', $q$update public.orders set paid_kind = 'full', paid_at = now() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
@@ -205,7 +208,7 @@ select pg_temp.p('head_sees', 'OK null', $q$select string_agg(order_number, ',')
 select pg_temp.p('head_insert', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-H1', '05bbc552-bca2-490d-b275-46a3084dca7c', '{}')$q$);
 select pg_temp.p('head_update_foreign', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('head_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
-select pg_temp.p('head_set_staff', '42501', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('head_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
 reset role;
 
 -- ── PENDING: признак есть, профиль не одобрен ────────────────────────────
@@ -219,9 +222,9 @@ reset role;
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
 -- прямая запись признака — отказ стража даже у админа (политика profiles_update его пускает)
-select pg_temp.p('self_set_sales', '42501', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
-select pg_temp.p('admin_direct_sales', '42501', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
-select pg_temp.p('admin_insert_sales', '42501', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+select pg_temp.p('self_set_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
+select pg_temp.p('admin_direct_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_insert_sales', '42501 Признак «Менеджер продаж»', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
 -- остальные колонки профиля админ правит как раньше
 select pg_temp.p('admin_other_columns', 'OK rows=1', $q$update public.profiles set name = name where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('admin_list_staff', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and not is_sales)::text from public.sales_staff_list()$q$);
