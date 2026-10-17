@@ -91,10 +91,21 @@ describe('launchToErp', () => {
     expect(input.items[0]).toMatchObject({ product_type: 'Худи', qty: 15 });
   });
 
-  it('уже запущен на шаге проверки — без ERP сразу переход, alreadyLaunched', async () => {
+  it('уже переведён (already без launch_started_at, миграция :734) — успех без перехода и без ERP', async () => {
     transitions.launchCheck.mockImplementation(async () => {
       log.push('check');
       return { ok: true, already: true, erp_order_id: 'erp-old' };
+    });
+    const r = await launchToErp(order({ status: 'production', erp_order_id: 'erp-old' }));
+    expect(log).toEqual(['check']);
+    expect(transitions.transitionOrder).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: true, erpOrderId: 'erp-old', alreadyLaunched: true, warnings: [] });
+  });
+
+  it('сирота прошлой попытки (already с launch_started_at, миграция :755–760) — без ERP сразу переход', async () => {
+    transitions.launchCheck.mockImplementation(async () => {
+      log.push('check');
+      return { ok: true, already: true, erp_order_id: 'erp-old', launch_started_at: '2026-10-17T09:00:00Z' };
     });
     transitions.transitionOrder.mockImplementation(async (id: string, to: string) => {
       log.push(`transition:${to}`);
@@ -155,7 +166,7 @@ describe('launchToErp', () => {
       n += 1;
       return n === 1
         ? { ok: true, already: false, launch_started_at: '2026-10-17T10:00:00Z' }
-        : { ok: true, already: true, erp_order_id: 'erp-orphan' };
+        : { ok: true, already: true, erp_order_id: 'erp-orphan', launch_started_at: '2026-10-17T10:00:00Z' };
     });
     transitions.transitionOrder.mockImplementation(async (id: string, to: string) => {
       log.push(`transition:${to}`);
@@ -166,14 +177,57 @@ describe('launchToErp', () => {
     expect(r).toEqual({ ok: true, erpOrderId: 'erp-orphan', alreadyLaunched: false, warnings: [] });
   });
 
-  it('createOrder null, повторная проверка — отказ: stage conflict с причиной сервера', async () => {
+  it('createOrder null, повторная проверка — уже переведён параллельно: успех без перехода', async () => {
+    erp.createOrder.mockResolvedValue(null);
+    transitions.launchCheck
+      .mockResolvedValueOnce({ ok: true, already: false, launch_started_at: '2026-10-17T10:00:00Z' })
+      .mockResolvedValueOnce({ ok: true, already: true, erp_order_id: 'erp-par' });
+    const r = await launchToErp(order());
+    expect(transitions.transitionOrder).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: true, erpOrderId: 'erp-par', alreadyLaunched: true, warnings: [] });
+  });
+
+  it('createOrder бросил — как null: повторная проверка решает (заказ мог успеть создаться)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    erp.createOrder.mockRejectedValue(new Error('сбой после RPC'));
+    transitions.launchCheck
+      .mockResolvedValueOnce({ ok: true, already: false, launch_started_at: '2026-10-17T10:00:00Z' })
+      .mockResolvedValueOnce({ ok: true, already: true, erp_order_id: 'erp-1', launch_started_at: '2026-10-17T10:00:00Z' });
+    const r = await launchToErp(order());
+    expect(transitions.launchCheck).toHaveBeenCalledTimes(2);
+    expect(r).toEqual({ ok: true, erpOrderId: 'erp-1', alreadyLaunched: false, warnings: [] });
+  });
+
+  it('сборка payload бросила — stage payload, заказ ERP не создаётся', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await launchToErp(order({
+      items: [newSalesItem({ product_type: 'Худи', size_grid: undefined as never })],
+    }));
+    expect(r).toEqual({ ok: false, stage: 'payload', reason: 'Не удалось собрать заказ для производства' });
+    expect(err).toHaveBeenCalled();
+    expect(erp.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('нет номера заказа — stage payload, сироту без связи не создаём', async () => {
+    const r = await launchToErp(order({ number: '' }));
+    expect(r).toEqual({ ok: false, stage: 'payload', reason: 'У заказа нет номера — обновите карточку' });
+    expect(erp.createOrder).not.toHaveBeenCalled();
+  });
+
+  it('переход прошёл, но erp_order_id в ответе нет — stage transition, а не пустой id', async () => {
+    transitions.transitionOrder.mockResolvedValue({ id: ORDER_ID, status: 'production', erp_order_id: null });
+    const r = await launchToErp(order());
+    expect(r).toMatchObject({ ok: false, stage: 'transition', erpOrderId: 'erp-1' });
+  });
+
+  it('createOrder null, повторная проверка — отказ: stage recheck с причиной сервера', async () => {
     erp.createOrder.mockResolvedValue(null);
     const conflict = 'Заказ ERP с этой связью создан не этим запуском — обратитесь к руководителю производства';
     transitions.launchCheck
       .mockResolvedValueOnce({ ok: true, already: false, launch_started_at: '2026-10-17T10:00:00Z' })
       .mockResolvedValueOnce({ ok: false, reason: conflict });
     const r = await launchToErp(order());
-    expect(r).toEqual({ ok: false, stage: 'conflict', reason: conflict });
+    expect(r).toEqual({ ok: false, stage: 'recheck', reason: conflict });
     expect(transitions.transitionOrder).not.toHaveBeenCalled();
   });
 

@@ -78,7 +78,21 @@ test('запуск: проверка → справочники ERP → erp_crea
   expect(rpc[4].body).toEqual({ p_id: ORDER_ID, p_to: 'production', p_reason: null });
 });
 
-test('запуск: чужой заказ ERP с той же связью — конфликт, перехода нет', async ({ page }) => {
+test('запуск: заказ уже в производстве — успех без перехода (у «уже» без launch_started_at)', async ({ page }) => {
+  const calls: MockCall[] = [];
+  // мок ведёт себя как сервер: переход production → production — ошибка 400
+  await installSupabaseMock(page, { calls, launch: { status: 'production' } });
+  await page.goto('/?studio=1');
+  await expect(page.locator('#root')).not.toBeEmpty();
+  calls.length = 0;
+
+  const r = await launch(page);
+  expect(r).toEqual({ ok: true, erpOrderId: 'mock-erp-order-1', alreadyLaunched: true, warnings: [] });
+  const names = calls.filter((c) => c.kind === 'rpc' && LAUNCH_RPCS.has(c.name)).map((c) => c.name);
+  expect(names).toEqual(['order_v4_launch_check']);
+});
+
+test('запуск: чужой заказ ERP с той же связью — отказ повторной проверки, перехода нет', async ({ page }) => {
   const calls: MockCall[] = [];
   await installSupabaseMock(page, {
     calls,
@@ -94,7 +108,7 @@ test('запуск: чужой заказ ERP с той же связью — к
   calls.length = 0;
 
   const r = await launch(page);
-  expect(r).toEqual({ ok: false, stage: 'conflict', reason: CONFLICT });
+  expect(r).toEqual({ ok: false, stage: 'recheck', reason: CONFLICT });
 
   const names = calls.filter((c) => c.kind === 'rpc' && LAUNCH_RPCS.has(c.name)).map((c) => c.name);
   expect(names).toContain('erp_create_order');

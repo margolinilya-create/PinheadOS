@@ -640,28 +640,76 @@ export type MockExtras = {
   /**
    * Запуск заказа v4 в производство (`bridge/launch.ts`, веха 2).
    *
-   * `checks` — ответы `order_v4_launch_check` ПО ПОРЯДКУ вызовов; последний
-   * повторяется. Без него: первый вызов «можно» (`already: false`), каждый
-   * следующий — «уже запущен» с `mock-erp-order-1`. Так и бывает на бою:
-   * `erp_create_order` мока отвечает id, а `loadOne` такого заказа в фикстуре
-   * не находит — `createOrder` отдаёт `null`, и клиент спрашивает сервер
-   * повторно. Сценарий конфликта передаёт свой второй ответ (`ok: false`).
+   * Мок повторяет ФОРМУ ответов миграции 20261017062110_order_v4_rights —
+   * клиент различает по ней два смысла «уже запущен»:
+   * - заказ уже переведён (`status` = `production`/`done`): `already` БЕЗ
+   *   `launch_started_at` (строка 734), а переход в `production` — отказ
+   *   PostgREST «Такой переход статуса недоступен», как у сервера;
+   * - иначе первый вызов — «можно» (`already: false`), каждый следующий —
+   *   сирота этого запуска: `already` С `launch_started_at` (строки 755–760).
+   *   Так и бывает на бою: `erp_create_order` мока отвечает id, а `loadOne`
+   *   такого заказа в фикстуре не находит — `createOrder` отдаёт `null`,
+   *   и клиент спрашивает сервер повторно.
+   *
+   * `status` — статус заказа v4 на старте (по умолчанию `ready_to_launch`);
+   * успешный переход его меняет. `checks` — свои ответы проверки ПО ПОРЯДКУ
+   * (последний повторяется), например конфликт вторым ответом.
    */
-  launch?: { checks?: unknown[] };
+  launch?: { checks?: unknown[]; status?: string };
 };
 
-/** Номер вызова `order_v4_launch_check` — на каждый набор `MockExtras` свой */
-const launchCheckCalls = new WeakMap<MockExtras, number>();
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
+const MOCK_ERP_ORDER = 'mock-erp-order-1';
+
+/** Состояние запуска — на каждый набор `MockExtras` своё */
+const launchState = new WeakMap<MockExtras, { checks: number; status: string }>();
+
+function launchOf(extra: MockExtras) {
+  let st = launchState.get(extra);
+  if (!st) {
+    st = { checks: 0, status: extra.launch?.status ?? 'ready_to_launch' };
+    launchState.set(extra, st);
+  }
+  return st;
+}
 
 function launchCheckAnswer(extra: MockExtras): unknown {
-  const n = launchCheckCalls.get(extra) ?? 0;
-  launchCheckCalls.set(extra, n + 1);
+  const st = launchOf(extra);
+  const n = st.checks++;
   const checks = extra.launch?.checks;
   if (checks && checks.length > 0) return checks[Math.min(n, checks.length - 1)];
+  if (st.status === 'production' || st.status === 'done') {
+    return { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER };
+  }
   return n === 0
     ? { ok: true, already: false, launch_started_at: MOCK_LAUNCH_STARTED }
-    : { ok: true, already: true, erp_order_id: 'mock-erp-order-1' };
+    : { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER, launch_started_at: MOCK_LAUNCH_STARTED };
+}
+
+/** Ответ RPC ошибкой PostgREST (400 + `{ code, message }`), как у `raise exception` */
+class RpcFailure {
+  readonly code: string;
+  readonly message: string;
+  constructor(code: string, message: string) {
+    this.code = code;
+    this.message = message;
+  }
+}
+
+/** Переходы, которые мок пускает (подмножество белого списка `order_v4_transition`) */
+const MOCK_TRANSITIONS: Record<string, string[]> = {
+  ready_to_launch: ['production', 'draft'],
+  production: ['done'],
+};
+
+function transitionAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  const st = launchOf(extra);
+  const to = String(body.p_to ?? '');
+  if (!(MOCK_TRANSITIONS[st.status] ?? []).includes(to)) {
+    return new RpcFailure('P0001', 'Такой переход статуса недоступен');
+  }
+  st.status = to;
+  return { id: body.p_id, status: to, erp_order_id: to === 'production' ? MOCK_ERP_ORDER : null };
 }
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
@@ -890,13 +938,10 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
     /**
      * Переход статуса заказа v4. Связь с заказом ERP ставит сам RPC: для
      * `production` мок отвечает тем id, который вернул `erp_create_order`.
+     * Недопустимый переход — ошибка, как у сервера (см. `MockExtras.launch`).
      */
     case 'order_v4_transition':
-      return {
-        id: body.p_id,
-        status: body.p_to,
-        erp_order_id: body.p_to === 'production' ? 'mock-erp-order-1' : null,
-      };
+      return transitionAnswer(body, extra);
     case 'erp_experimental_add_tasks': {
       const devId = String(body.p_experimental_id ?? '');
       const list = (body.p_tasks ?? []) as Record<string, unknown>[];
@@ -1231,10 +1276,18 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       // Оба писателя состава участков ждут гейт — см. `deptsGate` в MockExtras
       if (fn === 'erp_bootstrap' && extra.deptsGate) await extra.deptsGate;
       extra.calls?.push({ kind: 'rpc', name: fn, body: payload });
+      const answer = dataForRpc(fn, payload, extra);
+      if (answer instanceof RpcFailure) {
+        return route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: answer.code, message: answer.message, details: null, hint: null }),
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(dataForRpc(fn, payload, extra)),
+        body: JSON.stringify(answer),
       });
     }
 
