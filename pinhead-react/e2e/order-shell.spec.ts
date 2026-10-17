@@ -43,6 +43,54 @@ test('мок пишет журнал RPC и Storage', async ({ page }) => {
   expect(calls).toContainEqual(expect.objectContaining({ kind: 'storage', name: 'order-artworks/t/a.txt' }));
 });
 
+test('мок Storage различает sign, list, move, copy и загрузку', async ({ page }) => {
+  const calls: MockCall[] = [];
+  await installSupabaseMock(page, { calls });
+  await page.goto('/?studio=1');
+
+  const r = await page.evaluate(async () => {
+    const { supabase } = await import('/src/lib/supabase.ts');
+    const b = supabase.storage.from('order-artworks');
+    const one = await b.createSignedUrl('o1/a.png', 60);
+    const many = await b.createSignedUrls(['o1/a.png', 'o1/b.png'], 60);
+    const list = await b.list('o1');
+    const move = await b.move('o1/a.png', 'o2/a.png');
+    const copy = await b.copy('o1/b.png', 'o2/b.png');
+    const up = await b.upload('o1/c.txt', new Blob(['x']));
+    return {
+      one: [one.data?.signedUrl, one.error?.message],
+      many: many.data?.map((d) => [d.path, d.signedUrl, d.error]),
+      list: [list.data, list.error?.message],
+      move: move.error?.message ?? null,
+      copy: copy.error?.message ?? null,
+      up: up.error?.message ?? null,
+    };
+  });
+
+  expect(r.one[0]).toContain('token=mock-signed');
+  expect(r.one[1]).toBeUndefined();
+  expect(r.many).toHaveLength(2);
+  for (const [, url, err] of r.many ?? []) {
+    expect(url).toContain('token=mock-signed');
+    expect(err).toBeNull();
+  }
+  expect(r.list[0]).toEqual([]);
+  expect(r.move).toBeNull();
+  expect(r.copy).toBeNull();
+  expect(r.up).toBeNull();
+
+  const brief = calls.map((c) => [c.kind, c.name]);
+  expect(brief).toEqual([
+    ['storage-sign', 'order-artworks/o1/a.png'],
+    ['storage-sign', 'order-artworks/o1/a.png'],
+    ['storage-sign', 'order-artworks/o1/b.png'],
+    ['storage-list', 'order-artworks/o1'],
+    ['storage-move', 'order-artworks/o1/a.png->o2/a.png'],
+    ['storage-copy', 'order-artworks/o1/b.png->o2/b.png'],
+    ['storage', 'order-artworks/o1/c.txt'],
+  ]);
+});
+
 test('старые адреса', async ({ page }) => {
   await installSupabaseMock(page);
 

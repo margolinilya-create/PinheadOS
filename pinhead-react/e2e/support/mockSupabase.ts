@@ -539,8 +539,20 @@ const PLAN_SLOTS = [
  * с теми аргументами (`body`), а не просто нарисовал нужный текст.
  * Для Storage `name` — `<bucket>/<path>`, `body` — `{ size }` (содержимое
  * multipart-запроса спекам не нужно, а хранить его незачем).
+ * Операции чтения/перекладки различаются по `kind` (`storage-sign|list|move|copy`):
+ * у `storage-move`/`storage-copy` `name` — `<bucket>/<from>-><to>`, у `storage-list`
+ * — `<bucket>/<prefix>`, `body` — тело запроса как есть.
  */
-export type MockCall = { kind: 'rpc' | 'storage'; name: string; body: unknown };
+export type MockCall = {
+  kind: 'rpc' | 'storage' | 'storage-sign' | 'storage-list' | 'storage-move' | 'storage-copy';
+  name: string;
+  body: unknown;
+};
+
+/** Первые сегменты `/object/<…>`, которые НЕ являются загрузкой файла */
+const NON_UPLOAD_SEGMENTS = new Set([
+  'sign', 'list', 'list-v2', 'move', 'copy', 'public', 'authenticated', 'info',
+]);
 
 export type MockExtras = {
   /** Заказы, добавляемые к базовым четырём */
@@ -1078,18 +1090,79 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     const req = route.request();
     const method = req.method();
     const key = new URL(req.url()).pathname.split('/storage/v1/object/')[1];
-    if ((method === 'POST' || method === 'PUT') && key) {
-      const name = decodeURIComponent(key);
-      extra.calls?.push({
-        kind: 'storage',
-        name,
-        body: { size: req.postDataBuffer()?.length ?? 0 },
-      });
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ Key: name }),
-      });
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+    if (method === 'POST' && key) {
+      /*
+       * ВЕХА 2: бакет `order-artworks` закрытый и читается ТОЛЬКО по подписанным
+       * ссылкам (`createSignedUrl(s)`), а `list`/`move`/`copy` ходят в тот же
+       * `POST /object/...`, что и загрузка. Раньше любой POST считался загрузкой:
+       * подпись получала `{Key}` без `signedURL`, а в журнал она попадала как
+       * `storage` с чужим именем — e2e проверял бы не тот путь, по которому
+       * ходит прод. Поэтому первый сегмент пути выбирает операцию, а загрузкой
+       * считается только то, что не является служебным словом Storage API.
+       */
+      const segs = key.split('/').map(decodeURIComponent);
+      const op = segs[0];
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(req.postData() ?? '{}'); } catch { /* не JSON — тело пустое */ }
+      if (op === 'sign') {
+        const bucket = segs[1];
+        const path = segs.slice(2).join('/');
+        if (path) {
+          // createSignedUrl: supabase-js сам добавит к `signedURL` базу Storage
+          extra.calls?.push({ kind: 'storage-sign', name: `${bucket}/${path}`, body });
+          return json({ signedURL: `/object/sign/${bucket}/${path}?token=mock-signed` });
+        }
+        // createSignedUrls: массив путей в теле, ответ — по записи на путь
+        const paths = Array.isArray(body.paths) ? (body.paths as string[]) : [];
+        for (const p of paths) {
+          extra.calls?.push({ kind: 'storage-sign', name: `${bucket}/${p}`, body });
+        }
+        return json(paths.map((p) => ({
+          path: p,
+          signedURL: `/object/sign/${bucket}/${p}?token=mock-signed`,
+          error: null,
+        })));
+      }
+      if (op === 'list') {
+        extra.calls?.push({ kind: 'storage-list', name: `${segs[1]}/${String(body.prefix ?? '')}`, body });
+        return json([]);
+      }
+      if (op === 'move' || op === 'copy') {
+        const bucket = String(body.bucketId ?? '');
+        const to = String(body.destinationKey ?? '');
+        extra.calls?.push({
+          kind: op === 'move' ? 'storage-move' : 'storage-copy',
+          name: `${bucket}/${String(body.sourceKey ?? '')}->${to}`,
+          body,
+        });
+        return json(op === 'move' ? { message: 'Successfully moved' } : { Key: `${bucket}/${to}` });
+      }
+      if (!NON_UPLOAD_SEGMENTS.has(op)) {
+        const name = segs.join('/');
+        extra.calls?.push({
+          kind: 'storage',
+          name,
+          body: { size: req.postDataBuffer()?.length ?? 0 },
+        });
+        return json({ Key: name });
+      }
+    }
+    if (method === 'PUT' && key) {
+      const segs = key.split('/').map(decodeURIComponent);
+      if (!NON_UPLOAD_SEGMENTS.has(segs[0])) {
+        const name = segs.join('/');
+        extra.calls?.push({
+          kind: 'storage',
+          name,
+          body: { size: req.postDataBuffer()?.length ?? 0 },
+        });
+        return json({ Key: name });
+      }
     }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
