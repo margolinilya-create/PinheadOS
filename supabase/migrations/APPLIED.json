@@ -2488,6 +2488,20 @@
       "files": [
         "20261017101513_order_v4_client_rev.sql"
       ]
+    },
+    {
+      "version": "20261017142210",
+      "name": "sales_ms_flag",
+      "files": [
+        "20261017142210_sales_ms_flag.sql"
+      ]
+    },
+    {
+      "version": "20261017150000",
+      "name": "order_catalogs",
+      "files": [
+        "20261017150000_order_catalogs.sql"
+      ]
     }
   ]
 }
