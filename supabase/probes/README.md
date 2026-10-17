@@ -7,8 +7,12 @@
 
 | Файл | Что проверяет | Ожидание |
 |---|---|---|
-| `order_v4_rights.sql` | Миграции A и B вехи 2: поля ТЗ, RLS `orders_*`, стражи `order_v4_guard`/`order_v4_delete_guard`/`order_v4_child_guard`, `order_events`, RPC `order_v4_transition`/`order_v4_launch_check`/`order_v4_set_payment`, v3 как раньше | `fails=0 total=83` |
-| `order_artworks.sql` | Миграция C (применена 17.10): бакет `order-artworks` — чтение по видимости заказа, запись автора и руководства только в черновик, МС только читает, пути `orders/<uuid>/…`, UPDATE запрещён restrictive-политикой (в том числе против временной широкой permissive `tmp_probe_any_update`, которая создаётся и уходит с откатом) | `fails=0 total=67` |
+| `order_v4_rights.sql` | Миграции A и B вехи 2: поля ТЗ, RLS `orders_*`, стражи `order_v4_guard`/`order_v4_delete_guard`/`order_v4_child_guard`, `order_events`, RPC `order_v4_transition`/`order_v4_launch_check`/`order_v4_set_payment`, v3 как раньше. Миграция E вехи 3: признак `profiles.is_sales` — продавец только с признаком (начальник цеха без него заказов не видит и не заводит), неодобренный — не продавец, признак меняет только `sales_set_staff` (admin/director), прямая запись — отказ стража даже у админа, список `sales_staff_list` | `fails=0 total=107` |
+| `order_artworks.sql` | Миграция C (применена 17.10; с миграции E продавцы получают `is_sales` внутри транзакции): бакет `order-artworks` — чтение по видимости заказа, запись автора и руководства только в черновик, МС только читает, пути `orders/<uuid>/…`, UPDATE запрещён restrictive-политикой (в том числе против временной широкой permissive `tmp_probe_any_update`, которая создаётся и уходит с откатом) | `fails=0 total=67` |
+
+Оба файла с миграции E (`20261017093841_sales_staff_flag`) читают колонку
+`profiles.is_sales`: до её применения на бою — только сухим прогоном вместе
+с миграцией в одной транзакции.
 
 ## Как запускать
 

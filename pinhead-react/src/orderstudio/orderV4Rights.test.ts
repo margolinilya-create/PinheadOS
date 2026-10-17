@@ -113,9 +113,10 @@ const BASE_ORDER_COLUMNS = [
 ];
 const V4_SINCE = '20260928213529';
 
-/** Нарушения парности метки режима RPC в теле функции */
-function rpcMarkProblems(body: string): string[] {
-  const marks = [...body.matchAll(/set_config\(\s*'order_v4\.rpc'\s*,\s*'(on|off)'/g)].map((x) => x[1]);
+/** Нарушения парности метки режима RPC (`order_v4.rpc`, `sales.rpc`) в теле функции */
+function rpcMarkProblems(body: string, key = 'order_v4.rpc'): string[] {
+  const re = new RegExp(`set_config\\(\\s*'${key.replace('.', '\\.')}'\\s*,\\s*'(on|off)'`, 'g');
+  const marks = [...body.matchAll(re)].map((x) => x[1]);
   const problems: string[] = [];
   let open = false;
   for (const mark of marks) {
@@ -271,7 +272,107 @@ describe('миграция B: права Order v4', () => {
   });
 });
 
+/**
+ * МИГРАЦИЯ E (веха 3, `…_sales_staff_flag.sql`): продавец — явный признак
+ * `profiles.is_sales`. Держим то, что ломается молча:
+ *   · последняя редакция `sales_is_seller()` смотрит на признак, а не на роль
+ *     (иначе начальники цехов с профилем manager снова продавцы);
+ *   · признак меняет только `sales_set_staff` (admin/director) — страж
+ *     `profiles` верит метке `sales.rpc` только вне роли authenticated, метка
+ *     парная; исключение у стража ровно одно — `is_sales`;
+ *   · revoke у каждой функции, триггер закрыт и от authenticated.
+ */
+const staffFile = files.filter((f) => f.endsWith('_sales_staff_flag.sql')).at(-1);
+if (!staffFile) throw new Error('нет миграции *_sales_staff_flag.sql');
+const STAFF = read(staffFile);
+
+/** Колонки строки, которые читает тело стража (`new.x` / `old.x`) */
+const rowColumnsOf = (body: string) =>
+  [...new Set([...noComments(body).matchAll(/\b(?:new|old)\.([a-z_]+)/g)].map((m) => m[1]))].sort();
+
+describe('миграция E: признак «Менеджер продаж»', () => {
+  const fns = functionsOf(STAFF);
+  const fn = (n: string) => fns.find((f) => f.name === n);
+
+  it('функции на месте', () => {
+    expect(fns.map((f) => f.name).sort()).toEqual(
+      ['profiles_sales_guard', 'sales_is_seller', 'sales_set_staff', 'sales_staff_list']);
+  });
+
+  it('колонка is_sales — not null default false', () => {
+    expect(noComments(STAFF)).toMatch(
+      /alter table public\.profiles\s+add column if not exists is_sales boolean not null default false;/);
+  });
+
+  it('у каждой функции — revoke execute from public, anon; триггер закрыт и от authenticated', () => {
+    expect(missingRevoke(STAFF)).toEqual([]);
+    expect(STAFF).toMatch(/revoke execute on function public\.profiles_sales_guard\(\) from public, anon, authenticated;/);
+    expect(STAFF).not.toMatch(/grant execute on function public\.profiles_sales_guard\(/);
+    for (const n of ['sales_set_staff\\(uuid, boolean\\)', 'sales_staff_list\\(\\)', 'sales_is_seller\\(\\)']) {
+      expect(STAFF).toMatch(new RegExp(`grant execute on function public\\.${n} to authenticated;`));
+    }
+  });
+
+  it('у каждой security definer — set search_path = public; страж — invoker', () => {
+    const bad = fns.filter((f) => /security definer/.test(f.head) && !/set search_path = public/.test(f.head));
+    expect(bad.map((f) => f.name)).toEqual([]);
+    expect(fn('profiles_sales_guard')?.head).toMatch(/security invoker/);
+    for (const n of ['sales_is_seller', 'sales_set_staff', 'sales_staff_list']) {
+      expect(fn(n)?.head, n).toMatch(/security definer/);
+    }
+  });
+
+  it('последняя редакция sales_is_seller — по признаку, не по роли', () => {
+    expect(latestDefining('sales_is_seller')).toBe(STAFF);
+    const body = fn('sales_is_seller')?.body ?? '';
+    expect(body).toMatch(/p\.is_sales is true/);
+    expect(body).toMatch(/p\.active is true and p\.approved is true/);
+    expect(body).not.toMatch(/p\.role\b/);
+  });
+
+  it('RPC — только admin/director активного одобренного профиля, иначе 42501', () => {
+    for (const n of ['sales_set_staff', 'sales_staff_list']) {
+      const body = fn(n)?.body ?? '';
+      expect(body, n).toMatch(/p\.active is true and p\.approved is true\s+and p\.role in \('admin', 'director'\)\) then\s+raise exception using errcode = '42501'/);
+    }
+  });
+
+  it('метка sales.rpc: только в sales_set_staff и закрыта off', () => {
+    const withMarks = fns.filter((f) => /sales\.rpc'\s*,\s*'on'/.test(f.body));
+    expect(withMarks.map((f) => f.name)).toEqual(['sales_set_staff']);
+    for (const f of fns) expect(rpcMarkProblems(f.body, 'sales.rpc'), f.name).toEqual([]);
+  });
+
+  it('страж верит метке только вне роли authenticated; исключение ровно одно — is_sales', () => {
+    const guard = fn('profiles_sales_guard')?.body ?? '';
+    expect(guard).toMatch(/current_setting\('sales\.rpc', true\)[\s\S]{0,80}current_user <> 'authenticated'/);
+    expect(rowColumnsOf(guard)).toEqual(['is_sales']);
+    expect(guard).toMatch(/errcode = '42501'/);
+  });
+
+  it('страж висит на INSERT и UPDATE profiles', () => {
+    expect(noComments(STAFF)).toMatch(
+      /create trigger profiles_sales_guard\s+before insert or update on public\.profiles\s+for each row execute function public\.profiles_sales_guard\(\);/);
+    expect(STAFF).toContain('drop trigger if exists profiles_sales_guard on public.profiles;');
+  });
+
+  it('политик не создаёт, DDL по erp_* нет', () => {
+    expect(policiesOf(STAFF)).toEqual([]);
+    expect(noComments(STAFF)).not.toMatch(/\berp_/);
+  });
+});
+
 describe('самопроверка разборщиков', () => {
+  it('rowColumnsOf видит вторую колонку стража', () => {
+    expect(rowColumnsOf('if new.is_sales is distinct from old.is_sales or new.role <> old.role then')).toEqual(['is_sales', 'role']);
+    expect(rowColumnsOf('-- new.role в комментарии\nif new.is_sales then')).toEqual(['is_sales']);
+  });
+
+  it('rpcMarkProblems ловит незакрытую метку sales.rpc', () => {
+    expect(rpcMarkProblems(`perform set_config('sales.rpc', 'on', true); update x;`, 'sales.rpc')).toEqual(['on без off']);
+    expect(rpcMarkProblems(`perform set_config('sales.rpc', 'on', true);`)).toEqual([]);
+  });
+
   it('updatedColumns видит колонку с запятыми в выражении', () => {
     expect(updatedColumns(`update public.orders set a = coalesce(x, 'y'),\n b = 1 where id = 1`)).toEqual(['a', 'b']);
   });

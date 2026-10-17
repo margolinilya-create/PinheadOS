@@ -1,7 +1,9 @@
 -- Пробы прав Order v4: миграции A (20261017053703_order_v4_tz_fields)
--- и B (20261017062110_order_v4_rights), обе применены на бою 17.10.
+-- и B (20261017062110_order_v4_rights), обе применены на бою 17.10, и миграция E
+-- (20261017093841_sales_staff_flag, признак «Менеджер продаж» — до применения
+-- на бою запускать сухим прогоном вместе с ней в одной транзакции).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=83 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=107 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -16,8 +18,13 @@
 -- pinhead-react/src/orderstudio/probesFiles.test.ts). Роли — существующие
 -- профили боя:
 --   ADMIN   b9c3e42e-9e07-44c2-8b15-839ce327c40c  profiles.role = admin
---   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  profiles.role = manager (ERP production_head)
---   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  profiles.role = manager (ERP production_head)
+--   SELLER  9285888e-4401-4b1b-b523-a3e6a9b90e82  profiles.role = manager (ERP production_head);
+--           внутри транзакции получает is_sales = true (откат вернёт)
+--   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  то же, что SELLER
+--   HEAD    05bbc552-bca2-490d-b275-46a3084dca7c  profiles.role = manager (ERP production_head),
+--           БЕЗ is_sales — начальник цеха: заказы продаж ему закрыты
+--   PENDING cc9ed453-d3d7-4add-a361-8719a7701f97  profiles.role = manager, отключён и не одобрен;
+--           внутри транзакции: active = true, is_sales = true, approved остаётся false
 --   MS      f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9  profiles.role = manager; внутри транзакции
 --           его строка erp_employees получает role = 'manager' (откат вернёт)
 -- Заказы: a1 (SELLER, draft, к отправке), a2 (SELLER2, draft), a3 (SELLER, ready_to_launch),
@@ -25,6 +32,11 @@
 -- связи ERP до запуска), a7 (SELLER, ready_to_launch, возврат МС), a8 (отменённый
 -- заказ ERP держит связь), a9 (черновик, уже связанный с ERP).
 -- Если профили выше на бою изменятся (роль, active) — пробы покажут FAIL, правьте шапку и данные.
+--
+-- Вставка заказа v4 клиентом (успешная или отклонённая RLS) проходит страж B,
+-- а он выдаёт номер из order_number_seq ДО проверки RLS — на бою это трата
+-- номера. Поэтому «может ли вставить» проверяется v3-вставкой (та же политика
+-- orders_insert, страж v3 не трогает); v4-вставки — в локальном прогоне.
 
 begin;
 set local lock_timeout = '3s';
@@ -62,6 +74,11 @@ select pg_temp.as_user(null);
 
 update public.erp_employees set role = 'manager'
  where profile_id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
+-- Миграция E: продавцы — по признаку (служебный доступ страж пропускает)
+update public.profiles set is_sales = true
+ where id in ('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
+update public.profiles set active = true, is_sales = true
+ where id = 'cc9ed453-d3d7-4add-a361-8719a7701f97';
 
 insert into public.orders (id, order_number, schema_version, status, created_by, data, customer, due_date)
 values
@@ -108,6 +125,11 @@ set local role authenticated;
 
 select pg_temp.p('s_sees_own', 'OK PROBE-1,PROBE-3,PROBE-4,PROBE-5,PROBE-6,PROBE-7,PROBE-8,PROBE-9',
   $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
+select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
+-- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
+select pg_temp.p('seller_set_staff', '42501', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
+select pg_temp.p('seller_list_staff', '42501', $q$select count(*)::text from public.sales_staff_list()$q$);
+select pg_temp.p('s_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = false where id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'$q$);
 select pg_temp.p('s_status_direct', '42501', $q$update public.orders set status = 'production' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_paid_direct', '42501', $q$update public.orders set paid_kind = 'full', paid_at = now() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_erp_link_direct', '42501', $q$update public.orders set erp_order_id = gen_random_uuid() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
@@ -173,6 +195,52 @@ select pg_temp.as_user('e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 set local role authenticated;
 select pg_temp.p('s2_sees', 'OK PROBE-2', $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('s2_foreign_update', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
+reset role;
+
+-- ── HEAD: начальник цеха с профилем manager, без признака ────────────────
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('head_sees', 'OK null', $q$select string_agg(order_number, ',') from public.orders where order_number like 'PROBE-%'$q$);
+select pg_temp.p('head_insert', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-H1', '05bbc552-bca2-490d-b275-46a3084dca7c', '{}')$q$);
+select pg_temp.p('head_update_foreign', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
+select pg_temp.p('head_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('head_set_staff', '42501', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+reset role;
+
+-- ── PENDING: признак есть, профиль не одобрен ────────────────────────────
+select pg_temp.as_user('cc9ed453-d3d7-4add-a361-8719a7701f97');
+set local role authenticated;
+select pg_temp.p('pending_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('pending_save', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-P1', 'cc9ed453-d3d7-4add-a361-8719a7701f97', '{}')$q$);
+reset role;
+
+-- ── ADMIN: признак продавца ─────────────────────────────────────────────
+select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
+set local role authenticated;
+-- прямая запись признака — отказ стража даже у админа (политика profiles_update его пускает)
+select pg_temp.p('self_set_sales', '42501', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
+select pg_temp.p('admin_direct_sales', '42501', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_insert_sales', '42501', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+-- остальные колонки профиля админ правит как раньше
+select pg_temp.p('admin_other_columns', 'OK rows=1', $q$update public.profiles set name = name where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_list_staff', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and not is_sales)::text from public.sales_staff_list()$q$);
+select pg_temp.p('admin_set_staff_missing', 'P0002', $q$select public.sales_set_staff(gen_random_uuid(), true)$q$);
+select pg_temp.p('admin_set_staff_null', '22023', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null)$q$);
+select pg_temp.p('admin_set_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('admin_set_staff_effect', 'OK true', $q$select is_sales::text from public.profiles where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+reset role;
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_now_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
+reset role;
+select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
+set local role authenticated;
+select pg_temp.p('admin_unset_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', false)$q$);
+reset role;
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_seller_again_off', 'OK false', $q$select public.sales_is_seller()::text$q$);
 reset role;
 
 -- ── MS ──────────────────────────────────────────────────────────────────
