@@ -532,9 +532,39 @@ const PLAN_SLOTS = [
  * значит перекрасить эталоны половины прогона. Поэтому спека, которой нужны
  * СВОИ данные, передаёт их сюда, а всем остальным мир остаётся прежним.
  */
+/**
+ * Запись журнала мока: каждый RPC и каждая загрузка в Storage, дошедшие
+ * до сети. Спека передаёт пустой массив в `MockExtras.calls` и читает его
+ * ПОСЛЕ действий — так проверяется, что экран вызвал именно ту функцию
+ * с теми аргументами (`body`), а не просто нарисовал нужный текст.
+ * Для Storage `name` — `<bucket>/<path>`, `body` — `{ size }` (содержимое
+ * multipart-запроса спекам не нужно, а хранить его незачем).
+ * Операции чтения/перекладки различаются по `kind` (`storage-sign|list|move|copy`):
+ * у `storage-move`/`storage-copy` `name` — `<bucket>/<from>-><to>`, у `storage-list`
+ * — `<bucket>/<prefix>`, `body` — тело запроса как есть.
+ */
+export type MockCall = {
+  kind: 'rpc' | 'storage' | 'storage-sign' | 'storage-list' | 'storage-move' | 'storage-copy';
+  name: string;
+  body: unknown;
+};
+
+/** Первые сегменты `/object/<…>`, которые НЕ являются загрузкой файла */
+const NON_UPLOAD_SEGMENTS = new Set([
+  'sign', 'list', 'list-v2', 'move', 'copy', 'public', 'authenticated', 'info',
+]);
+
 export type MockExtras = {
   /** Заказы, добавляемые к базовым четырём */
   orders?: unknown[];
+  /**
+   * Строки `orders` Order v4 (`schema_version: 4`) — ответ на список и карточку
+   * «Заказов v4». Отдаются ТОЛЬКО на запрос с `schema_version=eq.4`: читатели
+   * v3 (`useOrdersStore`) этого фильтра не шлют и по-прежнему получают пусто.
+   */
+  salesOrders?: unknown[];
+  /** Журнал RPC и загрузок в Storage — см. `MockCall` */
+  calls?: MockCall[];
   /**
    * Разработки ЭКС (с эмбедом `tasks` и `order`).
    *
@@ -607,7 +637,88 @@ export type MockExtras = {
    * прийти до замера, и сторож зеленеет на сломанном коде.
    */
   ordersGate?: Promise<void>;
+  /**
+   * Запуск заказа v4 в производство (`bridge/launch.ts`, веха 2).
+   *
+   * Мок повторяет ФОРМУ ответов миграции 20261017062110_order_v4_rights —
+   * клиент различает по ней два смысла «уже запущен»:
+   * - заказ уже переведён (`status` = `production`/`done`): `already` БЕЗ
+   *   `launch_started_at` (строка 734), а переход в `production` — отказ
+   *   PostgREST «Такой переход статуса недоступен», как у сервера;
+   * - иначе первый вызов — «можно» (`already: false`), каждый следующий —
+   *   сирота этого запуска: `already` С `launch_started_at` (строки 755–760).
+   *   Так и бывает на бою: `erp_create_order` мока отвечает id, а `loadOne`
+   *   такого заказа в фикстуре не находит — `createOrder` отдаёт `null`,
+   *   и клиент спрашивает сервер повторно.
+   *
+   * `status` — статус заказа v4 на старте (по умолчанию `ready_to_launch`);
+   * успешный переход его меняет. `checks` — свои ответы проверки ПО ПОРЯДКУ
+   * (последний повторяется), например конфликт вторым ответом.
+   */
+  launch?: { checks?: unknown[]; status?: string };
 };
+
+const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
+const MOCK_ERP_ORDER = 'mock-erp-order-1';
+
+/** Состояние запуска — на каждый набор `MockExtras` своё */
+const launchState = new WeakMap<MockExtras, { checks: number; status: string }>();
+
+function launchOf(extra: MockExtras) {
+  let st = launchState.get(extra);
+  if (!st) {
+    st = { checks: 0, status: extra.launch?.status ?? 'ready_to_launch' };
+    launchState.set(extra, st);
+  }
+  return st;
+}
+
+function launchCheckAnswer(extra: MockExtras): unknown {
+  const st = launchOf(extra);
+  const n = st.checks++;
+  const checks = extra.launch?.checks;
+  if (checks && checks.length > 0) return checks[Math.min(n, checks.length - 1)];
+  if (st.status === 'production' || st.status === 'done') {
+    return { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER };
+  }
+  return n === 0
+    ? { ok: true, already: false, launch_started_at: MOCK_LAUNCH_STARTED }
+    : { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER, launch_started_at: MOCK_LAUNCH_STARTED };
+}
+
+/** Ответ RPC ошибкой PostgREST (400 + `{ code, message }`), как у `raise exception` */
+class RpcFailure {
+  readonly code: string;
+  readonly message: string;
+  constructor(code: string, message: string) {
+    this.code = code;
+    this.message = message;
+  }
+}
+
+/** Повторяет белый список `order_v4_transition` (миграция 20261017062110_order_v4_rights.sql) */
+const MOCK_TRANSITIONS: Record<string, string[]> = {
+  draft: ['ready_to_launch', 'archived'],
+  ready_to_launch: ['production', 'draft'],
+  production: ['done'],
+};
+
+function transitionAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
+  const st = launchOf(extra);
+  const to = String(body.p_to ?? '');
+  // Как сервер: повторный переход в production — идемпотентный успех
+  if (st.status === 'production' && to === 'production') {
+    return { id: body.p_id, status: to, erp_order_id: MOCK_ERP_ORDER };
+  }
+  if (st.status === 'ready_to_launch' && to === 'draft' && !String(body.p_reason ?? '').trim()) {
+    return new RpcFailure('P0001', 'Укажите причину возврата');
+  }
+  if (!(MOCK_TRANSITIONS[st.status] ?? []).includes(to)) {
+    return new RpcFailure('P0001', 'Такой переход статуса недоступен');
+  }
+  st.status = to;
+  return { id: body.p_id, status: to, erp_order_id: to === 'production' ? MOCK_ERP_ORDER : null };
+}
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
 
@@ -616,6 +727,22 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
   switch (table) {
     case 'erp_departments':
       return departmentsFx;
+    /**
+     * `orders` — таблица двух поколений. Order v4 (`fetchSalesOrders` и
+     * `fetchSalesOrder`) ВСЕГДА шлёт `schema_version=eq.4`; v3-читатели
+     * (`useOrdersStore`, канбан ТЗ, вкладка ERP «Заказы ТЗ») фильтра не шлют.
+     * Отдать им строки v4 значило бы подмешать чужую схему в старый список,
+     * поэтому без фильтра ответ прежний — пустой. Фильтр по `id=eq.` нужен
+     * карточке: она берёт одну строку (`maybeSingle`), а «первая попавшаяся»
+     * открыла бы не тот заказ.
+     */
+    case 'orders': {
+      if (params.get('schema_version') !== 'eq.4') return [];
+      const rows = (extra.salesOrders ?? []) as { id?: string }[];
+      const idFilter = params.get('id');
+      if (idFilter?.startsWith('eq.')) return rows.filter((r) => r.id === idFilter.slice(3));
+      return rows;
+    }
     case 'erp_experimental':
       // Разработки приезжают и пакетом оболочки, и этим запросом — на проде
       // это один и тот же набор, и мок обязан повторять именно так
@@ -789,6 +916,40 @@ resetChatMock();
 
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
   switch (fn) {
+    /**
+     * Сохранение Order v4 одной транзакцией (`order_v4_save_full`). Клиент
+     * читает из ответа id (для нового заказа его назначает сервер), номер
+     * `PH-XXXX` и `updated_at` — по нему работает автосохранение.
+     */
+    case 'order_v4_save_full': {
+      const order = (body.p_order ?? {}) as { id?: string };
+      return {
+        id: order.id ?? 'mock-sales-1',
+        order_number: 'PH-9001',
+        updated_at: FX_CREATED,
+      };
+    }
+    /**
+     * Запуск заказа в производство. Форма ответа ОПРЕДЕЛЕНА КЛИЕНТОМ:
+     * `orderWriteSlice.createOrder` делает `newId = data as string` и сразу
+     * зовёт `loadOne(newId)` — то есть RPC отдаёт ГОЛУЮ СТРОКУ id, а не объект.
+     * Объект `{ id, items: [] }` из плана тут сломал бы загрузку заказа
+     * (`id=eq.[object Object]`), поэтому отвечаем строкой; `loadOne` затем
+     * находит заказ в `erp_orders` по этому id, если спека положила его
+     * в `extra.orders`.
+     */
+    case 'erp_create_order':
+      return 'mock-erp-order-1';
+    /** Проверка запуска заказа v4 — см. `MockExtras.launch` */
+    case 'order_v4_launch_check':
+      return launchCheckAnswer(extra);
+    /**
+     * Переход статуса заказа v4. Связь с заказом ERP ставит сам RPC: для
+     * `production` мок отвечает тем id, который вернул `erp_create_order`.
+     * Недопустимый переход — ошибка, как у сервера (см. `MockExtras.launch`).
+     */
+    case 'order_v4_transition':
+      return transitionAnswer(body, extra);
     case 'erp_experimental_add_tasks': {
       const devId = String(body.p_experimental_id ?? '');
       const list = (body.p_tasks ?? []) as Record<string, unknown>[];
@@ -1007,9 +1168,95 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
   await page.route('**/auth/v1/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
 
-  // Storage — заглушка (в фикстурах нет вложений; сломанные картинки детерминированы).
-  await page.route('**/storage/v1/**', (route: Route) =>
-    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  /**
+   * Storage. ЧТЕНИЕ по-прежнему 404 — в фикстурах нет вложений, и сломанные
+   * картинки детерминированы (снимки не зависят от того, что лежит в бакете).
+   * ЗАГРУЗКА (`POST|PUT …/object/<bucket>/<path>`) отвечает успехом и пишется
+   * в журнал `extra.calls`: макеты нанесений и ТЗ грузятся при выборе файла
+   * (правило проекта «файл, видимый приложенным, обязан быть в бакете»), и без
+   * успешного ответа этот путь в e2e был бы недостижим. Ключ ответа —
+   * `<bucket>/<path>`, как у настоящего Storage.
+   */
+  await page.route('**/storage/v1/**', (route: Route) => {
+    const req = route.request();
+    const method = req.method();
+    const key = new URL(req.url()).pathname.split('/storage/v1/object/')[1];
+    const json = (body: unknown) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+    if (method === 'POST' && key) {
+      /*
+       * ВЕХА 2: бакет `order-artworks` закрытый и читается ТОЛЬКО по подписанным
+       * ссылкам (`createSignedUrl(s)`), а `list`/`move`/`copy` ходят в тот же
+       * `POST /object/...`, что и загрузка. Раньше любой POST считался загрузкой:
+       * подпись получала `{Key}` без `signedURL`, а в журнал она попадала как
+       * `storage` с чужим именем — e2e проверял бы не тот путь, по которому
+       * ходит прод. Поэтому первый сегмент пути выбирает операцию, а загрузкой
+       * считается только то, что не является служебным словом Storage API.
+       */
+      const segs = key.split('/').map(decodeURIComponent);
+      const op = segs[0];
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(req.postData() ?? '{}'); } catch { /* не JSON — тело пустое */ }
+      if (op === 'sign') {
+        const bucket = segs[1];
+        const path = segs.slice(2).join('/');
+        if (path) {
+          // createSignedUrl: supabase-js сам добавит к `signedURL` базу Storage
+          extra.calls?.push({ kind: 'storage-sign', name: `${bucket}/${path}`, body });
+          return json({ signedURL: `/object/sign/${bucket}/${path}?token=mock-signed` });
+        }
+        // createSignedUrls: массив путей в теле, ответ — по записи на путь
+        const paths = Array.isArray(body.paths) ? (body.paths as string[]) : [];
+        for (const p of paths) {
+          extra.calls?.push({ kind: 'storage-sign', name: `${bucket}/${p}`, body });
+        }
+        return json(paths.map((p) => ({
+          path: p,
+          signedURL: `/object/sign/${bucket}/${p}?token=mock-signed`,
+          error: null,
+        })));
+      }
+      if (op === 'list') {
+        extra.calls?.push({ kind: 'storage-list', name: `${segs[1]}/${String(body.prefix ?? '')}`, body });
+        return json([]);
+      }
+      if (op === 'move' || op === 'copy') {
+        const bucket = String(body.bucketId ?? '');
+        const to = String(body.destinationKey ?? '');
+        extra.calls?.push({
+          kind: op === 'move' ? 'storage-move' : 'storage-copy',
+          name: `${bucket}/${String(body.sourceKey ?? '')}->${to}`,
+          body,
+        });
+        return json(op === 'move' ? { message: 'Successfully moved' } : { Key: `${bucket}/${to}` });
+      }
+      if (!NON_UPLOAD_SEGMENTS.has(op)) {
+        const name = segs.join('/');
+        extra.calls?.push({
+          kind: 'storage',
+          name,
+          body: { size: req.postDataBuffer()?.length ?? 0 },
+        });
+        return json({ Key: name });
+      }
+    }
+    if (method === 'PUT' && key) {
+      const segs = key.split('/').map(decodeURIComponent);
+      if (!NON_UPLOAD_SEGMENTS.has(segs[0])) {
+        const name = segs.join('/');
+        extra.calls?.push({
+          kind: 'storage',
+          name,
+          body: { size: req.postDataBuffer()?.length ?? 0 },
+        });
+        return json({ Key: name });
+      }
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
 
   /**
    * REST (PostgREST) — ОДИН перехватчик на пакеты и на таблицы.
@@ -1036,10 +1283,19 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       try { payload = JSON.parse(route.request().postData() ?? '{}'); } catch { /* без тела */ }
       // Оба писателя состава участков ждут гейт — см. `deptsGate` в MockExtras
       if (fn === 'erp_bootstrap' && extra.deptsGate) await extra.deptsGate;
+      extra.calls?.push({ kind: 'rpc', name: fn, body: payload });
+      const answer = dataForRpc(fn, payload, extra);
+      if (answer instanceof RpcFailure) {
+        return route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: answer.code, message: answer.message, details: null, hint: null }),
+        });
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(dataForRpc(fn, payload, extra)),
+        body: JSON.stringify(answer),
       });
     }
 

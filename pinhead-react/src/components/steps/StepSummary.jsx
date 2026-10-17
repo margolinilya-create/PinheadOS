@@ -154,8 +154,7 @@ export default function StepSummary() {
   const [transferring, setTransferring] = useState(false);
   // «Заказы v4» — пилот admin/director, тот же гейт, что у маршрута /sales
   const user = useAuthStore(s => s.user);
-  const previewRole = useAuthStore(s => s.previewRole);
-  const canSalesV4 = ['admin', 'director'].includes(previewRole || user?.role);
+  const canSalesV4 = ['admin', 'director'].includes(user?.role);
 
   const goToStep = useStore(s => s.goToStep);
   const [priceOpen, setPriceOpen] = useState(false);
@@ -298,8 +297,7 @@ export default function StepSummary() {
           <div className="order-id">{savedNum}</div>
           <div className="success-btns">
             <button className="btn" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
-            <button className="btn" onClick={() => navigate('/print')}>Печать / PDF</button>
-            <button className="btn" onClick={() => navigate('/orders')}>Все заказы</button>
+            {canSalesV4 && <button className="btn" onClick={() => navigate('/sales')}>Все заказы</button>}
             <button className="btn btn-primary" onClick={() => { resetOrder(); setSavedNum(null); }}>Новый заказ</button>
           </div>
         </div>
@@ -472,7 +470,6 @@ export default function StepSummary() {
       <div className="btn-row">
         <button className="btn-prev" onClick={prevStep}>&#8592; Назад</button>
         <button className="btn-secondary" onClick={handleCopyTZ}>{copyLabel || 'Скопировать ТЗ'}</button>
-        <button className="btn-secondary" onClick={() => navigate('/print')}>Печать / PDF</button>
         <button
           className={`btn-primary${saving ? ' loading' : ''}`}
           disabled={saving || hasErrors}

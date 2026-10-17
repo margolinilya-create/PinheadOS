@@ -36,6 +36,7 @@
 - `pravila-pravok-27-09-sessiya-72.md`  ← действие чужой роли делает сервер под меткой; гейт завершения и на прямом переходе в done; сигнатура с default требует drop прежней
 - `pravila-metrov-27-09-sessiya-72.md`  ← invoker наследует права вызывающего: отозванный EXECUTE и RLS дочерней таблицы видны только пробой от лица роли; у журнала один писатель под меткой транзакции; сервер проверяет, чей объект трогает RPC (сверка 28.09)
 - `pravila-koda-polnyy-tekst.md`  ← полный текст «Правил кода» корневого CLAUDE.md (перенос 09.10): RLS на команду и `(select …)`, девять стражей, исключения вместо перечисления, `on delete set null`, `revoke from public, anon`, плановые даты с обеих сторон
+- `pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`  ← Order v4: статус и оплата только RPC, стражи `orders` белым списком, флаг `order_v4.rpc` + `current_user`, ветка ERP set null, запуск `launch_check` → `createOrder` → `transition`, три модуля ERP в мосте, миграции через SQL Editor
 
 ## Сторожа и тесты
 
@@ -95,6 +96,7 @@
 - `pravila-uborki-mertvogo-koda-sessiya-58.md`
 - `pravila-tehdolga-07-09-vtoraya-polovina-sessii-52.md`
 - `pravila-hvostov-14-09-15-09-limit-vlozheniya-i-razrabotka-bez-sdelki.md`
+- `pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`  ← `order-artworks`: SVG только `<img>` и скачиванием, тип по расширению, UPDATE запрещён restrictive, политика Storage — с фильтром по бакету
 
 ## Маршрут ERP, этапы, цеха
 

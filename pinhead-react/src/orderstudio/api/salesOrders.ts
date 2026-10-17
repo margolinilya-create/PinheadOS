@@ -1,7 +1,8 @@
 /**
  * Order v4 ↔ база (срез 1). Таблицы — миграция 20260928213529_orders_v4:
  * `orders` (schema_version = 4) + `order_items` / `order_item_prints` /
- * `order_item_labels`; запись — одним RPC `order_v4_save` (транзакция,
+ * `order_item_labels`, с вехи 2 (миграция 20261017053703_order_v4_tz_fields) —
+ * поля ТЗ и `order_notes_cards`; запись — одним RPC `order_v4_save` (транзакция,
  * RLS вызывающего). Чтение — вложенным select PostgREST.
  *
  * Перевод строк в модель и обратно — чистые функции (`rowToSalesOrder`,
@@ -10,9 +11,15 @@
  */
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
-import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
+import {
+  newSalesItem, newSalesLabel, newSalesNoteCard, newSalesOrder, newSalesPrint,
+} from '../model/factory';
+import {
+  PAID_KINDS, PRINT_OFFSET_DIR, PRINT_OFFSET_FROM,
+} from '../model/types';
 import type {
-  SalesDiscount, SalesGrid, SalesItem, SalesLabel, SalesOrder, SalesOrderStatus, SalesPrint,
+  PaidKind, PrintOffsetDir, PrintOffsetFrom,
+  SalesDiscount, SalesGrid, SalesItem, SalesLabel, SalesNoteCard, SalesOrder, SalesOrderStatus, SalesPrint,
 } from '../model/types';
 import type { OrderPrice } from '../pricing/priceOrder';
 import { orderUrgentDays } from '../pricing/priceOrder';
@@ -48,11 +55,31 @@ export interface SalesOrderListRow {
 }
 
 const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at';
-const CARD_SELECT = '*, order_items(*, order_item_prints(*), order_item_labels(*))';
+/**
+ * Связи названы явно (`!fkey`): у `order_notes_cards` два внешних ключа —
+ * к заказу и составной к позиции, и без подсказки PostgREST мог бы счесть
+ * связь «заказ → позиции» неоднозначной.
+ */
+const CARD_SELECT = '*, order_items!order_items_order_id_fkey(*, order_item_prints(*), order_item_labels(*)),'
+  + ' order_notes_cards!order_notes_cards_order_id_fkey(*)';
 
 const str = (v: unknown): string => (v == null ? '' : String(v));
 const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v));
 const bySort = (a: Row, b: Row) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+/** Значение из перечня CHECK; чужое — умолчание (строка до миграции, мусор) */
+function oneOf<T extends string>(list: readonly T[], v: unknown, fallback: T): T {
+  return list.includes(v as T) ? (v as T) : fallback;
+}
+
+function partColors(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, c]) => [k, str(c)]));
+}
+
+function layoutFromRow(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : null;
+}
 
 function gridFromRow(v: unknown): SalesGrid {
   const g = (v ?? {}) as Partial<SalesGrid>;
@@ -83,6 +110,14 @@ function printFromRow(r: Row): SalesPrint {
     fill: Number(r.fill) || 1,
     artwork_url: str(r.artwork_url),
     applied_at: r.applied_at ?? null,
+    layout: layoutFromRow(r.layout),
+    artwork_path: str(r.artwork_path),
+    offset_mm: num(r.offset_mm),
+    offset_from: oneOf<PrintOffsetFrom>(PRINT_OFFSET_FROM, r.offset_from, ''),
+    offset_dir: oneOf<PrintOffsetDir>(PRINT_OFFSET_DIR, r.offset_dir, ''),
+    effects: strList(r.effects),
+    contractor: str(r.contractor),
+    contractor_days: num(r.contractor_days),
   });
 }
 
@@ -94,6 +129,21 @@ function labelFromRow(r: Row): SalesLabel {
     size: str(r.size),
     comment: str(r.comment),
     variant_id: str(r.variant_id),
+    blank: !!r.blank,
+    preview_paths: strList(r.preview_paths),
+    attach_scheme: str(r.attach_scheme),
+    attach_image_path: str(r.attach_image_path),
+  });
+}
+
+function noteCardFromRow(r: Row): SalesNoteCard {
+  return newSalesNoteCard({
+    key: r.id,
+    item_key: r.item_id ?? null,
+    group_title: str(r.group_title),
+    caption: str(r.caption),
+    link: str(r.link),
+    image_path: str(r.image_path),
   });
 }
 
@@ -128,6 +178,14 @@ function itemFromRow(r: Row): SalesItem {
     blank_price: num(r.blank_price),
     brief: str(r.brief),
     manual_unit_price: num(r.manual_unit_price),
+    supplier: str(r.supplier),
+    model_description: str(r.model_description),
+    extra_processing_note: str(r.extra_processing_note),
+    client_pattern: str(r.client_pattern),
+    part_colors: partColors(r.part_colors),
+    tz_comment: str(r.tz_comment),
+    tz_pdf_path: str(r.tz_pdf_path),
+    flat_id: str(r.flat_id),
   });
 }
 
@@ -166,12 +224,25 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     tz_ready_at: r.tz_ready_at ?? null,
     tech_checked_at: r.tech_checked_at ?? null,
     erp_order_id: r.erp_order_id ?? null,
+    sticker_preview_path: str(r.sticker_preview_path),
+    notes_cards: [...(r.order_notes_cards ?? [])].sort(bySort).map(noteCardFromRow),
+    // Неизвестная отметка оплаты — «нет отметки», а не выдуманная предоплата
+    paid_kind: PAID_KINDS.includes(r.paid_kind) ? (r.paid_kind as PaidKind) : null,
+    paid_override_reason: r.paid_override_reason ?? null,
+    sent_at: r.sent_at ?? null,
+    launch_started_at: r.launch_started_at ?? null,
+    launch_by: r.launch_by ?? null,
+    launched_at: r.launched_at ?? null,
+    launched_by: r.launched_by ?? null,
   });
 }
 
 /**
  * Заказ → аргумент `order_v4_save`. Цена — снимок расчёта на момент
  * сохранения (для списка и КП); источник правды остаётся `priceOrder`.
+ *
+ * Шапка перечислена поимённо: служебные поля (статус, оплата, отправка,
+ * запуск, связь с ERP) пишут только RPC, и в payload их нет вовсе.
  */
 export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null): Row {
   const byKey = new Map((price?.items ?? []).map((p) => [p.key, p]));
@@ -193,6 +264,7 @@ export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null
     packaging_height_mm: order.packaging_height_mm,
     stickers: order.stickers,
     stickers_note: order.stickers_note,
+    sticker_preview_path: order.sticker_preview_path,
     no_chestny_znak: order.no_chestny_znak,
     urgent: order.urgent,
     urgent_days: orderUrgentDays(order),
@@ -209,6 +281,7 @@ export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null
         price_total: p ? p.total : null,
       };
     }),
+    notes_cards: order.notes_cards.map((c) => ({ ...c })),
   };
 }
 

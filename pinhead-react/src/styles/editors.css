@@ -70,7 +70,7 @@
   border-bottom: 0.5px solid var(--border);
   background: var(--paper);
   position: sticky;
-  top: calc(var(--header-h) + var(--preview-bar-h));
+  top: var(--header-h);
   z-index: 20;
   gap: 12px;
 }
@@ -92,7 +92,7 @@
   border-bottom: 0.5px solid var(--border);
   background: var(--paper);
   position: sticky;
-  top: calc(var(--header-h) + var(--preview-bar-h));
+  top: var(--header-h);
   z-index: 20;
   gap: 12px;
   flex-wrap: wrap;
@@ -125,7 +125,7 @@
   border-color: var(--ink);
   opacity: .5;
 }
-.sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0 8px; border-bottom: 1px solid var(--border-light); font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); flex-wrap: wrap; position: sticky; top: calc(var(--header-h) + var(--preview-bar-h) + 52px + 40px); z-index: 15; background: var(--card); }
+.sku-ed-rate-bar     { display: flex; align-items: center; gap: 24px; padding: 12px 0 8px; border-bottom: 1px solid var(--border-light); font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); flex-wrap: wrap; position: sticky; top: calc(var(--header-h) + 52px + 40px); z-index: 15; background: var(--card); }
 .sku-ed-rate-cb      { display: flex; align-items: center; gap: 8px; }
 .sku-ed-rate-cb b    { color: var(--text); font-size: 13px; font-weight: 700; }
 .sku-ed-rate-date    { font-size: 11px; color: var(--text-dim); letter-spacing: 0; text-transform: none; }
@@ -230,7 +230,7 @@
 /* PRICE / SKU EDITOR                         */
 /* ═══════════════════════════════════════════ */
 .pe-changed  { font-family: var(--font-display); font-size: 11px; font-weight: 600; background: var(--bg-warning); color: var(--color-warning); padding: 3px 10px; letter-spacing: .5px; }
-.pe-tabs  { display: flex; border-bottom: 1.5px solid var(--border-light); gap: 0; position: sticky; top: calc(var(--header-h) + var(--preview-bar-h) + 52px); z-index: 19; background: var(--card); }
+.pe-tabs  { display: flex; border-bottom: 1.5px solid var(--border-light); gap: 0; position: sticky; top: calc(var(--header-h) + 52px); z-index: 19; background: var(--card); }
 .pe-tab   { padding: 10px 20px; background: none; border: none; cursor: pointer; font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); position: relative; transition: color 150ms ease-out; }
 .pe-tab:hover { color: var(--text-mid); }
 .pe-tab.active { color: var(--text); }
@@ -255,7 +255,7 @@
 .pe-input-row input:focus { border-color: var(--black); outline: none; }
 .pe-input-unit      { font-size: 11px; color: var(--text-dim); min-width: 16px; }
 .pe-matrix-block  { margin-bottom: 16px; }
-.pe-matrix-title  { font-family: var(--font-display); font-weight: 700; font-size: 13px; background: var(--black); color: var(--white); padding: 6px 12px; letter-spacing: 1.5px; text-transform: uppercase; position: sticky; top: calc(var(--header-h) + var(--preview-bar-h) + 52px + 36px); z-index: var(--z-sticky); }
+.pe-matrix-title  { font-family: var(--font-display); font-weight: 700; font-size: 13px; background: var(--black); color: var(--white); padding: 6px 12px; letter-spacing: 1.5px; text-transform: uppercase; position: sticky; top: calc(var(--header-h) + 52px + 36px); z-index: var(--z-sticky); }
 .pe-matrix-table  { width: 100%; border-collapse: collapse; }
 .pe-matrix-table th { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); padding: 4px 8px; border-bottom: 1px solid var(--border-light); text-align: center; }
 .pe-matrix-table td { padding: 2px; text-align: center; }
@@ -1021,7 +1021,7 @@ td.pe-markup-cat,
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    top: calc(var(--header-h) + var(--preview-bar-h) + 44px);
+    top: calc(var(--header-h) + 44px);
   }
   .pe-tabs::-webkit-scrollbar { display: none; }
   .pe-tab {

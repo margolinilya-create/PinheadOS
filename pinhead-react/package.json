@@ -9,11 +9,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint . --max-warnings 44",
+    "lint": "eslint . --max-warnings 38",
     "preview": "vite preview",
     "test": "vitest run",
     "audit": "node scripts/audit-guidebook.js",
     "bundle:budget": "node scripts/bundle-budget.mjs",
+    "erp:freeze": "node scripts/erp-freeze.mjs",
     "migrations:verify": "node scripts/verify-migrations.mjs",
     "storage:gc": "node scripts/storage-gc.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -26,10 +27,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
     "agentation": "^3.0.2",
-    "chart.js": "^4.5.1",
     "mobile-drag-drop": "^3.0.0-rc.0",
     "react": "^19.2.0",
-    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.1",
     "zustand": "^5.0.11"

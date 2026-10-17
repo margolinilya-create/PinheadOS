@@ -138,7 +138,6 @@
   --dept-tab-h: 46px;
   /* ── Layout heights ── */
   --header-h:       52px;
-  --preview-bar-h:  0px;
 
   /* ── Backgrounds ──
      ТЁПЛЫЕ НЕЙТРАЛИ, СВЕТЛОТА ПРЕЖНЯЯ (06.09).
@@ -491,7 +490,6 @@ html[data-theme="dark"] {
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body.has-preview-bar { --preview-bar-h: 36px; }
 
 body {
   background: var(--bg);

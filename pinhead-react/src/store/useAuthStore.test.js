@@ -31,7 +31,7 @@ const { useOrdersStore } = await import('./useOrdersStore');
 beforeEach(() => {
   useAuthStore.setState({
     user: null, profileStatus: 'no_profile', loading: false, error: null,
-    previewRole: null, signingOut: false,
+    signingOut: false,
     awaitingEmailConfirm: null, resendingConfirm: false, checkingProfile: false,
     resetSentTo: null, sendingReset: false, passwordRecovery: false, savingPassword: false,
     initializing: false,
@@ -444,38 +444,22 @@ describe('useAuthStore — role helpers', () => {
   });
 });
 
-describe('useAuthStore — previewRole', () => {
-  it('effectiveRole returns user role when no preview', () => {
-    useAuthStore.setState({ user: { role: 'admin' } });
-    expect(useAuthStore.getState().effectiveRole()).toBe('admin');
-  });
-
-  it('effectiveRole returns previewRole when set', () => {
-    useAuthStore.setState({ user: { role: 'admin' }, previewRole: 'manager' });
+describe('useAuthStore — роль без превью', () => {
+  it('превью роли больше нет: effectiveRole — настоящая роль', () => {
+    useAuthStore.setState({ user: { role: 'manager' } });
     expect(useAuthStore.getState().effectiveRole()).toBe('manager');
+    expect('setPreviewRole' in useAuthStore.getState()).toBe(false);
+    expect('clearPreviewRole' in useAuthStore.getState()).toBe(false);
+    expect('previewRole' in useAuthStore.getState()).toBe(false);
   });
 
-  it('setPreviewRole updates previewRole', () => {
-    useAuthStore.getState().setPreviewRole('production');
-    expect(useAuthStore.getState().previewRole).toBe('production');
-  });
-
-  it('clearPreviewRole resets to null', () => {
-    useAuthStore.setState({ previewRole: 'manager' });
-    useAuthStore.getState().clearPreviewRole();
-    expect(useAuthStore.getState().previewRole).toBeNull();
-  });
-
-  it('role helpers use effectiveRole', () => {
-    useAuthStore.setState({ user: { role: 'admin' }, previewRole: 'production' });
-    expect(useAuthStore.getState().isAdmin()).toBe(false);
-    expect(useAuthStore.getState().isProduction()).toBe(true);
-  });
-
-  it('role helpers use real role when no preview', () => {
-    useAuthStore.setState({ user: { role: 'admin' }, previewRole: null });
+  it('хелперы ролей читают настоящую роль', () => {
+    useAuthStore.setState({ user: { role: 'admin' } });
     expect(useAuthStore.getState().isAdmin()).toBe(true);
     expect(useAuthStore.getState().isProduction()).toBe(false);
+    useAuthStore.setState({ user: { role: 'production' } });
+    expect(useAuthStore.getState().isAdmin()).toBe(false);
+    expect(useAuthStore.getState().isProduction()).toBe(true);
   });
 });
 

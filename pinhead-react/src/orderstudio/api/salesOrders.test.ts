@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
-import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
+import { newSalesItem, newSalesLabel, newSalesNoteCard, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**
  * Перевод «модель ↔ база». `salesOrderToPayload` пишет ключи так, как их
@@ -8,6 +8,17 @@ import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../mo
  * `rowToSalesOrder` читает строку вложенного select. Проверка — туда-обратно:
  * то, что RPC записал бы из payload, читается обратно той же моделью.
  */
+
+/** Служебные колонки шапки (миграция 20261017053703): их ставят RPC, клиент читает */
+const SERVICE_ROW = {
+  paid_kind: 'prepaid',
+  paid_override_reason: 'клиент постоянный',
+  sent_at: '2026-10-17T10:00:00Z',
+  launch_started_at: '2026-10-18T09:00:00Z',
+  launch_by: 'u-ms',
+  launched_at: '2026-10-18T09:01:00Z',
+  launched_by: 'u-ms',
+} as const;
 
 /** Что сделала бы RPC: payload → строки таблиц (имена колонок миграции) */
 function simulateSave(payload: ReturnType<typeof salesOrderToPayload>, id = 'o-1') {
@@ -38,6 +49,12 @@ function simulateSave(payload: ReturnType<typeof salesOrderToPayload>, id = 'o-1
     discount_mode: payload.discount?.mode ?? null,
     discount_value: payload.discount?.value ?? null,
     price_total: payload.price_total,
+    sticker_preview_path: payload.sticker_preview_path,
+    // Служебные поля пишут RPC вехи 2, не order_v4_save: строка их несёт сама
+    ...SERVICE_ROW,
+    order_notes_cards: [...(payload.notes_cards ?? [])].map((c: Record<string, unknown>, j: number) => ({
+      ...c, id: c.key, order_id: id, item_id: c.item_key ?? null, sort_order: j,
+    })).reverse(),
     // PostgREST отдаёт вложенные строки в произвольном порядке
     order_items: [...payload.items].reverse().map((it: Record<string, unknown> & { prints: Record<string, unknown>[]; labels: Record<string, unknown>[] }, i: number, arr: unknown[]) => ({
       ...it,
@@ -49,7 +66,7 @@ function simulateSave(payload: ReturnType<typeof salesOrderToPayload>, id = 'o-1
   };
 }
 
-const fullOrder = () => newSalesOrder({
+const baseOrder = () => newSalesOrder({
   id: 'o-1',
   number: 'PH-0042',
   title: 'Дзен · футболки',
@@ -67,6 +84,8 @@ const fullOrder = () => newSalesOrder({
   packaging_width_mm: 250,
   packaging_height_mm: 350,
   no_chestny_znak: true,
+  sticker_preview_path: 'orders/o-1/sticker.png',
+  ...SERVICE_ROW,
   items: [
     newSalesItem({
       sku_code: 'T-003',
@@ -75,16 +94,50 @@ const fullOrder = () => newSalesOrder({
       client_fabric: false,
       extras: ['x1'],
       manual_unit_price: 990,
+      supplier: 'Медас',
+      model_description: 'Футболка оверсайз, спущенное плечо',
+      extra_processing_note: 'энзимная стирка',
+      client_pattern: 'лекала клиента v2',
+      part_colors: { body: 'Чёрный', rib: 'Белый' },
+      tz_comment: 'горловина — двойная строчка',
+      tz_pdf_path: 'orders/o-1/tz/item-1.pdf',
+      flat_id: 'tee-oversize',
       size_grid: { sizes: ['S', 'M'], rows: [{ color: 'Чёрный', sizes: { S: 10, M: 20 } }] },
       prints: [
         newSalesPrint({ method: 'silkscreen', zone: 'Грудь', width_mm: 200, height_mm: 150, pantone: ['186 C'], sizes: ['S'], on: 'cut', colors: 2 }),
         newSalesPrint({ method: 'embroidery', zone: 'Рукав', garment_kind: 'patch', fill: 0.6 }),
+        newSalesPrint({
+          method: 'other', zone: 'Спина', layout: { x: 10, y: 40, scale: 0.8 },
+          artwork_path: 'orders/o-1/art/back.png', offset_mm: 70, offset_from: 'neck_seam',
+          offset_dir: 'down', effects: ['puff', 'metallic'], contractor: 'Подрядчик А', contractor_days: 3,
+        }),
       ],
-      labels: [newSalesLabel({ label_type: 'care', place: 'шов' })],
+      labels: [
+        newSalesLabel({ label_type: 'care', place: 'шов' }),
+        newSalesLabel({
+          label_type: 'brand', blank: true, preview_paths: ['orders/o-1/labels/b1.png'],
+          attach_scheme: 'вшить в боковой шов', attach_image_path: 'orders/o-1/labels/scheme.png',
+        }),
+      ],
     }),
     newSalesItem({ kind: 'customer', brief: 'Худи клиента', packaging_width_mm: null }),
   ],
 });
+
+/** Карточки заметок: к позиции (ключ позиции = её id) и к заказу целиком */
+const fullOrder = () => {
+  const o = baseOrder();
+  return {
+    ...o,
+    notes_cards: [
+      newSalesNoteCard({
+        item_key: o.items[0].key, group_title: 'Референсы', caption: 'как на фото',
+        link: 'https://example.com/ref', image_path: 'orders/o-1/notes/ref.png',
+      }),
+      newSalesNoteCard({ caption: 'Общая заметка к заказу' }),
+    ],
+  };
+};
 
 describe('salesOrders — туда-обратно', () => {
   it('заказ со всеми полями читается обратно тем же', () => {
@@ -97,7 +150,19 @@ describe('salesOrders — туда-обратно', () => {
     const o = fullOrder();
     const back = rowToSalesOrder(simulateSave(salesOrderToPayload(o)));
     expect(back.items.map((i) => i.key)).toEqual(o.items.map((i) => i.key));
-    expect(back.items[0].prints.map((p) => p.method)).toEqual(['silkscreen', 'embroidery']);
+    expect(back.items[0].prints.map((p) => p.method)).toEqual(['silkscreen', 'embroidery', 'other']);
+  });
+
+  it('поля ТЗ вехи 2 и карточки заметок едут туда-обратно, порядок карточек — по sort_order', () => {
+    const o = fullOrder();
+    const back = rowToSalesOrder(simulateSave(salesOrderToPayload(o)));
+    expect(back.items[0].prints[2]).toEqual(o.items[0].prints[2]);
+    expect(back.items[0].labels[1]).toEqual(o.items[0].labels[1]);
+    expect(back.items[0].part_colors).toEqual({ body: 'Чёрный', rib: 'Белый' });
+    expect(back.notes_cards.map((c) => c.caption)).toEqual(['как на фото', 'Общая заметка к заказу']);
+    expect(back.notes_cards[0].item_key).toBe(o.items[0].key);
+    expect(back.notes_cards[1].item_key).toBeNull();
+    expect(back.sticker_preview_path).toBe('orders/o-1/sticker.png');
   });
 
   it('без скидки — null, а не {mode: null}', () => {
@@ -107,6 +172,26 @@ describe('salesOrders — туда-обратно', () => {
 });
 
 describe('salesOrderToPayload', () => {
+  it('служебные поля шапки не уходят в order_v4_save — их ставят RPC', () => {
+    const p = salesOrderToPayload(fullOrder());
+    for (const k of ['status', 'erp_order_id', 'paid_at', 'paid_kind', 'paid_override_reason',
+      'sent_at', 'launch_started_at', 'launch_by', 'launched_at', 'launched_by', 'number']) {
+      expect(p).not.toHaveProperty(k);
+    }
+  });
+
+  it('карточки уходят ключами — RPC берёт key как id, item_key как позицию', () => {
+    const o = fullOrder();
+    const p = salesOrderToPayload(o);
+    expect(p.notes_cards).toEqual([
+      { key: o.notes_cards[0].key, item_key: o.items[0].key, group_title: 'Референсы', caption: 'как на фото',
+        link: 'https://example.com/ref', image_path: 'orders/o-1/notes/ref.png' },
+      { key: o.notes_cards[1].key, item_key: null, group_title: '', caption: 'Общая заметка к заказу',
+        link: '', image_path: '' },
+    ]);
+    expect(p.sticker_preview_path).toBe('orders/o-1/sticker.png');
+  });
+
   it('новый заказ уходит без id — RPC создаст строку', () => {
     expect(salesOrderToPayload(newSalesOrder()).id).toBeNull();
   });
@@ -137,7 +222,25 @@ describe('salesOrderToPayload', () => {
 describe('rowToSalesOrder — строка без вложений и с пустыми полями', () => {
   it('минимальная строка не падает', () => {
     const o = rowToSalesOrder({ id: 'x', status: 'draft', schema_version: 4 });
-    expect(o).toMatchObject({ id: 'x', items: [], discount: null, packaging: 'none', stickers: 'none' });
+    expect(o).toMatchObject({
+      id: 'x', items: [], discount: null, packaging: 'none', stickers: 'none',
+      notes_cards: [], sticker_preview_path: '', paid_kind: null, launched_at: null,
+    });
+  });
+
+  it('строка до миграции 20261017053703 (без новых колонок) читается умолчаниями фабрики', () => {
+    const o = rowToSalesOrder({
+      id: 'x', order_items: [{ id: 'i', order_item_prints: [{ id: 'p', method: 'dtf' }], order_item_labels: [{ id: 'l' }] }],
+    });
+    expect(o.items[0]).toMatchObject({ supplier: '', part_colors: {}, flat_id: '' });
+    expect(o.items[0].prints[0]).toMatchObject({ layout: null, offset_mm: null, offset_from: '', effects: [], contractor_days: null });
+    expect(o.items[0].labels[0]).toMatchObject({ blank: false, preview_paths: [], attach_scheme: '' });
+  });
+
+  it('неизвестный вид оплаты читается как «нет отметки», а не как предоплата', () => {
+    expect(rowToSalesOrder({ id: 'x', paid_kind: 'partial' }).paid_kind).toBeNull();
+    expect(rowToSalesOrder({ id: 'x', paid_kind: null }).paid_kind).toBeNull();
+    expect(rowToSalesOrder({ id: 'x', paid_kind: 'full' }).paid_kind).toBe('full');
   });
 
   it('битая сетка читается пустой', () => {

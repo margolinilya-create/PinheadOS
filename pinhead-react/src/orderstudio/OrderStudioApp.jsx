@@ -15,14 +15,13 @@ import '../styles/forms-buttons.css'
 import '../styles/wizard.css'
 import '../styles/garment.css'
 import '../styles/extras-zones.css'
+/* kanban.css — остаток канбана v3: `.kanban-page` нужен ExpressCalc */
 import '../styles/kanban.css'
 import '../styles/express.css'
 import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'
-import { useAuthStore } from '../store/useAuthStore'
-import Header from '../components/layout/Header'
 import ProgressBar from '../components/layout/ProgressBar'
 import StepGarment from '../components/steps/StepGarment'
 
@@ -32,13 +31,11 @@ const StepDesign = lazy(() => import('../components/steps/StepDesign'));
 const StepItems = lazy(() => import('../components/steps/StepItems'));
 const StepDetails = lazy(() => import('../components/steps/StepDetails'));
 const StepSummary = lazy(() => import('../components/steps/StepSummary'));
-import RolePreviewBar from '../components/shared/RolePreviewBar'
-import OnboardingTips from '../components/shared/OnboardingTips'
-import CommandPalette from '../components/shared/CommandPalette'
 import { shouldBlockLeave, shouldBlockSalesLeave, salesHasUnsaved } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
+import { legacyRedirect } from './layout/orderNav'
+import OrderLayout from './layout/OrderLayout'
 
-const KanbanBoard = React.lazy(() => import('../components/orders/KanbanBoard'));
 // PriceEditor is now embedded inside SkuEditor as the "Ценообразование" tab.
 // /prices redirects to /sku?tab=pricing
 const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc'));
@@ -49,8 +46,6 @@ const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc')
  * «loadEmployees is not a function» вместо списка сотрудников.
  */
 const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
-const Dashboard = React.lazy(() => import('../components/analytics/Dashboard'));
-const PrintPreview = React.lazy(() => import('../components/output/PrintPreview'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 // Order v4 (срез 1) — пилот владельца, admin/director
 const SalesList = React.lazy(() => import('./screens/SalesList'));
@@ -127,7 +122,6 @@ function LoadingScreen() {
  * Показывается только при FEATURES.orderStudio === true.
  */
 export default function OrderStudioApp({ user }) {
-  const previewRole = useAuthStore(s => s.previewRole);
   const [catalogsReady, setCatalogsReady] = useState(false);
   // Состояние визарда читается В МОМЕНТ перехода, а не из прошлого рендера:
   // «Оформить как заказ v4» сбрасывает визард и тут же уходит в карточку —
@@ -162,62 +156,35 @@ export default function OrderStudioApp({ user }) {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  const isRealAdmin = ['admin', 'director'].includes(user?.role);
-  useEffect(() => {
-    document.body.classList.toggle('has-preview-bar', isRealAdmin);
-    return () => document.body.classList.remove('has-preview-bar');
-  }, [isRealAdmin]);
-
   if (!catalogsReady) {
     return <LoadingScreen />;
   }
 
-  const effectiveRole = previewRole || user.role;
-  const isAdmin = ['admin', 'director'].includes(effectiveRole);
-  const isProduction = effectiveRole === 'production';
-  const isDesigner = effectiveRole === 'designer';
+  const role = user.role;
+  const isAdmin = ['admin', 'director'].includes(role);
+  const isProduction = role === 'production';
+  const isDesigner = role === 'designer';
   const canEdit = !isProduction && !isDesigner;
 
   return (
     <>
-      {/* ── Skip to content ── */}
-      <a href="#main-content" className={styles.skipLink}>
-        Перейти к основному содержимому
-      </a>
-
-      {/* ── RAY DECO SVG ── */}
-      <svg aria-hidden="true" style={{ position: 'fixed', top: -120, right: -80, width: 420, opacity: 0.04, pointerEvents: 'none', zIndex: 0 }} viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="200" y1="200" x2="20"  y2="10"  stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="390" y2="30"  stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="380" y2="200" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="370" y2="370" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="200" y2="390" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="10"  y2="350" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="30"  y2="200" stroke="#000" strokeWidth="1"/>
-        <line x1="200" y1="200" x2="60"  y2="20"  stroke="#000" strokeWidth="1"/>
-      </svg>
-
-      <Header />
-      <RolePreviewBar />
-      <OnboardingTips />
-      <CommandPalette />
-
-      <main id="main-content">
+      <OrderLayout user={user}>
       <Routes>
         <Route path="/" element={<WizardPage />} />
-        <Route path="/orders" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><KanbanBoard /></Suspense>} />
-        <Route path="/print" element={<Suspense fallback={<div className="panel-loading">Загрузка...</div>}><PrintPreview /></Suspense>} />
+        {/* Убраны канбан v3, аналитика продаж и печать v3 — закладки ведут на рабочие экраны */}
+        <Route path="/orders" element={<Navigate to={legacyRedirect('/orders', role)} replace />} />
+        <Route path="/print" element={<Navigate to={legacyRedirect('/print', role)} replace />} />
+        <Route path="/analytics" element={<Navigate to={legacyRedirect('/analytics', role)} replace />} />
         <Route path="/express" element={<RoleGuard allowed={canEdit}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ExpressCalc /></Suspense></RoleGuard>} />
         <Route path="/prices" element={<Navigate to="/sku?tab=pricing" replace />} />
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
-        <Route path="/analytics" element={<RoleGuard allowed={isAdmin || effectiveRole === 'rop' || isProduction}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><Dashboard /></Suspense></RoleGuard>} />
         <Route path="/sales" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesList /></Suspense></RoleGuard>} />
         <Route path="/sales/:id" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><SalesCard /></Suspense></RoleGuard>} />
         <Route path="/sales/:id/item/:key" element={<RoleGuard allowed={isAdmin}><Suspense fallback={<div className="panel-loading">Загрузка...</div>}><ItemWizard /></Suspense></RoleGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      </main>
+      </OrderLayout>
 
       {blocker.state === 'blocked' && (
         <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title">

@@ -102,7 +102,7 @@ export const PRINT_FIELD_SOURCES: Record<keyof DraftPrint, FieldSource> = {
   pantone: o('список через запятую'),
   special: o('только у шелкографии; код эффекта → название справочника ERP (EFFECT_TO_ERP)'),
   garment_kind: o('только у вышивки, как требует форма ERP'),
-  comment: o('комментарий + группа размеров + техника без кода ERP + нить вышивки'),
+  comment: o('комментарий + группа размеров + техника без кода ERP + нить вышивки + подрядчик и срок'),
 };
 
 export const LABEL_FIELD_SOURCES: Record<keyof DraftLabel, FieldSource> = {
@@ -133,8 +133,9 @@ export const ITEM_KIND_ROUTE: Record<SalesItemKind, (item: SalesItem) => KindRou
 };
 
 /**
- * Техника Order → метод ERP. `sublimation` и `patch` своего кода у ERP нет:
- * `other` (пришив/прочее) с названием техники в комментарии. `dtg` ERP читает,
+ * Техника Order → метод ERP. `sublimation`, `patch` и `other` (П = прочее /
+ * подряд, веха 2) своего кода у ERP нет: `other` (пришив/прочее) с названием
+ * техники в комментарии и предупреждением `method_as_other`. `dtg` ERP читает,
  * но этапа не строит (правка 07.09) — мост предупреждает.
  */
 export const METHOD_TO_ERP: Record<SalesPrintMethod, BrandingMethod> = {
@@ -145,9 +146,11 @@ export const METHOD_TO_ERP: Record<SalesPrintMethod, BrandingMethod> = {
   dtg: 'dtg',
   sublimation: 'other',
   patch: 'other',
+  other: 'other',
 };
 
-const METHOD_LABEL: Record<SalesPrintMethod, string> = {
+/** Название техники для человека — комментарий нанесения ERP и предупреждения запуска */
+export const METHOD_LABEL: Record<SalesPrintMethod, string> = {
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
   dtf: 'DTF',
@@ -155,6 +158,7 @@ const METHOD_LABEL: Record<SalesPrintMethod, string> = {
   dtg: 'DTG',
   sublimation: 'Сублимация',
   patch: 'Шеврон / нашивка',
+  other: 'Прочее / подряд',
 };
 
 // ── Результат ──────────────────────────────────────────────────────────────
@@ -178,6 +182,9 @@ const mm = (v: number | null): string | number => (v == null ? '' : v);
 function mapPrint(p: SalesPrint): DraftPrint {
   const notes: string[] = [];
   if (METHOD_TO_ERP[p.method] === 'other') notes.push(METHOD_LABEL[p.method]);
+  // Подрядчик и его срок у ERP отдельных полей не имеют — едут в комментарий
+  if (p.contractor.trim()) notes.push(`Подрядчик: ${p.contractor.trim()}`);
+  if (p.contractor_days != null) notes.push(`Срок подрядчика, дней: ${p.contractor_days}`);
   // Надбавки вышивки — списком через «+» (металлик + объёмная)
   if (p.method === 'embroidery') {
     for (const fx of (p.special || '').split('+')) if (EMBROIDERY_EFFECT_NOTE[fx]) notes.push(EMBROIDERY_EFFECT_NOTE[fx]);

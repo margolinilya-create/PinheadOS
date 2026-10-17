@@ -29,11 +29,28 @@ export type BlankSource = 'stock' | 'third_party';
 /**
  * Техники нанесения Order (v4 §4.2 п. 4) — набор фиксирован.
  * Коды совпадают с `BrandingMethod` ERP там, где техника у ERP есть;
- * `sublimation` и `patch` у ERP отдельного кода не имеют (см. мост).
+ * `sublimation`, `patch` и `other` (П = прочее / подряд, веха 2) у ERP
+ * отдельного кода не имеют (см. мост).
+ *
+ * Перечни значений — массивами: их сверяет с CHECK миграции сторож
+ * `model/checkValues.test.ts` (union-тип в рантайме не прочитать).
  */
-export type SalesPrintMethod =
-  | 'silkscreen' | 'embroidery' | 'dtf' | 'heat_transfer' | 'dtg'
-  | 'sublimation' | 'patch';
+export const SALES_PRINT_METHODS = [
+  'silkscreen', 'embroidery', 'dtf', 'heat_transfer', 'dtg', 'sublimation', 'patch', 'other',
+] as const;
+export type SalesPrintMethod = (typeof SALES_PRINT_METHODS)[number];
+
+/** От чего отмеряется смещение нанесения (`offset_mm`); пусто — не задано */
+export const PRINT_OFFSET_FROM = ['', 'neck_seam', 'top_edge', 'part_seam', 'center', 'other'] as const;
+export type PrintOffsetFrom = (typeof PRINT_OFFSET_FROM)[number];
+
+/** Куда смещение; пусто — не задано */
+export const PRINT_OFFSET_DIR = ['', 'up', 'down', 'left', 'right'] as const;
+export type PrintOffsetDir = (typeof PRINT_OFFSET_DIR)[number];
+
+/** Отметка оплаты (`orders.paid_kind`): ставит RPC оплаты, клиент только читает */
+export const PAID_KINDS = ['prepaid', 'full'] as const;
+export type PaidKind = (typeof PAID_KINDS)[number];
 
 /** Где наносится — у Order на нанесении, у ERP на позиции (`branding_on`) */
 export type PrintOn = 'cut' | 'finished';
@@ -69,6 +86,20 @@ export interface SalesPrint {
   artwork_url: string;
   /** Когда раскладка применена к ТЗ (v4 §0 п. 4); null — не применялась */
   applied_at: string | null;
+  // ── поля ТЗ (веха 2) ──
+  /** Раскладка на изделии (дизайн-мейкер, веха 5); null — нет */
+  layout: Record<string, unknown> | null;
+  /** Макет в закрытом бакете `order-artworks` (путь, не ссылка) */
+  artwork_path: string;
+  /** Смещение, мм; null — не задано */
+  offset_mm: number | null;
+  offset_from: PrintOffsetFrom;
+  offset_dir: PrintOffsetDir;
+  /** Эффекты нанесения списком (коды) */
+  effects: string[];
+  /** Подрядчик метода «прочее» и его срок, дней */
+  contractor: string;
+  contractor_days: number | null;
 }
 
 export interface SalesLabel {
@@ -79,6 +110,26 @@ export interface SalesLabel {
   comment: string;
   /** Вариант из библиотеки бирок; пусто — конструктор */
   variant_id: string;
+  /** Бирка без печати (бланк) */
+  blank: boolean;
+  /** Превью бирки — пути в бакете */
+  preview_paths: string[];
+  /** Схема крепления: текстом и картинкой */
+  attach_scheme: string;
+  attach_image_path: string;
+}
+
+/**
+ * Карточка заметок ТЗ (`order_notes_cards`): картинка/ссылка с подписью —
+ * к заказу целиком (`item_key` null) или к позиции (ключ позиции = её id).
+ */
+export interface SalesNoteCard {
+  key: string;
+  item_key: string | null;
+  group_title: string;
+  caption: string;
+  link: string;
+  image_path: string;
 }
 
 export interface SalesGrid {
@@ -126,6 +177,19 @@ export interface SalesItem {
   brief: string;
   /** Ручная цена за единицу; null — расчётная */
   manual_unit_price: number | null;
+  // ── поля ТЗ (веха 2, формат ТЗ по образцам) ──
+  supplier: string;
+  model_description: string;
+  extra_processing_note: string;
+  /** Лекала клиента */
+  client_pattern: string;
+  /** Цвета деталей: деталь → цвет */
+  part_colors: Record<string, string>;
+  tz_comment: string;
+  /** ТЗ позиции в PDF (путь в бакете) */
+  tz_pdf_path: string;
+  /** Технический рисунок (флэт) из библиотеки */
+  flat_id: string;
 }
 
 export interface SalesPayment {
@@ -177,4 +241,15 @@ export interface SalesOrder {
   tech_checked_at: string | null;
   /** Производственный заказ после запуска */
   erp_order_id: string | null;
+  /** Превью стикера на упаковку (путь в бакете) */
+  sticker_preview_path: string;
+  notes_cards: SalesNoteCard[];
+  // ── служебные (веха 2): пишут только RPC переходов, оплаты и запуска ──
+  paid_kind: PaidKind | null;
+  paid_override_reason: string | null;
+  sent_at: string | null;
+  launch_started_at: string | null;
+  launch_by: string | null;
+  launched_at: string | null;
+  launched_by: string | null;
 }

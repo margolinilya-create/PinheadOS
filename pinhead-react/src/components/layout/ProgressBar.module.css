@@ -1,6 +1,6 @@
 /* ── Progress Bar ── */
 .progress-bar-wrapper {
-  position: sticky; top: calc(var(--header-h) + var(--preview-bar-h)); z-index: 90;
+  position: sticky; top: var(--header-h); z-index: 90;
   background: var(--card);
 }
 .progress-bar {

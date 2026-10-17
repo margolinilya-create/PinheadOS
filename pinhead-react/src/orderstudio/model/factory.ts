@@ -4,7 +4,7 @@
  * `newDraftItem`/`emptyPrint` ERP: общий объект дал бы всем один ключ).
  */
 import type {
-  SalesGrid, SalesItem, SalesLabel, SalesOrder, SalesPrint,
+  SalesGrid, SalesItem, SalesLabel, SalesNoteCard, SalesOrder, SalesPrint,
 } from './types';
 
 const key = (): string => crypto.randomUUID();
@@ -28,12 +28,28 @@ export function newSalesPrint(patch: Partial<SalesPrint> = {}): SalesPrint {
     fill: 1,
     artwork_url: '',
     applied_at: null,
+    layout: null,
+    artwork_path: '',
+    offset_mm: null,
+    offset_from: '',
+    offset_dir: '',
+    effects: [],
+    contractor: '',
+    contractor_days: null,
     ...patch,
   };
 }
 
 export function newSalesLabel(patch: Partial<SalesLabel> = {}): SalesLabel {
-  return { key: key(), label_type: '', place: '', size: '', comment: '', variant_id: '', ...patch };
+  return {
+    key: key(), label_type: '', place: '', size: '', comment: '', variant_id: '',
+    blank: false, preview_paths: [], attach_scheme: '', attach_image_path: '',
+    ...patch,
+  };
+}
+
+export function newSalesNoteCard(patch: Partial<SalesNoteCard> = {}): SalesNoteCard {
+  return { key: key(), item_key: null, group_title: '', caption: '', link: '', image_path: '', ...patch };
 }
 
 export function newSalesItem(patch: Partial<SalesItem> = {}): SalesItem {
@@ -67,6 +83,14 @@ export function newSalesItem(patch: Partial<SalesItem> = {}): SalesItem {
     blank_price: null,
     brief: '',
     manual_unit_price: null,
+    supplier: '',
+    model_description: '',
+    extra_processing_note: '',
+    client_pattern: '',
+    part_colors: {},
+    tz_comment: '',
+    tz_pdf_path: '',
+    flat_id: '',
     ...patch,
   };
 }
@@ -101,6 +125,15 @@ export function newSalesOrder(patch: Partial<SalesOrder> = {}): SalesOrder {
     tz_ready_at: null,
     tech_checked_at: null,
     erp_order_id: null,
+    sticker_preview_path: '',
+    notes_cards: [],
+    paid_kind: null,
+    paid_override_reason: null,
+    sent_at: null,
+    launch_started_at: null,
+    launch_by: null,
+    launched_at: null,
+    launched_by: null,
     ...patch,
   };
 }

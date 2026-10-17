@@ -34,10 +34,9 @@ Pinhead — внутренняя ERP/CRM-система для типограф�
 - **Стейт:** Zustand 5 (слайсы), useShallow для селекторов
 - **Роутинг:** react-router-dom 7 (Routes/Route в App.jsx)
 - **БД/Auth:** Supabase (supabase-js)
-- **Графики:** Chart.js + react-chartjs-2. Recharts здесь числился ошибочно:
-  его нет ни в `package.json`, ни в `node_modules`, ни в одном импорте — при
-  этом два теста продолжали его мокать, а `vi.mock` несуществующего модуля
-  это тихий no-op. Остаток миграции на chart.js, снят вместе с моками
+- **Графики:** библиотеки графиков нет. Chart.js и react-chartjs-2 убраны вместе
+  с аналитикой продаж (веха 1 единого потока, 16.10; решение владельца); Recharts
+  не было никогда. Понадобятся графики — обсудить библиотеку заново
 - **Тесты:** Vitest + Testing Library (unit), Playwright (e2e)
 - **Линтинг:** ESLint 9, Husky + lint-staged
 - **CSS:** Vanilla CSS + CSS Modules (*.module.css), CSS-токены
@@ -50,20 +49,17 @@ pinhead-react/src/
 ├── main.jsx                 # Entry point
 ├── components/
 │   ├── auth/                # AuthScreen, AdminPanel
-│   ├── layout/              # Header, ProgressBar
+│   ├── layout/              # ProgressBar (шапка Order — orderstudio/layout/)
 │   ├── steps/               # Wizard: StepGarment → StepDesign → StepItems → StepDetails → StepSummary
 │   │   └── garment/         # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
-│   ├── orders/              # KanbanBoard, KanbanCard, OrderDrawer
 │   ├── editors/             # SkuEditor (8 табов), ExpressCalc
 │   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
-│   ├── output/              # PrintPreview (PDF)
-│   ├── analytics/           # Dashboard
-│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, RolePreviewBar, Skeleton, OnboardingTips, CommandPalette
+│   └── shared/              # ErrorBoundary, Toast, PageHeader, PriceBreakdown, Skeleton
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Главный Zustand store (собирает слайсы)
 │   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
 │   ├── useAuthStore.ts      # Auth + роли
-│   ├── useOrdersStore.ts    # CRUD заказов, Kanban
+│   ├── useOrdersStore.ts    # CRUD заказов v3 (вкладка ERP «Заказы ТЗ»; канбан v3 убран)
 │   ├── useCommentsStore.ts  # Комментарии к заказам
 │   ├── useToastStore.ts     # Уведомления
 │   ├── useConfirmStore.ts   # Imperative confirm dialog
@@ -94,9 +90,11 @@ pinhead-react/src/
 │   ├── deadline.ts          # Расчёт дедлайнов
 │   ├── displayNames.ts      # Показ: ткань названием, надбавка «+N ₽/шт», вид упаковки (16.10)
 │   └── i18n.ts              # Pluralize, translateSupabaseError
-├── styles/                  # CSS: auth, kanban, wizard, forms, layout, garment, editors, extras-zones
-└── orderstudio/             # Order v4: model/ (заказ, имена полей как DraftItem, ряды размеров),
-                             # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames), api/salesOrders,
+├── styles/                  # CSS: auth, kanban (остаток: .kanban-page, .kb-search), wizard, forms, layout, garment, editors, extras-zones
+└── orderstudio/             # Order v4: layout/ (оболочка раздела: OrderLayout, OrderSidebar, orderNav — снимок CSS оболочки ERP), model/ (заказ, имена полей как DraftItem, ряды размеров),
+                             # pricing/priceOrder, bridge/ (tzToErpDraft + erpNames; launch — прототип запуска через стор ERP,
+                             # динамический импорт трёх модулей ERP), api/salesOrders, api/salesTransitions (переходы,
+                             # проверка запуска, оплата), api/artworks (бакет order-artworks),
                              # store/useSalesStore (автосохранение), screens/ (/sales, /sales/:id,
                              # ItemWizard), wizard/ (wizardAdapter, itemSession,
                              # wizardOrderToSales + transferToSales — «Оформить как заказ v4»), leaveGuard
@@ -135,13 +133,11 @@ supabase/
 | Путь | Компонент | Доступ |
 |---|---|---|
 | `/` | WizardPage (5 шагов) | Все |
-| `/orders` | KanbanBoard | Все |
-| `/print` | PrintPreview | Все |
 | `/express` | ExpressCalc | Не production/designer |
 | `/prices` | → redirect `/sku?tab=pricing` | admin, director |
 | `/sku` | SkuEditor (8 табов) | admin, director |
-| `/admin` | AdminPanel | admin, director |
-| `/analytics` | Dashboard | admin, director, rop, production |
+| `/admin` | AdminScreen (единая админка ERP) | admin, director |
+| `/orders`, `/print`, `/analytics` | → redirect: `/orders` → `/sales` (admin/director) или `/`; `/print`, `/analytics` → `/` (канбан v3, печать и аналитика убраны в вехе 1) | Все |
 | `/sales`, `/sales/:id` | Order v4: SalesList, SalesCard (пилот) | admin, director |
 | `/sales/:id/item/:key` | ItemWizard — шаги визарда «Изделие»/«Дизайн» для позиции v4 (`key` = `new` или ключ) | admin, director |
 
@@ -165,16 +161,24 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
-- Lazy loading: KanbanBoard, ExpressCalc, AdminPanel, Dashboard, StepDesign, StepItems, StepDetails, StepSummary
+- Lazy loading: ExpressCalc, AdminPanel, StepDesign, StepItems, StepDetails, StepSummary
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
+- **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
+  архитектура (`engineering:architecture`/`system-design`), тесты (`testing-strategy`),
+  безопасность (отдельный агент-атакующий для прав, RLS, Storage, RPC), выкатка
+  (`deploy-checklist`, если трогается база или прод), техдолг (`tech-debt`); для экранов —
+  `design-critique`, `accessibility-review`, `ux-copy`. Находки вносятся в план, и только
+  потом план идёт на одобрение
 
 ## Supabase — схема
 
 | Таблица | Назначение |
 |---------|-----------|
-| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3) |
-| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10) |
+| `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3). Веха 2 (миграции A `20261017053703`, B `20261017062110`): служебные колонки v4 — `paid_kind`/`paid_at`/`paid_override_reason`, `sent_at`, `launch_started_at`/`launch_by`, `launched_at`/`launched_by`, `erp_order_id`, `archived_at`, плюс `sticker_preview_path`; формат номера — `order_number_format(bigint)` (его зовёт `generate_order_number()`), уникальный индекс `orders_order_number_uniq` |
+| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10). С вехи 2 — поля ТЗ (поставщик, описание модели, цвета частей, комментарий и PDF ТЗ; раскладка, файл макета, отступ, эффекты, подрядчик; метод `other`; бирки — `blank`, превью, схема крепления) |
+| `order_notes_cards` | Order v4 (веха 2): карточки заметок ТЗ (`order_id`, `item_id` null, группа, подпись, ссылка, картинка); составной FK `(item_id, order_id)`; RLS через родителя |
+| `order_events` | Order v4 (веха 2): журнал статусов и оплаты (`kind` = `status` / `payment`, `actor` = `auth.uid()`); у клиента только SELECT через родителя, пишут только RPC |
 | `profiles` | id, name, email, role, approved, active |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
@@ -193,13 +197,28 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
-| `storage-backup` | Ночная копия двух бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
+| `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md` |
+| `storage-backup` | Ночная копия трёх бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
 `npm run storage:gc`; носителей ключа четыре, уборщиков два, ошибка проверки =
 ничего не удалять. Подробно — `docs/rules/pravila-shemy-erp-podrobno.md`.
 
-Статусы заказа: draft → review → approved → production → done
+**Права Order v4 (веха 2)** — подробно `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`:
+- RPC (`security definer`, свой гейт): `order_v4_transition(p_id, p_to, p_reason)` — все переходы
+  статуса v4; `order_v4_launch_check(p_id)` — проверка запуска до создания заказа ERP;
+  `order_v4_set_payment(p_id, p_kind, p_override_reason)` — оплата и запуск без оплаты.
+- Хелперы: `sales_is_lead()` (admin/director/rop), `sales_is_ms()` (МС: `erp_employees.role =
+  'manager'`), `sales_is_seller()` (профиль `manager`); все требуют `active and approved`.
+- Стражи: `order_v4_guard` (`orders`, INSERT/UPDATE, белый список), `order_v4_delete_guard`
+  (удалить — только черновик без связи с ERP), `order_v4_child_guard` (позиции, нанесения,
+  бирки, карточки — только у черновика, пути `orders/<id>/…`).
+- Пробы на бою — `supabase/probes/` (README там же).
+
+Статусы заказа v3: draft → review → approved → production → done.
+Переходы v4 (RPC вехи 2): draft → ready_to_launch → production → done; ready_to_launch → draft
+(возврат с причиной); draft → archived. CHECK знает ещё `price_review`, `quoted`, `cancel_requested` —
+переходов в них пока нет
 
 Статусы профиля (ProfileStatus): active | pending_approval | disabled | no_profile
 - `active`: approved + active
@@ -239,6 +258,13 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
   проверять результат, toast.error при ошибке
 - **Order v4 пишется, ERP не трогается**: Order только читает типы и чистые хелперы ERP
 - Визард внутри «Заказов v4» — только через сессию позиции (`orderstudio/wizard/itemSession.ts`)
+- **Статус, оплата и связь с ERP у v4 — только RPC** (`order_v4_transition` / `_launch_check` /
+  `_set_payment`); прямую запись отклоняют стражи Order (`order_v4_guard` белым списком,
+  `_delete_guard`, `_child_guard`). Новая колонка `orders` — классифицировать в страже (сторож
+  `orderV4Rights.test.ts`). Подробно — `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`
+- Миграции на бой, пока MCP `execute_sql` виснет на `delete`/`drop`: сухой прогон
+  (`begin; …; PROBE_RESULT`) и применение — файлами через SQL Editor владельцем
+- Сторож импортов разрешает `bridge/launch.ts` ровно три модуля ERP и только динамически
 - ERP: доступ — `useErpAccess`, кнопки этапа — `useStagePermissions`; прогресс в штуках;
   финальный ОТК (`qc`) зависит от ВСЕХ терминальных этапов
 - ERP, realtime: `useErpStore()` без селектора запрещён; **живой канал ровно один**
@@ -264,6 +290,15 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - ТЗ в PDF принадлежит ПОЗИЦИИ, видно всем цехам маршрута; гейт ТЗ fail-open
 - Ключ объекта в Storage — строго ASCII (`tzFilePath`)
 - Файл, видимый приложенным, обязан быть в бакете: загрузка при выборе, не в сабмите
+- **ERP заморожен** (веха 1, 16.10): сторож `orderstudio/erpFrozen.test.ts` сверяет
+  хэши `src/erp` и миграций ERP с `erpFrozen.json` и запрещает DDL по `erp_*` в новых
+  миграциях. Правка ERP с согласия владельца — затем `npm run erp:freeze`
+- **Order импортирует из ERP** только `erp/erp.module.css`, белый список примитивов
+  `ERP_PRIMITIVES` (`erp/components`) и стор для моста — сторож `erpImports.test.ts`
+  (реэкспорт и динамический `import()` тоже считаются)
+- Оболочка Order (`orderstudio/layout/`) — снимок CSS оболочки ERP (импорт `erp.module.css`
+  раздувал CSS оболочки ERP за бюджет); палитру и `--header-h: 0` у `.orderMain`
+  держит `orderLayoutCss.test.ts`. Меняете палитру `.shell` — обновите снимок
 
 ## Где искать правило
 
@@ -336,7 +371,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (90 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (92 файла, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |
