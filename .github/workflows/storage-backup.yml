@@ -92,7 +92,9 @@ jobs:
           const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
             auth: { persistSession: false },
           });
-          const SOURCES = ['erp-attachments', 'sku-photos'];
+          // order-artworks (веха 2) — приватный, как и копия: ключ service_role
+          // читает его без политик, макеты клиента наружу не выходят
+          const SOURCES = ['erp-attachments', 'sku-photos', 'order-artworks'];
           const TARGET = 'storage-backup';
 
           /**
