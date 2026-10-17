@@ -363,13 +363,23 @@ function findKey(name, srcPath) {
  * Пока исходника нет (задачи 3–7 ещё не слиты), проверка честно говорит «пропущено»,
  * а не «0 Б»: «оболочка весит 0» — худший исход для стража. Задача 8 включает
  * `DESIGN_REQUIRED`, и тогда отсутствие любого модуля — красный страж.
+ *
+ * `waitsFor` — исходник, через который модуль попадает в приложение. Пока его
+ * нет, модуль ещё никто не подключил (`loadPdf` грузит `useAddArtwork`, а его —
+ * вкладка «Дизайн», задача 6): «⧗ ещё не подключён», а не красный, — ветка
+ * зелёная между слияниями задач 5 и 6. Появился `waitsFor`, а модуля в манифесте
+ * нет — красный, как и без `waitsFor`.
  */
 const DESIGN_REQUIRED = false;
-function designKey(name, srcPath) {
+function designKey(name, srcPath, waitsFor = null) {
   const key = findKey(name, srcPath);
   if (key) return key;
-  if (DESIGN_REQUIRED || existsSync(join(ROOT, srcPath))) {
+  const exists = existsSync(join(ROOT, srcPath));
+  const notWired = exists && waitsFor && !existsSync(join(ROOT, waitsFor));
+  if (DESIGN_REQUIRED || (exists && !notWired)) {
     fail(`${srcPath} есть в исходниках, но не найден в манифесте — проверьте страж`);
+  } else if (notWired) {
+    console.log(`⧗ ${srcPath} ещё не подключён (нет ${waitsFor}) — проверка пропущена`);
   } else {
     console.log(`⧗ ${srcPath} ещё нет — проверка пропущена`);
   }
@@ -442,7 +452,7 @@ if (pdfKey) {
   check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст и оболочка Order)', files).total, BUDGETS.designPdf);
 }
 
-const pdfjsKey = designKey('loadPdf', 'src/orderstudio/design/assets/loadPdf.ts');
+const pdfjsKey = designKey('loadPdf', 'src/orderstudio/design/assets/loadPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
 if (pdfjsKey) {
   const files = minus(staticGraph(manifest, [pdfjsKey]).js, order.js, canvasJs);
   check('pdfjs, JS', report('pdfjs — JS (loadPdf минус холст и оболочка Order)', files).total, BUDGETS.designPdfjs);
