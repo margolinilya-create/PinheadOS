@@ -70,6 +70,28 @@ describe('OrderStudioApp — доступ по ролям', () => {
     expect(switchToProduction).not.toHaveBeenCalled();
   });
 
+  it('МС без признака продавца входит в раздел: «Заказы в работе», без «Нового заказа»', async () => {
+    const router = renderApp({ ...prof('manager'), is_ms: true });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
+    expect(await screen.findByRole('heading', { name: 'Заказы в работе' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Новый заказ' })).toBeNull();
+    expect(switchToProduction).not.toHaveBeenCalled();
+  });
+
+  it('rop открывает «Сотрудников продаж»', async () => {
+    const router = renderApp(prof('rop'), '/sales-staff');
+    expect(await screen.findByRole('heading', { name: 'Сотрудники продаж' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/sales-staff');
+  });
+
+  it.each([
+    ['продавец', prof('manager', true)],
+    ['МС', { ...prof('manager'), is_ms: true }],
+  ])('%s на /sales-staff — в список заказов', async (_who, user) => {
+    const router = renderApp(user, '/sales-staff');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));
+  });
+
   it('старый мастер позиции /sales/:id/item/:key больше не открывается', async () => {
     const router = renderApp(prof('admin'), '/sales/o-1/item/new');
     await waitFor(() => expect(router.state.location.pathname).toBe('/sales'));

@@ -472,3 +472,142 @@ describe('самопроверка разборщиков', () => {
     expect(missingRevoke(sql)).toEqual(['f2']);
   });
 });
+
+/**
+ * МИГРАЦИЯ F (веха 4, `…_sales_ms_flag.sql`): МС — явный признак
+ * `profiles.is_ms` на стороне ТЗ. Держим то, что ломается молча:
+ *   · последняя редакция `sales_is_ms()` смотрит на признак и не читает ERP
+ *     (иначе МС снова назначается должностью в замороженном ERP);
+ *   · страж `profiles` охраняет ОБА признака: ранний выход — только если
+ *     не изменился ни один, INSERT — если оба не `true` (снять `is_ms`
+ *     из стража — прямая запись признака МС проходит мимо RPC);
+ *   · вид признака — статические ветки 'sales' / 'ms', у вида нет умолчания
+ *     (иначе вызов с двумя аргументами неоднозначен с прежней сигнатурой);
+ *   · отмечает и видит список руководство продаж: admin, director, rop;
+ *   · обе сигнатуры `sales_set_staff` закрыты revoke и открыты authenticated.
+ */
+const msFile = files.filter((f) => f.endsWith('_sales_ms_flag.sql')).at(-1);
+if (!msFile) throw new Error('нет миграции *_sales_ms_flag.sql');
+const MSF = read(msFile);
+
+/** Ранний выход стража — по обоим признакам */
+const GUARD_UPDATE_EXIT = /if tg_op = 'UPDATE'\s+and new\.is_sales is not distinct from old\.is_sales\s+and new\.is_ms is not distinct from old\.is_ms then\s+return new;/;
+const GUARD_INSERT_EXIT = /if tg_op = 'INSERT' and new\.is_sales is not true and new\.is_ms is not true then\s+return new;/;
+const LEAD_GATE = /p\.active is true and p\.approved is true\s+and p\.role in \('admin', 'director', 'rop'\)\) then\s+raise exception using errcode = '42501'/;
+
+describe('миграция F: МС на стороне ТЗ', () => {
+  const fns = functionsOf(MSF);
+  const fn = (n: string) => fns.find((f) => f.name === n);
+  const setStaff3 = fns.find((f) => f.name === 'sales_set_staff' && /p_kind text/.test(f.head));
+  const setStaff2 = fns.find((f) => f.name === 'sales_set_staff' && !/p_kind/.test(f.head));
+
+  it('функции на месте: две сигнатуры sales_set_staff', () => {
+    expect(fns.map((f) => f.name).sort()).toEqual(
+      ['profiles_sales_guard', 'sales_is_ms', 'sales_set_staff', 'sales_set_staff', 'sales_staff_list']);
+    expect(setStaff3?.head).toMatch(/sales_set_staff\(p_profile uuid, p_kind text, p_on boolean\)/);
+    expect(setStaff2?.head).toMatch(/sales_set_staff\(p_profile uuid, p_on boolean\)/);
+  });
+
+  it('колонка is_ms — not null default false', () => {
+    expect(noComments(MSF)).toMatch(
+      /alter table public\.profiles\s+add column if not exists is_ms boolean not null default false;/);
+  });
+
+  it('последняя редакция sales_is_ms — по признаку, ERP не читает', () => {
+    expect(latestDefining('sales_is_ms')).toBe(MSF);
+    const body = fn('sales_is_ms')?.body ?? '';
+    expect(body).toMatch(/p\.is_ms is true/);
+    expect(body).toMatch(/p\.active is true and p\.approved is true/);
+    expect(body).not.toMatch(/erp_|p\.role\b/);
+  });
+
+  it('последняя редакция стража — здесь; исключения ровно два: is_sales и is_ms', () => {
+    expect(latestDefining('profiles_sales_guard')).toBe(MSF);
+    const guard = fn('profiles_sales_guard')?.body ?? '';
+    expect(rowColumnsOf(guard)).toEqual(['is_ms', 'is_sales']);
+    expect(guard).toMatch(GUARD_UPDATE_EXIT);
+    expect(guard).toMatch(GUARD_INSERT_EXIT);
+    expect(guard).toMatch(/current_setting\('sales\.rpc', true\)[\s\S]{0,80}current_user not in \('authenticated', 'anon'\)/);
+    expect(guard).toMatch(/errcode = '42501'/);
+    expect(fn('profiles_sales_guard')?.head).toMatch(/security invoker/);
+  });
+
+  it('самопроверка: страж без is_ms — красный', () => {
+    const guard = fn('profiles_sales_guard')?.body ?? '';
+    const mutated = guard
+      .replace(/\s+and new\.is_ms is not distinct from old\.is_ms/, '')
+      .replace(' and new.is_ms is not true', '');
+    expect(mutated).not.toBe(guard);
+    expect(rowColumnsOf(mutated)).toEqual(['is_sales']);
+    expect(mutated).not.toMatch(GUARD_UPDATE_EXIT);
+    expect(mutated).not.toMatch(GUARD_INSERT_EXIT);
+  });
+
+  it('страж висит на INSERT и UPDATE profiles', () => {
+    expect(noComments(MSF)).toMatch(
+      /drop trigger if exists profiles_sales_guard on public\.profiles;\s+create trigger profiles_sales_guard\s+before insert or update on public\.profiles\s+for each row execute function public\.profiles_sales_guard\(\);/);
+  });
+
+  it('вид признака: статические ветки sales / ms, иначе 22023; умолчания нет', () => {
+    const body = noComments(setStaff3?.body ?? '');
+    expect(setStaff3?.head.match(/sales_set_staff\(([^)]*)\)/)?.[1]).toBe('p_profile uuid, p_kind text, p_on boolean');
+    expect(body).toMatch(/if p_kind = 'sales' then[\s\S]*?update public\.profiles set is_sales = p_on where id = p_profile;/);
+    expect(body).toMatch(/elsif p_kind = 'ms' then[\s\S]*?update public\.profiles set is_ms = p_on where id = p_profile;/);
+    expect(body).toMatch(/else\s+raise exception using errcode = '22023'/);
+    expect(body).not.toMatch(/\bexecute\b|format\(|\|\|/i);
+  });
+
+  it('отмечает и видит список руководство продаж (admin, director, rop), иначе 42501', () => {
+    expect(setStaff3?.body).toMatch(LEAD_GATE);
+    expect(fn('sales_staff_list')?.body).toMatch(LEAD_GATE);
+  });
+
+  it('трёхаргументная объявлена ПОСЛЕ обёртки — её видит сторож контракта RPC', () => {
+    expect(fns.indexOf(setStaff2 as FnDef)).toBeGreaterThanOrEqual(0);
+    expect(fns.indexOf(setStaff3 as FnDef)).toBeGreaterThan(fns.indexOf(setStaff2 as FnDef));
+  });
+
+  it('прежняя сигнатура — обёртка с видом sales, своих меток и записи нет', () => {
+    const body = noComments(setStaff2?.body ?? '');
+    expect(body).toMatch(/perform public\.sales_set_staff\(p_profile, 'sales'::text, p_on\);/);
+    expect(body).not.toMatch(/update\s|set_config/);
+  });
+
+  it('метка sales.rpc: каждое on закрыто off — в обеих ветках', () => {
+    const withMarks = fns.filter((f) => /sales\.rpc'\s*,\s*'on'/.test(f.body));
+    expect(withMarks).toEqual([setStaff3]);
+    expect((setStaff3?.body.match(/'sales\.rpc', 'on'/g) ?? []).length).toBe(2);
+    for (const f of fns) expect(rpcMarkProblems(f.body, 'sales.rpc'), f.name).toEqual([]);
+  });
+
+  it('список: drop + create, отдаёт роль и оба признака', () => {
+    expect(noComments(MSF)).toMatch(
+      /drop function if exists public\.sales_staff_list\(\);\s+create or replace function public\.sales_staff_list\(\)/);
+    expect(fn('sales_staff_list')?.head).toMatch(/role text,[\s\S]*is_sales boolean,\s*is_ms boolean/);
+    expect(fn('sales_staff_list')?.body).toMatch(/p\.role, p\.active, p\.approved, p\.is_sales, p\.is_ms/);
+  });
+
+  it('revoke from public, anon и grant authenticated у каждой сигнатуры; триггер закрыт от всех', () => {
+    expect(missingRevoke(MSF)).toEqual([]);
+    for (const sig of ['sales_set_staff\\(uuid, text, boolean\\)', 'sales_set_staff\\(uuid, boolean\\)', 'sales_staff_list\\(\\)', 'sales_is_ms\\(\\)']) {
+      expect(MSF).toMatch(new RegExp(`revoke execute on function public\\.${sig} from public, anon;`));
+      expect(MSF).toMatch(new RegExp(`grant execute on function public\\.${sig} to authenticated;`));
+    }
+    expect(MSF).toMatch(/revoke execute on function public\.profiles_sales_guard\(\) from public, anon, authenticated;/);
+    expect(MSF).not.toMatch(/grant execute on function public\.profiles_sales_guard\(/);
+  });
+
+  it('security definer — с search_path; схема PostgREST перечитывается', () => {
+    const bad = fns.filter((f) => /security definer/.test(f.head) && !/set search_path = public/.test(f.head));
+    expect(bad.map((f) => f.name)).toEqual([]);
+    for (const f of [fn('sales_is_ms'), setStaff3, setStaff2, fn('sales_staff_list')]) {
+      expect(f?.head).toMatch(/security definer/);
+    }
+    expect(noComments(MSF)).toMatch(/notify pgrst, 'reload schema';\s*$/);
+  });
+
+  it('политик не создаёт, ERP не трогает', () => {
+    expect(policiesOf(MSF)).toEqual([]);
+    expect(noComments(MSF)).not.toMatch(/\berp_/);
+  });
+});

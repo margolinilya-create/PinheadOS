@@ -11,7 +11,7 @@ import { EmptyResult, EmptyState } from '../../erp/components/ErpStates';
  */
 import { TableSkeleton } from '../../erp/components/ErpSkeletons';
 import { parseDateLocal } from '../../utils/date';
-import { isSalesLead, ordersLabel } from '../layout/orderNav';
+import { canCreateOrders, isSalesLead, ordersLabel } from '../layout/orderNav';
 import { STATUS_LABELS, rub } from './labels';
 import { filterSalesList, isFiltered } from './salesListFilter';
 import { useNewOrder } from './useNewOrder';
@@ -73,6 +73,13 @@ export default function SalesList() {
 
   const title = ordersLabel(user);
   const createLabel = creating ? 'Открываем…' : 'Новый заказ';
+  // МС без признака продавца своих заказов не заводит (`orders_insert`)
+  const canCreate = canCreateOrders(user);
+  const createButton = canCreate && (
+    <button type="button" className={`btn btn-primary ${styles.touch}`} onClick={onCreate} disabled={creating}>
+      {createLabel}
+    </button>
+  );
 
   return (
     <div className={styles.page}>
@@ -81,9 +88,7 @@ export default function SalesList() {
           <h1 className={styles.title}>{title}</h1>
           <div className={styles.sub}>Расчёт, КП и ТЗ заказа</div>
         </div>
-        <button type="button" className={`btn btn-primary ${styles.touch}`} onClick={onCreate} disabled={creating}>
-          {createLabel}
-        </button>
+        {createButton}
       </div>
 
       {listLoading && list.length === 0 ? (
@@ -91,13 +96,11 @@ export default function SalesList() {
       ) : list.length === 0 ? (
         <EmptyState
           icon="orders"
-          title="Заказов пока нет"
-          text="Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране."
-          action={(
-            <button type="button" className={`btn btn-primary ${styles.touch}`} onClick={onCreate} disabled={creating}>
-              {createLabel}
-            </button>
-          )}
+          title={canCreate ? 'Заказов пока нет' : 'Заказов в работе пока нет'}
+          text={canCreate
+            ? 'Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране.'
+            : 'Здесь появятся заказы, отправленные в работу.'}
+          action={createButton || undefined}
         />
       ) : (
         <>

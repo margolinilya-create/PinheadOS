@@ -26,7 +26,7 @@ import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
 import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
-import { canUseSales, legacyRedirect } from './layout/orderNav'
+import { canManageSalesStaff, canUseSales, legacyRedirect } from './layout/orderNav'
 import { switchToProduction } from './switchToProduction'
 import OrderLayout from './layout/OrderLayout'
 
@@ -41,11 +41,11 @@ const ExpressCalc = React.lazy(() => import('../components/editors/ExpressCalc')
  */
 const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
-// Заказы v4: продавцы (`is_sales`) и руководство продаж — `canUseSales`
+// Заказы v4: продавцы (`is_sales`), МС (`is_ms`) и руководство продаж — `canUseSales`
 const SalesList = React.lazy(() => import('./screens/SalesList'));
 // Рабочее место заказа (веха 3): изделия, клиент, ТЗ и цена — ленивый чанк
 const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
-// Менеджеры продаж (веха 3): признак is_sales ставят admin/director
+// Сотрудники продаж (вехи 3, 4): признаки is_sales и is_ms ставят admin, director, rop
 const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 /*
  * Agentation отсюда УБРАН и живёт в `components/shared/DevAnnotations`,
@@ -152,7 +152,7 @@ function OrderStudioShell({ user }) {
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
         <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
         <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
-        <Route path="/sales-staff" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
+        <Route path="/sales-staff" element={<RoleGuard allowed={canManageSalesStaff(user)}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
         {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}
         <Route path="*" element={<Navigate to="/sales" replace />} />
       </Routes>

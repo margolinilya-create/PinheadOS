@@ -3,9 +3,12 @@
 -- (20261017093841_sales_staff_flag, признак «Менеджер продаж» — до применения
 -- на бою запускать сухим прогоном вместе с ней в одной транзакции), и миграция D
 -- (20261017101513_order_v4_client_rev: ревизия клиента и конкурентная правка
--- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном).
+-- в order_v4_save / order_v4_save_full — до применения так же, сухим прогоном),
+-- и миграция F (20261017142210_sales_ms_flag: МС — признак profiles.is_ms,
+-- sales_set_staff по виду 'sales' / 'ms', отмечает и rop — до применения на бою
+-- только сухим прогоном вместе с ней в одной транзакции: файл читает is_ms).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=121 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=151 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -24,11 +27,15 @@
 --           внутри транзакции получает is_sales = true (откат вернёт)
 --   SELLER2 e73bd7fd-92a4-4b7b-b62d-ce9462d77f26  то же, что SELLER
 --   HEAD    05bbc552-bca2-490d-b275-46a3084dca7c  profiles.role = manager (ERP production_head),
---           БЕЗ is_sales — начальник цеха: заказы продаж ему закрыты
+--           БЕЗ is_sales и is_ms — начальник цеха: заказы продаж ему закрыты. Внутри
+--           транзакции его строка erp_employees получает role = 'manager' (прежний
+--           признак МС): с миграции F это МС не делает (откат вернёт)
 --   PENDING cc9ed453-d3d7-4add-a361-8719a7701f97  profiles.role = manager, отключён и не одобрен;
 --           внутри транзакции: active = true, is_sales = true, approved остаётся false
 --   MS      f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9  profiles.role = manager; внутри транзакции
---           его строка erp_employees получает role = 'manager' (откат вернёт)
+--           is_ms = true, is_sales = false — МС без признака продавца (откат вернёт)
+--   ROP     22d22715-1487-480a-aea1-53a7bd52df2d  profiles.role = manager; внутри транзакции
+--           role = 'rop' без признаков — руководство продаж (на бою 17.10 rop нет)
 -- Заказы: a1 (SELLER, draft, к отправке), a2 (SELLER2, draft), a3 (SELLER, ready_to_launch),
 -- a4 (SELLER, v3), a5 (SELLER, draft, на удаление), a6 (SELLER, ready_to_launch, захват
 -- связи ERP до запуска), a7 (SELLER, ready_to_launch, возврат МС), a8 (отменённый
@@ -75,16 +82,22 @@ $f$;
 -- ── Данные (суперпользователь, auth.uid() пуст — стражи пропускают) ──────
 select pg_temp.as_user(null);
 
+-- Миграция F: МС — признак is_ms, должность в ERP не в счёт. HEAD получает
+-- в ERP должность manager (прежний признак МС) — МС от этого не становится
 update public.erp_employees set role = 'manager'
- where profile_id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
--- Миграция E: продавцы — по признаку (служебный доступ страж пропускает).
--- HEAD и ADMIN — явно без признака: владелец мог отметить их на бою
-update public.profiles set is_sales = false
+ where profile_id = '05bbc552-bca2-490d-b275-46a3084dca7c';
+-- Миграции E и F: продавцы и МС — по признакам (служебный доступ страж пропускает).
+-- Остальным признаки сняты явно: владелец мог отметить их на бою
+update public.profiles set is_sales = false, is_ms = false
  where id in ('05bbc552-bca2-490d-b275-46a3084dca7c', 'b9c3e42e-9e07-44c2-8b15-839ce327c40c');
-update public.profiles set is_sales = true
+update public.profiles set is_sales = true, is_ms = false
  where id in ('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
-update public.profiles set active = true, is_sales = true
+update public.profiles set active = true, is_sales = true, is_ms = false
  where id = 'cc9ed453-d3d7-4add-a361-8719a7701f97';
+update public.profiles set is_ms = true, is_sales = false
+ where id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9';
+update public.profiles set role = 'rop', is_sales = false, is_ms = false
+ where id = '22d22715-1487-480a-aea1-53a7bd52df2d';
 
 insert into public.orders (id, order_number, schema_version, status, created_by, data, customer, due_date)
 values
@@ -138,6 +151,7 @@ select pg_temp.p('s_is_seller', 'OK true', $q$select public.sales_is_seller()::t
 -- признак меняет только admin/director через RPC; прямой UPDATE своего профиля режет RLS
 select pg_temp.p('seller_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
 select pg_temp.p('seller_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
+select pg_temp.p('seller_set_ms', '42501 Отмечать', $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', 'ms', true)$q$);
 select pg_temp.p('s_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = false where id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'$q$);
 select pg_temp.p('s_status_direct', '42501', $q$update public.orders set status = 'production' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_paid_direct', '42501', $q$update public.orders set paid_kind = 'full', paid_at = now() where id = '00000000-0000-4000-8000-0000000000a1'$q$);
@@ -239,6 +253,9 @@ select pg_temp.p('head_insert', '42501', $q$insert into public.orders (order_num
 select pg_temp.p('head_update_foreign', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('head_self_set_sales', 'OK rows=0', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
 select pg_temp.p('head_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('head_set_ms', '42501 Отмечать', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', true)$q$);
+-- должность manager в ERP — не МС (миграция F)
+select pg_temp.p('head_erp_manager_not_ms', 'OK false', $q$select public.sales_is_ms()::text$q$);
 reset role;
 
 -- ── PENDING: признак есть, профиль не одобрен ────────────────────────────
@@ -252,9 +269,18 @@ reset role;
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
 -- прямая запись признака — отказ стража даже у админа (политика profiles_update его пускает)
-select pg_temp.p('self_set_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
-select pg_temp.p('admin_direct_sales', '42501 Признак «Менеджер продаж»', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
-select pg_temp.p('admin_insert_sales', '42501 Признак «Менеджер продаж»', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+select pg_temp.p('self_set_sales', '42501 Признаки «Ведёт заказы» и «МС»', $q$update public.profiles set is_sales = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
+select pg_temp.p('admin_direct_sales', '42501 Признаки «Ведёт заказы» и «МС»', $q$update public.profiles set is_sales = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_insert_sales', '42501 Признаки «Ведёт заказы» и «МС»', $q$insert into public.profiles (id, name, role, is_sales) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+-- миграция F: признак МС — тот же страж, и в upsert тоже
+select pg_temp.p('self_set_ms', '42501 Признаки «Ведёт заказы» и «МС»', $q$update public.profiles set is_ms = true where id = 'b9c3e42e-9e07-44c2-8b15-839ce327c40c'$q$);
+select pg_temp.p('admin_direct_ms', '42501 Признаки «Ведёт заказы» и «МС»', $q$update public.profiles set is_ms = true where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_insert_ms', '42501 Признаки «Ведёт заказы» и «МС»', $q$insert into public.profiles (id, name, role, is_ms) values (gen_random_uuid(), 'проба', 'manager', true)$q$);
+select pg_temp.p('admin_upsert_ms', '42501 Признаки «Ведёт заказы» и «МС»', $q$insert into public.profiles (id, name, role) values ('05bbc552-bca2-490d-b275-46a3084dca7c', 'проба', 'manager') on conflict (id) do update set is_ms = true$q$);
+-- вид признака — только 'sales' или 'ms'
+select pg_temp.p('admin_kind_role', '22023 Неизвестный признак', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'role', true)$q$);
+select pg_temp.p('admin_kind_upper', '22023 Неизвестный признак', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'MS', true)$q$);
+select pg_temp.p('admin_kind_null', '22023 Неизвестный признак', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null, true)$q$);
 -- руководитель правит чужой черновик: версия сверяется и для него
 select pg_temp.p('a_save_foreign_stale', 'P0001 Заказ изменён в другой вкладке', $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000a10", "client_rev": 3, "expected_updated_at": "2000-01-01T00:00:00Z", "items": [{"key": "00000000-0000-4000-8000-000000000b10", "supplier": "Поставщик-проба"}]}'::jsonb)$q$);
 -- остальные колонки профиля админ правит как раньше
@@ -264,10 +290,13 @@ select pg_temp.p('admin_set_staff_missing', 'P0002', $q$select public.sales_set_
 select pg_temp.p('admin_set_staff_null', '22023', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', null)$q$);
 select pg_temp.p('admin_set_staff', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
 select pg_temp.p('admin_set_staff_effect', 'OK true', $q$select is_sales::text from public.profiles where id = '05bbc552-bca2-490d-b275-46a3084dca7c'$q$);
+select pg_temp.p('admin_set_ms', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', true)$q$);
+select pg_temp.p('admin_list_ms', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and is_ms and is_sales)::text from public.sales_staff_list()$q$);
 reset role;
 select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
 set local role authenticated;
 select pg_temp.p('head_now_seller', 'OK true', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('head_now_ms', 'OK true', $q$select public.sales_is_ms()::text$q$);
 reset role;
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
@@ -278,10 +307,33 @@ set local role authenticated;
 select pg_temp.p('head_seller_again_off', 'OK false', $q$select public.sales_is_seller()::text$q$);
 reset role;
 
+-- ── ROP: отмечает сотрудников продаж (миграция F) ───────────────────────
+select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
+set local role authenticated;
+select pg_temp.p('rop_set_ms_off', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'ms', false)$q$);
+-- прежняя сигнатура — «Ведёт заказы», права те же
+select pg_temp.p('rop_set_sales_old', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', true)$q$);
+select pg_temp.p('rop_list', 'OK true', $q$select bool_or(id = '05bbc552-bca2-490d-b275-46a3084dca7c' and is_sales and not is_ms)::text from public.sales_staff_list()$q$);
+select pg_temp.p('rop_unset_sales', 'OK', $q$select public.sales_set_staff('05bbc552-bca2-490d-b275-46a3084dca7c', 'sales', false)$q$);
+reset role;
+select pg_temp.as_user('05bbc552-bca2-490d-b275-46a3084dca7c');
+set local role authenticated;
+select pg_temp.p('head_ms_off', 'OK false', $q$select (public.sales_is_ms() or public.sales_is_seller())::text$q$);
+reset role;
+
 -- ── MS ──────────────────────────────────────────────────────────────────
 select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 set local role authenticated;
 select pg_temp.p('ms_is_ms', 'OK true', $q$select public.sales_is_ms()::text$q$);
+-- МС без признака продавца: своих заказов не заводит, сотрудников не отмечает
+select pg_temp.p('ms_not_seller', 'OK false', $q$select public.sales_is_seller()::text$q$);
+select pg_temp.p('ms_set_staff', '42501 Отмечать', $q$select public.sales_set_staff('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'ms', false)$q$);
+select pg_temp.p('ms_set_staff_old', '42501 Отмечать', $q$select public.sales_set_staff('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', false)$q$);
+select pg_temp.p('ms_list_staff', '42501 Список', $q$select count(*)::text from public.sales_staff_list()$q$);
+select pg_temp.p('ms_self_set_ms', 'OK rows=0', $q$update public.profiles set is_ms = false where id = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9'$q$);
+select pg_temp.p('ms_draft_invisible', 'OK 0', $q$select count(*)::text from public.orders where id = '00000000-0000-4000-8000-0000000000a2'$q$);
+select pg_temp.p('ms_update_draft', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a2'$q$);
+select pg_temp.p('ms_insert', '42501', $q$insert into public.orders (order_number, created_by, data) values ('PROBE-M1', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{}')$q$);
 select pg_temp.p('ms_sees', 'OK PROBE-1,PROBE-3,PROBE-6,PROBE-7,PROBE-8', $q$select string_agg(order_number, ',' order by order_number) from public.orders where order_number like 'PROBE-%'$q$);
 select pg_temp.p('ms_direct_update', 'OK rows=0', $q$update public.orders set title = 'x' where id = '00000000-0000-4000-8000-0000000000a3'$q$);
 select pg_temp.p('ms_item_update', '42501', $q$update public.order_items set tz_comment = 'x' where id = '00000000-0000-4000-8000-0000000000b3'$q$);
@@ -345,10 +397,19 @@ reset role;
 
 -- ── Отключённый профиль ничего не видит ─────────────────────────────────
 select pg_temp.as_user(null);
-update public.profiles set active = false where id = 'e73bd7fd-92a4-4b7b-b62d-ce9462d77f26';
+update public.profiles set active = false
+ where id in ('e73bd7fd-92a4-4b7b-b62d-ce9462d77f26', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 select pg_temp.as_user('e73bd7fd-92a4-4b7b-b62d-ce9462d77f26');
 set local role authenticated;
 select pg_temp.p('off_sees', 'OK null', $q$select string_agg(order_number, ',') from public.orders where order_number like 'PROBE-%'$q$);
+reset role;
+-- МС с признаком, но отключён: заказов «К запуску» не видит и не запускает
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('ms_off_not_ms', 'OK false', $q$select public.sales_is_ms()::text$q$);
+select pg_temp.p('ms_off_sees', 'OK null', $q$select string_agg(order_number, ',') from public.orders where order_number like 'PROBE-%'$q$);
+select pg_temp.p('ms_off_launch', '42501 Заказ не найден или недоступен', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a8')$q$);
+select pg_temp.p('ms_off_back', '42501 Заказ не найден или недоступен', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a8', 'draft', 'правка')$q$);
 reset role;
 
 -- ── Журнал (как ADMIN) ──────────────────────────────────────────────────

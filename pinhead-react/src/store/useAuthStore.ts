@@ -28,7 +28,7 @@ const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === '1';
 
 const DEV_USER: User = {
   id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode',
-  role: 'admin', approved: true, active: true, is_sales: false,
+  role: 'admin', approved: true, active: true, is_sales: false, is_ms: false,
 };
 
 /**
@@ -214,7 +214,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const approved = data.approved === true;
       const status: ProfileStatus = !active ? 'disabled' : approved ? 'active' : 'pending_approval';
       set({
-        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active, is_sales: data.is_sales === true },
+        user: { id, email, name: data.name || email, role: (data.role as UserRole) || 'manager', approved, active, is_sales: data.is_sales === true, is_ms: data.is_ms === true },
         profileStatus: status,
         loading: false,
         error: null,
