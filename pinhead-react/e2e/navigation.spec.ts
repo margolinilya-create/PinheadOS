@@ -5,10 +5,12 @@ import { test, expect } from '@playwright/test';
 test.use({ actionTimeout: 10000 });
 
 test.describe('Core navigation', () => {
-  test('wizard page loads with step 1 visible', async ({ page }) => {
+  test('/ ведёт в список заказов, «Новый заказ» в меню — кнопка', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible();
-    await expect(page.locator('.garment-row').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/sales$/);
+    await expect(page.getByRole('heading', { name: 'Все заказы' })).toBeVisible();
+    const nav = page.getByRole('navigation', { name: 'Разделы заказа' });
+    await expect(nav.getByRole('button', { name: 'Новый заказ' })).toBeVisible();
   });
 
   test('express calculator route loads', async ({ page }) => {
@@ -18,13 +20,11 @@ test.describe('Core navigation', () => {
   });
 
   test('старые адреса ведут на рабочие экраны', async ({ page }) => {
-    // Dev-вход — admin: /orders → список заказов v4, остальные → визард
-    await page.goto('/orders');
-    await expect(page).toHaveURL(/\/sales$/);
-    for (const old of ['/print', '/analytics']) {
+    // Все старые адреса раздела — в список заказов (веха 3)
+    for (const old of ['/orders', '/print', '/analytics']) {
       await page.goto(old);
-      await expect(page).toHaveURL(/\/$/);
-      await expect(page.getByRole('heading', { name: 'ИЗДЕЛИЕ' })).toBeVisible({ timeout: 10000 });
+      await expect(page).toHaveURL(/\/sales$/);
+      await expect(page.getByRole('heading', { name: 'Все заказы' })).toBeVisible({ timeout: 10000 });
     }
   });
 });

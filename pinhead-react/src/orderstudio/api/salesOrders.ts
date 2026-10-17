@@ -54,9 +54,13 @@ export interface SalesOrderListRow {
   price_total: number | null;
   due_date: string | null;
   updated_at: string | null;
+  /** Автор заказа (`auth.uid()` при создании) — фильтр «Мои» у руководства */
+  created_by: string | null;
+  /** «Менеджер» шапки — колонка списка у руководства */
+  manager_name: string | null;
 }
 
-const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at';
+const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at, created_by, manager_name';
 /**
  * Связи названы явно (`!fkey`): у `order_notes_cards` два внешних ключа —
  * к заказу и составной к позиции, и без подсказки PostgREST мог бы счесть
@@ -317,6 +321,43 @@ export async function fetchSalesOrders(): Promise<SalesOrderListRow[] | null> {
     return null;
   }
   return (data ?? []) as SalesOrderListRow[];
+}
+
+/** Ответ поиска своего пустого черновика: `ok: false` — запрос упал (тост уже показан) */
+export type OwnDraftLookup = { ok: true; id: string | null } | { ok: false };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Свой пустой черновик — расчёт без позиций и без клиента, заведённый мной.
+ * «Новый заказ» открывает его вместо второго пустого (решение контроллера):
+ * иначе каждый промах по кнопке оставлял бы в списке пустышку.
+ *
+ * Условия проверяются и здесь, после ответа: выборка — подсказка базе,
+ * а решение «пустой» принимает клиент по тем же полям, что видит человек.
+ * Профиль без uuid (режим разработки, `dev`) черновиков в базе не имеет.
+ */
+export async function findOwnEmptyDraft(uid: string): Promise<OwnDraftLookup> {
+  if (!UUID.test(uid)) return { ok: true, id: null };
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, customer, status, created_by, order_items!order_items_order_id_fkey(id)')
+    .eq('schema_version', 4)
+    .eq('status', 'draft')
+    .eq('created_by', uid)
+    .is('archived_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    console.error('findOwnEmptyDraft', error);
+    toast.error('Не удалось проверить черновики — новый заказ не создан');
+    return { ok: false };
+  }
+  const empty = ((data ?? []) as Row[]).find((r) => r.status === 'draft'
+    && r.created_by === uid
+    && !str(r.customer).trim()
+    && (r.order_items ?? []).length === 0);
+  return { ok: true, id: empty?.id ?? null };
 }
 
 export async function fetchSalesOrder(id: string): Promise<SalesOrder | null> {

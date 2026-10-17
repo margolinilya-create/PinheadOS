@@ -23,7 +23,7 @@ import { join } from 'node:path';
  * правкой числа: тест сравнивает с зафиксированным здесь значением.
  */
 
-const MAX_WARNINGS_CEILING = 95;
+const MAX_WARNINGS_CEILING = 34;
 
 describe('ратчет предупреждений линтера', () => {
   const pkg = JSON.parse(

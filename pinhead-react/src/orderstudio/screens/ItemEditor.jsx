@@ -23,7 +23,7 @@ const toMm = (v) => {
  * Позиция заказа v4 — срез 1: пошив по модели каталога. Бланк, давальческое
  * и разработка есть в модели и в цене, их шаги визарда — срез 3.
  */
-export default function ItemEditor({ item, index, price, onChange, onRemove, onWizard }) {
+export default function ItemEditor({ item, index, price, onChange, onRemove }) {
   const { skuCatalog, fabricsCatalog, zonesCatalog, extrasCatalog } = useStore(useShallow((s) => ({
     skuCatalog: s.skuCatalog,
     fabricsCatalog: s.fabricsCatalog,
@@ -78,7 +78,6 @@ export default function ItemEditor({ item, index, price, onChange, onRemove, onW
       <div className={styles.panelTitle}>
         <span>Позиция {index + 1}{item.product_type ? ` · ${item.product_type}` : ''}</span>
         <span className={styles.row}>
-          {onWizard && <button type="button" className="btn" onClick={onWizard}>Изменить в визарде</button>}
           <button type="button" className={styles.remove} onClick={onRemove}>Удалить позицию</button>
         </span>
       </div>

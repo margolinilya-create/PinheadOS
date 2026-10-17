@@ -183,11 +183,9 @@ export default function SalesCard() {
               price={price?.items.find((p) => p.key === it.key) ?? null}
               onChange={(patch) => setItem(i, patch)}
               onRemove={() => removeItem(i)}
-              onWizard={() => navigate(`/sales/${order.id}/item/${it.key}`)}
             />
           ))}
           <div className={styles.row}>
-            <button type="button" className="btn btn-primary" onClick={() => navigate(`/sales/${order.id}/item/new`)}>+ Позиция в визарде</button>
             <button type="button" className="btn" onClick={addItem}>+ Позиция вручную</button>
           </div>
         </div>
