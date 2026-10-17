@@ -89,7 +89,9 @@ export function libraryLabelPrice(
   const v = kind.variants.find((x) => x.id === shownVariantId(kind, variant));
   if (!v) return null;
   const m = v.withMaterial ? kind.materials.find((x) => x.key === material) : undefined;
-  return v.price + (m ? m.priceDelta : 0);
+  // Надбавка материала бывает минусом (полиэстер −5 ₽), но цена бирки — не ниже нуля:
+  // вариант 10 ₽ с материалом −20 ₽ иначе дал бы −10 ₽ за штуку в цене позиции.
+  return Math.max(0, v.price + (m ? m.priceDelta : 0));
 }
 
 export interface LabelOption {

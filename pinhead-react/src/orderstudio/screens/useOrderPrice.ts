@@ -58,9 +58,9 @@ export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
     trimCatalog: s.trimCatalog,
     extrasCatalog: s.extrasCatalog,
     usdRate: s.usdRate,
-    // Справочники заказа (веха 4): в селекторе заранее, расчёт их пока не читает
+    // Библиотека бирок (веха 4): цена бирки считается по ней (`salesLabelPrice`),
+    // её правка пересчитывает заказ. Упаковка — внутри `prices`, отдельно не нужна
     labelLibrary: s.labelLibrary,
-    packOptions: (s.prices as { packOptions?: unknown } | undefined)?.packOptions,
   })));
 
   const pricer = useMemo(() => makeOrderPricer(cat as unknown as PricerSource), [cat]);

@@ -141,7 +141,10 @@ const indexes = collectUniqueIndexes();
 
 describe('upsert по onConflict опирается на выводимое ограничение', () => {
   it('точки upsert вообще находятся (иначе тест сторожил бы пустоту)', () => {
-    expect(sites.length).toBeGreaterThanOrEqual(5);
+    // Порог — число точек upsert в src. Веха 4 (17.10) перевела каталоги /sku
+    // (SkuEditor, PricingTabContent) на RPC справочников — осталось 4 точки ERP
+    // (plan, settings, notifications, permissions). Правка с согласия владельца.
+    expect(sites.length).toBeGreaterThanOrEqual(4);
     expect(sites.some((s) => s.table === 'erp_calendar_slots')).toBe(true);
   });
 

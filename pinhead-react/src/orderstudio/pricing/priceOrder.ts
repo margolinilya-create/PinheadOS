@@ -29,7 +29,7 @@ import type { PricesExt } from '../../utils/pricingCore';
 import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
-import type { LabelLibrary, PackOption } from '../catalog/types';
+import type { LabelLibrary } from '../catalog/types';
 import { libraryLabelPrice } from '../catalog/labels';
 
 export interface PriceCatalogs {
@@ -41,10 +41,10 @@ export interface PriceCatalogs {
   /**
    * Справочники заказа (веха 4). Бирки — по библиотеке `labelLibrary`
    * (`salesLabelPrice`; нет библиотеки, вида или варианта — прежний расчёт).
-   * Упаковка из `prices.packOptions` — задача 5.
+   * Упаковка отдельного поля не имеет: цена идёт из прайса (`prices.packOptions`
+   * → `core.packPrice`), смена прайса и так пересчитывает заказ.
    */
   labelLibrary?: LabelLibrary;
-  packOptions?: PackOption[];
 }
 
 export interface PriceRules {

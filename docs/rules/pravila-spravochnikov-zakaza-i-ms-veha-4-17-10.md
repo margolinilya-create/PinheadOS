@@ -4,7 +4,7 @@
 **F** `20261017142210_sales_ms_flag` (МС на стороне ТЗ) и **G** `20261017150000_order_catalogs`
 (справочники заказа). Обе — на бой ДО мерджа вехи 4, сухим прогоном с пробами в SQL Editor
 владельцем. Пробы — `supabase/probes/order_v4_rights.sql` (F, `total=151`) и
-`supabase/probes/order_catalogs.sql` (G, `total=92`). Клиент — `orderstudio/api/catalogAdmin.ts`,
+`supabase/probes/order_catalogs.sql` (G, `total=93`). Клиент — `orderstudio/api/catalogAdmin.ts`,
 `orderstudio/admin/useCatalogEditor.ts`, `orderstudio/admin/OrderSettings.jsx` (`/order-settings`),
 `orderstudio/admin/SalesStaff.jsx` (`/sales-staff`), `orderstudio/catalog/` (типы, сиды,
 поставщики, бирки).
@@ -66,7 +66,12 @@
   при частичном отказе флаги не сбрасываются и «Сохранено локально» не пишется.
 - **Прямая запись в таблицы не закрыта** (решение владельца), но требует `active and approved`
   (`catalog_writer()`: admin/director). Отсюда правило выкатки: **между применением G и выкладкой
-  фронта не сохранять каталог в `/sku`** — старый редактор upsert-ом перезапишет прайс целиком.
+  фронта не сохранять каталог в `/sku`** — старый редактор upsert-ом перезапишет прайс целиком
+  (без `packOptions` / `prepFees` / `minMarginPct` / `flexMatrix`). Окно держать коротким: G — непосредственно
+  перед выкладкой фронта, после выкладки сверить ключи прайса на бою.
+- Цена бирки по библиотеке — `max(0, цена варианта + надбавка материала)`: надбавка бывает минусом.
+- Коды цвета палитры сравниваются после обрезки пробелов — и клиентом (`validateSuppliers`),
+  и сервером (`catalog_put`, `btrim`).
 
 ## Редактор справочника (`useCatalogEditor`)
 

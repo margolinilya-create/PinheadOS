@@ -3,7 +3,7 @@
 -- и прямой записи (catalog_writer), гигиена привилегий anon, сиды.
 -- До применения G на бою — только сухим прогоном вместе с ней в одной транзакции.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=92 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=93 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -209,6 +209,8 @@ select pg_temp.p('w_shape_two_defaults', '22023 Палитра по умолча
   jsonb_set(value, '{0,isDefault}', 'true'), value)::text from public.catalog_config where key = 'suppliers'$q$);
 select pg_temp.p('w_shape_dup_code', '22023 Код цвета повторяется: 5001', $q$select public.catalog_put('catalog_config', 'suppliers',
   jsonb_set(value, '{0,palette,colors,0,code}', '"5001"'), value)::text from public.catalog_config where key = 'suppliers'$q$);
+select pg_temp.p('w_shape_dup_code_trim', '22023 Код цвета повторяется: 5001', $q$select public.catalog_put('catalog_config', 'suppliers',
+  jsonb_set(value, '{0,palette,colors,0,code}', '" 5001 "'), value)::text from public.catalog_config where key = 'suppliers'$q$);
 select pg_temp.p('w_shape_tz_type', '22023 Подвал ТЗ', $q$select public.catalog_put('app_config', 'tzSettings', '{"footerText":5}', (select value from public.app_config where key = 'tzSettings'))::text$q$);
 select pg_temp.p('w_shape_json_null', '22023 Пустой справочник', $q$select public.catalog_put('app_config', 'tzSettings', 'null', (select value from public.app_config where key = 'tzSettings'))::text$q$);
 select pg_temp.p('w_shape_sql_null', '22023 Пустой справочник', $q$select public.catalog_put('app_config', 'tzSettings', null, (select value from public.app_config where key = 'tzSettings'))::text$q$);

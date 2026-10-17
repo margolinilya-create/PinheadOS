@@ -109,6 +109,16 @@ describe('цена по библиотеке — правка владельца
     expect(salesLabelPrice({ label_type: 'brand', variant_id: 'custom' }, lib)).toBe(70);
   });
 
+  it('минус материала больше цены варианта — бирка 0 ₽, а не отрицательная цена', () => {
+    const lib = withBrand((k) => ({
+      ...k,
+      variants: k.variants.map((v) => (v.id === 'custom' ? { ...v, price: 10 } : v)),
+      materials: k.materials.map((m) => (m.key === 'canvas' ? { ...m, priceDelta: -20 } : m)),
+    }));
+    expect(libraryLabelPrice(lib, { label_type: 'brand', variant_id: 'custom:canvas' })).toBe(0);
+    expect(salesLabelPrice({ label_type: 'brand', variant_id: 'custom:canvas' }, lib)).toBe(0);
+  });
+
   it('снятый вариант считается по своей цене — заказ не меняется', () => {
     const lib = withBrand((k) => ({
       ...k, variants: k.variants.map((v) => (v.id === 'custom' ? { ...v, active: false } : v)),

@@ -242,9 +242,11 @@ begin
     if v_bad is not null then
       raise exception using errcode = '22023', message = 'Палитра: неверная запись — ' || v_bad;
     end if;
-    select c->>'code' into v_bad
+    -- Коды сравниваются после btrim — как у клиента (validateSuppliers):
+    -- «01-01» и «01-01 » — один код
+    select btrim(c->>'code') into v_bad
       from jsonb_array_elements(p_value) s, jsonb_array_elements(s->'palette'->'colors') c
-     group by c->>'code' having count(*) > 1 limit 1;
+     group by btrim(c->>'code') having count(*) > 1 limit 1;
     if v_bad is not null then
       raise exception using errcode = '22023', message = 'Код цвета повторяется: ' || v_bad;
     end if;
