@@ -9,14 +9,22 @@ vi.mock('../api/salesStaff', () => ({
 }));
 
 const ROWS = [
-  { id: 'p-1', name: 'Анна', email: 'a@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: false },
-  { id: 'p-2', name: 'Борис', email: 'b@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: true },
-  // отключённый с признаком: в счётчик «Отмечено» не входит
-  { id: 'p-3', name: 'Вера', email: 'v@pinhead.ru', role: 'manager', active: false, approved: true, is_sales: true },
+  { id: 'p-1', name: 'Анна', email: 'a@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: false, is_ms: false },
+  { id: 'p-2', name: 'Борис', email: 'b@pinhead.ru', role: 'manager', active: true, approved: true, is_sales: true, is_ms: true },
+  // отключённая с признаками: в счётчики не входит
+  { id: 'p-3', name: 'Вера', email: 'v@pinhead.ru', role: 'rop', active: false, approved: true, is_sales: true, is_ms: true },
 ];
 
-/** Переключатель строки по доступному имени */
-const toggleOf = (name) => screen.getByRole('checkbox', { name: `Менеджер продаж: ${name}` });
+/** Переключатели строки по доступному имени */
+const salesOf = (name) => screen.getByRole('checkbox', { name: `Ведёт заказы: ${name}` });
+const msOf = (name) => screen.getByRole('checkbox', { name: `МС: ${name}` });
+
+/** Обещание, которое тест разрешает сам */
+function deferred() {
+  let resolve;
+  const promise = new Promise((r) => { resolve = r; });
+  return { promise, resolve };
+}
 
 describe('SalesStaff', () => {
   beforeEach(() => {
@@ -24,42 +32,80 @@ describe('SalesStaff', () => {
     vi.mocked(setSalesStaff).mockReset();
   });
 
-  it('показывает профили и признак', async () => {
+  it('заголовок, две колонки признаков, роль профиля и счётчики', async () => {
     render(<SalesStaff />);
     expect(await screen.findByText('Анна')).toBeInTheDocument();
-    expect(toggleOf('Анна')).not.toBeChecked();
-    expect(toggleOf('Борис')).toBeChecked();
-    expect(toggleOf('Вера')).toBeChecked();
-    // Вера отключена — признак есть, но продавцом не считается
-    expect(screen.getByText('Отмечено: 1')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Сотрудники продаж' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Ведёт заказы' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Запускает в производство (МС)' })).toBeInTheDocument();
+    expect(screen.getByText('РОП')).toBeInTheDocument();
+    expect(salesOf('Анна')).not.toBeChecked();
+    expect(msOf('Анна')).not.toBeChecked();
+    expect(salesOf('Борис')).toBeChecked();
+    expect(msOf('Борис')).toBeChecked();
+    // Вера отключена — признаки есть, но в счётчики не входит
+    expect(screen.getByText('Продавцов: 1 · МС: 1')).toBeInTheDocument();
   });
 
-  it('переключатель сохраняет признак через RPC', async () => {
+  it('подзаголовок объясняет оба признака', async () => {
+    render(<SalesStaff />);
+    await screen.findByText('Анна');
+    expect(screen.getByText(/«Ведёт заказы» — заводит и ведёт свои заказы/)).toBeInTheDocument();
+    expect(screen.getByText(/«МС» — видит заказы в работе и запускает их в производство/)).toBeInTheDocument();
+  });
+
+  it('«МС» сохраняется через RPC с видом ms', async () => {
     vi.mocked(setSalesStaff).mockResolvedValue(true);
     render(<SalesStaff />);
     await screen.findByText('Анна');
-    fireEvent.click(toggleOf('Анна'));
-    expect(toggleOf('Анна')).toBeChecked();
-    await waitFor(() => expect(toggleOf('Анна')).not.toBeDisabled());
-    expect(setSalesStaff).toHaveBeenCalledWith('p-1', true);
-    expect(toggleOf('Анна')).toBeChecked();
-    expect(screen.getByText('Отмечено: 2')).toBeInTheDocument();
+    fireEvent.click(msOf('Анна'));
+    expect(msOf('Анна')).toBeChecked();
+    await waitFor(() => expect(msOf('Анна')).not.toBeDisabled());
+    expect(setSalesStaff).toHaveBeenCalledWith('p-1', 'ms', true);
+    expect(msOf('Анна')).toBeChecked();
+    expect(salesOf('Анна')).not.toBeChecked();
+    expect(screen.getByText('Продавцов: 1 · МС: 2')).toBeInTheDocument();
   });
 
-  it('отказ сервера откатывает переключатель', async () => {
-    let resolve;
-    vi.mocked(setSalesStaff).mockReturnValue(new Promise((r) => { resolve = r; }));
+  it('«Ведёт заказы» сохраняется через RPC с видом sales', async () => {
+    vi.mocked(setSalesStaff).mockResolvedValue(true);
+    render(<SalesStaff />);
+    await screen.findByText('Анна');
+    fireEvent.click(salesOf('Анна'));
+    await waitFor(() => expect(salesOf('Анна')).not.toBeDisabled());
+    expect(setSalesStaff).toHaveBeenCalledWith('p-1', 'sales', true);
+    expect(screen.getByText('Продавцов: 2 · МС: 1')).toBeInTheDocument();
+  });
+
+  it('отказ сервера откатывает только свой признак; второй переключатель строки не заблокирован', async () => {
+    const ms = deferred();
+    const sales = deferred();
+    vi.mocked(setSalesStaff).mockImplementation((_id, kind) => (kind === 'ms' ? ms.promise : sales.promise));
     render(<SalesStaff />);
     await screen.findByText('Борис');
-    fireEvent.click(toggleOf('Борис'));
-    // optimistic: снят сразу, пока ждём ответ — заблокирован
-    expect(toggleOf('Борис')).not.toBeChecked();
-    expect(toggleOf('Борис')).toBeDisabled();
-    resolve(false);
-    await waitFor(() => expect(toggleOf('Борис')).toBeChecked());
-    expect(toggleOf('Борис')).not.toBeDisabled();
-    expect(setSalesStaff).toHaveBeenCalledWith('p-2', false);
-    expect(screen.getByText('Отмечено: 1')).toBeInTheDocument();
+
+    fireEvent.click(msOf('Борис'));
+    // optimistic: снят сразу; пока ждём ответ — заблокирован только он
+    expect(msOf('Борис')).not.toBeChecked();
+    expect(msOf('Борис')).toBeDisabled();
+    expect(salesOf('Борис')).not.toBeDisabled();
+
+    fireEvent.click(salesOf('Борис'));
+    expect(salesOf('Борис')).not.toBeChecked();
+
+    ms.resolve(false);
+    await waitFor(() => expect(msOf('Борис')).toBeChecked());
+    expect(msOf('Борис')).not.toBeDisabled();
+    // «Ведёт заказы» ждёт свой ответ и не откатывается чужим отказом
+    expect(salesOf('Борис')).not.toBeChecked();
+    expect(salesOf('Борис')).toBeDisabled();
+
+    sales.resolve(true);
+    await waitFor(() => expect(salesOf('Борис')).not.toBeDisabled());
+    expect(salesOf('Борис')).not.toBeChecked();
+    expect(setSalesStaff).toHaveBeenCalledWith('p-2', 'ms', false);
+    expect(setSalesStaff).toHaveBeenCalledWith('p-2', 'sales', false);
+    expect(screen.getByText('Продавцов: 0 · МС: 1')).toBeInTheDocument();
   });
 
   it('список не загрузился — кнопка повтора', async () => {

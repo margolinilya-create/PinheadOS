@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { installSupabaseMock, FX_CREATED } from './support/mockSupabase';
+import { orderCatalogs, staffFx } from './support/orderCatalogFx';
 
 /**
  * Visual-регрешн ключевых экранов.
@@ -232,4 +233,33 @@ test('visual: studio-workplace', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('PH-9100 · ООО Тест');
   await expect(page.getByRole('spinbutton', { name: 'Размер M', exact: true })).toHaveValue('10');
   await shoot(page, 'studio-workplace', page.locator('#main-content'));
+});
+
+/**
+ * «Справочники заказа» (`/order-settings`, веха 4): вкладка «Поставщики
+ * и палитры» на фикстуре из двух поставщиков — список, карточка поставщика
+ * по умолчанию и таблица палитры с образцами. Снимается контейнер оболочки,
+ * как у рабочего места, в окне высотой 2000 px. Эталоны (desktop/mobile) снимает владелец —
+ * `update_snapshots` визуальной джобы CI.
+ */
+test('visual: studio-settings', async ({ page }) => {
+  await installSupabaseMock(page, { catalogs: orderCatalogs() });
+  await page.goto('/order-settings?tab=suppliers&studio=1');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
+  await expect(page.getByRole('region', { name: 'Цвета палитры Коттонпром' })).toBeVisible();
+  // Таблица палитры — ниже первого экрана, а она здесь главное (образцы,
+  // снятые цвета). Снимок элемента внутри прокручиваемого `.orderMain`
+  // за краем окна выходит пустым, поэтому окно выше: контейнер вмещает экран
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 2000 });
+  await expect(page.getByRole('region', { name: 'Цвета палитры Коттонпром' })).toBeInViewport();
+  await shoot(page, 'studio-settings', page.locator('#main-content'));
+});
+
+/** «Сотрудники продаж» (`/sales-staff`): две колонки признаков — «Ведёт заказы» и «МС» */
+test('visual: studio-staff', async ({ page }) => {
+  await installSupabaseMock(page, { salesStaff: staffFx() });
+  await page.goto('/sales-staff?studio=1');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Сотрудники продаж');
+  await expect(page.getByRole('checkbox', { name: 'МС: Олег Петров' })).toBeVisible();
+  await shoot(page, 'studio-staff', page.locator('#main-content'));
 });

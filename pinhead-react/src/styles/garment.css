@@ -63,9 +63,6 @@
 .garment-row:hover { background: var(--surface); }
 .garment-row.expanded { background: var(--accent-light); border-left: 3px solid var(--accent); }
 .garment-row.selected { background: var(--accent); }
-.garment-row[draggable] { cursor: grab; }
-.garment-row[draggable]:active { cursor: grabbing; }
-.garment-row.drag-target { border-top: 2px solid var(--accent); }
 
 .garment-row-photo {
   width: 44px; height: 44px; border-radius: var(--radius-sm);
@@ -254,6 +251,10 @@
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   cursor: pointer; padding: var(--space-sm) var(--space-xs) var(--space-sm); border: 1px solid transparent; transition: all 150ms ease-out;
 }
+/* Образец — <button> (веха 4): сброс оформления кнопки браузера */
+button.swatch { background: none; font: inherit; color: inherit; }
+.swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.swatch[aria-disabled='true'] { cursor: default; }
 .swatch:hover    { border-color: var(--border-light); background: var(--bg2); }
 .swatch.hidden   { display: none; }
 .swatch.selected { border-color: var(--accent); background: var(--accent-light); }
@@ -288,6 +289,10 @@
   color: var(--text-dim); text-transform: uppercase; padding: var(--space-sm) 0 var(--space-xs);
   border-top: 1px solid var(--border-light); margin-top: var(--space-xs);
 }
+/* Свой цвет текстом — когда цвета нет в палитре поставщика (веха 4) */
+.color-own { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-xl); max-width: 360px; }
+.color-own-label { font-family: var(--font-body); font-size: var(--type-label); font-weight: 600; color: var(--text-mid); }
+.color-own .color-filter-hint { margin: 0; }
 /* Flat swatch fallback (summary etc.) */
 
 .swatch-mini { width: 14px; height: 14px; border: 1px solid var(--border-light); display: inline-block; }

@@ -24,8 +24,26 @@ export function fmtPerUnit(v: number): string {
   return `+${Math.round(v).toLocaleString('ru-RU')} ₽/шт`;
 }
 
-/** Вид упаковки по-русски — подписи из прайса (`packOptions`), как в визарде */
-export function packName(key: string | null | undefined): string {
-  const opt = (PRICES.packOptions as { key: string; name: string }[]).find((o) => o.key === key);
-  return opt?.name ?? '';
+interface PackOptionLike { key?: unknown; name?: unknown }
+
+/** Подписи кода: прежний прайс плюс `other` — на случай, когда справочника нет */
+const CODE_PACK_NAMES: Record<string, string> = {
+  ...Object.fromEntries((PRICES.packOptions as { key: string; name: string }[]).map((o) => [o.key, o.name])),
+  other: 'Другая — опишите в требованиях',
+};
+
+/**
+ * Вид упаковки по-русски. Подпись — из справочника упаковки `packOptions`
+ * (`prices.packOptions` стора; правит «Справочники заказа» → «Упаковка», веха 4),
+ * вида там нет или подпись пуста — подпись кода; неизвестный вид — пусто.
+ *
+ * Справочник — аргументом, а не чтением стора: при рендере его берут подпиской
+ * (`usePackagingOptions` / селектор `prices.packOptions`), иначе подпись
+ * не обновится после правки упаковки. Без аргумента — подписи кода.
+ */
+export function packName(key: string | null | undefined, packOptions?: unknown): string {
+  if (!key) return '';
+  const list = Array.isArray(packOptions) ? (packOptions as PackOptionLike[]) : [];
+  const hit = list.find((o) => o && o.key === key && typeof o.name === 'string' && o.name.trim() !== '');
+  return hit ? (hit.name as string) : (CODE_PACK_NAMES[key] ?? '');
 }

@@ -1,0 +1,92 @@
+/* Вкладки «Упаковка», «Правила цены», «Подвал ТЗ» (веха 4, задача 5).
+   Поля и панели — из Sales.module.css; здесь только раскладка вкладок. */
+
+.intro {
+  margin: 0 0 var(--space-md);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  max-width: 72ch;
+}
+
+/* Таблица видов упаковки: на узком экране — прокрутка таблицы, а не страницы */
+.scroll { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body);
+}
+
+.table th,
+.table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.table tbody th {
+  font-size: var(--type-body);
+  color: var(--ink);
+}
+
+.code {
+  display: block;
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+
+.priceCell { width: 160px; }
+
+.error {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+
+.hint {
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.marginField { max-width: 320px; }
+
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-top: var(--space-lg);
+}
+
+.status {
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+/* Тач-цель ≥ 44 px */
+@media (pointer: coarse) {
+  .footer :global(.btn) { min-height: 44px; }
+}

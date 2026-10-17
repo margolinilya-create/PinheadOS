@@ -3,12 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { SKU_CATEGORIES } from '../../data/skuCatalog';
-// extras/hardware defaults now in catalogSlice
-import { supabase } from '../../lib/supabase';
-import { clearCatalogsCache } from '../../lib/catalogs';
-import { toast } from '../../store/useToastStore';
-import { invalidatePricesCache, getSkuEstPrice } from '../../utils/pricing';
-import { storageSet } from '../../lib/storage';
+import { getSkuEstPrice } from '../../utils/pricing';
+import { useSkuSave, failureText } from './sku/useSkuSave';
 import SkuItemsTab from './sku/SkuItemsTab';
 import SkuFabricsTab from './sku/SkuFabricsTab';
 import SkuTrimsTab from './sku/SkuTrimsTab';
@@ -48,10 +44,10 @@ function getDefaultZones(cat) {
 }
 
 export default function SkuEditor() {
-  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, usdRate, setField } = useStore(
+  const { skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, usdRate } = useStore(
     useShallow(s => ({ skuCatalog: s.skuCatalog, fabricsCatalog: s.fabricsCatalog,
       trimCatalog: s.trimCatalog, extrasCatalog: s.extrasCatalog, hardwareCatalog: s.hardwareCatalog,
-      categoryRules: s.categoryRules, zonesCatalog: s.zonesCatalog, usdRate: s.usdRate, setField: s.setField }))
+      categoryRules: s.categoryRules, zonesCatalog: s.zonesCatalog, usdRate: s.usdRate }))
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'items';
@@ -74,7 +70,6 @@ export default function SkuEditor() {
 
   // extras and hardware now come from Zustand store (catalogSlice)
 
-  const [saving, setSaving] = useState(false);
   const [fabricSupplierFilter, setFabricSupplierFilter] = useState('all');
   const [fabricSearch, setFabricSearch] = useState('');
   const [changedItems, setChangedItems] = useState(new Set());
@@ -89,62 +84,22 @@ export default function SkuEditor() {
   // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
   // Previously this useEffect was overwriting store with stale Supabase data (without photos).
 
-  const saveAll = useCallback(async () => {
-    setSaving(true);
-    // Clear session cache immediately so a refresh during save won't use stale data
-    clearCatalogsCache();
-    // Read latest state directly from store to avoid stale closures
-    const state = useStore.getState();
-    const currentSku = state.skuCatalog;
-    const currentFabrics = state.fabricsCatalog;
-    const currentTrims = state.trimCatalog;
-    const currentExtras = state.extrasCatalog;
-    const currentHardware = state.hardwareCatalog;
-    // Курс — в прайс: раньше он жил только в localStorage этого браузера и
-    // при следующей загрузке перетирался прайсом базы (правка 13.10)
-    const currentPrices = { ...state.prices, usdRate: state.usdRate };
-    const currentRules = state.categoryRules;
-    const currentZones = state.zonesCatalog;
-    try {
-      localStorage.setItem('ph_sku', JSON.stringify(currentSku));
-      localStorage.setItem('ph_fabrics', JSON.stringify(currentFabrics));
-      localStorage.setItem('ph_trims', JSON.stringify(currentTrims));
-      localStorage.setItem('ph_extras', JSON.stringify(currentExtras));
-      localStorage.setItem('ph_hardware', JSON.stringify(currentHardware));
-      localStorage.setItem('ph_usd_rate', String(state.usdRate));
-      storageSet('ph_prices', currentPrices);
-      storageSet('ph_category_rules', currentRules);
-      storageSet('ph_zones', currentZones);
-    } catch { /* ignore storage errors */ }
-    invalidatePricesCache();
-    const ts = new Date().toISOString();
-    const results = await Promise.all([
-      supabase.from('app_config').upsert({ key: 'sku_catalog', value: currentSku, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('catalog_config').upsert({ key: 'fabricsCatalog', value: currentFabrics, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('catalog_config').upsert({ key: 'trimCatalog', value: currentTrims, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('app_config').upsert({ key: 'extrasCatalog', value: currentExtras, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('app_config').upsert({ key: 'hardwareCatalog', value: currentHardware, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('app_config').upsert({ key: 'prices', value: currentPrices, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('app_config').upsert({ key: 'categoryRules', value: currentRules, updated_at: ts }, { onConflict: 'key' }),
-      supabase.from('app_config').upsert({ key: 'zonesCatalog', value: currentZones, updated_at: ts }, { onConflict: 'key' }),
-    ]);
-    const hasError = results.some(r => r.error);
-    setSaving(false);
-    setChangedItems(new Set());
-    setChangedFabrics(new Set());
-    setChangedTrims(new Set());
-    setChangedExtras(new Set());
-    setChangedHardware(new Set());
-    setRulesDirty(false);
-    setZonesDirty(false);
-    setPricingDirty(false);
-    clearCatalogsCache();
-    if (!hasError) {
-      toast.success('Каталог сохранён');
-    } else {
-      toast.warning('Сохранено локально (Supabase недоступен)');
+  // Записанный (или заменённый свежей версией) справочник — флаги правок сняты
+  const clearFlags = useCallback((fields) => {
+    const empty = () => new Set();
+    for (const f of fields) {
+      if (f === 'skuCatalog') setChangedItems(empty);
+      else if (f === 'fabricsCatalog') setChangedFabrics(empty);
+      else if (f === 'trimCatalog') setChangedTrims(empty);
+      else if (f === 'extrasCatalog') setChangedExtras(empty);
+      else if (f === 'hardwareCatalog') setChangedHardware(empty);
+      else if (f === 'categoryRules') setRulesDirty(false);
+      else if (f === 'zonesCatalog') setZonesDirty(false);
     }
   }, []);
+  // Только изменённые справочники, с базой от открытия (веха 4: без затирания)
+  const { edit: setField, saveAll, saving, failed, reloadConflicts, blocked } = useSkuSave(clearFlags);
+  const hasConflict = failed.some((f) => f.kind === 'conflict');
 
   // ── SKU CRUD ──
   const updateSku = (idx, field, value) => {
@@ -371,9 +326,27 @@ export default function SkuEditor() {
         <div className="sku-actions-right">
           <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
           <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
-          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving || blocked}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
         </div>
       </div>
+
+      {blocked && (
+        <div className="sku-ed-save-failed" role="status">
+          <p>Каталог не загрузился из базы — сохранение недоступно, чтобы не записать локальную копию поверх базы. Обновите страницу.</p>
+        </div>
+      )}
+
+      {failed.length > 0 && (
+        <div className="sku-ed-save-failed" role="alert">
+          <p>Не сохранено: {failureText(failed)}. Правки на экране остались.</p>
+          {hasConflict && (
+            <>
+              <p>Свежая версия заменит ваши правки в изменённых справочниках — внесите их снова поверх неё.</p>
+              <button type="button" className="pe-btn" onClick={reloadConflicts}>Загрузить свежую версию</button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Exchange Rate Bar ── */}
       <div className="sku-ed-rate-bar">

@@ -1,4 +1,6 @@
 /** Подписи Order v4 — одно место для экранов */
+import { useMemo } from 'react';
+import { useStore } from '../../store/useStore';
 import type { SalesOrderStatus, SalesPrintMethod, SalesItemKind } from '../model/types';
 import type { PriceIssue } from '../pricing/priceOrder';
 
@@ -78,3 +80,30 @@ export const PACKAGING_OPTIONS: { key: string; label: string }[] = [
   { key: 'zip', label: 'ЗИП пакет' },
   { key: 'other', label: 'Другая — опишите в требованиях' },
 ];
+
+interface PackOptionLike { key?: unknown; name?: unknown }
+
+/**
+ * Виды упаковки с подписями из справочника (веха 4): подпись — из
+ * `prices.packOptions` (его правит «Справочники заказа» → «Упаковка»),
+ * набор и порядок ключей — CHECK ERP (`PACKAGING_OPTIONS`). Вида нет
+ * в справочнике или подпись пуста — подпись кода; чужой ключ не попадает.
+ */
+export function packagingOptions(packOptions: unknown): { key: string; label: string }[] {
+  const list = Array.isArray(packOptions) ? (packOptions as PackOptionLike[]) : [];
+  return PACKAGING_OPTIONS.map((o) => {
+    const hit = list.find((x) => x && x.key === o.key && typeof x.name === 'string' && x.name.trim() !== '');
+    return { key: o.key, label: hit ? (hit.name as string) : o.label };
+  });
+}
+
+/** Виды упаковки для экранов — из прайса стора, обновляются вместе с ним */
+export function usePackagingOptions(): { key: string; label: string }[] {
+  const packOptions = useStore((s) => (s.prices as { packOptions?: unknown } | undefined)?.packOptions);
+  return useMemo(() => packagingOptions(packOptions), [packOptions]);
+}
+
+/** Подпись вида упаковки (`none`/`bopp`/`zip`/`other`) по списку `usePackagingOptions` */
+export function packagingLabel(options: { key: string; label: string }[], key: string): string {
+  return options.find((o) => o.key === key)?.label ?? key;
+}

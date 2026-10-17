@@ -2,17 +2,19 @@ import { Link } from 'react-router-dom';
 import { gridQty } from '../model/factory';
 import { itemTitle } from '../model/itemOps';
 import PricePanel from '../screens/PricePanel';
-import { ISSUE_LABELS, rub } from '../screens/labels';
+import { ISSUE_LABELS, rub, usePackagingOptions, packagingLabel } from '../screens/labels';
+import { itemPackaging } from '../pricing/priceOrder';
 import DiscountField from './DiscountField';
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
 
 /**
- * Вкладка «ТЗ и цена»: позиции таблицей (название, штук, цена за штуку,
- * сумма), пометки расчёта ссылкой на позицию, живая цена заказа и скидка.
+ * Вкладка «ТЗ и цена»: позиции таблицей (название, упаковка — подписью
+ * из справочника, штук, цена за штуку, сумма), пометки расчёта ссылкой на позицию, живая цена заказа и скидка.
  * PDF ТЗ — следующие вехи.
  */
 export default function SummaryTab({ order, price, readOnly, itemHref, onDiscount }) {
+  const packOptions = usePackagingOptions();
   const byKey = new Map((price?.items ?? []).map((p) => [p.key, p]));
   return (
     <div className={sales.layout}>
@@ -34,10 +36,14 @@ export default function SummaryTab({ order, price, readOnly, itemHref, onDiscoun
               <tbody>
                 {order.items.map((it) => {
                   const p = byKey.get(it.key);
+                  const pack = itemPackaging(it, order.packaging);
                   return (
                     <tr key={it.key}>
                       <td data-label="Изделие">
                         <Link className={styles.summaryLink} to={itemHref(it.key)}>{itemTitle(it)}</Link>
+                        {pack !== 'none' && (
+                          <div className={sales.muted}>Упаковка: {packagingLabel(packOptions, pack)}</div>
+                        )}
                         {(p?.issues ?? []).map((iss) => (
                           <div key={iss}>
                             <Link className={styles.issueLink} to={itemHref(it.key)}>{ISSUE_LABELS[iss]}</Link>

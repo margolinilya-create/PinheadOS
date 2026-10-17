@@ -1,6 +1,5 @@
 import { useStore } from '../../../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
-import { MEDASTEX_COLORS, COTTONPROM_COLORS } from '../../../data';
 import { FABRICS_CATALOG_DEFAULT, LAYER1_TYPES } from '../../../data';
 import { useState } from 'react';
 import { isAccessory } from '../../../utils/pricing';
@@ -8,14 +7,16 @@ import { materialPrice } from '../../../utils/costRules';
 import { searchFabrics } from '../../../utils/materialSearch';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { colorSupplierOf } from '../../../utils/colorSupplier';
+import { offeredColors, supplierForFabric } from '../../../orderstudio/catalog/suppliers';
 
 const SEARCH_FROM = 6;
 
 /** `readOnly` — ткани видны, выбор закрыт (`aria-disabled`) */
 export default function FabricGrid({ readOnly = false }) {
-  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate, skuCatalog } = useStore(
+  const { type, fabric, selectFabric, setColorSupplier, sku, fabricsCatalog, colorSupplier, usdRate, skuCatalog, suppliers } = useStore(
     useShallow(s => ({ type: s.type, fabric: s.fabric, selectFabric: s.selectFabric, setColorSupplier: s.setColorSupplier,
-      sku: s.sku, fabricsCatalog: s.fabricsCatalog, colorSupplier: s.colorSupplier, usdRate: s.usdRate, skuCatalog: s.skuCatalog }))
+      sku: s.sku, fabricsCatalog: s.fabricsCatalog, colorSupplier: s.colorSupplier, usdRate: s.usdRate, skuCatalog: s.skuCatalog,
+      suppliers: s.suppliers }))
   );
   const [query, setQuery] = useState('');
   // Аксессуар без модели — ткани нет; шопперу по модели ткань выбирается (правка 13.10)
@@ -60,13 +61,16 @@ export default function FabricGrid({ readOnly = false }) {
     if (readOnly) return;
     selectFabric(f.key);
     const catEntry = catalogFabrics.find(cf => cf.code === f.key);
-    if (catEntry?.supplier) {
-      const sup = colorSupplierOf(catEntry.supplier);
+    // Палитра — по справочнику «Поставщики и палитры»: привязка или палитра по умолчанию
+    if (catEntry) {
+      const sup = colorSupplierOf(catEntry.supplier || '', suppliers);
       if (sup !== colorSupplier) setColorSupplier(sup);
     }
   };
 
-  const colors = colorSupplier === 'medastex' ? MEDASTEX_COLORS : COTTONPROM_COLORS;
+  // Сколько цветов предложит ColorPicker: активные цвета палитры ткани
+  const fabricEntry = fabricsCatalog.find(f => f.code === fabric);
+  const colorCount = offeredColors(fabricEntry ? supplierForFabric(fabricEntry, suppliers) : null).length;
 
   return (
     <div className="fabric-section">
@@ -98,7 +102,7 @@ export default function FabricGrid({ readOnly = false }) {
           </div>
         ))}
       </div>
-      {fabric && <div className="fabric-color-count">Доступные цвета: {colors.length}</div>}
+      {fabric && fabricEntry && <div className="fabric-color-count">Доступные цвета: {colorCount}</div>}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { installSupabaseMock, FX_CREATED, type MockCall } from './support/mockSupabase';
+import { hoodieItem, orderCatalogs } from './support/orderCatalogFx';
 
 /**
  * Рабочее место заказа v4 `/sales/:id` (веха 3, задача 7): настоящий
@@ -280,6 +281,38 @@ test.describe('рабочее место заказа', () => {
     ]);
     expect(last.items.map(qty)).toEqual([15, 6]);
     expect(last.items[0].key).toBe(DRAFT_ITEM.id);
+  });
+
+  test('снятый цвет, цвет чужой палитры и свой текстом — показаны как есть, открытие ничего не пишет', async ({ page }) => {
+    // Веха 4: справочник «Поставщики и палитры». Снятый с продажи цвет
+    // и цвет из другой палитры в заказе уже стоят — заказ их не стирает
+    const calls: MockCall[] = [];
+    const id = '6f1c2d3e-0000-4000-8000-0000000000ff';
+    const items = [
+      { ...hoodieItem('6f1c2d3e-0000-4000-8000-0000000000f1', 'Бордо (77-07)'), sort_order: 0 },
+      { ...hoodieItem('6f1c2d3e-0000-4000-8000-0000000000f2', 'Белый (5001)'), sort_order: 1 },
+      { ...hoodieItem('6f1c2d3e-0000-4000-8000-0000000000f3', 'розовый'), sort_order: 2 },
+    ];
+    await installSupabaseMock(page, { calls, catalogs: orderCatalogs(), salesOrders: [salesRow(id, 'draft', items)] });
+    await page.goto(`/sales/${id}?tab=item&studio=1`);
+
+    const current = page.getByTestId('color-current');
+    // Снятый: с пометкой, в палитре не предлагается
+    await expect(current).toHaveText(/Выбран: Бордо \(77-07\) — снят с продажи/);
+    await expect(page.getByRole('button', { name: 'Бордо (77-07)', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Чёрный (40-01)', exact: true })).toBeVisible();
+
+    // Из палитры другого поставщика (ткань без поставщика — палитра по умолчанию)
+    await selectItem(page, 1);
+    await expect(current).toHaveText(/Выбран: Белый \(5001\) — из палитры «Медастекс»/);
+
+    // Свой цвет текстом — в поле «Свой цвет», без пометки
+    await selectItem(page, 2);
+    await expect(current).toHaveCount(0);
+    await expect(page.getByLabel('Свой цвет', { exact: true })).toHaveValue('розовый');
+
+    await page.waitForTimeout(1500);
+    expect(saves(calls)).toHaveLength(0);
   });
 
   test('рабочее место: нет нарушений axe уровня serious/critical', async ({ page }) => {

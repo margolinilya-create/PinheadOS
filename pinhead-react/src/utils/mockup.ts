@@ -3,6 +3,8 @@
 // Designer SVGs + fallback inline для остальных
 // ═══════════════════════════════════════════
 import { findColorEntry } from '../data';
+// Validate hex color to prevent XSS via SVG injection
+import { sanitizeHex } from './sanitizeHex';
 
 // Designer SVGs (raw import via Vite)
 import tshirtSVG from '../assets/garments/tshirt.svg?raw';
@@ -31,10 +33,6 @@ function shade(hex: string, amt: number): string {
   return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-// Validate hex color to prevent XSS via SVG injection
-function sanitizeHex(hex: string): string {
-  return /^#[0-9a-fA-F]{3,6}$/.test(hex) ? hex : '#ccc';
-}
 
 // Recolor designer SVG: replace gray fill with user color, black stroke with darker shade
 function recolorSVG(svg: string, color: string, strokeColor: string): string {

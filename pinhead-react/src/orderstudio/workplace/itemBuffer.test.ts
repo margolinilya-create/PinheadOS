@@ -9,11 +9,15 @@ import { ZONES_CATALOG_DEFAULT } from '../../data/constants';
 import type { WizardCatalogs } from '../wizard/wizardAdapter';
 import type { SkuItem, Fabric, ZoneDefinition } from '../../types/catalog';
 import type { SalesItem } from '../model/types';
+import { SUPPLIERS_SEED } from '../catalog/seeds';
+import { garmentPatch } from '../wizard/wizardAdapter';
+import { selectGarment } from './itemBuffer';
 
 const CAT: WizardCatalogs = {
   skuCatalog: SKU_CATALOG_DEFAULT as unknown as SkuItem[],
   fabricsCatalog: FABRICS_CATALOG_DEFAULT as unknown as Fabric[],
   zonesCatalog: ZONES_CATALOG_DEFAULT as unknown as ZoneDefinition[],
+  suppliers: SUPPLIERS_SEED,
 };
 const SKU = CAT.skuCatalog[2];
 
@@ -41,6 +45,41 @@ describe('загрузка позиции в буфер', () => {
     expect(s.color).toBe('01-01');
     expect((s.sizes as Record<string, number>).S).toBe(10);
     expect(s.colorSupplier).toBe('cottonprom');
+  });
+
+  it('«Белый (5001)» у ткани Медас: код в буфер, палитра — Медастекс', () => {
+    loadItemIntoBuffer(item({
+      fabric_code: 'medas-kulirnaya-100-180',
+      size_grid: { sizes: ['S'], rows: [{ color: 'Белый (5001)', sizes: { S: 10 } }] },
+    }), CAT);
+    expect(store().color).toBe('5001');
+    expect(store().colorSupplier).toBe('medastex');
+  });
+
+  it('ткани нет в каталоге — палитра пустая (покажется палитра по умолчанию)', () => {
+    loadItemIntoBuffer(item({ fabric_code: 'своя-ткань' }), CAT);
+    expect(store().colorSupplier).toBe('');
+  });
+
+  it('«розовый»: свободный текст в буфер как есть; загрузка → garmentPatch = null', () => {
+    // Тексты ТЗ — как собрал бы их адаптер: разница может быть только в цвете
+    const a = item({
+      main_fabric: 'Кулирка, 100% хб, 180 г/м²', color_supplier: 'розовый / ТД Коттон',
+      size_grid: { sizes: ['S', 'M'], rows: [{ color: 'розовый', sizes: { S: 10, M: 5 } }] },
+    });
+    store().resetItemFields();
+    const before = selectGarment(useStore.getState());
+    loadItemIntoBuffer(a, CAT);
+    const after = selectGarment(useStore.getState());
+    expect(after.color).toBe('розовый');
+    expect(garmentPatch(before, after, a, CAT)).toBeNull();
+    // и подписка после загрузки молчит, а правка размеров подпись не трогает
+    const onItem = vi.fn();
+    const off = bindBuffer(() => a, CAT, onItem);
+    expect(onItem).not.toHaveBeenCalled();
+    store().setSize('S', 12);
+    expect(onItem.mock.calls[0][0].size_grid.rows[0].color).toBe('розовый');
+    off();
   });
 
   it('фильтр моделей не сбрасывается', () => {

@@ -35,13 +35,15 @@ describe('OrderLayout', () => {
     renderLayout(ADMIN);
     expect(screen.getByRole('button', { name: 'Новый заказ' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Все заказы' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Каталог' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Каталог моделей и цен' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Справочники заказа' }).getAttribute('href')).toBe('/order-settings');
   });
 
   it('продавец видит «Мои заказы» и не видит настроек', () => {
     renderLayout(SELLER);
     expect(screen.getByRole('link', { name: 'Мои заказы' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: 'Каталог' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Каталог моделей и цен' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Справочники заказа' })).toBeNull();
   });
 
   it('«Новый заказ» в меню открывает свой пустой черновик на вкладке «Изделие»', async () => {
@@ -89,7 +91,7 @@ describe('OrderLayout', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(screen.getByRole('link', { name: 'Каталог' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Каталог моделей и цен' }));
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
   });
 

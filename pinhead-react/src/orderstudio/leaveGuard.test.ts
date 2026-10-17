@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText } from './leaveGuard';
+import {
+  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText,
+  setCatalogUnsaved, catalogHasUnsaved, shouldBlockCatalogLeave,
+} from './leaveGuard';
 
 describe('shouldBlockSalesLeave — уход с карточки v4 после сбоя сохранения', () => {
   it('сбой сохранения и уход в список — спросить', () => {
@@ -51,5 +54,30 @@ describe('salesHasUnsaved — предупреждение при закрыти
   });
   it('locked — правка закрыта, терять нечего', () => {
     expect(salesHasUnsaved('locked')).toBe(false);
+  });
+});
+
+describe('справочники заказа — уход с несохранёнными правками', () => {
+  it('нет правок — не спрашиваем', () => {
+    expect(catalogHasUnsaved()).toBe(false);
+    expect(shouldBlockCatalogLeave({ from: '/order-settings', to: '/sales' })).toBe(false);
+  });
+
+  it('есть правки: уход со страницы — спросить, смена ?tab= (тот же путь) — нет', () => {
+    setCatalogUnsaved('a', true);
+    expect(catalogHasUnsaved()).toBe(true);
+    expect(shouldBlockCatalogLeave({ from: '/order-settings', to: '/sales' })).toBe(true);
+    expect(shouldBlockCatalogLeave({ from: '/order-settings', to: '/order-settings' })).toBe(false);
+    setCatalogUnsaved('a', false);
+    expect(catalogHasUnsaved()).toBe(false);
+  });
+
+  it('два редактора: снятие отметки одного не снимает другого', () => {
+    setCatalogUnsaved('a', true);
+    setCatalogUnsaved('b', true);
+    setCatalogUnsaved('a', false);
+    expect(catalogHasUnsaved()).toBe(true);
+    setCatalogUnsaved('b', false);
+    expect(catalogHasUnsaved()).toBe(false);
   });
 });
