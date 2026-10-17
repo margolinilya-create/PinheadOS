@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { confirm } from '../../store/useConfirmStore';
-import { pluralize } from '../../utils/i18n';
+import { confirmSplit } from './confirmSplit';
 import { itemTitle } from '../model/itemOps';
 import { Icon } from '../../erp/components/Icon';
 import ColorCopyDialog from './ColorCopyDialog';
@@ -18,9 +18,12 @@ import styles from './Workplace.module.css';
  * у последней — предыдущей), иначе он падал бы на `body` вместе с кнопкой.
  *
  * Названия — текстом React (никакой разметки из данных).
+ *
+ * `compact` (ширина ≤ 760): вместо списка — выпадающий список позиций,
+ * рядом меню «Действия с изделием» выбранной позиции и «+ Изделие».
  */
 export default function ItemList({
-  order, selectedKey, onSelect, onAdd, onCopyColor, onRemove, onSplit, readOnly = false,
+  order, selectedKey, onSelect, onAdd, onCopyColor, onRemove, onSplit, readOnly = false, compact = false,
 }) {
   const items = order.items;
   const [menuKey, setMenuKey] = useState(null);
@@ -74,19 +77,111 @@ export default function ItemList({
 
   const split = async (item) => {
     setMenuKey(null);
-    const colors = item.size_grid.rows.map((r) => r.color.trim() || 'без цвета');
-    const n = colors.length;
-    const ok = await confirm({
-      title: 'Разнести по цветам?',
-      message: `Позиция станет ${n} позициями: ${colors.join(', ')}. Нанесения скопируются в каждую`,
-      confirmLabel: `Разнести на ${n} ${pluralize(n, 'позицию', 'позиции', 'позиций')}`,
-    });
-    if (!ok) return;
+    if (!(await confirmSplit(item))) return;
     pendingFocus.current = { after: item.key };
     onSplit(item.key);
   };
 
   const copyItem = copyKey ? items.find((it) => it.key === copyKey) : null;
+
+  /** Меню «Действия» позиции: копия в другом цвете, разнесение, удаление */
+  const renderActions = (item, index) => {
+    const title = itemTitle(item);
+    const menuOpen = menuKey === item.key;
+    const menuId = `item-actions-${item.key}`;
+    return (
+      <div className={styles.itemActions}>
+        <button
+          type="button"
+          ref={(el) => setRef(toggleRefs.current, item.key, el)}
+          className={styles.itemMenuToggle}
+          aria-label={`Действия с изделием «${title}»`}
+          aria-expanded={menuOpen}
+          aria-controls={menuOpen ? menuId : undefined}
+          onClick={() => setMenuKey(menuOpen ? null : item.key)}
+        >
+          Действия
+          <Icon name={menuOpen ? 'chevronUp' : 'chevronDown'} size={14} />
+        </button>
+        {menuOpen && (
+          // Escape из любой кнопки меню закрывает его и возвращает фокус
+          // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+          <div
+            id={menuId}
+            className={styles.itemMenu}
+            onKeyDown={(e) => { if (e.key === 'Escape') closeMenu(item.key, true); }}
+          >
+            <button
+              type="button"
+              className={styles.itemMenuBtn}
+              aria-label={`Копия в другом цвете… — ${title}`}
+              onClick={() => { setMenuKey(null); setCopyKey(item.key); }}
+            >
+              Копия в другом цвете…
+            </button>
+            {item.size_grid.rows.length > 1 && (
+              <button
+                type="button"
+                className={styles.itemMenuBtn}
+                aria-label={`Разнести по цветам — ${title}`}
+                onClick={() => split(item)}
+              >
+                Разнести по цветам
+              </button>
+            )}
+            <button
+              type="button"
+              className={`${styles.itemMenuBtn} ${styles.itemMenuDanger}`}
+              aria-label={`Удалить — ${title}`}
+              onClick={() => remove(item, index)}
+            >
+              Удалить
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const addButton = !readOnly && (
+    <button type="button" ref={addRef} className={styles.itemAdd} onClick={onAdd}>
+      + Изделие
+    </button>
+  );
+
+  const copyDialog = copyItem && (
+    <ColorCopyDialog
+      itemName={itemTitle(copyItem)}
+      onClose={() => setCopyKey(null)}
+      onSubmit={(color) => {
+        setCopyKey(null);
+        onCopyColor(copyItem.key, color);
+      }}
+    />
+  );
+
+  if (compact) {
+    const index = items.findIndex((it) => it.key === selectedKey);
+    const selected = items[index];
+    return (
+      <div className={styles.itemBar}>
+        {items.length > 0 && (
+          <select
+            className={styles.itemPicker}
+            aria-label="Изделие"
+            value={selected?.key ?? ''}
+            ref={(el) => { if (selected) setRef(selectRefs.current, selected.key, el); }}
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            {items.map((item) => <option key={item.key} value={item.key}>{itemTitle(item)}</option>)}
+          </select>
+        )}
+        {!readOnly && selected && renderActions(selected, index)}
+        {addButton}
+        {copyDialog}
+      </div>
+    );
+  }
 
   return (
     <div className={styles.itemList}>
@@ -94,10 +189,7 @@ export default function ItemList({
       {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
       <ul role="list" className={styles.items} aria-label="Изделия заказа">
         {items.map((item, index) => {
-          const title = itemTitle(item);
           const selected = item.key === selectedKey;
-          const menuOpen = menuKey === item.key;
-          const menuId = `item-actions-${item.key}`;
           return (
             <li key={item.key} className={styles.itemRow}>
               <button
@@ -107,79 +199,15 @@ export default function ItemList({
                 aria-current={selected ? 'true' : undefined}
                 onClick={() => onSelect(item.key)}
               >
-                {title}
+                {itemTitle(item)}
               </button>
-              {!readOnly && (
-                <div className={styles.itemActions}>
-                  <button
-                    type="button"
-                    ref={(el) => setRef(toggleRefs.current, item.key, el)}
-                    className={styles.itemMenuToggle}
-                    aria-label={`Действия с изделием «${title}»`}
-                    aria-expanded={menuOpen}
-                    aria-controls={menuOpen ? menuId : undefined}
-                    onClick={() => setMenuKey(menuOpen ? null : item.key)}
-                  >
-                    Действия
-                    <Icon name={menuOpen ? 'chevronUp' : 'chevronDown'} size={14} />
-                  </button>
-                  {menuOpen && (
-                    // Escape из любой кнопки меню закрывает его и возвращает фокус
-                    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-                    <div
-                      id={menuId}
-                      className={styles.itemMenu}
-                      onKeyDown={(e) => { if (e.key === 'Escape') closeMenu(item.key, true); }}
-                    >
-                      <button
-                        type="button"
-                        className={styles.itemMenuBtn}
-                        aria-label={`Копия в другом цвете… — ${title}`}
-                        onClick={() => { setMenuKey(null); setCopyKey(item.key); }}
-                      >
-                        Копия в другом цвете…
-                      </button>
-                      {item.size_grid.rows.length > 1 && (
-                        <button
-                          type="button"
-                          className={styles.itemMenuBtn}
-                          aria-label={`Разнести по цветам — ${title}`}
-                          onClick={() => split(item)}
-                        >
-                          Разнести по цветам
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={`${styles.itemMenuBtn} ${styles.itemMenuDanger}`}
-                        aria-label={`Удалить — ${title}`}
-                        onClick={() => remove(item, index)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              {!readOnly && renderActions(item, index)}
             </li>
           );
         })}
       </ul>
-      {!readOnly && (
-        <button type="button" ref={addRef} className={styles.itemAdd} onClick={onAdd}>
-          + Изделие
-        </button>
-      )}
-      {copyItem && (
-        <ColorCopyDialog
-          itemName={itemTitle(copyItem)}
-          onClose={() => setCopyKey(null)}
-          onSubmit={(color) => {
-            setCopyKey(null);
-            onCopyColor(copyItem.key, color);
-          }}
-        />
-      )}
+      {addButton}
+      {copyDialog}
     </div>
   );
 }

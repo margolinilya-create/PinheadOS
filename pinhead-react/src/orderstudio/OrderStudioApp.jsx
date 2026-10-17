@@ -43,7 +43,8 @@ const AdminScreen = lazyScreen(() => import('../erp/screens/AdminScreen'));
 const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 // Заказы v4: продавцы (`is_sales`) и руководство продаж — `canUseSales`
 const SalesList = React.lazy(() => import('./screens/SalesList'));
-const SalesCard = React.lazy(() => import('./screens/SalesCard'));
+// Рабочее место заказа (веха 3): изделия, клиент, ТЗ и цена — ленивый чанк
+const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
 // Менеджеры продаж (веха 3): признак is_sales ставят admin/director
 const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 /*
@@ -150,7 +151,7 @@ function OrderStudioShell({ user }) {
         <Route path="/sku" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><SkuEditor /></Suspense></RoleGuard>} />
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
         <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
-        <Route path="/sales/:id" element={<Suspense fallback={Fallback}><SalesCard /></Suspense>} />
+        <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
         <Route path="/sales-staff" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
         {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}
         <Route path="*" element={<Navigate to="/sales" replace />} />

@@ -5,7 +5,8 @@ import { MEDASTEX_COLORS, COLOR_GROUPS, COTTONPROM_COLORS, COTTONPROM_GROUPS } f
 import { isAccessory } from '../../../utils/pricing';
 import { useEffectiveRules } from '../../../hooks/useEffectiveRules';
 
-export default function ColorPicker() {
+/** `readOnly` — образцы видны, но цвет не меняется (`aria-disabled`); палитра поставщика переключается — это вид, а не данные */
+export default function ColorPicker({ readOnly = false }) {
   const { type, color, selectColor, colorSupplier, setColorSupplier } = useStore(
     useShallow(s => ({ type: s.type, color: s.color, selectColor: s.selectColor,
       colorSupplier: s.colorSupplier, setColorSupplier: s.setColorSupplier }))
@@ -62,8 +63,9 @@ export default function ColorPicker() {
                   tabIndex={hidden ? -1 : 0}
                   aria-pressed={color === entry.code}
                   aria-label={`${entry.name} (${entry.code})`}
-                  onClick={() => selectColor(entry.code)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColor(entry.code); } }}
+                  aria-disabled={readOnly || undefined}
+                  onClick={() => { if (!readOnly) selectColor(entry.code); }}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!readOnly) selectColor(entry.code); } }}
                 >
                   <div className="swatch-circle" style={{ backgroundColor: entry.hex }}>
                     {color === entry.code && (

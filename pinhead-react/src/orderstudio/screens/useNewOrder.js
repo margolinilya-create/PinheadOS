@@ -7,15 +7,16 @@ import { newOrderPath, startNewOrder } from './newOrder';
 export function useNewOrder() {
   const navigate = useNavigate();
   const uid = useAuthStore((s) => s.user?.id ?? null);
+  const name = useAuthStore((s) => s.user?.name ?? '');
   const [busy, setBusy] = useState(false);
   const start = useCallback(async () => {
     setBusy(true);
     try {
-      const id = await startNewOrder(uid);
+      const id = await startNewOrder(uid, name);
       if (id) navigate(newOrderPath(id));
     } finally {
       setBusy(false);
     }
-  }, [navigate, uid]);
+  }, [navigate, uid, name]);
   return { start, busy };
 }

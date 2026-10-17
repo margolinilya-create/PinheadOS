@@ -30,6 +30,10 @@ const REMOVED = [
   'orderstudio/wizard/itemSession.ts',
   'orderstudio/wizard/transferToSales.ts',
   'orderstudio/wizard/wizardOrderToSales.ts',
+  // Задача 5: карточка заказа уступила рабочему месту `/sales/:id`
+  'orderstudio/screens/SalesCard.jsx',
+  'orderstudio/screens/ItemEditor.jsx',
+  'orderstudio/screens/GridEditor.jsx',
 ];
 
 const moduleName = (path: string) => path.split('/').pop()!.replace(/\.(jsx?|tsx?)$/, '');

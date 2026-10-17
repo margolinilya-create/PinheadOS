@@ -283,40 +283,7 @@
   margin: var(--space-md) 0 var(--space-sm);
 }
 
-/* ── Сетка ── */
-
-.gridScroll {
-  overflow-x: auto;
-  max-width: 100%;
-  margin: var(--space-sm) 0;
-}
-
-.gridTable { border-collapse: collapse; }
-
-.gridTable th,
-.gridTable td {
-  padding: var(--space-xs);
-  font-size: var(--type-body-sm);
-  text-align: center;
-}
-
-.gridTable th:first-child,
-.gridTable td:first-child { text-align: left; }
-
-.gridTable .cell {
-  width: 64px;
-  min-width: 56px;
-  min-height: var(--control-h-sm);
-  text-align: center;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--ink);
-}
-
-.gridTable .colorInput { width: 160px; min-width: 112px; }
+/* ── Группа размеров нанесения ── */
 
 .sizeToggle {
   font: inherit;
@@ -379,8 +346,6 @@
   margin-top: var(--space-sm);
 }
 
-.saveState { font-size: var(--type-body-sm); color: var(--text-dim); }
-.saveError { color: var(--color-error-ink); }
 
 /* ── Фильтры списка (веха 3): поиск, статус, «Мои / Все» ── */
 

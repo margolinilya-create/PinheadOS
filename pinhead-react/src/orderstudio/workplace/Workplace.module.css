@@ -190,3 +190,256 @@
   .itemAdd,
   .copyInput { min-height: 44px; }
 }
+
+/* ── Экран рабочего места ── */
+
+.workplace { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* ── Индикатор сохранения ── */
+
+.save {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.saveText { font-size: var(--type-body-sm); color: var(--text-dim); }
+
+.saveAlert { color: var(--color-error-ink); font-weight: 600; }
+
+.saveLocked { color: var(--color-warning-ink); font-weight: 600; }
+
+.saveReload {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--card);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* ── Вкладки ── */
+
+.tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tab {
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-md);
+  font: inherit;
+  font-size: var(--type-body);
+  color: var(--text-mid);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+
+.tab:hover { color: var(--text); }
+
+/* Выбранная — полоса и вес, а не только цвет */
+.tabActive {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+.panel { min-width: 0; }
+
+/* ── Вкладка «Изделие» ── */
+
+.itemLayout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+/* Список изделий остаётся на виду, пока правится длинная панель */
+.itemLayout > :first-child { position: sticky; top: var(--space-lg); }
+
+.itemMain { min-width: 0; display: flex; flex-direction: column; gap: var(--space-md); }
+
+.itemTab { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.garment { display: flex; flex-direction: column; gap: var(--space-md); min-width: 0; }
+
+.checkRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--control-h-md);
+  font-size: var(--type-body);
+  cursor: pointer;
+}
+
+/* Строки v4 закрываются целиком: у fieldset нет своей рамки и отступов */
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.splitNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  border-radius: var(--radius-md);
+}
+
+.splitText { margin: 0; font-size: var(--type-body); }
+
+.next { display: flex; justify-content: flex-end; }
+
+/* Узкий экран: позиции — выпадающий список, рядом действия и «+ Изделие» */
+.itemBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-xs);
+}
+
+.itemPicker {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-sm);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+}
+
+/* ── «ТЗ и цена» ── */
+
+.summaryTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summaryTable th,
+.summaryTable td {
+  padding: var(--space-sm);
+  text-align: left;
+  vertical-align: top;
+  font-size: var(--type-body-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.summaryTable th { color: var(--text-dim); font-weight: 600; }
+
+.summaryLink {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.issueLink {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+
+.tab:focus-visible,
+.saveReload:focus-visible,
+.itemPicker:focus-visible,
+.summaryLink:focus-visible,
+.issueLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 760px) {
+  .itemLayout { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+  .itemLayout > :first-child { position: static; }
+  .next { justify-content: stretch; }
+  .next > button { flex: 1; }
+  .summaryTable th,
+  .summaryTable td { padding: var(--space-xs); }
+}
+
+@media (max-width: 480px) {
+  /* Вкладки прокручиваются, а не сжимаются */
+  .tabs { overflow-x: auto; scrollbar-width: thin; }
+  .tab { flex: 0 0 auto; padding: 0 var(--space-sm); }
+
+  /* Таблица позиций — карточками: подпись колонки рядом со значением */
+  .summaryTable thead { display: none; }
+  .summaryTable tr {
+    display: block;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .summaryTable td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    border: none;
+    text-align: right;
+  }
+  .summaryTable td:first-child { display: block; text-align: left; }
+  .summaryTable td:not(:first-child)::before {
+    content: attr(data-label);
+    color: var(--text-dim);
+  }
+}
+
+/* Тач: цель нажатия не меньше 44 px — и у панелей визарда внутри рабочего места */
+@media (pointer: coarse) {
+  .tab,
+  .saveReload,
+  .itemPicker,
+  .checkRow { min-height: 44px; }
+
+  .garment :global(.qty-btn),
+  .garment :global(.sku-search-clear),
+  .garment :global(.size-rm-btn) { min-width: 44px; min-height: 44px; }
+
+  .garment :global(.qty-input),
+  .garment :global(.sku-cat-pill),
+  .garment :global(.sku-fit-pill),
+  .garment :global(.supplier-tab),
+  .garment :global(.fit-option),
+  .garment :global(.garment-row),
+  .garment :global(.garment-expand-select),
+  .garment :global(.extras-accordion-toggle),
+  .garment :global(.extras-list-item),
+  .garment :global(.add-size-btn),
+  .garment :global(.btn-add-size),
+  .garment :global(.btn-cancel-size),
+  .garment :global(.sku-search-input),
+  .garment :global(.color-search-input) { min-height: 44px; }
+
+  .garment :global(.swatch) { min-width: 44px; min-height: 44px; }
+}

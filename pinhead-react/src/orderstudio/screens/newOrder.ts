@@ -14,18 +14,19 @@ import { useSalesStore } from '../store/useSalesStore';
 
 let pending: Promise<string | null> | null = null;
 
-async function run(uid: string | null | undefined): Promise<string | null> {
+async function run(uid: string | null | undefined, managerName: string): Promise<string | null> {
   if (uid) {
     const found = await findOwnEmptyDraft(uid);
     if (!found.ok) return null;
     if (found.id) return found.id;
   }
-  return useSalesStore.getState().createNew();
+  // Менеджер заказа — автор: имя из его профиля, на рабочем месте только для чтения
+  return useSalesStore.getState().createNew(managerName ? { manager: managerName } : undefined);
 }
 
 /** id заказа, который открыть; `null` — не вышло (тост уже показан) */
-export function startNewOrder(uid: string | null | undefined): Promise<string | null> {
-  if (!pending) pending = run(uid).finally(() => { pending = null; });
+export function startNewOrder(uid: string | null | undefined, managerName = ''): Promise<string | null> {
+  if (!pending) pending = run(uid, managerName.trim()).finally(() => { pending = null; });
   return pending;
 }
 
