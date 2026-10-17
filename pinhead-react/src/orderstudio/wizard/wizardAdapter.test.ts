@@ -8,11 +8,14 @@ import { FABRICS_CATALOG_DEFAULT } from '../../data/fabricsCatalog';
 import { ZONES_CATALOG_DEFAULT } from '../../data/constants';
 import type { SkuItem, Fabric, ZoneDefinition } from '../../types/catalog';
 import type { SalesItem } from '../model/types';
+import { SUPPLIERS_SEED } from '../catalog/seeds';
+import { updateColor } from '../catalog/suppliers';
 
 const CAT: WizardCatalogs = {
   skuCatalog: SKU_CATALOG_DEFAULT as unknown as SkuItem[],
   fabricsCatalog: FABRICS_CATALOG_DEFAULT as unknown as Fabric[],
   zonesCatalog: ZONES_CATALOG_DEFAULT as unknown as ZoneDefinition[],
+  suppliers: SUPPLIERS_SEED,
 };
 const SKU = CAT.skuCatalog[2];
 const FABRIC = 'medas-kulirnaya-100-180';
@@ -33,11 +36,30 @@ const snap = (over: WizardItem = {}): WizardItem => ({
 });
 
 describe('цвет строки сетки', () => {
+  const S = SUPPLIERS_SEED;
   it('код палитры → «Имя (код)» и обратно', () => {
-    expect(colorLabel('01-01')).toBe('Белый (01-01)');
-    expect(colorCodeOf('Белый (01-01)')).toBe('01-01');
-    expect(colorCodeOf('Свой зелёный')).toBe('');
-    expect(colorLabel('')).toBe('');
+    expect(colorLabel('01-01', S)).toBe('Белый (01-01)');
+    expect(colorCodeOf('Белый (01-01)', S)).toBe('01-01');
+    expect(colorCodeOf('01-01', S)).toBe('01-01');
+    expect(colorCodeOf('Свой зелёный', S)).toBe('');
+    expect(colorLabel('', S)).toBe('');
+  });
+
+  it('свой цвет текстом — как есть', () => {
+    expect(colorLabel('розовый', S)).toBe('розовый');
+    expect(colorCodeOf('Хаки (светлый)', S)).toBe('');
+  });
+
+  it('палитры — аргументом: новый цвет справочника распознаётся без правки кода', () => {
+    const list = updateColor(S, 'medastex', '01-01', { name: 'Снежный' });
+    expect(colorLabel('01-01', list)).toBe('Снежный (01-01)');
+    expect(colorCodeOf('Снежный (01-01)', list)).toBe('01-01');
+  });
+
+  it('снятый с продажи цвет подписывается, как раньше', () => {
+    const list = updateColor(S, 'medastex', '01-01', { active: false });
+    expect(colorLabel('01-01', list)).toBe('Белый (01-01)');
+    expect(colorCodeOf('Белый (01-01)', list)).toBe('01-01');
   });
 });
 
@@ -309,6 +331,49 @@ describe('буфер позиции → позиция (garmentPatch)', () => {
     const out = garmentPatch(g(), g({ sizes: moreSizes }), b, CAT)!;
     expect(out.prints).toBe(b.prints);
     expect(out.labels).toBe(b.labels);
+  });
+
+  it('«Белый (5001)» у ткани Медас (код Коттонпрома) сохраняется при правке размеров', () => {
+    const b = base({ size_grid: { sizes: ['S'], rows: [{ color: 'Белый (5001)', sizes: { S: 10 } }] } });
+    const loaded = salesItemToWizard(b, CAT);
+    expect(loaded.color).toBe('5001');
+    const out = garmentPatch(g({ color: '5001' }), g({ color: '5001', sizes: moreSizes }), b, CAT)!;
+    expect(out.size_grid.rows).toEqual([{ color: 'Белый (5001)', sizes: { S: 10, M: 5 } }]);
+    expect(out.color_supplier).toBe('Белый / ручной текст');
+  });
+
+  it('смена ткани: скобки срезаются только у распознанного кода', () => {
+    const own = base({ size_grid: { sizes: ['S'], rows: [{ color: 'Хаки (светлый)', sizes: { S: 10 } }] } });
+    const out = garmentPatch(g({ color: 'Хаки (светлый)' }), g({ color: 'Хаки (светлый)', fabric: 'cotton-kulirnaya-100-180' }), own, CAT)!;
+    expect(out.color_supplier).toBe('Хаки (светлый) / ТД Коттон');
+    const coded = base({ size_grid: { sizes: ['S'], rows: [{ color: 'Белый (5001)', sizes: { S: 10 } }] } });
+    const out2 = garmentPatch(g({ color: '5001' }), g({ color: '5001', fabric: 'cotton-kulirnaya-100-180' }), coded, CAT)!;
+    expect(out2.color_supplier).toBe('Белый / ТД Коттон');
+  });
+
+  it('«розовый»: в буфер как есть, загрузка без правки ничего не пишет', () => {
+    const b = base({ size_grid: { sizes: ['S'], rows: [{ color: 'розовый', sizes: { S: 10 } }] } });
+    const loaded = salesItemToWizard(b, CAT);
+    expect(loaded.color).toBe('розовый');
+    const snapLoaded = g({ color: loaded.color, sizes: loaded.sizes });
+    expect(garmentPatch(snapLoaded, snapLoaded, b, CAT)).toBeNull();
+    // Правка размеров — подпись строки остаётся «розовый»
+    const out = garmentPatch(snapLoaded, { ...snapLoaded, sizes: { ...loaded.sizes, M: 5 } }, b, CAT)!;
+    expect(out.size_grid.rows[0].color).toBe('розовый');
+  });
+
+  it('свой цвет, вписанный в буфер, пишется как есть', () => {
+    const out = garmentPatch(g(), g({ color: 'малиновый' }), base(), CAT)!;
+    expect(out.size_grid.rows[0].color).toBe('малиновый');
+    expect(out.color_supplier).toBe('малиновый / Медас');
+  });
+
+  it('снятый цвет в позиции остаётся при правке размеров', () => {
+    const cat = { ...CAT, suppliers: updateColor(SUPPLIERS_SEED, 'medastex', '01-01', { active: false }) };
+    const b = base();
+    expect(salesItemToWizard(b, cat).color).toBe('01-01');
+    const out = garmentPatch(g(), g({ sizes: moreSizes }), b, cat)!;
+    expect(out.size_grid.rows[0].color).toBe('Белый (01-01)');
   });
 
   it('нет разницы → null', () => {

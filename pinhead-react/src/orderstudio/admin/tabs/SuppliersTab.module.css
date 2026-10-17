@@ -1,0 +1,201 @@
+/* Вкладка «Поставщики и палитры» (веха 4, задача 3) */
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.legend {
+  margin: 0 0 var(--space-sm);
+  padding: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+
+.field {
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+}
+
+.input,
+.cellInput {
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.cellInput { width: 100%; min-width: 80px; }
+
+.input:focus-visible,
+.cellInput:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.cellInput[aria-invalid='true'],
+.input[aria-invalid='true'] { border-color: var(--color-error); }
+
+.cellInput[aria-invalid='true']:focus-visible { box-shadow: var(--focus-ring-error); }
+
+.fieldError {
+  display: block;
+  margin-top: var(--space-xs);
+  color: var(--color-error);
+  font-size: var(--type-label);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+}
+
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+
+.check input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Выбор поставщика: сегменты-кнопки с aria-pressed */
+.suppliers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.supplierBtn {
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.supplierBtn[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+
+.supplierBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.badges { font-size: var(--type-body-sm); font-weight: 400; }
+
+.addSupplier,
+.cardRow,
+.toolbar,
+.saveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.card,
+.binding,
+.groups {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.bindList,
+.groupList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+}
+
+.warn {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-mid);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--type-body-sm);
+}
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.tableWrap { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th { color: var(--text-dim); font-weight: 600; }
+
+.clickable { cursor: pointer; }
+
+.clickable:hover { background: var(--bg1); }
+
+.off { color: var(--text-dim); }
+
+.code { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.actions { white-space: nowrap; }
+
+.actions :global(.btn) + :global(.btn) { margin-left: var(--space-xs); }
+
+/* Образец цвета: рамка контрастная к фону (≥ 3:1) — светлый цвет не теряется */
+.sample {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+.errors {
+  margin: 0;
+  padding-left: var(--space-lg);
+  color: var(--color-error);
+  font-size: var(--type-body-sm);
+}
+
+/* Тач-цель ≥ 44 px */
+@media (pointer: coarse) {
+  .supplierBtn,
+  .input,
+  .cellInput,
+  .check,
+  .tab :global(.btn) { min-height: 44px; }
+
+  .check input { width: 24px; height: 24px; }
+}

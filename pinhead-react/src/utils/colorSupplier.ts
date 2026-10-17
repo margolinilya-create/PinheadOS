@@ -1,23 +1,24 @@
 /**
- * Палитра цветов визарда по поставщику ткани.
+ * Палитра цветов визарда по поставщику ткани — из справочника
+ * «Поставщики и палитры» (`catalog_config.suppliers`, веха 4).
  *
- * Палитр две: Медастекс (ткани «Медас») и Коттонпром (все остальные).
- * Раньше правило жило внутри `FabricGrid` — теперь его же зовёт буфер позиции
- * рабочего места (`orderstudio/workplace/itemBuffer.ts`), когда кладёт позицию
- * в стор визарда: палитра обязана совпасть с той, что выставил бы выбор ткани.
+ * Значение — id поставщика (`medastex`, `cottonprom`…) или `''`. Его ставят
+ * выбор ткани (`FabricGrid`) и буфер позиции рабочего места
+ * (`orderstudio/workplace/itemBuffer.ts`): палитра обязана совпасть с той,
+ * что выставил бы выбор ткани. Правило привязки — `supplierForFabric`.
  */
+import { supplierForFabric } from '../orderstudio/catalog/suppliers';
+import type { Supplier } from '../orderstudio/catalog/types';
 import type { Fabric } from '../types/catalog';
 
-export type ColorSupplier = 'medastex' | 'cottonprom';
-
-/** Поставщик ткани → палитра (раньше «медас» сравнивался с «medastex» и не совпадал никогда) */
-export function colorSupplierOf(supplier: string): ColorSupplier {
-  return supplier === 'Медас' ? 'medastex' : 'cottonprom';
+/** Имя поставщика ткани → id палитры; справочник пуст — `''` */
+export function colorSupplierOf(supplier: string, suppliers: readonly Supplier[]): string {
+  return supplierForFabric({ supplier }, suppliers)?.id ?? '';
 }
 
-/** Палитра по коду ткани; ткани нет в каталоге или у неё нет поставщика — `null` (палитру не трогать) */
-export function colorSupplierOfFabric(code: string, fabrics: readonly Fabric[]): ColorSupplier | null {
-  if (!code) return null;
-  const supplier = fabrics.find((f) => f.code === code)?.supplier;
-  return supplier ? colorSupplierOf(supplier) : null;
+/** Палитра по коду ткани; ткани нет в каталоге — `''` */
+export function colorSupplierOfFabric(code: string, fabrics: readonly Fabric[], suppliers: readonly Supplier[]): string {
+  if (!code) return '';
+  const fabric = fabrics.find((f) => f.code === code);
+  return fabric ? (supplierForFabric(fabric, suppliers)?.id ?? '') : '';
 }

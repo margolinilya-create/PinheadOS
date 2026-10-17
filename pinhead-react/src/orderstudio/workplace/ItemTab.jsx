@@ -35,6 +35,7 @@ function useItemBuffer(key, bufferable, readOnly) {
     skuCatalog: s.skuCatalog,
     fabricsCatalog: s.fabricsCatalog,
     zonesCatalog: s.zonesCatalog,
+    suppliers: s.suppliers,
   })));
   useEffect(() => {
     const base = itemByKey(key);

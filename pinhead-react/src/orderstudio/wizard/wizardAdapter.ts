@@ -11,7 +11,8 @@
  * в сетке. Поэтому перевод из визарда НАКЛАДЫВАЕТСЯ на прежнюю позицию
  * (`base`), а не заменяет её: визард правит то, что умеет, остальное остаётся.
  */
-import { findColorEntry } from '../../data/colors';
+import { findPaletteColor, supplierForFabric } from '../catalog/suppliers';
+import type { Supplier } from '../catalog/types';
 import { initSizes, sizeOrder } from '../../store/slices/helpers';
 import { FMT_SIZES } from '../../utils/pricingCore';
 import { DTG_SIZES, dtgFitSize, dtgSizeKey } from '../../utils/printRules';
@@ -28,6 +29,8 @@ export interface WizardCatalogs {
   skuCatalog: SkuItem[];
   fabricsCatalog: Fabric[];
   zonesCatalog: ZoneDefinition[];
+  /** Поставщики и палитры (`catalog_config.suppliers`) — подписи и коды цветов */
+  suppliers: Supplier[];
 }
 
 type WizardTech = 'screen' | 'flex' | 'dtg' | 'embroidery' | 'dtf';
@@ -59,18 +62,28 @@ const TECH_FIELD: Record<WizardTech, string> = {
 
 // ── Цвет ──────────────────────────────────────────────────────────────────
 
-/** Цвет визарда (код палитры) → подпись строки сетки: «Чёрный (15-01)» */
-export function colorLabel(code: string): string {
+/**
+ * Цвет визарда → подпись строки сетки: код палитры — «Чёрный (15-01)»,
+ * свободный текст («розовый») — как есть. Палитры — аргументом; `preferred` —
+ * палитра поставщика ткани (ищется первой), затем все палитры, снятые тоже.
+ */
+export function colorLabel(code: string, suppliers: readonly Supplier[], preferred?: Supplier | null): string {
   if (!code) return '';
-  const entry = findColorEntry(code);
-  return entry ? `${entry.name} (${code})` : code;
+  const entry = findPaletteColor(code, suppliers, preferred);
+  return entry ? `${entry.name} (${entry.code})` : code;
 }
 
 /** Обратно: код палитры из подписи строки; не распознан — пусто */
-export function colorCodeOf(label: string): string {
+export function colorCodeOf(label: string, suppliers: readonly Supplier[], preferred?: Supplier | null): string {
   const m = label.match(/\(([^()]+)\)\s*$/);
-  if (m && findColorEntry(m[1])) return m[1];
-  return findColorEntry(label.trim()) ? label.trim() : '';
+  if (m && findPaletteColor(m[1], suppliers, preferred)) return m[1];
+  const bare = label.trim();
+  return findPaletteColor(bare, suppliers, preferred) ? bare : '';
+}
+
+/** Палитра ткани по коду из каталога; ткани нет — `null` */
+function paletteOfFabric(code: string, cat: WizardCatalogs): Supplier | null {
+  return supplierForFabric(cat.fabricsCatalog.find((f) => f.code === code), cat.suppliers);
 }
 
 // ── Зона ──────────────────────────────────────────────────────────────────
@@ -198,9 +211,15 @@ function fabricText(fabric: Fabric): string {
     .filter(Boolean).join(', ');
 }
 
-/** «Цвет / поставщик»: имя цвета без кода палитры и поставщик ткани */
-function colorSupplierText(colorRowLabel: string, fabric: Fabric): string {
-  return [colorRowLabel.replace(/\s*\([^)]*\)$/, ''), fabric.supplier].filter(Boolean).join(' / ');
+/**
+ * «Цвет / поставщик»: имя цвета без кода палитры и поставщик ткани. Скобки
+ * срезаются, только если в них РАСПОЗНАННЫЙ код: «Хаки (светлый)» — свой цвет,
+ * он остаётся целиком.
+ */
+function colorSupplierText(colorRowLabel: string, fabric: Fabric, suppliers: readonly Supplier[]): string {
+  const m = colorRowLabel.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+  const name = m && findPaletteColor(m[2], suppliers) ? m[1] : colorRowLabel;
+  return [name, fabric.supplier].filter(Boolean).join(' / ');
 }
 
 /** Размеры и количество визарда: стандартные без нулей + свои размеры */
@@ -238,10 +257,12 @@ export function wizardToSalesItem(
 
   const fabric = cat.fabricsCatalog.find((f) => f.code === snap.fabric);
   item.fabric_code = snap.fabric || '';
-  const color = colorLabel(snap.color || '');
+  const palette = supplierForFabric(fabric, cat.suppliers);
+  const color = colorLabel(snap.color || '', cat.suppliers, palette);
+  const codeOf = (label: string) => colorCodeOf(label, cat.suppliers, palette);
   if (fabric) {
     item.main_fabric = fabricText(fabric);
-    item.color_supplier = colorSupplierText(color, fabric);
+    item.color_supplier = colorSupplierText(color, fabric, cat.suppliers);
   }
 
   // Сетка: строка цвета визарда заменяется, остальные строки остаются
@@ -249,7 +270,7 @@ export function wizardToSalesItem(
   const rows = base ? [...base.size_grid.rows] : [];
   const target = editRow ?? color;
   const idx = rows.findIndex((r) => r.color === target
-    || (colorCodeOf(r.color) !== '' && colorCodeOf(r.color) === snap.color));
+    || (codeOf(r.color) !== '' && codeOf(r.color) === snap.color));
   const row = { color: color || target || '', sizes: qty };
   if (idx >= 0) rows[idx] = row;
   else if (Object.keys(qty).length > 0 || rows.length === 0) rows.push(row);
@@ -327,7 +348,8 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
     fit: item.fit || sku?.fit || 'regular',
     fitChosen: !!sku,
     fabric: item.fabric_code,
-    color: colorCodeOf(row?.color ?? ''),
+    // Код палитры; свой цвет («розовый») — в буфер как есть, иначе он пропадал бы
+    color: colorCodeOf(row?.color ?? '', cat.suppliers, paletteOfFabric(item.fabric_code, cat)) || (row?.color ?? ''),
     sizes,
     customSizes,
     extras: [...item.extras],
@@ -369,8 +391,9 @@ function sameQty(a: Record<string, number>, b: Record<string, number>): boolean 
 /**
  * Разница буфера `prev → next` → новая позиция; менять нечего — `null`.
  *
- * Пишется ТОЛЬКО то, что изменилось, и только непустым значением: модель,
- * цвет или ткань не из каталога (буфер их не знает и держит пустыми) и ручной
+ * Пишется ТОЛЬКО то, что изменилось, и только непустым значением: модель
+ * или ткань не из каталога (буфер их не знает и держит пустыми), свой цвет
+ * текстом (буфер держит его как есть, `colorLabel` возвращает его же) и ручной
  * текст `main_fabric`/`color_supplier` переживают правку размеров. Поэтому
  * загрузка позиции и перезагрузка каталогов ничего не пишут.
  *
@@ -394,7 +417,9 @@ export function garmentPatch(prev: GarmentSnap, next: GarmentSnap, base: SalesIt
     patch.fit = next.fit;
   }
 
-  if (next.color && prev.color !== next.color) rowColor = colorLabel(next.color);
+  if (next.color && prev.color !== next.color) {
+    rowColor = colorLabel(next.color, cat.suppliers, paletteOfFabric(next.fabric || base.fabric_code, cat));
+  }
   if (!same(prev.sizes, next.sizes) || !same(prev.customSizes, next.customSizes)) rowSizes = wizardQty(next);
 
   const fabricChanged = !!next.fabric && prev.fabric !== next.fabric;
@@ -403,7 +428,7 @@ export function garmentPatch(prev: GarmentSnap, next: GarmentSnap, base: SalesIt
   const fabric = clientFabric ? undefined : fabricOf(next.fabric || base.fabric_code);
   if (fabric && fabricChanged) patch.main_fabric = fabricText(fabric);
   if (fabric && (fabricChanged || rowColor !== (rows[0]?.color ?? ''))) {
-    patch.color_supplier = colorSupplierText(rowColor, fabric);
+    patch.color_supplier = colorSupplierText(rowColor, fabric, cat.suppliers);
   }
 
   if (rowColor !== (rows[0]?.color ?? '') || !sameQty(rowSizes, rows[0]?.sizes ?? {})) {
