@@ -331,6 +331,16 @@ describe('политики storage.objects для order-artworks', () => {
     expect(norm(p.check)).toBe("bucket_id <> 'order-artworks'");
   });
 
+  it('прежняя permissive order_artworks_update снимается явно', () => {
+    expect(SQL).toMatch(/drop policy if exists "order_artworks_update" on storage\.objects;/);
+  });
+
+  it('миграции после C не снимают политики order_artworks_*', () => {
+    for (const f of files.filter((x) => x > bucketFile!)) {
+      expect(noComments(read(f)), f).not.toMatch(/drop\s+policy\s+(?:if\s+exists\s+)?"?order_artworks_\w*"?\s+on\s+"?storage"?\s*\.\s*"?objects"?/i);
+    }
+  });
+
   it('ни в одной миграции нет permissive UPDATE (или ALL), открывающей order-artworks', () => {
     for (const f of files) {
       for (const p of policiesOf(noComments(read(f)))) {

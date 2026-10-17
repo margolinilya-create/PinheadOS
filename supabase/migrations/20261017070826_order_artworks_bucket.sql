@@ -139,6 +139,8 @@ create policy "order_artworks_insert" on storage.objects
 -- строку `order-artworks` не взять на UPDATE и не сделать ею строку другого
 -- бакета (перенос внутрь) — ни владельцу, ни руководству. Политики ERP
 -- (заморожены) не трогаются.
+-- Прежняя permissive-версия (была в ранних файлах применения) — снимается.
+drop policy if exists "order_artworks_update" on storage.objects;
 drop policy if exists "order_artworks_no_update" on storage.objects;
 create policy "order_artworks_no_update" on storage.objects
   as restrictive
