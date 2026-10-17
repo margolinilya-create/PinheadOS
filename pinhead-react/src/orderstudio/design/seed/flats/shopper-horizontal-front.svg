@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 625" width="550" height="625">
+<g id="garment" fill="#d9d9d9">
+  <path d="M 550,250 L 0,250 L 0,575 L 50,625 L 500,625 L 550,575 L 550,250" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 125,355 H 425 V 555 H 125 Z" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 125,375 L 425,375" fill="none" stroke="#000000" stroke-width="1.01" stroke-dasharray="3.53 3.53" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 0,270 L 550,270" fill="none" stroke="#000000" stroke-width="1.01" stroke-dasharray="3.53 3.53" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 175,0 H 375 V 40 H 175 Z" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 175,250 L 135,250 L 135,40 L 175,0 L 175,250" />
+  <path d="M 175,250 L 175,0 L 135,40 L 135,250 Z" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 375,250 L 415,250 L 415,40 L 375,0 L 375,250" />
+  <path d="M 375,250 L 375,0 L 415,40 L 415,250 Z" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>
