@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import {
   ARTWORK_BUCKET, ARTWORK_MAX_BYTES, ARTWORK_MIME_TYPES, SIGNED_URL_TTL_SEC,
-  ARTWORK_FORMATS_HINT, artworkContentType, artworkDownloadUrl, artworkPath, artworkSignedUrl, artworkSignedUrls,
+  ARTWORK_EXTENSIONS, ARTWORK_FORMATS_HINT, artworkContentType, artworkDownloadUrl, artworkPath, artworkSignedUrl, artworkSignedUrls,
   isArtworkPath,
   removeArtwork, uploadArtwork,
 } from './artworks';
@@ -102,10 +102,13 @@ describe('artworks: тип файла', () => {
     expect(artworkContentType(file('scan.TIFF', 'image/x-tiff'))).toBe('image/tiff');
   });
 
-  it('подсказка тоста называет каждое принимаемое расширение', () => {
-    for (const ext of ['PNG', 'JPG', 'WEBP', 'SVG', 'PDF', 'AI', 'EPS', 'PS', 'PSD', 'TIFF']) {
-      expect(ARTWORK_FORMATS_HINT.split(', '), ext).toContain(ext);
-    }
+  it('подсказка тоста = принимаемые расширения, в обе стороны', () => {
+    const hint = ARTWORK_FORMATS_HINT.split(', ');
+    // каждое расширение клиента названо человеку…
+    for (const ext of ARTWORK_EXTENSIONS) expect(hint, ext).toContain(ext.toUpperCase());
+    // …и подсказка не обещает того, что клиент не примет
+    for (const h of hint) expect(ARTWORK_EXTENSIONS, h).toContain(h.toLowerCase());
+    expect(ARTWORK_EXTENSIONS).toEqual(expect.arrayContaining(['ps', 'psd', 'tif', 'tiff']));
   });
 
   it('незнакомое расширение — тип браузера, только из списка', () => {

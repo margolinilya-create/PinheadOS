@@ -38,15 +38,31 @@ interface Policy { name: string; cmd: string; role: string; using: string | null
  * Строгий разборщик ниже обязан распознать каждое найденное здесь — иначе
  * политика, написанная непривычно, прошла бы мимо проверки бакета.
  */
-const FREE_RE = /create\s+policy\s+("?[\w-]+"?)\s+on\s+storage\.objects\b[^;]*;/gi;
+/** `storage.objects` в любой расстановке кавычек: `"storage"."objects"`, `storage."objects"` … */
+const OBJECTS = '"?storage"?\\s*\\.\\s*"?objects"?';
+/** Имя политики: идентификатор или строка в кавычках (с пробелами — `"Allow all"`) */
+const NAME = '(?:"[^"]+"|[\\w-]+)';
+const FREE_RE = new RegExp(`create\\s+policy\\s+${NAME}\\s+on\\s+${OBJECTS}(?![\\w"])[^;]*;`, 'gi');
 const STRICT_RE = new RegExp(
-  '^create\\s+policy\\s+"?([\\w-]+)"?\\s+on\\s+storage\\.objects'
+  `^create\\s+policy\\s+(?:"(?<qname>[^"]+)"|(?<name>[\\w-]+))\\s+on\\s+${OBJECTS}`
   + '(?:\\s+as\\s+(?:permissive|restrictive))?'
-  + '(?:\\s+for\\s+(all|select|insert|update|delete))?'
-  + '(?:\\s+to\\s+("?[\\w-]+"?(?:\\s*,\\s*"?[\\w-]+"?)*))?'
-  + '(?=\\s|;)([\\s\\S]*);$',
+  + '(?:\\s+for\\s+(?<cmd>all|select|insert|update|delete))?'
+  + '(?:\\s+to\\s+(?<role>"?[\\w-]+"?(?:\\s*,\\s*"?[\\w-]+"?)*))?'
+  + '(?=\\s|;)(?<rest>[\\s\\S]*);$',
   'i',
 );
+
+/**
+ * Грубый НЕЗАВИСИМЫЙ счётчик: каждое `create policy`, в ближайших 200 знаках
+ * которого (до `;`) есть storage.objects в любых кавычках. Не зависит от формы
+ * имени — ловит то, мимо чего прошла бы FREE_RE.
+ */
+function roughCount(sql: string): number {
+  const objects = new RegExp(OBJECTS, 'i');
+  return [...sql.matchAll(/create\s+policy\b/gi)]
+    .filter((m) => objects.test(sql.slice(m.index, m.index + 200).split(';')[0]))
+    .length;
+}
 
 /** Индекс закрывающей скобки для `(` на позиции `open`; строки в кавычках пропускаются */
 function closeParen(s: string, open: number): number {
@@ -80,9 +96,13 @@ function clauses(rest: string): { using: string | null; check: string | null } |
 /** Строгий разбор одной найденной политики: имя, команда (по умолчанию all), роль (по умолчанию public), тела; не понял — null */
 function parsePolicy(text: string): Policy | null {
   const m = STRICT_RE.exec(text);
-  const body = m ? clauses(m[4]) : null;
-  if (!m || !body) return null;
-  return { name: m[1], cmd: (m[2] ?? 'all').toLowerCase(), role: (m[3] ?? 'public').replace(/"/g, ''), text, ...body };
+  const g = m?.groups;
+  const body = g ? clauses(g.rest) : null;
+  if (!g || !body) return null;
+  return {
+    name: g.qname ?? g.name, cmd: (g.cmd ?? 'all').toLowerCase(), role: (g.role ?? 'public').replace(/"/g, ''),
+    text, ...body,
+  };
 }
 
 /** Найденные свободной регуляркой тексты и распознанные из них политики */
@@ -201,7 +221,7 @@ describe('политики storage.objects во ВСЕХ миграциях — 
   const ALL = files.map((f) => {
     const sql = noComments(read(f));
     const { found, policies } = scan(sql);
-    return { f, found, policies };
+    return { f, found, policies, rough: roughCount(sql) };
   });
 
   it('разборщик: политика без for/to/as распознаётся (cmd all, роль public)', () => {
@@ -209,6 +229,10 @@ describe('политики storage.objects во ВСЕХ миграциях — 
     expect(p).toMatchObject({ name: 'y', cmd: 'all', role: 'public', using: "bucket_id = 'z'", check: null });
     const [q] = policiesOf(`create policy "q-1" on storage.objects as restrictive for insert to anon, "authenticated" with check (true);`);
     expect(q).toMatchObject({ name: 'q-1', cmd: 'insert', role: 'anon, authenticated', using: null, check: 'true' });
+    const [quoted] = policiesOf(`create policy "Allow all" on "storage"."objects" for select to authenticated using (bucket_id = 'a');`);
+    expect(quoted).toMatchObject({ name: 'Allow all', cmd: 'select', using: "bucket_id = 'a'" });
+    expect(roughCount(`create policy "Allow all" on "storage"."objects" using (true);`)).toBe(1);
+    expect(roughCount(`create policy a on public.x using (true);\ncreate policy b on public.y using (true);`)).toBe(0);
     const junk = scan('create policy z on storage.objects for select using (true) garbage;');
     expect(junk.found).toHaveLength(1);
     expect(junk.policies).toEqual([]);
@@ -233,7 +257,11 @@ describe('политики storage.objects во ВСЕХ миграциях — 
   it('строгий разборщик распознал ровно столько политик, сколько нашла свободная регулярка', () => {
     const lost = ALL.flatMap(({ f, found }) => found.filter((t) => !parsePolicy(t)).map((t) => `${f}: ${t}`));
     expect(lost, 'политика есть, а разборщик её не понял — её тела никто не проверил').toEqual([]);
-    for (const { f, found, policies } of ALL) expect(policies.length, f).toBe(found.length);
+    for (const { f, found, policies, rough } of ALL) {
+      expect(policies.length, f).toBe(found.length);
+      // грубый счётчик видит столько же — FREE_RE не пропустила политику непривычной формы
+      expect(found.length, `${f}: create policy … storage.objects по грубому счёту`).toBe(rough);
+    }
     // политик storage.objects в миграциях на 17.10 — 18 (14 старых + 4 order-artworks): регулярка не «ослепла»
     expect(ALL.reduce((n, x) => n + x.found.length, 0)).toBeGreaterThanOrEqual(18);
   });

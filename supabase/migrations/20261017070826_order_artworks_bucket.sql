@@ -125,6 +125,11 @@ create policy "order_artworks_insert" on storage.objects
 -- Перезапись и перенос (upsert, move): USING решает, какой объект можно
 -- взять, WITH CHECK — каким он станет. Оба условия те же, что у записи:
 -- иначе `move` перенёс бы файл в папку чужого заказа или из отправленного.
+-- Перенос СВОЕГО файла черновика в `erp-attachments`/`sku-photos` всё же
+-- проходит: permissive-политики складываются через OR, и WITH CHECK
+-- соседних `erp_att_update`/`sku_photos_update` пропускает новую строку.
+-- Принято 17.10 — не новая возможность (скачать и загрузить туда автор
+-- может и так), а закрыть можно только в замороженных политиках ERP.
 drop policy if exists "order_artworks_update" on storage.objects;
 create policy "order_artworks_update" on storage.objects
   for update to authenticated

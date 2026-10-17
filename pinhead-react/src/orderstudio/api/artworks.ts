@@ -16,8 +16,9 @@
  * исполняются), а «открыть в новой вкладке» — только `artworkDownloadUrl`
  * (ответ с `Content-Disposition: attachment`, браузер файл не рисует).
  *
- * Ошибка → `toast.error` и `null`/`false` (правило проекта). Удаление не
- * оптимистичное: ответ Storage ждём и проверяем, что объект и правда удалён.
+ * Ошибка → `toast.error` и `null` (правило проекта). Удаление не
+ * оптимистичное: ответ Storage ждём; `removeArtwork` возвращает `'removed'`,
+ * `'missing'` (пустой ответ при `{ missingOk: true }` — без тоста) или `null`.
  */
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
@@ -54,8 +55,11 @@ const TYPE_BY_EXT: Record<string, ArtworkMimeType> = {
   psd: 'image/vnd.adobe.photoshop', tif: 'image/tiff', tiff: 'image/tiff',
 };
 
-/** Что назвать человеку, когда формат не принят (= ключи TYPE_BY_EXT, без дублей jpeg/tif) */
-export const ARTWORK_FORMATS_HINT = 'PNG, JPG, WEBP, SVG, PDF, AI, EPS, PS, PSD, TIFF';
+/** Расширения, которые принимает клиент (ключи TYPE_BY_EXT) */
+export const ARTWORK_EXTENSIONS: readonly string[] = Object.keys(TYPE_BY_EXT);
+
+/** Что назвать человеку, когда формат не принят: каждое принимаемое расширение */
+export const ARTWORK_FORMATS_HINT = 'PNG, JPG, JPEG, WEBP, SVG, PDF, AI, EPS, PS, PSD, TIF, TIFF';
 
 /** Тип, с которым файл уйдёт в бакет, либо `null` — формат бакетом не принимается */
 export function artworkContentType(file: Pick<File, 'name' | 'type'>): ArtworkMimeType | null {
