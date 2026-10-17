@@ -16,6 +16,12 @@ import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
  * Исключения — места, где связь с ERP и есть назначение модуля:
  * мост в ERP (`bridge/tzToErpDraft.ts`) и оболочка раздела с единой админкой.
  *
+ * Запуск в производство (`bridge/launch.ts`, веха 2) зовёт `createOrder` стора
+ * ERP, но пускается УЖЕ: ровно три модуля и только динамическим `import()`.
+ * Статический импорт стора утянул бы слой данных ERP в чанк Order (и через
+ * общий чанк — в оболочку ERP), а лишний модуль — ещё одну зависимость
+ * от замороженного ERP, о которой никто не договаривался.
+ *
  * Примитивы и стили ERP разрешены ЛЮБОМУ модулю Order: это общая вёрстка, а не
  * логика ERP. Примитивы — явный белый список, а не маска `erp/components/*`:
  * маска впускала компоненты, которые читают стор ERP (StaleDataBar, ErpKanban,
@@ -26,6 +32,15 @@ import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
 const ORDER_DIR = join(SRC_DIR, 'orderstudio');
 const COMPONENTS_DIR = join(SRC_DIR, 'erp', 'components');
 const ALLOWED_FILES = new Set(['bridge/tzToErpDraft.ts', 'OrderStudioApp.jsx']);
+
+/** Модули ERP, которые файл может взять ТОЛЬКО динамическим `import()` — и только эти */
+const DYNAMIC_ONLY: Record<string, ReadonlySet<string>> = {
+  'bridge/launch.ts': new Set([
+    '../../erp/lazyScreen',
+    '../../erp/store/useErpStore',
+    '../../erp/screens/orders/create/orderPayload',
+  ]),
+};
 
 /** Верхний уровень erp/components, которым разрешено импортироваться из Order (проверено: сами не тянут стор/supabase/api) */
 const ERP_PRIMITIVES = new Set([
@@ -60,6 +75,21 @@ function isAllowed(rel: string, target: string): boolean {
   if (ERP_STYLES_TARGET.test(target)) return true;
   const primitive = PRIMITIVE_TARGET.exec(target);
   return primitive !== null && ERP_PRIMITIVES.has(primitive[1]);
+}
+
+/**
+ * Недопустимые рантайм-импорты ERP модуля `rel`. Статические и реэкспорт —
+ * по общим правилам; динамические — ещё и из личного списка `DYNAMIC_ONLY`.
+ */
+function violations(rel: string, text: string): string[] {
+  const dynamicAllowed = DYNAMIC_ONLY[rel];
+  if (!dynamicAllowed) return runtimeErpImports(text).filter((target) => !isAllowed(rel, target));
+  const staticOnes = [STATIC_IMPORT, REEXPORT].flatMap((re) => [...text.matchAll(re)].map((m) => m[2]));
+  const dynamicOnes = [...text.matchAll(DYNAMIC_IMPORT)].map((m) => m[2]);
+  return [
+    ...staticOnes.filter((target) => !isAllowed(rel, target)),
+    ...dynamicOnes.filter((target) => !dynamicAllowed.has(target) && !isAllowed(rel, target)),
+  ];
 }
 
 describe('Order v4 не импортирует рантайм ERP', () => {
@@ -100,11 +130,36 @@ describe('Order v4 не импортирует рантайм ERP', () => {
     }
   });
 
+  it('запуск в производство: три модуля ERP и только динамическим import()', () => {
+    const launch = 'bridge/launch.ts';
+    const dyn = (target: string) => `const m = await import('${target}');`;
+    expect(violations(launch, dyn('../../erp/store/useErpStore'))).toEqual([]);
+    expect(violations(launch, dyn('../../erp/lazyScreen'))).toEqual([]);
+    expect(violations(launch, dyn('../../erp/screens/orders/create/orderPayload'))).toEqual([]);
+    // статический импорт того же стора — нарушение
+    expect(violations(launch, "import { useErpStore } from '../../erp/store/useErpStore';"))
+      .toEqual(['../../erp/store/useErpStore']);
+    expect(violations(launch, "export { createOrderPayload } from '../../erp/screens/orders/create/orderPayload';"))
+      .toEqual(['../../erp/screens/orders/create/orderPayload']);
+    // четвёртый модуль ERP — нарушение даже динамически
+    expect(violations(launch, dyn('../../erp/store/domainSlices'))).toEqual(['../../erp/store/domainSlices']);
+    // типы стираются при сборке и разрешены
+    expect(violations(launch, "import type { NewOrderInput } from '../../erp/store/types';")).toEqual([]);
+    // разрешение личное: другому модулю те же три модуля запрещены
+    expect(violations('screens/SalesCard.jsx', dyn('../../erp/store/useErpStore'))).toEqual(['../../erp/store/useErpStore']);
+  });
+
+  it('список модулей запуска не устарел: launch.ts берёт ровно их', () => {
+    const text = readSource(join(ORDER_DIR, 'bridge', 'launch.ts'));
+    const dynamicOnes = [...text.matchAll(DYNAMIC_IMPORT)].map((m) => m[2]).sort();
+    expect(dynamicOnes).toEqual([...DYNAMIC_ONLY['bridge/launch.ts']].sort());
+  });
+
   it('ни один модуль, кроме моста и оболочки', () => {
     const bad = sourceFiles(ORDER_DIR)
       .map((f) => {
         const rel = relative(ORDER_DIR, f).split(sep).join('/');
-        return { rel, imports: runtimeErpImports(readSource(f)).filter((target) => !isAllowed(rel, target)) };
+        return { rel, imports: violations(rel, readSource(f)) };
       })
       .filter((f) => f.imports.length > 0);
     expect(bad).toEqual([]);

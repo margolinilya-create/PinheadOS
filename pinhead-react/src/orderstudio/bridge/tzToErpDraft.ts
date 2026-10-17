@@ -149,7 +149,8 @@ export const METHOD_TO_ERP: Record<SalesPrintMethod, BrandingMethod> = {
   other: 'other',
 };
 
-const METHOD_LABEL: Record<SalesPrintMethod, string> = {
+/** Название техники для человека — комментарий нанесения ERP и предупреждения запуска */
+export const METHOD_LABEL: Record<SalesPrintMethod, string> = {
   silkscreen: 'Шелкография',
   embroidery: 'Вышивка',
   dtf: 'DTF',

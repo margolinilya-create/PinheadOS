@@ -637,7 +637,32 @@ export type MockExtras = {
    * прийти до замера, и сторож зеленеет на сломанном коде.
    */
   ordersGate?: Promise<void>;
+  /**
+   * Запуск заказа v4 в производство (`bridge/launch.ts`, веха 2).
+   *
+   * `checks` — ответы `order_v4_launch_check` ПО ПОРЯДКУ вызовов; последний
+   * повторяется. Без него: первый вызов «можно» (`already: false`), каждый
+   * следующий — «уже запущен» с `mock-erp-order-1`. Так и бывает на бою:
+   * `erp_create_order` мока отвечает id, а `loadOne` такого заказа в фикстуре
+   * не находит — `createOrder` отдаёт `null`, и клиент спрашивает сервер
+   * повторно. Сценарий конфликта передаёт свой второй ответ (`ok: false`).
+   */
+  launch?: { checks?: unknown[] };
 };
+
+/** Номер вызова `order_v4_launch_check` — на каждый набор `MockExtras` свой */
+const launchCheckCalls = new WeakMap<MockExtras, number>();
+const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
+
+function launchCheckAnswer(extra: MockExtras): unknown {
+  const n = launchCheckCalls.get(extra) ?? 0;
+  launchCheckCalls.set(extra, n + 1);
+  const checks = extra.launch?.checks;
+  if (checks && checks.length > 0) return checks[Math.min(n, checks.length - 1)];
+  return n === 0
+    ? { ok: true, already: false, launch_started_at: MOCK_LAUNCH_STARTED }
+    : { ok: true, already: true, erp_order_id: 'mock-erp-order-1' };
+}
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
 
@@ -859,6 +884,19 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
      */
     case 'erp_create_order':
       return 'mock-erp-order-1';
+    /** Проверка запуска заказа v4 — см. `MockExtras.launch` */
+    case 'order_v4_launch_check':
+      return launchCheckAnswer(extra);
+    /**
+     * Переход статуса заказа v4. Связь с заказом ERP ставит сам RPC: для
+     * `production` мок отвечает тем id, который вернул `erp_create_order`.
+     */
+    case 'order_v4_transition':
+      return {
+        id: body.p_id,
+        status: body.p_to,
+        erp_order_id: body.p_to === 'production' ? 'mock-erp-order-1' : null,
+      };
     case 'erp_experimental_add_tasks': {
       const devId = String(body.p_experimental_id ?? '');
       const list = (body.p_tasks ?? []) as Record<string, unknown>[];
