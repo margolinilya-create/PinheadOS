@@ -116,27 +116,37 @@ URL: https://pinhead-os.vercel.app
   Веха 2 (17.10): `api/salesTransitions` (статус и оплата v4 — только RPC), `api/artworks`
   (закрытый бакет `order-artworks`), `bridge/launch` (прототип запуска через стор ERP).
   Правила — `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`.
+  Веха 3 (17.10): `workplace/` — рабочее место заказа `/sales/:id` (OrderWorkplace: список
+  изделий ItemList + вкладки «Изделие» ItemTab/GarmentPanel на панелях визарда, «Клиент»
+  ClientTab, «ТЗ и цена» SummaryTab; SaveIndicator; `itemBuffer` — буфер позиции в `useStore`);
+  `screens/SalesList` — «Мои / Отдела / Все заказы»; `admin/SalesStaff` (`/sales-staff`,
+  признак `profiles.is_sales`); `model/itemOps` (копия в другом цвете, разнесение);
+  `model/editable`; доступ `canUseSales` в `layout/orderNav.ts`. Визард v3 как экран, перенос
+  «Оформить как заказ v4», мастер позиции и старая карточка SalesCard убраны.
+  Правила — `docs/rules/pravila-rabochego-mesta-i-revizii-klienta-veha-3-17-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
 ## Структура src/
 - components/ — UI-компоненты
-  - steps/ — Визард: StepGarment → StepDesign → StepItems → StepDetails → StepSummary (lazy 2-5)
-  - steps/garment/ — SkuList (expandable cards), FabricGrid, ColorPicker, SizeTable, ExtrasAccordion
+  - steps/garment/ — панели визарда: SkuList (expandable cards; `readOnly`, `reorderable`), FabricGrid,
+    ColorPicker, SizeTable (`readOnly`, `showPrice`), ExtrasAccordion — вкладка «Изделие» рабочего места
+    (шаги визарда v3 убраны в вехе 3)
   - editors/ — SkuEditor (8 табов), ExpressCalc
   - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
   - auth/ — AuthScreen, AdminPanel
-  - layout/ — ProgressBar (fill bar); шапка и сайдбар Order — orderstudio/layout/
-  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, PriceBreakdown
+  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
+  - шапка и сайдбар Order — orderstudio/layout/
 - store/ — Zustand (все .ts)
-  - useStore.ts — главный store (7 слайсов)
+  - useStore.ts — store визарда (7 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
+    (`resetItemFields`, сброс при выходе через `appReset.registerAppReset`)
   - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
   - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
 - utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
-- hooks/ — useDraft.js, useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js, useScrollRestore.js
+- hooks/ — useFocusTrap.js, useEffectiveRules.ts, useMediaQuery.js, useScrollHints.js, useScrollRestore.js
 
 ## Ключевые правила
 - Общение с пользователем: всегда на русском языке
@@ -151,7 +161,7 @@ URL: https://pinhead-os.vercel.app
 - Зоны нанесения: динамические (ZoneDefinition в zonesCatalog), не хардкод
 - Визард: useEffectiveRules() → фильтрация техник, цветов, размеров, тканей, обработок
 - SKU фото: Supabase Storage bucket `sku-photos`, до 4 фото на артикул, поле `photos[]` (photoUrl удалён)
-- Черновик: localStorage 'pinhead_draft'
+- Черновик визарда v3 (`pinhead_draft`) убран в вехе 3: ключ стирается разово при загрузке раздела ТЗ; заказ v4 сохраняется автосохранением `useSalesStore` (ревизия клиента `SALES_CLIENT_REV`, `expected_updated_at`)
 - Роли: admin > director > rop > manager > production > designer
 - Auth states (ProfileStatus): active | pending_approval | disabled | no_profile
 - Пользователи: soft-delete (active=false), не hard delete
@@ -185,8 +195,12 @@ URL: https://pinhead-os.vercel.app
   динамически), salesTransitions (переходы v4, проверка запуска, оплата — только RPC),
   bridge/launch (прототип запуска: launch_check → createOrder → transition), api/artworks
   (бакет order-artworks), сторожа orderV4Rights (стражи и RPC вехи 2), orderArtworksBucket,
-  probesFiles (пробы `supabase/probes/`), wizardAdapter (13), itemSession (5),
-  ItemWizard (4), leaveGuard (3), wizardOrderToSales (7), transferToSales (2)
+  probesFiles (пробы `supabase/probes/`), wizardAdapter (`garmentPatch` — запись по разнице),
+  leaveGuard, веха 3: workplace/itemBuffer (буфер позиции: быстрый переход, загрузка
+  ничего не пишет), OrderWorkplace (вкладки, только чтение, тексты состояний), itemOps,
+  orderNav (`canUseSales` — зеркало сервера), workplaceSource и deadCode (сторожа: нет
+  `app_config` в рабочем месте, удалённые модули не импортируются и не названы живыми в CLAUDE.md),
+  pricing/wizardParity (цена буфера = цена заказа)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

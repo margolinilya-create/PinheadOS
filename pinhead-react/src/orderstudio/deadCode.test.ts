@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { SRC_DIR, readSource, sourceFiles } from '../testutil/sourceFiles';
 
@@ -69,5 +69,33 @@ describe('мёртвый код старого пути заказа', () => {
     expect(importsModule('export { x } from "./itemSession.ts"', 'itemSession')).toBe(true);
     expect(importsModule('// прежний StepSummary переносил заказ', 'StepSummary')).toBe(false);
     expect(importsModule("import X from './StepGarmentPanel'", 'StepGarment')).toBe(false);
+  });
+});
+
+/**
+ * Документы — тоже носитель (веха 3, задача 8): `CLAUDE.md` обоих уровней
+ * читается каждой сессией, и строка «`/` — WizardPage» или «hooks/ — useDraft»
+ * отправит следующего исполнителя искать удалённый файл. Имя удалённого модуля
+ * допустимо только в строке, которая говорит, что он убран.
+ */
+const CLAUDE_DOCS = [join(SRC_DIR, '..', '..', 'CLAUDE.md'), join(SRC_DIR, '..', 'CLAUDE.md')];
+
+/** Строки документа, где имя живёт как настоящее, а не как история */
+function liveMentions(text: string, name: string): string[] {
+  const word = new RegExp(`(^|[^A-Za-z0-9_])${name}([^A-Za-z0-9_]|$)`);
+  return text.split('\n').filter((line) => word.test(line) && !/убран|удал[её]н|удаля/i.test(line));
+}
+
+describe('документы не описывают удалённые модули как живые', () => {
+  it.each(CLAUDE_DOCS)('%s', (path) => {
+    const text = readFileSync(path, 'utf8');
+    const live = REMOVED.flatMap((p) => liveMentions(text, moduleName(p)).map((l) => `${moduleName(p)}: ${l.trim()}`));
+    expect(live, `CLAUDE.md называет удалённый модуль живым:\n${live.join('\n')}`).toEqual([]);
+  });
+
+  it('сторож отличает живое имя от истории (проверка на образцах)', () => {
+    expect(liveMentions('| `/` | WizardPage |\n- hooks/ — useDraft.js', 'useDraft')).toHaveLength(1);
+    expect(liveMentions('Убраны в вехе 3: StepGarment, useDraft', 'useDraft')).toEqual([]);
+    expect(liveMentions('StepGarmentPanel живёт', 'StepGarment')).toEqual([]);
   });
 });
