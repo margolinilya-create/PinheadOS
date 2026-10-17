@@ -26,7 +26,7 @@ describe('shouldBlockSalesLeave — уход с карточки v4 после �
   });
   it('без сбоя не спрашиваем: несохранённое догоняет flush при уходе', () => {
     expect(shouldBlockSalesLeave({ saveState: 'dirty', from: '/sales/o-1', to: '/sales' })).toBe(false);
-    expect(shouldBlockSalesLeave({ saveState: 'saved', from: '/sales/o-1', to: '/sales' })).toBe(false);
+    expect(shouldBlockSalesLeave({ saveState: 'clean', from: '/sales/o-1', to: '/sales' })).toBe(false);
   });
   it('уход не с карточки — не наше дело', () => {
     expect(shouldBlockSalesLeave({ saveState: 'error', from: '/sales', to: '/' })).toBe(false);
@@ -36,6 +36,12 @@ describe('shouldBlockSalesLeave — уход с карточки v4 после �
 describe('salesHasUnsaved — предупреждение при закрытии вкладки', () => {
   it('правка не ушла или ушла с ошибкой', () => {
     expect(['dirty', 'saving', 'error'].every(salesHasUnsaved)).toBe(true);
-    expect(['idle', 'saved'].some(salesHasUnsaved)).toBe(false);
+    expect(salesHasUnsaved('clean')).toBe(false);
+  });
+  it('outdated и conflict — правки в карточке так и не ушли: предупредить', () => {
+    expect(['outdated', 'conflict'].every(salesHasUnsaved)).toBe(true);
+  });
+  it('locked — правка закрыта, терять нечего', () => {
+    expect(salesHasUnsaved('locked')).toBe(false);
   });
 });

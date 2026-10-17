@@ -16,7 +16,7 @@ vi.mock('../api/salesOrders', async (orig) => ({
 const SKU = SKU_CATALOG_DEFAULT[2];
 
 function renderCard(order) {
-  useSalesStore.setState({ current: order, currentLoading: false, saveState: 'idle' });
+  useSalesStore.setState({ current: order, currentLoading: false, saveState: 'clean' });
   return render(
     <MemoryRouter initialEntries={[`/sales/${order.id}`]}>
       <Routes><Route path="/sales/:id" element={<SalesCard />} /></Routes>

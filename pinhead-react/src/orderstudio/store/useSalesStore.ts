@@ -13,23 +13,59 @@
  *
  * Версия заказа (миграция D): `current.updated_at` приходит с чтением карточки
  * и обновляется ответом каждого сохранения; следующее сохранение шлёт её как
- * `expected_updated_at`. Сервер отказывает устаревшей вкладке (`outdated`)
- * и правке поверх чужого сохранения из другой вкладки (`conflict`) — текст
- * сервера показывается один раз, повтор записи его не повторяет.
+ * `expected_updated_at`.
+ *
+ * Состояния сохранения (веха 3). `clean` → `dirty` → `saving` → `clean`;
+ * `error` — обычный сбой (сеть, RLS): правки остаются, повтор при следующей
+ * правке и при уходе. Три КОНЕЧНЫХ состояния повтор не лечит, поэтому в них
+ * правка — no-op, таймер не ставится и запись не уходит:
+ * - `locked` — заказ не черновик (открыт таким или сервер ответил стражем);
+ *   после отказа заказ перечитывается один раз, карточка показывает версию сервера;
+ * - `outdated` — вкладка старше сервера: поднимается плашка «Вышло обновление»;
+ * - `conflict` — заказ сохранили из другой вкладки: правки остаются в карточке,
+ *   заказ перечитывается один раз — если он уже не черновик, это `locked`.
+ * Текст отказа сервера показывается тостом один раз — конечное состояние
+ * не даёт второй записи. Флаг «первый сбой уже показан» — только у `error`.
+ *
+ * Выход (`runAppResets`) обнуляет всё: таймер, полёт, карточку и список —
+ * следующий пользователь той же вкладки не видит чужого заказа, а отложенное
+ * сохранение прежнего не уходит под новой сессией.
  */
 import { create } from 'zustand';
 import { toast } from '../../store/useToastStore';
+import { registerAppReset } from '../../store/appReset';
+import { useAppUpdateStore } from '../../store/useAppUpdateStore';
 import {
   fetchSalesOrder, fetchSalesOrders, saveSalesOrder, salesOrderToPayload,
 } from '../api/salesOrders';
-import type { SalesOrderListRow } from '../api/salesOrders';
+import type { SalesOrderListRow, SaveFailure } from '../api/salesOrders';
 import { newSalesOrder } from '../model/factory';
+import { isEditable } from '../model/editable';
 import type { SalesOrder } from '../model/types';
 import type { OrderPrice } from '../pricing/priceOrder';
 
 export const SAVE_DEBOUNCE_MS = 1000;
 
-export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+export type SaveState = 'clean' | 'dirty' | 'saving' | 'error' | 'locked' | 'outdated' | 'conflict';
+
+type TerminalState = Exclude<SaveFailure, 'other'>;
+
+/** Конечные состояния: повтор записи даст тот же отказ — сохранение остановлено */
+export function isTerminalSaveState(s: SaveState): s is TerminalState {
+  return s === 'locked' || s === 'outdated' || s === 'conflict';
+}
+
+/** Если сервер прислал отказ без текста — что сказать человеку */
+const TERMINAL_FALLBACK: Record<TerminalState, string> = {
+  locked: 'Заказ отправлен в работу — правка закрыта',
+  outdated: 'Вышло обновление — обновите страницу, правка не сохранена',
+  conflict: 'Заказ изменён в другой вкладке — обновите страницу',
+};
+
+export interface OpenOptions {
+  /** Перечитать заказ, даже если он уже открыт (после отказа сервера) */
+  force?: boolean;
+}
 
 interface SalesState {
   list: SalesOrderListRow[];
@@ -38,13 +74,14 @@ interface SalesState {
   currentLoading: boolean;
   saveState: SaveState;
   loadList: () => Promise<void>;
-  open: (id: string) => Promise<SalesOrder | null>;
+  open: (id: string, opts?: OpenOptions) => Promise<SalesOrder | null>;
   close: () => Promise<void>;
   /**
    * Новый заказ сохраняется сразу — у карточки должен быть адрес.
    * `seed` — готовое содержимое («Оформить как заказ v4» из визарда главной)
    */
   createNew: (seed?: Partial<SalesOrder>) => Promise<string | null>;
+  /** Правка открытого заказа. Не черновик или конечное состояние — no-op */
   edit: (fn: (o: SalesOrder) => SalesOrder) => void;
   /** Сохранить немедленно (уход с карточки, тесты) */
   flush: () => Promise<void>;
@@ -56,7 +93,7 @@ let inFlight: Promise<void> | null = null;
 let dirtyDuringFlight = false;
 let pricer: ((o: SalesOrder) => OrderPrice | null) | null = null;
 /**
- * Метка открытой карточки: меняется при открытии, закрытии и создании.
+ * Метка открытой карточки: меняется при открытии, закрытии, создании и выходе.
  * Ответ сохранения применяется к карточке, только если метка та же, —
  * а не по сравнению содержимого: правка во время создания нового заказа
  * меняет содержимое, и без метки id не дошёл бы до карточки, а следующее
@@ -72,14 +109,14 @@ let session = 0;
  * применять, и её сдвиг здесь потерял бы id нового заказа.
  */
 let reopened = 0;
-/** Прошлое сохранение упало — повторный сбой тоста не даёт */
-let lastFailed = false;
 /**
- * Сессия карточки, где уже показан отказ «обновите страницу» (`outdated`,
- * `conflict`). Повтор записи даст тот же отказ — второй тост не нужен даже
- * при закрытии карточки (там `lastFailed` сбрасывается нарочно)
+ * Метка выхода: ответ списка, запрошенного прежним пользователем, не должен
+ * лечь в стор нового. Отдельно от `session` — та сдвигается каждым открытием
+ * карточки, и список, загружаемый рядом, терялся бы зря.
  */
-let reloadToldSession: number | null = null;
+let epoch = 0;
+/** Прошлое сохранение упало обычным сбоем (`error`) — повторный тоста не даёт */
+let lastFailed = false;
 
 const clearTimer = () => {
   if (timer) clearTimeout(timer);
@@ -87,10 +124,36 @@ const clearTimer = () => {
 };
 
 export const useSalesStore = create<SalesState>((set, get) => {
+  /**
+   * После отказа `conflict` — один раз перечитать заказ: если его уже
+   * отправили в работу, правка закрыта навсегда (`locked`, версия сервера);
+   * иначе остаётся `conflict` с правками человека в карточке — их не
+   * затираем, решение «обновить страницу» за ним.
+   */
+  async function recheckConflict(id: string, mySession: number): Promise<void> {
+    const fresh = await fetchSalesOrder(id);
+    if (mySession !== session || !fresh || isEditable(fresh)) return;
+    set({ current: fresh, saveState: 'locked' });
+  }
+
+  async function onTerminal(kind: TerminalState, message: string, id: string | null, mySession: number) {
+    dirtyDuringFlight = false;
+    toast.error(message || TERMINAL_FALLBACK[kind]);
+    set({ saveState: kind });
+    if (kind === 'outdated') {
+      useAppUpdateStore.getState().markAvailable();
+    } else if (id && kind === 'locked') {
+      // Заказ отправили в работу, пока он был открыт: показать версию сервера
+      await get().open(id, { force: true });
+    } else if (id) {
+      await recheckConflict(id, mySession);
+    }
+  }
+
   async function runSave(): Promise<void> {
     clearTimer();
     const order = get().current;
-    if (!order) return;
+    if (!order || isTerminalSaveState(get().saveState) || !isEditable(order)) return;
     if (inFlight) {
       dirtyDuringFlight = true;
       return inFlight;
@@ -102,15 +165,17 @@ export const useSalesStore = create<SalesState>((set, get) => {
     inFlight = (async () => {
       const res = await saveSalesOrder(payload);
       inFlight = null;
+      // Карточку закрыли, открыли другой заказ или вышли, пока шёл запрос:
+      // ответ ничей — ни тоста, ни состояния
+      if (mySession !== session) return;
       const cur = get().current;
-      // Карточку закрыли или открыли другой заказ, пока шёл запрос
-      const same = mySession === session && cur != null;
       if (!res.ok) {
-        if (res.kind === 'outdated' || res.kind === 'conflict') {
-          if (reloadToldSession !== mySession) toast.error(res.message);
-          reloadToldSession = mySession;
-        } else if (!lastFailed) {
-          toast.error(get().current?.id
+        if (res.kind !== 'other') {
+          await onTerminal(res.kind, res.message, cur?.id ?? null, mySession);
+          return;
+        }
+        if (!lastFailed) {
+          toast.error(cur?.id
             ? 'Не удалось сохранить заказ — правки остаются в карточке, повторим при следующей правке'
             : 'Не удалось создать заказ — проверьте связь и попробуйте ещё раз');
         }
@@ -121,7 +186,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
       lastFailed = false;
       const saved = res.saved;
       // Новая версия строки — основа следующего сохранения; у нового заказа ещё id и номер
-      if (same && cur && (!cur.id || cur.id === saved.id)) {
+      if (cur && (!cur.id || cur.id === saved.id)) {
         set({
           current: cur.id
             ? { ...cur, updated_at: saved.updated_at }
@@ -132,7 +197,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
         await runSave();
         return;
       }
-      set({ saveState: 'saved' });
+      set({ saveState: 'clean' });
     })();
     return inFlight;
   }
@@ -142,27 +207,30 @@ export const useSalesStore = create<SalesState>((set, get) => {
     listLoading: false,
     current: null,
     currentLoading: false,
-    saveState: 'idle',
+    saveState: 'clean',
 
     loadList: async () => {
+      const myEpoch = epoch;
       set({ listLoading: true });
       const rows = await fetchSalesOrders();
+      if (myEpoch !== epoch) return;
       set({ listLoading: false, ...(rows ? { list: rows } : {}) });
     },
 
-    open: async (id) => {
-      if (get().current?.id === id) {
+    open: async (id, opts) => {
+      if (!opts?.force && get().current?.id === id) {
         reopened += 1;
         return get().current;
       }
       await get().close();
       session += 1;
       const mySession = session;
-      set({ currentLoading: true, current: null, saveState: 'idle' });
+      set({ currentLoading: true, current: null, saveState: 'clean' });
       const order = await fetchSalesOrder(id);
       // Пока шёл запрос, карточку закрыли или открыли другую — ответ устарел
       if (mySession !== session) return null;
-      set({ currentLoading: false, current: order });
+      // Не черновик — «только чтение» сразу: правка закрыта и сервером
+      set({ currentLoading: false, current: order, saveState: order && !isEditable(order) ? 'locked' : 'clean' });
       return order;
     },
 
@@ -176,7 +244,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
       } else if (inFlight) await inFlight;
       if (mark !== reopened) return;
       session += 1;
-      set({ current: null, currentLoading: false, saveState: 'idle' });
+      set({ current: null, currentLoading: false, saveState: 'clean' });
     },
 
     createNew: async (seed) => {
@@ -186,15 +254,15 @@ export const useSalesStore = create<SalesState>((set, get) => {
       await runSave();
       const cur = get().current;
       if (!cur?.id) {
-        set({ current: null, saveState: 'idle' });
+        set({ current: null, saveState: 'clean' });
         return null;
       }
       return cur.id;
     },
 
     edit: (fn) => {
-      const cur = get().current;
-      if (!cur) return;
+      const { current: cur, saveState } = get();
+      if (!cur || isTerminalSaveState(saveState) || !isEditable(cur)) return;
       set({ current: fn(cur), saveState: 'dirty' });
       if (inFlight) {
         dirtyDuringFlight = true;
@@ -214,15 +282,28 @@ export const useSalesStore = create<SalesState>((set, get) => {
   };
 });
 
-/** Сброс модульного состояния — только для тестов */
-export function __resetSalesStoreForTests(): void {
+/**
+ * Сброс при выходе и потере сессии. Полёт не отменить, но его ответ ничей:
+ * `session` сдвинута, и `runSave` его отбросит; правка, отложенная таймером,
+ * не уйдёт вовсе. `pricer` не трогаем — его держит смонтированный экран.
+ */
+function resetSalesStore(): void {
   clearTimer();
   inFlight = null;
   dirtyDuringFlight = false;
+  lastFailed = false;
+  session += 1;
+  epoch += 1;
+  useSalesStore.setState({ list: [], listLoading: false, current: null, currentLoading: false, saveState: 'clean' });
+}
+
+registerAppReset(resetSalesStore);
+
+/** Сброс модульного состояния — только для тестов */
+export function __resetSalesStoreForTests(): void {
+  resetSalesStore();
   pricer = null;
   session = 0;
-  lastFailed = false;
-  reloadToldSession = null;
+  epoch = 0;
   reopened = 0;
-  useSalesStore.setState({ list: [], listLoading: false, current: null, currentLoading: false, saveState: 'idle' });
 }

@@ -24,7 +24,14 @@ export function shouldBlockSalesLeave(p: { saveState: string; from: string; to: 
   return !p.to.startsWith(`${p.from}/`) && p.to !== p.from;
 }
 
-/** Закрытие вкладки и F5: правка ещё не ушла в базу или ушла с ошибкой */
+/**
+ * Закрытие вкладки и F5: правка ещё не ушла в базу или ушла с ошибкой.
+ * `outdated` и `conflict` — тоже: правки человека остались только в карточке
+ * (запись остановлена), и браузер должен спросить, прежде чем их выбросить.
+ * `locked` — нет: правка закрыта, в карточке версия сервера.
+ */
+const UNSAVED_STATES: ReadonlySet<string> = new Set(['dirty', 'saving', 'error', 'outdated', 'conflict']);
+
 export function salesHasUnsaved(saveState: string): boolean {
-  return saveState === 'dirty' || saveState === 'saving' || saveState === 'error';
+  return UNSAVED_STATES.has(saveState);
 }
