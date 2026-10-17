@@ -6,7 +6,7 @@ import { useToastStore } from '../../../store/useToastStore';
 import { supabase } from '../../../lib/supabase';
 import { fetchCatalogKey } from '../../../lib/catalogs';
 import { patchPrices } from '../../../orderstudio/api/catalogAdmin';
-import { PRICES } from '../../../data/prices';
+import { PRICES, FLEX_MATRIX } from '../../../data/prices';
 
 vi.mock('../../../lib/catalogs', () => ({
   fetchCatalogKey: vi.fn(),
@@ -89,6 +89,36 @@ describe('PricingTabContent — прайс без затирания (веха 4
     render(<PricingTabContent />);
     expect(await screen.findByText(/Прайс не загрузился/)).toBeInTheDocument();
     expect(saveBtn()).toBeDisabled();
+  });
+
+  it('флекс: правка ячейки уходит в prices_patch матрицей целиком, база — матрица из базы', async () => {
+    // После миграции G ключ flexMatrix засеян (= FLEX_MATRIX кода)
+    fetchMock.mockResolvedValue({ exists: true, value: { ...DB, flexMatrix: FLEX_MATRIX } });
+    await ready();
+    fireEvent.click(screen.getByRole('button', { name: 'Флекс' }));
+    fireEvent.change(screen.getByLabelText('Флекс A4, 1 цв., тираж 1+'), { target: { value: '760' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
+    const [patch, base] = patchMock.mock.calls[0];
+    expect(Object.keys(patch)).toEqual(['flexMatrix']);
+    expect(patch.flexMatrix.A4[1]).toEqual([760, ...FLEX_MATRIX.A4[1].slice(1)]);
+    // Остальные форматы и цвета — на месте, а не разреженная матрица из одной ячейки
+    expect({ ...patch.flexMatrix, A4: FLEX_MATRIX.A4 }).toEqual(FLEX_MATRIX);
+    expect(patch.flexMatrix.A4[2]).toEqual(FLEX_MATRIX.A4[2]);
+    expect(base).toEqual({ flexMatrix: FLEX_MATRIX });
+    await waitFor(() => expect(toasts()).toContain('Цены сохранены'));
+  });
+
+  it('флекса в прайсе нет — правка начинается с умолчаний кода, матрица полная', async () => {
+    await ready();
+    fireEvent.click(screen.getByRole('button', { name: 'Флекс' }));
+    fireEvent.change(screen.getByLabelText('Флекс A6, 2 цв., тираж 20+'), { target: { value: '210' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
+    const [patch] = patchMock.mock.calls[0];
+    expect(Object.keys(patch.flexMatrix).sort()).toEqual(Object.keys(FLEX_MATRIX).sort());
+    expect(patch.flexMatrix.A6[2]).toEqual([450, 210, 177, 148]);
+    expect(patch.flexMatrix.A3).toEqual(FLEX_MATRIX.A3);
   });
 
   it('«Сброс» возвращает умолчания только на экране; правила цены «Справочников заказа» не трогает', async () => {

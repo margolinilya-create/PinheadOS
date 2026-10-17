@@ -46,7 +46,8 @@
 --   · RPC сами ставят `updated_at`, у `catalog_config` — и `updated_by`.
 --   · Сиды: `catalog_config.suppliers`, `app_config.labelLibrary`,
 --     `app_config.tzSettings` — `on conflict do nothing`; три ключа прайса —
---     `jsonb_build_object(новые) || value` (существующее значение побеждает).
+--     `jsonb_build_object(новые) || value` (существующее значение побеждает);
+--     матрица флекса `flexMatrix` (= FLEX_MATRIX кода) — тем же способом.
 --     JSON сидов = `pinhead-react/src/orderstudio/catalog/seeds.ts` (сторож
 --     `catalog/seedsMatch.test.ts`).
 --
@@ -55,7 +56,8 @@
 -- имеют ВСЕ привилегии, триггеров нет. Ключи: app_config — sku_catalog,
 -- feature_flags, extrasCatalog, hardwareCatalog, categoryRules, prices,
 -- zonesCatalog; catalog_config — extras, fabrics, labels, prices, trimCatalog,
--- fabricsCatalog. В `app_config.prices` нет packOptions/prepFees/minMarginPct.
+-- fabricsCatalog. В `app_config.prices` нет packOptions/prepFees/minMarginPct
+-- и flexMatrix (47 ключей; ключ правит вкладка «Флекс» в /sku).
 -- Профилей director и rop на бою нет (пробы ставят роль внутри транзакции).
 --
 -- ВЫКАТКА: G — до мерджа. Между применением G и выкладкой фронта
@@ -802,5 +804,15 @@ update public.app_config
  where key = 'prices'
    and jsonb_typeof(value) = 'object'
    and not (value ? 'packOptions' and value ? 'prepFees' and value ? 'minMarginPct');
+
+-- Прайс: матрица флекса. На бою 17.10 ключа `flexMatrix` в прайсе нет (цена
+-- бралась из FLEX_MATRIX кода), а `prices_patch` правит только существующие
+-- ключи — без сида вкладку «Флекс» в /sku нельзя было бы сохранить.
+-- JSON = FLEX_MATRIX из `pinhead-react/src/data/prices.js` (сторож seedsMatch.test.ts)
+update public.app_config
+   set value = jsonb_build_object('flexMatrix', $seed_flexMatrix${"A6": {"1": [450, 159, 141, 128], "2": [450, 206, 177, 148], "3": [450, 238, 203, 188]}, "A5": {"1": [600, 238, 203, 172], "2": [600, 285, 244, 204], "3": [600, 316, 270, 227]}, "A4": {"1": [750, 316, 270, 227], "2": [750, 405, 345, 291], "3": [750, 475, 405, 341]}, "A3": {"1": [850, 423, 352, 296], "2": [850, 519, 443, 374], "3": [850, 632, 540, 454]}}$seed_flexMatrix$::jsonb) || value
+ where key = 'prices'
+   and jsonb_typeof(value) = 'object'
+   and not value ? 'flexMatrix';
 
 notify pgrst, 'reload schema';

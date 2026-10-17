@@ -1,5 +1,4 @@
 import { FABRIC_NAMES, PRICES } from '../data';
-import { useStore } from '../store/useStore';
 
 interface FabricLike {
   code: string;
@@ -34,14 +33,15 @@ const CODE_PACK_NAMES: Record<string, string> = {
 };
 
 /**
- * Вид упаковки по-русски. Подпись — из справочника упаковки (`prices.packOptions`
- * стора; правит «Справочники заказа» → «Упаковка», веха 4), вида там нет
- * или подпись пуста — подпись кода; неизвестный вид — пусто.
+ * Вид упаковки по-русски. Подпись — из справочника упаковки `packOptions`
+ * (`prices.packOptions` стора; правит «Справочники заказа» → «Упаковка», веха 4),
+ * вида там нет или подпись пуста — подпись кода; неизвестный вид — пусто.
+ *
+ * Справочник — аргументом, а не чтением стора: при рендере его берут подпиской
+ * (`usePackagingOptions` / селектор `prices.packOptions`), иначе подпись
+ * не обновится после правки упаковки. Без аргумента — подписи кода.
  */
-export function packName(
-  key: string | null | undefined,
-  packOptions: unknown = (useStore.getState().prices as { packOptions?: unknown } | undefined)?.packOptions,
-): string {
+export function packName(key: string | null | undefined, packOptions?: unknown): string {
   if (!key) return '';
   const list = Array.isArray(packOptions) ? (packOptions as PackOptionLike[]) : [];
   const hit = list.find((o) => o && o.key === key && typeof o.name === 'string' && o.name.trim() !== '');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SkuEditor from './SkuEditor';
 import { useStore } from '../../store/useStore';
@@ -129,7 +129,7 @@ describe('SkuEditor — запись без затирания (веха 4)', ()
   beforeEach(() => {
     vi.clearAllMocks();
     useToastStore.setState({ toasts: [] });
-    useStore.setState({ skuCatalog: SKU, trimCatalog: TRIMS, usdRate: 90, setField: realSetField });
+    useStore.setState({ skuCatalog: SKU, trimCatalog: TRIMS, usdRate: 90, setField: realSetField, catalogSource: 'db' });
     putMock.mockResolvedValue({ ok: true });
     patchMock.mockResolvedValue({ ok: true });
   });
@@ -215,5 +215,19 @@ describe('SkuEditor — запись без затирания (веха 4)', ()
     save();
     await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
     expect(putMock.mock.calls[0][3]).toEqual(SKU);
+  });
+
+  it('каталог не из базы (ещё не загрузился или запасной путь) — «Сохранить» закрыт, ничего не пишется', async () => {
+    useStore.setState({ catalogSource: 'fallback' });
+    renderSkuEditor();
+    expect(screen.getByText(/Каталог не загрузился из базы/)).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue('T-Shirt Basic'), { target: { value: 'Футболка' } });
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    save();
+    expect(putMock).not.toHaveBeenCalled();
+    // Каталог дозагрузился из базы — сохранение открылось
+    act(() => useStore.setState({ catalogSource: 'db' }));
+    expect(screen.getByRole('button', { name: 'Сохранить' })).not.toBeDisabled();
+    expect(screen.queryByText(/Каталог не загрузился из базы/)).not.toBeInTheDocument();
   });
 });

@@ -98,7 +98,7 @@ export default function SkuEditor() {
     }
   }, []);
   // Только изменённые справочники, с базой от открытия (веха 4: без затирания)
-  const { edit: setField, saveAll, saving, failed, reloadConflicts } = useSkuSave(clearFlags);
+  const { edit: setField, saveAll, saving, failed, reloadConflicts, blocked } = useSkuSave(clearFlags);
   const hasConflict = failed.some((f) => f.kind === 'conflict');
 
   // ── SKU CRUD ──
@@ -326,9 +326,15 @@ export default function SkuEditor() {
         <div className="sku-actions-right">
           <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
           <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
-          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving || blocked}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
         </div>
       </div>
+
+      {blocked && (
+        <div className="sku-ed-save-failed" role="status">
+          <p>Каталог не загрузился из базы — сохранение недоступно, чтобы не записать локальную копию поверх базы. Обновите страницу.</p>
+        </div>
+      )}
 
       {failed.length > 0 && (
         <div className="sku-ed-save-failed" role="alert">

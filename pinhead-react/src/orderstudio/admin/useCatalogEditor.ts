@@ -18,6 +18,7 @@
  *     и смену вкладки экран подтверждает.
  */
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { sameJson } from '../../utils/sameJson';
 import { fetchCatalogKey, clearCatalogsCache } from '../../lib/catalogs';
 import { putCatalog, patchPrices } from '../api/catalogAdmin';
 import type { CatalogKey, CatalogTable, CatalogWriteResult } from '../api/catalogAdmin';
@@ -59,23 +60,8 @@ export interface CatalogEditor<V> {
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/**
- * Смысловое равенство JSON — как `=` у jsonb на сервере: порядок ключей
- * не важен, ключ со значением `undefined` равен отсутствующему (в JSON его нет).
- */
-export function sameJson(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    return a.every((x, i) => sameJson(x, b[i]));
-  }
-  if (!isObj(a) || !isObj(b)) return false;
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    if (!sameJson(a[k], b[k])) return false;
-  }
-  return true;
-}
+// Общий для /sku и «Справочников заказа» — в utils; реэкспорт для вкладок Order
+export { sameJson };
 
 /** Поле стора каталогов для ключа таблицы (`sku_catalog` в сторе — `skuCatalog`) */
 function storeField(key: string): string {

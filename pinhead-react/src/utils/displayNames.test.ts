@@ -28,20 +28,24 @@ describe('packName', () => {
     expect(packName('x')).toBe('');
   });
 
-  describe('подпись — из прайса стора (справочник упаковки, веха 4)', () => {
+  describe('подпись — из справочника упаковки аргументом (веха 4)', () => {
     afterEach(() => useStore.setState({ prices: PRICES }));
 
     it('переименованный в админке вид — новая подпись', () => {
+      expect(packName('zip', [{ key: 'zip', name: 'ЗИП-лок с бегунком', price: 45 }])).toBe('ЗИП-лок с бегунком');
+    });
+
+    it('вид, которого нет в справочнике, — подпись кода, а не пусто', () => {
+      const list = [{ key: 'zip', name: 'ЗИП', price: 45 }];
+      expect(packName('bopp', list)).toBe('БОПП пакет');
+      expect(packName('other', list)).toBe('Другая — опишите в требованиях');
+    });
+
+    it('стор не читается: без аргумента — подпись кода, даже если в сторе другая', () => {
       useStore.setState({
         prices: { ...PRICES, packOptions: [{ key: 'zip', name: 'ЗИП-лок с бегунком', price: 45 }] },
       });
-      expect(packName('zip')).toBe('ЗИП-лок с бегунком');
-    });
-
-    it('вид, которого нет в справочнике стора, — подпись кода, а не пусто', () => {
-      useStore.setState({ prices: { ...PRICES, packOptions: [{ key: 'zip', name: 'ЗИП', price: 45 }] } });
-      expect(packName('bopp')).toBe('БОПП пакет');
-      expect(packName('other')).toBe('Другая — опишите в требованиях');
+      expect(packName('zip')).toBe('ЗИП пакет');
     });
 
     it('справочник передан явно — читается он', () => {

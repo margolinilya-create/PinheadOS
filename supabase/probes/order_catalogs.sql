@@ -3,7 +3,7 @@
 -- и прямой записи (catalog_writer), гигиена привилегий anon, сиды.
 -- До применения G на бою — только сухим прогоном вместе с ней в одной транзакции.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=90 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=92 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -76,7 +76,7 @@ begin
         on a.t = b.t and a.key = b.key
      where a.key is null
         or md5(case when b.t = 'app_config' and b.key = 'prices' and jsonb_typeof(a.value) = 'object'
-                    then (a.value - array(select k from unnest(array['packOptions', 'prepFees', 'minMarginPct']) k
+                    then (a.value - array(select k from unnest(array['packOptions', 'prepFees', 'minMarginPct', 'flexMatrix']) k
                                            where not coalesce(b.value ? k, false)))::text
                     else a.value::text end)
            <> md5(b.value::text)$q$ into v;
@@ -119,6 +119,10 @@ select pg_temp.p('s_tz', 'OK Допуск по размещению нанесе
 select pg_temp.p('s_prices', 'OK none,bopp,zip,other/{}/null',
   $q$select (select string_agg(o->>'key', ',') from jsonb_array_elements(value->'packOptions') o) || '/'
        || (value->'prepFees')::text || '/' || (value->'minMarginPct')::text
+     from public.app_config where key = 'prices'$q$);
+-- Матрица флекса засеяна (= FLEX_MATRIX кода): 4 формата, у A4 1 цв. — 750/316/270/227
+select pg_temp.p('s_flex', 'OK 4/[750, 316, 270, 227]',
+  $q$select (select count(*) from jsonb_object_keys(value->'flexMatrix')) || '/' || (value->'flexMatrix'->'A4'->'1')::text
      from public.app_config where key = 'prices'$q$);
 select pg_temp.p('s_keys_unique', 'OK 0', $q$select count(*)::text from public.app_config a join public.catalog_config c using (key) where key <> 'prices'$q$);
 
@@ -311,6 +315,10 @@ select pg_temp.p('pp_admin_unknown', '22023 Такого ключа прайса
 select pg_temp.p('pp_admin_type', '22023 Тип ключа прайса не меняется: label', $q$select public.prices_patch('{"label":"31"}', '{"label":31}')::text$q$);
 select pg_temp.p('pp_admin_null', '22023 Ключ прайса не очищается: label', $q$select public.prices_patch('{"label":null}', '{"label":31}')::text$q$);
 select pg_temp.p('pp_admin_base_extra', '22023 Прежние значения', $q$select public.prices_patch('{"label":32}', '{"label":31,"pack":0}')::text$q$);
+-- Вкладка «Флекс» в /sku: матрица целиком, база — засеянная матрица
+select pg_temp.p('pp_admin_flex', 'OK {"updated_at"', $q$select public.prices_patch(
+  jsonb_build_object('flexMatrix', jsonb_set(value->'flexMatrix', '{A4,1,0}', '760')),
+  jsonb_build_object('flexMatrix', value->'flexMatrix'))::text from public.app_config where key = 'prices'$q$);
 select pg_temp.p('pp_admin_effect', 'OK 31/500/null', $q$select (value->>'label') || '/' || (value->'prepFees'->>'dtf') || '/' || (value->'minMarginPct')::text from public.app_config where key = 'prices'$q$);
 reset role;
 

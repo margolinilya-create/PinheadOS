@@ -15,7 +15,10 @@
  *     пишет, только если в базе всё ещё она, — иначе конфликт;
  *   · частичный отказ: записанные справочники приняты, у отказавших флаги
  *     и правки остаются, отказ показан по справочникам; на конфликт —
- *     «Загрузить свежую версию» (свежая версия заменяет правки ЭТОГО справочника).
+ *     «Загрузить свежую версию» (свежая версия заменяет правки ЭТОГО справочника);
+ *   · каталог стора не из базы (`catalogSource !== 'db'`: ещё не загрузился
+ *     или пришёл запасным путём — localStorage, умолчания кода) — сохранение
+ *     закрыто (`blocked`): база записи была бы не из базы.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '../../../store/useStore';
@@ -23,7 +26,7 @@ import { toast } from '../../../store/useToastStore';
 import { fetchCatalogKey } from '../../../lib/catalogs';
 import { putCatalog, patchPrices } from '../../../orderstudio/api/catalogAdmin';
 import type { CatalogWriteResult } from '../../../orderstudio/api/catalogAdmin';
-import { sameJson } from '../../../orderstudio/admin/useCatalogEditor';
+import { sameJson } from '../../../utils/sameJson';
 import { invalidatePricesCache } from '../../../utils/pricing';
 import { storageSet } from '../../../lib/storage';
 
@@ -118,6 +121,10 @@ export function useSkuSave(onSaved: (fields: string[]) => void) {
 
   const saveAll = useCallback(async (): Promise<boolean> => {
     const state = storeState();
+    if (state.catalogSource !== 'db') {
+      toast.error('Каталог не загрузился из базы — сохранение недоступно. Обновите страницу.');
+      return false;
+    }
     const bases = basesRef.current as StoreRecord;
     const jobs: Job[] = [];
     for (const def of SKU_CATALOGS) {
@@ -198,5 +205,7 @@ export function useSkuSave(onSaved: (fields: string[]) => void) {
     if (resolved.length) setFailed((prev) => prev.filter((f) => !resolved.includes(f.field)));
   }, [failed, onSaved]);
 
-  return { edit, saveAll, saving, failed, reloadConflicts };
+  const blocked = useStore((s) => (s as unknown as StoreRecord).catalogSource !== 'db');
+
+  return { edit, saveAll, saving, failed, reloadConflicts, blocked };
 }

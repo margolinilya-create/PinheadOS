@@ -8,7 +8,7 @@ import { fetchCatalogKey } from '../../../lib/catalogs';
 import { storageGet, storageSet } from '../../../lib/storage';
 import { mergePrices } from '../../../store/slices/catalogSlice';
 import { patchPrices, PRICE_RULE_KEYS } from '../../../orderstudio/api/catalogAdmin';
-import { sameJson } from '../../../orderstudio/admin/useCatalogEditor';
+import { sameJson } from '../../../utils/sameJson';
 import { EmbroideryTab, DtfTab, DtgTab, MarkupGroupsTab } from './PricingRulesTabs';
 import { setIn, getIn } from '../../../utils/pathSet';
 
@@ -171,12 +171,20 @@ export default function PricingTabContent({ onDirtyChange }) {
     addHistory(key, old, capped);
   };
 
+  /**
+   * Матрица, которой в прайсе нет (флекс до сида миграции G), начинается
+   * с умолчаний кода — иначе ушла бы разреженная матрица из одной ячейки
+   * и расчёт перестал бы брать FLEX_MATRIX для остальных форматов.
+   */
+  const matrixOf = (p, matrixKey) => p[matrixKey]
+    ?? (matrixKey === 'flexMatrix' ? clone(DEFAULT_FLEX_MATRIX) : {});
+
   const updateMatrix = (matrixKey, fmt, col, tierIdx, value) => {
     const num = Number(value);
     if (isNaN(num) || num < 0) return;
-    const old = prices[matrixKey]?.[fmt]?.[col]?.[tierIdx];
+    const old = matrixOf(prices, matrixKey)?.[fmt]?.[col]?.[tierIdx];
     setPrices(p => {
-      const m = { ...p[matrixKey] };
+      const m = { ...matrixOf(p, matrixKey) };
       m[fmt] = { ...m[fmt] };
       m[fmt][col] = [...(m[fmt][col] || [])];
       m[fmt][col][tierIdx] = num;
