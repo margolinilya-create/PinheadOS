@@ -101,7 +101,10 @@ pinhead-react/src/
                              # PrintRow/LabelRow, PricePanel), workplace/ (рабочее место /sales/:id: OrderWorkplace,
                              # ItemList, ItemTab + GarmentPanel, ClientTab, SummaryTab, SaveIndicator, itemBuffer —
                              # буфер позиции), wizard/wizardAdapter (salesItemToWizard, garmentPatch),
-                             # admin/SalesStaff (/sales-staff), api/salesStaff, leaveGuard, switchToProduction
+                             # admin/SalesStaff (/sales-staff), api/salesStaff, leaveGuard, switchToProduction;
+                             # веха 4: catalog/ (типы и сиды справочников, suppliers — палитры, labels — бирки),
+                             # api/catalogAdmin (catalog_put/prices_patch — единственный писатель справочников),
+                             # admin/OrderSettings (/order-settings) + useCatalogEditor + tabs/ (вкладки справочников)
 ```
 
 ```
@@ -135,8 +138,8 @@ supabase/
 ### ✏️ ТЗ (Order Studio) — за флагом `orderStudio`
 
 Весь раздел — только профилю с продажами (`canUseSales` в `orderstudio/layout/orderNav.ts`:
-active + approved и `is_sales` или роль admin/director/rop — зеркало `sales_is_seller() or
-sales_is_lead()`). Остальных `LeaveToProduction` один раз переводит в «Производство»
+active + approved и `is_sales`, `is_ms` или роль admin/director/rop — зеркало `sales_is_seller() or
+sales_is_lead() or sales_is_ms()`; МС без `is_sales` видит «Заказы в работе», своих не заводит). Остальных `LeaveToProduction` один раз переводит в «Производство»
 (флаг выключается, `location.replace('/')`, петли нет).
 
 | Путь | Компонент | Доступ |
@@ -149,7 +152,8 @@ sales_is_lead()`). Остальных `LeaveToProduction` один раз пер
 | `/orders`, `/print`, `/analytics`, `*` | → redirect `/sales` (`legacyRedirect`; старый `/sales/:id/item/:key` — тоже) | С продажами |
 | `/sales` | SalesList — «Мои заказы» (продавец) / «Заказы отдела» (rop) / «Все заказы» (admin, director) с фильтром «Мои / Все», поиск и статус в адресе | С продажами |
 | `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|client\|summary&item=<key>` | С продажами |
-| `/sales-staff` | SalesStaff — отметка «Менеджер продаж» (`sales_set_staff`) | admin, director |
+| `/sales-staff` | SalesStaff — «Сотрудники продаж»: «Ведёт заказы» (`is_sales`) и «Запускает в производство (МС)» (`is_ms`), `sales_set_staff(id, kind, on)` | admin, director, rop |
+| `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ); на ≤ 760 px — только просмотр | admin, director, rop |
 
 ## Роли
 
@@ -171,7 +175,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
-- Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff
+- Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff, OrderSettings
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 - **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
@@ -189,11 +193,23 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 | `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10). С вехи 2 — поля ТЗ (поставщик, описание модели, цвета частей, комментарий и PDF ТЗ; раскладка, файл макета, отступ, эффекты, подрядчик; метод `other`; бирки — `blank`, превью, схема крепления) |
 | `order_notes_cards` | Order v4 (веха 2): карточки заметок ТЗ (`order_id`, `item_id` null, группа, подпись, ссылка, картинка); составной FK `(item_id, order_id)`; RLS через родителя |
 | `order_events` | Order v4 (веха 2): журнал статусов и оплаты (`kind` = `status` / `payment`, `actor` = `auth.uid()`); у клиента только SELECT через родителя, пишут только RPC |
-| `profiles` | id, name, email, role, approved, active, `is_sales` (веха 3, миграция E `20261017093841`: «Менеджер продаж»; меняет только RPC `sales_set_staff` admin/director, страж `profiles_sales_guard`; список — `sales_staff_list()`; `sales_is_seller()` = active + approved + `is_sales`) |
+| `profiles` | id, name, email, role, approved, active, `is_sales` (веха 3, миграция E `20261017093841`: «Менеджер продаж»; меняет только RPC `sales_set_staff` admin/director (с вехи 4 — и rop), страж `profiles_sales_guard`; список — `sales_staff_list()`; `sales_is_seller()` = active + approved + `is_sales`). Веха 4, миграция F `20261017142210`: `is_ms` — МС (менеджер сопровождения) на стороне ТЗ; `sales_is_ms()` = active + approved + `is_ms` (должность ERP больше не читает); `sales_set_staff(uuid, text, boolean)` — вид `'sales'`/`'ms'`, отмечают admin/director/rop (перегрузка `(uuid, boolean)` = вид `'sales'`, уходит в вехе 5); `sales_staff_list()` — роль, `is_sales`, `is_ms`; страж — исключения `is_sales` и `is_ms` |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | SKU (sku_catalog), цены (prices), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog) |
-| `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog) |
+| `app_config` | SKU (sku_catalog), цены (prices; с вехи 4 в нём и правила цены `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog); веха 4 — бирки `labelLibrary` (виды, варианты, материалы, схемы притачивания) и подвал ТЗ `tzSettings` |
+| `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog); веха 4 — поставщики с палитрами `suppliers` (`isDefault`, `fabricSupplierNames`, `palette: { groups, colors }`) |
+
+**Справочники заказа (веха 4, миграция G `20261017150000`)** — подробно
+`docs/rules/pravila-spravochnikov-zakaza-i-ms-veha-4-17-10.md`. Ключ уникален по обеим таблицам
+(сторож `catalog/catalogKeys.test.ts`). Запись новых экранов — только `security definer` RPC
+`catalog_put(p_table, p_key, p_value, p_base)` (справочник целиком; белый список статическими
+ветками: `suppliers`/`labelLibrary`/`tzSettings` — admin, director, rop; каталог моделей и тканей —
+admin, director) и `prices_patch(p_patch, p_base)` (верхние ключи прайса; rop — только три ключа
+правил). Защита от затирания — на сервере `where value = p_base` (смысловое равенство jsonb), иначе
+`P0001`; форма записи (тип, 1 МБ, hex, уникальность id) — `22023`. Прямая запись в таблицы —
+admin/director с `active and approved` (`catalog_writer()`). Чтение — только активным и одобренным
+(`catalog_reader()`), `app_config.prices` — продажам, МС и руководству (`catalog_price_reader()`),
+старый `catalog_config.prices` — руководству; `anon` — ничего.
 
 **ERP (префикс `erp_*`, проект pinhead-os-v2)** — полная схема в
 `pinhead-react/src/erp/types.ts` (зеркало таблиц) и в `supabase/migrations/`.
@@ -214,12 +230,14 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 `npm run storage:gc`; носителей ключа четыре, уборщиков два, ошибка проверки =
 ничего не удалять. Подробно — `docs/rules/pravila-shemy-erp-podrobno.md`.
 
-**Права Order v4 (веха 2)** — подробно `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`:
+**Права Order v4 (веха 2; МС с вехи 4 — `profiles.is_ms`)** — подробно `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`:
 - RPC (`security definer`, свой гейт): `order_v4_transition(p_id, p_to, p_reason)` — все переходы
   статуса v4; `order_v4_launch_check(p_id)` — проверка запуска до создания заказа ERP;
   `order_v4_set_payment(p_id, p_kind, p_override_reason)` — оплата и запуск без оплаты.
-- Хелперы: `sales_is_lead()` (admin/director/rop), `sales_is_ms()` (МС: `erp_employees.role =
-  'manager'`), `sales_is_seller()` (профиль `manager`); все требуют `active and approved`.
+- Хелперы: `sales_is_lead()` (admin/director/rop), `sales_is_ms()` (МС: признак `profiles.is_ms`
+  с вехи 4, миграция F; до неё — `erp_employees.role = 'manager'`), `sales_is_seller()` (признак
+  `profiles.is_sales` с вехи 3); все требуют `active and approved`. Признаки ставит руководство
+  продаж (admin/director/rop) через `sales_set_staff`, прямую запись отклоняет `profiles_sales_guard`.
 - Стражи: `order_v4_guard` (`orders`, INSERT/UPDATE, белый список), `order_v4_delete_guard`
   (удалить — только черновик без связи с ERP), `order_v4_child_guard` (позиции, нанесения,
   бирки, карточки — только у черновика, пути `orders/<id>/…`).
@@ -295,6 +313,13 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - ERP: боковая карточка заказа — в адресе (`?order=`)
 - Необратимое действие этапа: последствия считает утилита и называет текстом
 - Справочники — подсказка, значения отключаются, не удаляются; статусы не в справочнике
+- **Справочники заказа (веха 4) пишет только `orderstudio/api/catalogAdmin.ts`** — RPC `catalog_put` /
+  `prices_patch` с базой от момента чтения (сторож `catalogWrites.test.ts`: вне него нет записи
+  `app_config`/`catalog_config`); редактор читает справочник свежим запросом мимо кэша, на конфликт
+  правки остаются на экране, запасной путь (сиды) сохранять нельзя. Новый ключ справочника — в белый
+  список RPC и в `CATALOG_PUT_KEYS` одним коммитом. Порог маржи — подсказка, сервер доверяет
+  `price_total`; тексты справочников в PDF — только текстовым API. Подробно —
+  `docs/rules/pravila-spravochnikov-zakaza-i-ms-veha-4-17-10.md`
 - Цена материала — `priceRub` за единицу `unit` (метр / штука); `priceUSD` у тканей был ценой ЗА КГ
   и в формулу не идёт (13.10). Формула цены одна — `costRules`/`printRules`; своих копий в экранах не заводить
 - Материальный гейт — из данных (`gate_material_kinds`), пусто = fail-open
@@ -386,14 +411,14 @@ Npm-зависимости плагина при этом не ставятся 
 | `CLAUDE.md` | Контекст для Claude (этот файл) |
 | `docs/skills-pinhead.md` | Pinhead-часть скиллов, заменённых ECC |
 | `docs/2026-10-05-ecc-review.md` | Обзор everything-claude-code |
-| `docs/rules/INDEX.md` | **Указатель правил по темам** (74 файла, перенос 15.09) |
+| `docs/rules/INDEX.md` | **Указатель правил по темам** (75 файлов, перенос 15.09) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, статистика, roadmap |
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (93 файла, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (94 файла, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |

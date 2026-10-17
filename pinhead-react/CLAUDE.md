@@ -124,6 +124,14 @@ URL: https://pinhead-os.vercel.app
   `model/editable`; доступ `canUseSales` в `layout/orderNav.ts`. Визард v3 как экран, перенос
   «Оформить как заказ v4», мастер позиции и старая карточка SalesCard убраны.
   Правила — `docs/rules/pravila-rabochego-mesta-i-revizii-klienta-veha-3-17-10.md`.
+  Веха 4 (17.10): `admin/OrderSettings` — «Справочники заказа» `/order-settings` (admin, director, rop;
+  вкладки `?tab=suppliers|labels|packaging|pricing|tz`, реестр `admin/orderSettingsTabs.ts`, на ≤ 760 px
+  только просмотр), `admin/useCatalogEditor` (свежее чтение, конфликт, запасной путь),
+  `admin/tabs/*` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ);
+  `catalog/` (типы и сиды справочников, `suppliers` — палитра по поставщику ткани, `labels` — цена
+  бирки из библиотеки); `api/catalogAdmin` — единственный писатель `app_config`/`catalog_config`
+  (RPC `catalog_put`/`prices_patch`); «Сотрудники продаж» `/sales-staff` — `is_sales` и `is_ms`
+  (МС на стороне ТЗ), правит и rop. Правила — `docs/rules/pravila-spravochnikov-zakaza-i-ms-veha-4-17-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -153,8 +161,10 @@ URL: https://pinhead-os.vercel.app
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
-- app_config хранит: sku_catalog, prices, extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog
-- catalog_config хранит: fabricsCatalog, trimCatalog
+- app_config хранит: sku_catalog, prices (+ `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, labelLibrary, tzSettings (веха 4)
+- catalog_config хранит: fabricsCatalog, trimCatalog, suppliers (веха 4: поставщики с палитрами)
+- Запись справочников — только `orderstudio/api/catalogAdmin.ts` (RPC с базой; сторож `catalogWrites.test.ts`); стор знает `catalogSource: 'db' | 'fallback'` — на запасном пути редактор не сохраняет
+- hex из справочника в стиль — только через `utils/sanitizeHex`
 - SKU Editor: 8 табов (items, fabrics, trims, extras, hardware, pricing, rules, zones)
 - CategoryRules: per-категория (allowedTechs, moq, availableSizes, defaultExtras, allowedZoneTechs)
 - Per-SKU overrides: allowedFabrics, allowedExtras, availableSizes, overrides (techs/moq/colors), priceMultiplier
@@ -200,7 +210,10 @@ URL: https://pinhead-os.vercel.app
   ничего не пишет), OrderWorkplace (вкладки, только чтение, тексты состояний), itemOps,
   orderNav (`canUseSales` — зеркало сервера), workplaceSource и deadCode (сторожа: нет
   `app_config` в рабочем месте, удалённые модули не импортируются и не названы живыми в CLAUDE.md),
-  pricing/wizardParity (цена буфера = цена заказа)
+  pricing/wizardParity (цена буфера = цена заказа); веха 4: catalog/seedsMatch (сид миграции G =
+  `seeds.ts`, цены бирок = `pricingCore`), catalog/catalogKeys (ключи уникальны по двум таблицам),
+  catalogWrites (единственный писатель справочников), useCatalogEditor (конфликт, запасной путь),
+  catalog/suppliers и catalog/labels (снятое значение в заказе остаётся)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов
