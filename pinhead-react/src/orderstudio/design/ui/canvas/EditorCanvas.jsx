@@ -2,9 +2,9 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useReducer, us
 import { Stage, Layer, Image as KImage, Transformer } from '../konva';
 import { DesignIcon } from '../DesignIcon';
 import { placementOf } from '../../model/layout';
-import { defaultAreaId } from '../../model/placeArtwork';
+import { defaultAreaId } from '../../geometry/view';
 import { polygonToZone } from '../../geometry/coords';
-import { NEUTRAL_GARMENT_HEX } from '../../assets/flatImages';
+import { NEUTRAL_GARMENT_HEX } from '../../assets/garmentHex';
 import { useFlatImage } from '../../assets/useFlatImage';
 import { toast } from '../../../../store/useToastStore';
 import { FLAT_MM_FALLBACK, areaAt, fromNode, isDarkHex, isOutOfZone, snapCenter, snapTargets, toNode } from './canvasMath';

@@ -1,6 +1,7 @@
 /**
  * Картинки логотипов всех размещений вида разом (веха 5а, задача 6а) — поверх
- * кэша `assets/artworkImages` (скачивание, проверка байтов, санитайзер, object URL).
+ * кэша `assets/artworkImages` (скачивание, проверка байтов, санитайзер, object URL);
+ * кэш грузится по первой картинке (`assets/imageLayer`, потолок чанка холста).
  *
  * Отдельно от `useArtworkImage` (одна картинка, задача 5): холсту нужно знать,
  * что ВСЕ картинки вида уже решились (пришли или не вышло — тост уже показан),
@@ -8,7 +9,7 @@
  * Один файл на несколько нанесений грузится один раз.
  */
 import { useEffect, useState } from 'react';
-import { loadArtworkImage } from '../../assets/artworkImages';
+import { artworkImagesModule } from '../../assets/imageLayer';
 
 export interface ImageRef {
   key: string;
@@ -36,7 +37,7 @@ export function usePlacementImages(orderId: string, refs: ImageRef[]): Placement
     let active = true;
     for (const id of sig.split('\n')) {
       const [oid, path, mode] = id.split(SEP);
-      void loadArtworkImage(oid, path, mode === 'p').then((img) => {
+      void artworkImagesModule.get().then((m) => (m ? m.loadArtworkImage(oid, path, mode === 'p') : null)).then((img) => {
         if (active) setLoaded((m) => (m.has(id) && m.get(id) === img ? m : new Map(m).set(id, img)));
       });
     }

@@ -1,10 +1,11 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { EditorCanvas } from './canvas/EditorCanvas';
 import { DesignIcon } from './DesignIcon';
-import DesignSide from './panel/DesignSide';
 import ExportPdfButton from './panel/ExportPdfButton';
 import FlatPicker from './panel/FlatPicker';
+import UnplacedList from './panel/UnplacedList';
 import ViewTabs from './panel/ViewTabs';
+import { hasPlacedLayout } from '../model/layoutMark';
 import { useDesignTab } from './useDesignTab';
 import { useDesignStore } from '../store/useDesignStore';
 import styles from './DesignTab.module.css';
@@ -16,6 +17,14 @@ import styles from './DesignTab.module.css';
  * засчитывались бы ещё и PDF макета.
  */
 const DesignPreview = lazy(() => import('./DesignPreview'));
+/*
+ * Панель справа — своим чанком (раунд 1 ревью 6б): с ней чанк холста не влезал
+ * в потолок 100 кБ gzip. Грузится одновременно с первой отрисовкой холста;
+ * пока не пришла — пустая колонка той же ширины (`aria-busy`), без сдвига вёрстки.
+ * Кэши картинок (`assets/imageLayer`) и листы PDF (`maketTools`) — тоже по требованию.
+ */
+const DesignSide = lazy(() => import('./panel/DesignSide'));
+const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель дизайна" aria-busy="true" />;
 
 /**
  * Вкладка «Дизайн» рабочего места `/sales/:id?tab=design&item=<key>` (веха 5а,
@@ -28,7 +37,7 @@ const DesignPreview = lazy(() => import('./DesignPreview'));
  * Открытие вкладки ничего не пишет — ни нанесений, ни `flat_id`.
  *
  * - шапка: силуэт, «Перед / Спина», отмена и возврат, «Скачать PDF макета»;
- * - холст (`EditorCanvas`) и панель справа (`DesignSide`);
+ * - холст (`EditorCanvas`) и панель справа (`DesignSide`, своим чанком);
  * - ≤ 760 px (`compact`) — только просмотр: статичное превью `<img>`;
  * - только чтение (не черновик) — холст без правки, PDF доступен.
  */
@@ -94,6 +103,16 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
       </div>
 
       {notice}
+      {/* Силуэта нет (снят, не подобрался), а раскладка осталась — на «Изделии» строка заперта: освободить здесь */}
+      {!flat && flats.status === 'ready' && (
+        <UnplacedList
+          prints={item.prints.map((print, index) => ({ print, index })).filter(({ print }) => hasPlacedLayout(print.layout, item.flat_id))}
+          flatId={item.flat_id}
+          readOnly={ro}
+          onOpenItem={onOpenItem}
+          onRelease={d.releaseLayout}
+        />
+      )}
       {flat && pick.modelChanged && (
         <p className={`${styles.notice} ${styles.warn}`}>
           Модель сменилась — перенесите нанесения на новый силуэт.
@@ -130,7 +149,9 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
               onRedo={redo}
             />
           </div>
-          <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />
+          <Suspense fallback={SIDE_FALLBACK}>
+            <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />
+          </Suspense>
         </div>
       )}
     </section>

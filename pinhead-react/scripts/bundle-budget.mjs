@@ -176,8 +176,27 @@ const BUDGETS = {
    * с Stage/Layer/Image/Rect/Line/Text/Transformer и reconciler — 79,3 кБ; `Arrow` тянет
    * `Path` + `BezierFunctions` ещё +8,5 кБ; zod целиком +19 кБ, `zod/mini` +6,5 кБ.
    * Нашему коду холста и панели остаётся ≈ 14–20 кБ — подробности в design/README.md.
+   *
+   * РАУНД 1 РЕВЬЮ 6б (17.10): с панелью 6б граф был 109,9 кБ. Потолок НЕ поднят:
+   * ядро konva без Tween/Animation/FastLayer (`ui/konvaCore.ts`, −3,1 кБ), кэши
+   * картинок, панель и листы PDF — своими чанками по требованию (ниже `designImages`
+   * и `designPanel`). Граф холста — 96,6 кБ. ЧЕСТНО: вкладка при открытии (холст +
+   * картинки + панель) весит столько же, ≈ 110,4 кБ, — разрезка не уменьшила
+   * скачивание, а разнесла его по чанкам; эта сумма печатается справочно ниже.
    */
   designCanvas: 100_000,
+  /**
+   * КЭШИ КАРТИНОК ХОЛСТА (`assets/flatImages` + `assets/artworkImages`, их грузит
+   * `assets/imageLayer` по первой картинке) минус холст и оболочка Order.
+   * Замер раунда 1 ревью 6б: 8,5 кБ (санитайзер, проверка байтов, бакеты); потолок +~10 %.
+   */
+  designImages: 9_400,
+  /**
+   * ПАНЕЛЬ «ДИЗАЙН» (`ui/panel/DesignSide`, ленивый чанк рядом с холстом) минус холст,
+   * кэши картинок и оболочка Order. Замер раунда 1 ревью 6б: 5,3 кБ (панель и проверка
+   * макета `preflight`); потолок +~10 %.
+   */
+  designPanel: 5_800,
   /**
    * PDF МАКЕТА: граф `design/export/exportPdf` минус холст и оболочка Order.
    * Замер спайка 17.10: jsPDF 4.2.1 + svg2pdf.js 2.8.1 (+ fflate, fast-png, pako) —
@@ -447,16 +466,36 @@ const canvasKey = designKey('DesignTab', 'src/orderstudio/design/ui/DesignTab.js
 const canvasJs = canvasKey ? minus(staticGraph(manifest, [canvasKey]).js, order.js) : [];
 if (canvasKey) check('Холст «Дизайн», JS', report('Холст — JS (DesignTab минус оболочка Order)', canvasJs).total, BUDGETS.designCanvas);
 
+/*
+ * Кэши картинок: PDF макета доступен только с флэтом и размещениями — к этому
+ * моменту холст (или превью телефона) уже загрузил оба кэша, чтобы их показать;
+ * pdfjs грузит конвейер логотипа, а он сам статически читает `sniff`. Поэтому
+ * PDF и pdfjs считаются за вычетом кэшей, как и за вычетом холста.
+ */
+const flatImagesKey = designKey('flatImages', 'src/orderstudio/design/assets/flatImages.ts', 'src/orderstudio/design/assets/imageLayer.ts');
+const artworkImagesKey = designKey('artworkImages', 'src/orderstudio/design/assets/artworkImages.ts', 'src/orderstudio/design/assets/imageLayer.ts');
+const imageKeys = [flatImagesKey, artworkImagesKey].filter(Boolean);
+const imagesJs = imageKeys.length ? minus(staticGraph(manifest, imageKeys).js, order.js, canvasJs) : [];
+if (imageKeys.length) check('Кэши картинок холста, JS', report('Кэши картинок — JS (flatImages + artworkImages минус холст и оболочка Order)', imagesJs).total, BUDGETS.designImages);
+
+const panelKey = designKey('DesignSide', 'src/orderstudio/design/ui/panel/DesignSide.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const panelJs = panelKey ? minus(staticGraph(manifest, [panelKey]).js, order.js, canvasJs, imagesJs) : [];
+if (panelKey) check('Панель «Дизайн», JS', report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total, BUDGETS.designPanel);
+if (canvasKey) {
+  const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
+  console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);
+}
+
 const pdfKey = designKey('exportPdf', 'src/orderstudio/design/export/exportPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
 if (pdfKey) {
-  const files = minus(staticGraph(manifest, [pdfKey]).js, order.js, canvasJs);
-  check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст и оболочка Order)', files).total, BUDGETS.designPdf);
+  const files = minus(staticGraph(manifest, [pdfKey]).js, order.js, canvasJs, imagesJs);
+  check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdf);
 }
 
 const pdfjsKey = designKey('loadPdf', 'src/orderstudio/design/assets/loadPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
 if (pdfjsKey) {
-  const files = minus(staticGraph(manifest, [pdfjsKey]).js, order.js, canvasJs);
-  check('pdfjs, JS', report('pdfjs — JS (loadPdf минус холст и оболочка Order)', files).total, BUDGETS.designPdfjs);
+  const files = minus(staticGraph(manifest, [pdfjsKey]).js, order.js, canvasJs, imagesJs);
+  check('pdfjs, JS', report('pdfjs — JS (loadPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdfjs);
 }
 console.log(`  оболочка Order: ${orderJs.total} Б gzip (справочно, без потолка)`);
 

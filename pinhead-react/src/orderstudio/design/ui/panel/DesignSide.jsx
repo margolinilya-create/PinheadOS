@@ -136,7 +136,13 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
       </section>
 
       <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} onShow={onShow} />
-      <UnplacedList prints={free} onOpenItem={onOpenItem} />
+      <UnplacedList
+        prints={free}
+        flatId={item.flat_id}
+        readOnly={readOnly}
+        onOpenItem={onOpenItem}
+        onRelease={d.releaseLayout}
+      />
     </aside>
   );
 }

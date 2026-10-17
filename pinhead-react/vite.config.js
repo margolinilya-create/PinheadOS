@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { qaSupabaseBridge } from './scripts/qa-supabase-bridge.mjs'
@@ -63,6 +64,12 @@ function jspdfWithoutOptional() {
 export default defineConfig({
   plugins: [react(), buildVersionFile(), jspdfWithoutOptional(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
   base: '/',
+  resolve: {
+    // Ядро konva без Tween/Animation/FastLayer (≈ 3 кБ gzip холста «Дизайн»):
+    // react-konva берёт `konva/lib/Core`, подменяем его своим составом.
+    // Почему и как сверять при обновлении — шапка src/orderstudio/design/ui/konvaCore.ts.
+    alias: [{ find: /^konva\/lib\/Core(\.js)?$/, replacement: fileURLToPath(new URL('./src/orderstudio/design/ui/konvaCore.ts', import.meta.url)) }],
+  },
   define: { __BUILD_ID__: JSON.stringify(buildId) },
   build: {
     // Манифест нужен бюджету критического пути (scripts/bundle-budget.mjs):

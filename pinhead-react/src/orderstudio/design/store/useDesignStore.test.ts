@@ -13,8 +13,7 @@ vi.mock('../../api/salesOrders', async (orig) => ({
 }));
 
 const assets = vi.hoisted(() => ({ releaseArtworkImages: vi.fn(), releaseFlatImages: vi.fn() }));
-vi.mock('../assets/artworkImages', () => ({ releaseArtworkImages: assets.releaseArtworkImages }));
-vi.mock('../assets/flatImages', () => ({ releaseFlatImages: assets.releaseFlatImages }));
+vi.mock('../assets/imageLayer', () => ({ releaseArtworkImages: assets.releaseArtworkImages, releaseFlatImages: assets.releaseFlatImages }));
 
 const ORDER = 'o-1';
 

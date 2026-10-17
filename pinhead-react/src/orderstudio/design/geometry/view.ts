@@ -2,7 +2,7 @@
 // Отличия от DM: вид — `FlatView` справочника (без размерных флэтов и зон
 // по размеру — их нет в 5а); ростовка (`regradePosition`, `grading`) не
 // переносится — веха 5б (проверка скиллами, техдолг).
-import type { FlatView, PrintArea, ViewAnchors } from '../types';
+import type { DesignView, FlatView, GarmentFlat, PrintArea, ViewAnchors } from '../types';
 import { polygonToZone, rotatedAabb, type Bbox, type Zone } from './coords';
 import {
   fullDimensions,
@@ -216,4 +216,10 @@ export function placementInfo(
       horizontal: horizontalFromCenter(aabb, centerX),
     },
   };
+}
+
+/** Зона для нового логотипа на виде; вида нет — `null` */
+export function defaultAreaId(flat: GarmentFlat, view: DesignView): string | null {
+  const areas = flat.views.find((v) => v.kind === view)?.print_areas ?? [];
+  return (areas.find((a) => a.zone_id) ?? areas[0])?.id ?? null;
 }

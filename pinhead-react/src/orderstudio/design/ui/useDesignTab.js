@@ -6,10 +6,11 @@ import { getEffectiveRules } from '../../../utils/skuRules';
 import { pluralize } from '../../../utils/i18n';
 import { useFlatsCatalog } from '../catalog/useFlatsCatalog';
 import { pickFlat } from '../catalog/pickFlat';
-import { garmentHexOf } from '../assets/flatImages';
+import { garmentHexOf } from '../assets/garmentHex';
 import { placementOf, remapToFlat } from '../model/layout';
 import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
+import { patchPrint } from './panel/panelOps';
 import { useArtworkActions } from './useArtworkActions';
 
 /**
@@ -96,6 +97,12 @@ export function useDesignTab({ order, item, readOnly }) {
     [],
   );
 
+  /** Раскладка, которую холст не показывает, — прочь: строка снова правится на «Изделии» */
+  const releaseLayout = useCallback(
+    (key) => commitPrints('Освободить раскладку', (prints) => patchPrint(prints, key, { layout: null })),
+    [commitPrints],
+  );
+
   const onCanvasCommit = useCallback((change) => {
     if (!ctx) return;
     const ok = commitPrints(change.label, (prints) => applyCanvasChange(prints, change, ctx), change.coalesceKey);
@@ -132,7 +139,7 @@ export function useDesignTab({ order, item, readOnly }) {
   return {
     flats, sku, pick, flat, ctx, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
-    art, commitPrints, onCanvasCommit, switchFlat, switchNote,
+    art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,
     clearUnplaced: () => setUnplacedAt(null),
   };

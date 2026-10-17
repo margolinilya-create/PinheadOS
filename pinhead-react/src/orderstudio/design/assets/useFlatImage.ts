@@ -1,6 +1,7 @@
 /**
  * Флэт вида для холста в цвете ткани (веха 5а, задача 5) — React-обёртка над
- * кэшем `flatImages` (скачивание, санитайзер, перекраска, object URL).
+ * кэшем `flatImages` (скачивание, санитайзер, перекраска, object URL); кэш
+ * грузится по первой картинке (`imageLayer`).
  *
  * `status`: `none` — у флэта нет такого вида (или флэта нет), `loading`,
  * `ready` — `image` и `flatMm` (габарит, мм) есть, `error` — не вышло
@@ -8,7 +9,8 @@
  */
 import { useEffect, useState } from 'react';
 import type { DesignView, GarmentFlat } from '../types';
-import { loadFlatImage, type FlatImage } from './flatImages';
+import type { FlatImage } from './flatImages';
+import { flatImagesModule } from './imageLayer';
 
 export interface FlatImageState {
   status: 'none' | 'loading' | 'ready' | 'error';
@@ -26,7 +28,9 @@ export function useFlatImage(flat: GarmentFlat | null | undefined, view: DesignV
   useEffect(() => {
     if (!svgPath) return undefined;
     let active = true;
-    void loadFlatImage({ svg_path: svgPath, scale_mm_per_unit: scale }, colorHex).then((res) => {
+    void flatImagesModule.get().then(
+      (m) => (m ? m.loadFlatImage({ svg_path: svgPath, scale_mm_per_unit: scale }, colorHex) : null),
+    ).then((res) => {
       if (active) setLoaded({ key: `${svgPath}|${scale}|${colorHex}`, res });
     });
     return () => { active = false; };

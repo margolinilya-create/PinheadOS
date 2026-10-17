@@ -96,6 +96,11 @@ function setup(it, opts = {}) {
 
 const current = () => useSalesStore.getState().current.items[0];
 
+/** Панель — своим чанком (`React.lazy`): ждём, пока заглушка (`aria-busy`) сменится панелью */
+async function panelReady() {
+  await waitFor(() => expect(screen.getByRole('complementary', { name: 'Панель дизайна' })).not.toHaveAttribute('aria-busy'));
+}
+
 beforeEach(() => {
   vi.useRealTimers();
   __resetSalesStoreForTests();
@@ -134,8 +139,10 @@ describe('DesignTab — открытие', () => {
     expect(screen.getByText(/Сначала выберите модель/)).toBeInTheDocument();
   });
 
-  it('не черновик — кнопок правки нет, PDF доступен', () => {
+  it('не черновик — кнопок правки нет, PDF доступен', async () => {
     setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { status: 'production', saveState: 'locked', readOnly: true });
+    await panelReady();
+    expect(screen.getByRole('button', { name: /^Нанесение 1 · / })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Загрузить логотип' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Снять с изделия/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Дублировать/ })).toBeNull();
@@ -154,6 +161,7 @@ describe('DesignTab — правка', () => {
   it('инспектор: Ширина → width_mm и цена позиции меняются, шаг в истории', async () => {
     const p = placed();
     setup(item({ flat_id: FLAT_A.id, prints: [p] }));
+    await panelReady();
     fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
     const priceBefore = screen.getByRole('heading', { name: /Цена за штуку/ }).textContent;
     const width = await screen.findByLabelText('Ширина, мм');
@@ -168,6 +176,7 @@ describe('DesignTab — правка', () => {
   it('«Снять с изделия» в списке — строка остаётся, «Вернуть» возвращает раскладку', async () => {
     const p = placed();
     setup(item({ flat_id: FLAT_A.id, prints: [p] }));
+    await panelReady();
     fireEvent.click(screen.getByRole('button', { name: 'Снять с изделия нанесение 1' }));
     expect(current().prints).toHaveLength(1);
     expect(current().prints[0].layout).toBeNull();
@@ -198,10 +207,51 @@ describe('DesignTab — правка', () => {
 
   it('строка без вида — в «Без холста»; поля строки выбранного — под раскрытием', async () => {
     setup(item({ flat_id: FLAT_A.id, prints: [placed(), newSalesPrint({ zone: 'Рукав левый' })] }));
+    await panelReady();
     const free = screen.getByRole('region', { name: 'Нанесения без холста' });
     expect(within(free).getByText(/Нанесение 2 · Рукав левый/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
     expect(await screen.findByText('Цвета, Pantone, эффект')).toBeInTheDocument();
     expect(await screen.findAllByLabelText('Техника')).toHaveLength(1);
+  });
+});
+
+describe('DesignTab — раскладка, которую холст не показывает (ревью 6б, раунд 1)', () => {
+  it('силуэт позиции снят, другого нет: «Освободить раскладку» — строка снова обычная', async () => {
+    h.catalog = catalog([{ ...FLAT_A, active: false }]);
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    expect(screen.queryByRole('application')).toBeNull();
+    const free = screen.getByRole('region', { name: 'Нанесения без холста' });
+    expect(within(free).getByText(/раскладка для силуэта, которого здесь нет/)).toBeInTheDocument();
+    fireEvent.click(within(free).getByRole('button', { name: 'Освободить раскладку нанесения 1' }));
+    expect(current().prints).toHaveLength(1);
+    expect(current().prints[0].layout).toBeNull();
+    expect(useDesignStore.getState().past.at(-1).label).toBe('Освободить раскладку');
+  });
+
+  it('в новой версии силуэта нет зоны: строка в «Без холста» с «Освободить раскладку»', async () => {
+    const v2 = makeFlat({ sku_codes: [SKU.code], version: 2 });
+    v2.views = [{ ...v2.views[0], print_areas: [] }, v2.views[1]];
+    h.catalog = catalog([v2]);
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const free = screen.getByRole('region', { name: 'Нанесения без холста' });
+    fireEvent.click(within(free).getByRole('button', { name: 'Освободить раскладку нанесения 1' }));
+    expect(current().prints[0].layout).toBeNull();
+  });
+
+  it('только чтение — причина видна, кнопки нет', () => {
+    h.catalog = catalog([{ ...FLAT_A, active: false }]);
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { status: 'production', saveState: 'locked', readOnly: true });
+    const free = screen.getByRole('region', { name: 'Нанесения без холста' });
+    expect(within(free).getByText(/раскладка для силуэта, которого здесь нет/)).toBeInTheDocument();
+    expect(within(free).queryByRole('button', { name: /Освободить раскладку/ })).toBeNull();
+  });
+
+  it('обычная строка без холста (рукав) — без «Освободить раскладку»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed(), newSalesPrint({ zone: 'Рукав левый' })] }));
+    await panelReady();
+    const free = screen.getByRole('region', { name: 'Нанесения без холста' });
+    expect(within(free).queryByRole('button', { name: /Освободить раскладку/ })).toBeNull();
   });
 });

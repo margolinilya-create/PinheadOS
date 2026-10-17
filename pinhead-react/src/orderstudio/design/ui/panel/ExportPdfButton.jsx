@@ -10,6 +10,8 @@
  * Только чтение заказа PDF НЕ запрещает: макет скачивают и после запуска.
  *
  * Порядок (решение DM № 6 и ответ владельца 17.10: ничего не блокирует):
+ * 0. листы, проверка и имя файла (`maketTools`) — `import()` по клику, не в чанке
+ *    холста; доступность кнопки — лёгкий `hasMaketPages`;
  * 1. проверка перед сборкой (`preflight`): серьёзные замечания и предупреждения —
  *    вопрос «Скачать всё равно?», подсказки (вышивка) — без вопроса;
  * 2. движок PDF (`export/exportPdf`: jsPDF + svg2pdf) — `import()` только
@@ -26,12 +28,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { confirm } from '../../../../store/useConfirmStore';
 import { useStore } from '../../../../store/useStore';
 import { toast } from '../../../../store/useToastStore';
-import { saveBlob } from '../../../../utils/saveBlob';
 import { itemTitle } from '../../../model/itemOps';
 import { STATUS_LABELS } from '../../../screens/labels';
-import { garmentHexOf } from '../../assets/flatImages';
-import { MaketPdfError, maketFileName, maketPages } from '../../export/maketPages';
-import { issuesToAsk, loadPdfEngine, preflightMessage, rulesOf } from './maketExport';
+import { garmentHexOf } from '../../assets/garmentHex';
+import { hasMaketPages, loadMaketTools, loadPdfEngine } from './maketExport';
 import styles from './ExportPdfButton.module.css';
 
 const LABEL = 'Скачать PDF макета';
@@ -49,11 +49,11 @@ export default function ExportPdfButton({ order, item, flat, disabled = false })
     categoryRules: s.categoryRules,
     suppliers: s.suppliers,
   })));
-  const pages = useMemo(() => (flat ? maketPages(item, flat) : []), [item, flat]);
-  const reason = disabled ? '' : (!flat && NO_FLAT) || (pages.length === 0 && NO_PLACEMENTS) || '';
+  const hasPages = useMemo(() => hasMaketPages(item, flat), [item, flat]);
+  const reason = disabled ? '' : (!flat && NO_FLAT) || (!hasPages && NO_PLACEMENTS) || '';
   const off = disabled || Boolean(reason);
 
-  async function build() {
+  async function build(tools) {
     const engine = await loadPdfEngine();
     if (!engine) return;
     const blob = await engine.exportMaketPdf({
@@ -69,18 +69,21 @@ export default function ExportPdfButton({ order, item, flat, disabled = false })
         statusLabel: STATUS_LABELS[order.status] ?? '',
       },
     });
-    const name = maketFileName(order, item);
-    saveBlob(blob, name);
+    const name = tools.maketFileName(order, item);
+    tools.saveBlob(blob, name);
     setStatus(`PDF макета готов: ${name}`);
   }
 
   async function onExport() {
     if (busy || off) return;
-    const issues = issuesToAsk(pages, flat, rulesOf(item, cat.skuCatalog, cat.categoryRules));
+    const tools = await loadMaketTools();
+    if (!tools) return;
+    const pages = tools.maketPages(item, flat);
+    const issues = tools.issuesToAsk(pages, flat, tools.rulesOf(item, cat.skuCatalog, cat.categoryRules));
     if (issues.length > 0) {
       const go = await confirm({
         title: 'Проверьте макет перед PDF',
-        message: preflightMessage(issues),
+        message: tools.preflightMessage(issues),
         confirmLabel: 'Скачать PDF всё равно',
         cancelLabel: 'Вернуться к макету',
       });
@@ -89,10 +92,10 @@ export default function ExportPdfButton({ order, item, flat, disabled = false })
     setBusy(true);
     setStatus('Готовлю PDF макета…');
     try {
-      await build();
+      await build(tools);
     } catch (e) {
       console.error('ExportPdfButton', e);
-      toast.error(e instanceof MaketPdfError ? `PDF макета не собран: ${e.message}` : MSG_FAILED);
+      toast.error(e instanceof tools.MaketPdfError ? `PDF макета не собран: ${e.message}` : MSG_FAILED);
       setStatus('');
     } finally {
       setBusy(false);

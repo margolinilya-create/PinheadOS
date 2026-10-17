@@ -271,6 +271,7 @@ export default function OrderWorkplace() {
                 item={selected}
                 price={itemPrice}
                 readOnly={readOnly}
+                compact={compact}
                 onChange={(patch) => setItem(selected.key, patch)}
                 onSplit={splitFromNotice}
                 onOpenDesign={() => go({ tab: 'design' })}

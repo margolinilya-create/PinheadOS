@@ -7,8 +7,8 @@
  * ткани, только проверенный hex) → Blob `image/svg+xml` → object URL →
  * `HTMLImageElement`.
  *
- * Цвет ткани — по первой строке сетки: `colorCodeOf` (подпись «Чёрный (15-01)»
- * → код) → `findPaletteColor` → hex; не распознан — нейтральный `#d9d9d9`.
+ * Цвет ткани — `garmentHex.ts` (лёгкий, синхронный). Сам модуль холст грузит
+ * по требованию через `imageLayer` (потолок чанка холста 100 кБ gzip).
  *
  * Объекты флэтов неизменяемы по версии (путь версионный), поэтому разметка
  * кэшируется по пути на всю сессию вкладки, картинка — по пути и цвету.
@@ -18,18 +18,14 @@
  * Модуль без React: хук — `useFlatImage.ts`.
  */
 import { downloadFlatSvg } from '../../api/garmentFlats';
-import { findPaletteColor } from '../../catalog/suppliers';
-import type { Supplier } from '../../catalog/types';
-import type { SalesItem } from '../../model/types';
-import { colorCodeOf } from '../../wizard/wizardAdapter';
 import { toast } from '../../../store/useToastStore';
-import { sanitizeHex } from '../../../utils/sanitizeHex';
 import type { FlatView } from '../types';
 import { recolorGarment } from '../export/flatMarkup';
 import { resolveFlat, type ResolvedFlat } from '../export/resolveFlat';
+import { NEUTRAL_GARMENT_HEX, validHex } from './garmentHex';
 
-/** Цвет силуэта, когда цвет ткани не распознан */
-export const NEUTRAL_GARMENT_HEX = '#d9d9d9';
+/* Цвет ткани — лёгкий модуль `garmentHex` (его читают синхронно); здесь — для прежних импортов */
+export { NEUTRAL_GARMENT_HEX, garmentHexOf } from './garmentHex';
 
 export interface FlatImage {
   image: HTMLImageElement;
@@ -43,19 +39,6 @@ const markups = new Map<string, Promise<ResolvedFlat | null>>();
 const images = new Map<string, { promise: Promise<FlatImage | null>; url: string | null }>();
 
 const markupKey = (view: ViewRef) => `${view.svg_path}|${view.scale_mm_per_unit}`;
-const validHex = (hex: unknown): hex is string => typeof hex === 'string' && sanitizeHex(hex) === hex;
-
-/** Hex ткани позиции: первая строка сетки с цветом → код палитры → hex; иначе нейтральный */
-export function garmentHexOf(
-  item: Pick<SalesItem, 'size_grid'>,
-  suppliers: readonly Supplier[],
-  preferred?: Supplier | null,
-): string {
-  const label = item.size_grid.rows.find((r) => r.color.trim())?.color ?? '';
-  const code = label ? colorCodeOf(label, suppliers, preferred) : '';
-  const hex = code ? findPaletteColor(code, suppliers, preferred)?.hex : undefined;
-  return validHex(hex) ? hex : NEUTRAL_GARMENT_HEX;
-}
 
 /** Очищенная разметка флэта и габарит (её же читают превью и PDF макета) */
 export function loadFlatMarkup(view: ViewRef): Promise<ResolvedFlat | null> {

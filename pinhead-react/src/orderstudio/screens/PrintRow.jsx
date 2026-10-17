@@ -27,11 +27,13 @@ function offsetText(p) {
  * - `placed` — нанесение стоит на холсте вкладки «Дизайн»: зона, мм и отступ
  *   только для чтения (их пишет холст), ссылка «Изменить на холсте»;
  *   иначе при `onOpenDesign` — «Поставить на изделие →»;
+ * - `designViewOnly` — холст только для просмотра (≤ 760 px): у строки на
+ *   холсте «Открыть на холсте», у остальных ссылки нет — действия не будет;
  * - `embedded` — строка под инспектором холста: техники, зоны, мм и кнопки
  *   удаления нет (они в инспекторе; удаление строки — только на «Изделии»).
  */
 export default function PrintRow({
-  print, index, itemSizes, zones, unitPrice, qty, onChange, onRemove, placed = false, embedded = false, onOpenDesign,
+  print, index, itemSizes, zones, unitPrice, qty, onChange, onRemove, placed = false, embedded = false, onOpenDesign, designViewOnly = false,
 }) {
   const id = useId();
   const m = print.method;
@@ -51,9 +53,9 @@ export default function PrintRow({
         <span>Нанесение {index + 1} · {METHOD_LABELS[m]}</span>
         <span className={styles.row}>
           <span className={styles.muted}>{unitPrice != null ? `${rub(unitPrice)} × ${qty} шт.` : ''}</span>
-          {onOpenDesign && (
+          {onOpenDesign && (placed || !designViewOnly) && (
             <button type="button" className={styles.link} onClick={onOpenDesign}>
-              {placed ? 'Изменить на холсте' : 'Поставить на изделие →'}
+              {designViewOnly ? 'Открыть на холсте' : placed ? 'Изменить на холсте' : 'Поставить на изделие →'}
             </button>
           )}
           {!embedded && onRemove && <button type="button" className={styles.remove} onClick={onRemove}>Удалить</button>}

@@ -34,11 +34,8 @@ export interface PlaceArtworkOpts {
   at?: { x_mm: number; y_mm: number };
 }
 
-/** Зона для нового логотипа на виде; вида нет — `null` */
-export function defaultAreaId(flat: GarmentFlat, view: DesignView): string | null {
-  const areas = flat.views.find((v) => v.kind === view)?.print_areas ?? [];
-  return (areas.find((a) => a.zone_id) ?? areas[0])?.id ?? null;
-}
+/* Зона для нового логотипа — в `geometry/view` (её читает и холст; конвейер логотипа — ленивый чанк) */
+export { defaultAreaId } from '../geometry/view';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(Math.max(lo, hi), v));
 

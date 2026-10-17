@@ -8,9 +8,9 @@ import { useStore } from '../../../../store/useStore';
 import { saveBlob } from '../../../../utils/saveBlob';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../../../model/factory';
 import { flat as flatFixture } from '../../fixtures.testutil';
-import { MaketPdfError } from '../../export/maketPages';
+import { MaketPdfError, maketPages } from '../../export/maketPages';
 import ExportPdfButton from './ExportPdfButton';
-import { pdfEngine } from './maketExport';
+import { hasMaketPages, maketToolsChunk, pdfEngine } from './maketExport';
 
 /*
  * Ленивость: фабрика мока исполняется, только когда модуль впервые
@@ -163,6 +163,27 @@ describe('ExportPdfButton — «Скачать PDF макета»', () => {
 
 });
 
+describe('hasMaketPages — признак «есть что скачать» без загрузки листов', () => {
+  it('совпадает с maketPages(item, flat).length > 0', () => {
+    const f = flatFixture();
+    const cases = [
+      [],
+      [placed()],
+      [placed({ layout: null })],
+      [placed({ layout: layout({ flat_id: 'other-flat' }) })],
+      [placed({ layout: layout({ area_id: 'nope' }) })],
+      [placed({ layout: layout({ view: 'back', area_id: 'back' }) })],
+      [placed({ layout: { broken: true } })],
+      [placed({ layout: null }), placed({ key: 'p2' })],
+    ];
+    for (const prints of cases) {
+      const it0 = itemWith(prints);
+      expect(hasMaketPages(it0, f), JSON.stringify(prints.map((p) => p.layout))).toBe(maketPages(it0, f).length > 0);
+    }
+    expect(hasMaketPages(itemWith([placed()]), null)).toBe(false);
+  });
+});
+
 describe('ExportPdfButton — движок PDF не загрузился', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -177,6 +198,17 @@ describe('ExportPdfButton — движок PDF не загрузился', () =>
     await waitFor(() => expect(toasts()).toEqual(['Сборка PDF не загрузилась — обновите страницу и повторите']));
     expect(screen.getByRole('button', { name: BUTTON })).toHaveAttribute('aria-busy', 'false');
     expect(saveBlob).not.toHaveBeenCalled();
+  });
+
+  it('листы макета не загрузились — тост, без вопроса и без сборки', async () => {
+    vi.spyOn(maketToolsChunk, 'load').mockRejectedValue(new TypeError('network down'));
+    const ask = vi.spyOn(confirmStore, 'confirm');
+    renderButton();
+    fireEvent.click(screen.getByRole('button', { name: BUTTON }));
+    await waitFor(() => expect(toasts()).toEqual(['Сборка PDF не загрузилась — обновите страницу и повторите']));
+    expect(ask).not.toHaveBeenCalled();
+    expect(engine.exportMaketPdf).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: BUTTON })).toBeEnabled();
   });
 
   it('чанк пропал после выкладки — общий диалог «Вышло обновление», без тоста', async () => {

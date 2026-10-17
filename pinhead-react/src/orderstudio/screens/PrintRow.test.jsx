@@ -43,6 +43,19 @@ describe('PrintRow — нанесение на холсте (веха 5а)', () 
     expect(screen.getByRole('button', { name: 'Удалить' })).toBeInTheDocument();
   });
 
+  it('холст только для просмотра (≤ 760): на холсте — «Открыть на холсте», без холста — ссылки нет', () => {
+    const onOpenDesign = vi.fn();
+    setup({ placed: true, onOpenDesign, designViewOnly: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть на холсте' }));
+    expect(onOpenDesign).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /Изменить на холсте|Поставить на изделие/ })).toBeNull();
+  });
+
+  it('холст только для просмотра: у строки без холста «Поставить на изделие →» нет — действия не будет', () => {
+    setup({ onOpenDesign: vi.fn(), designViewOnly: true });
+    expect(screen.queryByRole('button', { name: /холсте|на изделие/ })).toBeNull();
+  });
+
   it('embedded: без техники, зоны, мм и «Удалить» — они в инспекторе', () => {
     setup({ placed: true, embedded: true });
     expect(screen.queryByLabelText('Техника')).toBeNull();

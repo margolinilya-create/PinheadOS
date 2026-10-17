@@ -29,8 +29,7 @@ import { isEditable } from '../../model/editable';
 import type { SalesItem } from '../../model/types';
 import type { DesignView } from '../types';
 import { designSnapshotOf, itemOf, setItemDesign, type DesignSnapshot } from '../model/editItem';
-import { releaseArtworkImages } from '../assets/artworkImages';
-import { releaseFlatImages } from '../assets/flatImages';
+import { releaseArtworkImages, releaseFlatImages } from '../assets/imageLayer';
 
 export const HISTORY_LIMIT = 50;
 export const COALESCE_MS = 800;
