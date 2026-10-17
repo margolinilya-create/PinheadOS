@@ -43,6 +43,18 @@ describe('sniffArtwork — отказы', () => {
     }
   });
 
+  it('SVG из Illustrator: комментарий и DOCTYPE перед корнем — узнаётся (отказ даст санитайзер с подсказкой)', () => {
+    const ai = '<?xml version="1.0"?>\n<!-- Generator: Adobe Illustrator 16.0 -->\n'
+      + '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd" [<!ENTITY ns_x "x">]>\n' + SVG;
+    expect(sniffArtwork(textBytes(ai), 'logo.svg')).toMatchObject({ ok: true, kind: 'svg' });
+    expect(sniffArtwork(textBytes(`<!-- Generator: Sketch -->\n${SVG}`), 'logo.svg')).toMatchObject({ ok: true, kind: 'svg' });
+  });
+
+  it('HTML с DOCTYPE html или посторонним корнем перед <svg> — не SVG', () => {
+    expect(sniffArtwork(textBytes('<!DOCTYPE html><svg/>'), 'x.svg').ok).toBe(false);
+    expect(sniffArtwork(textBytes('<?xml version="1.0"?><html><svg/></html>'), 'x.svg').ok).toBe(false);
+  });
+
   it('HTML под именем .svg — не SVG', () => {
     expect(sniffArtwork(textBytes('<html><svg/></html>'), 'x.svg')).toEqual({ ok: false, error: MSG_FORMAT });
   });

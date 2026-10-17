@@ -44,6 +44,13 @@ describe('preflight', () => {
     expect(has(mid, 'лучше от 300')).toBe(true);
   });
 
+  it('техника без DPI в профиле (сублимация, нашивка) — без DPI-замечаний (решение 8)', () => {
+    const noDpi: ProfileOf = (m) => ({ id: m, label: 'Сублимация', colorMode: 'cmyk' });
+    const r = run({ profileOf: noDpi, placements: [pl({ method: 'sublimation', asset: { ...goodPng, px_w: 100 } })] });
+    expect(r.some((i) => i.message.includes('DPI'))).toBe(false);
+    expect(r.some((i) => i.level === 'serious')).toBe(false);
+  });
+
   it('вышивка — подсказка о детали, а не DPI', () => {
     const r = run({ placements: [pl({ method: 'embroidery', asset: { ...goodPng, px_w: 100 } })] });
     expect(r).toHaveLength(1);

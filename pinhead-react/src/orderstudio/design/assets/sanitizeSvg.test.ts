@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeSvg, type SanitizeResult } from './sanitizeSvg';
+import { MSG_DOCTYPE, sanitizeSvg, type SanitizeResult } from './sanitizeSvg';
 import { MAX_SVG_BYTES } from '../limits';
 
 const wrap = (inner: string, attrs = '') =>
@@ -86,7 +86,8 @@ describe('sanitizeSvg — отказ целиком', () => {
     const bomb = '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;">]>'
       + '<svg xmlns="http://www.w3.org/2000/svg">&b;</svg>';
     expect(sanitizeSvg(bomb).ok).toBe(false);
-    expect(sanitizeSvg('<!doctype svg><svg xmlns="http://www.w3.org/2000/svg"/>').ok).toBe(false);
+    expect(sanitizeSvg('<!doctype svg><svg xmlns="http://www.w3.org/2000/svg"/>')).toEqual({ ok: false, error: MSG_DOCTYPE });
+    expect(MSG_DOCTYPE).toMatch(/PNG либо PDF/);
   });
 
   it('битый XML (parsererror)', () => {

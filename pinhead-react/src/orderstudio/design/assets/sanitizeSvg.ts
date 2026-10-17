@@ -34,6 +34,9 @@ const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 const MAX_USE = 500;
 
+/** Отказ из-за DOCTYPE/ENTITY (M1) — с подсказкой, что делать: старые SVG из Illustrator несут DTD */
+export const MSG_DOCTYPE = 'SVG со служебным заголовком DOCTYPE не принимается — сохраните файл заново (Illustrator: «Экспорт» → SVG) или выберите PNG либо PDF';
+
 const ELEMENTS = new Set([
   'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
   'defs', 'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'title', 'desc', 'use',
@@ -149,7 +152,7 @@ function cleanUses(root: Element, removed: string[]): void {
 /** Очистить SVG-текст. Отказ — текстом для показа */
 export function sanitizeSvg(text: string, mode: SanitizeMode = 'asset'): SanitizeResult {
   if (byteLength(text) > MAX_SVG_BYTES) return { ok: false, error: 'SVG больше 5 МБ' };
-  if (/<!DOCTYPE|<!ENTITY/i.test(text)) return { ok: false, error: 'SVG с DOCTYPE или сущностями не принимается' };
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) return { ok: false, error: MSG_DOCTYPE };
   let doc: Document;
   try {
     doc = new DOMParser().parseFromString(text, 'image/svg+xml');

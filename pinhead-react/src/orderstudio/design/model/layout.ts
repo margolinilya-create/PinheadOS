@@ -109,7 +109,12 @@ export function zoneNameOf(area: PrintArea, zonesCatalog: ZoneDefinition[]): str
   return area.zone_id ? getZoneName(area.zone_id, zonesCatalog) : area.name;
 }
 
-/** Размещение → новое нанесение (зона, мм, техника, отступ, файл, раскладка). Исходное не меняется */
+/**
+ * Размещение → новое нанесение (зона, мм, техника, отступ, файл, раскладка). Исходное не меняется.
+ * Зона не найдена или раскладка не проходит `parseLayout` (например, макет со странным pHYs
+ * шире 5 м) — исходное нанесение без изменений: иначе после сохранения разбор отбросил бы
+ * раскладку и нанесение молча пропало бы с холста (ревью T3, раунд 1)
+ */
 export function applyPlacement(print: SalesPrint, pl: Placement, ctx: PlaceCtx): SalesPrint {
   const where = locate(ctx.flat, pl.view, pl.area_id);
   if (!where) return print;
@@ -130,6 +135,7 @@ export function applyPlacement(print: SalesPrint, pl: Placement, ctx: PlaceCtx):
     flip_v: pl.flip_v,
     asset: pl.asset,
   };
+  if (!parseLayout(layout)) return print;
   return {
     ...print,
     zone: zoneNameOf(where.area, ctx.zonesCatalog),
@@ -167,17 +173,18 @@ export interface NewPlacedCtx extends PlaceCtx {
   method: SalesPrintMethod;
 }
 
-/** Новое нанесение сразу на холсте; зона не найдена — `null` */
+/** Новое нанесение сразу на холсте; зона не найдена или раскладка не по форме (`parseLayout`) — `null` */
 export function newPlacedPrint(asset: AssetMeta, artworkPath: string, areaId: string, ctx: NewPlacedCtx): SalesPrint | null {
   const where = locate(ctx.flat, ctx.view, areaId);
   if (!where) return null;
   const box = initialBox(where.view, where.area, asset);
   const base = newSalesPrint({ on: ctx.itemKind === 'sku' ? 'cut' : 'finished' });
-  return applyPlacement(base, {
+  const placed = applyPlacement(base, {
     print_key: base.key, view: ctx.view, area_id: areaId, x_mm: box.x, y_mm: box.y,
     width_mm: box.w, height_mm: box.h, rotation_deg: 0, flip_h: false, flip_v: false,
     method: ctx.method, asset, artwork_path: artworkPath, stale: false,
   }, ctx);
+  return placed === base ? null : placed;
 }
 
 export interface RemapResult {

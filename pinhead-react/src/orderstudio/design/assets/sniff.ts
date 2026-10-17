@@ -3,8 +3,8 @@
  * (решение 10 плана; проверка безопасности H2, M2).
  *
  * - сигнатуры PNG, JPEG, WEBP (RIFF…WEBP), `%PDF` (PDF и AI, совместимый с PDF);
- * - SVG — текст, который после BOM и пробелов начинается с `<?xml`/`<svg`
- *   и содержит `<svg`;
+ * - SVG — текст, у которого после BOM, пробелов и пролога (`<?xml…?>`,
+ *   комментарии, `<!DOCTYPE svg…>`) идёт корень `<svg`;
  * - расширение обязано совпасть с содержимым, иначе отказ;
  * - размеры растра — из заголовка (PNG IHDR, JPEG SOF, WEBP VP8/VP8L/VP8X):
  *   сторона больше 12 000 px или площадь больше 80 Мп — отказ (бомба);
@@ -42,8 +42,21 @@ function contentKind(b: Uint8Array): ArtworkKind | null {
   if (ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 4) === 'WEBP') return 'webp';
   if (ascii(b, 0, 5) === '%PDF-') return 'pdf';
   const head = new TextDecoder('utf-8', { fatal: false }).decode(b.subarray(0, 4096)).replace(/^\uFEFF/, '').trimStart();
-  if ((head.startsWith('<?xml') || head.startsWith('<svg')) && head.includes('<svg')) return 'svg';
-  return null;
+  return stripProlog(head).startsWith('<svg') ? 'svg' : null;
+}
+
+/** Пролог XML перед корнем: `<?xml…?>`, комментарии (`<!-- Generator: … -->` из Illustrator), `<!DOCTYPE svg…>` */
+const PROLOG_ITEM = /^(?:<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE\s+svg\b[^[>]*(?:\[[\s\S]*?\])?\s*>)\s*/i;
+
+/** Снять пролог: SVG узнаётся и с комментарием, и с DOCTYPE (его потом отклонит санитайзер с подсказкой) */
+function stripProlog(head: string): string {
+  let rest = head;
+  for (let i = 0; i < 32; i++) {
+    const m = PROLOG_ITEM.exec(rest);
+    if (!m) break;
+    rest = rest.slice(m[0].length);
+  }
+  return rest;
 }
 
 function pngSize(b: Uint8Array): { width: number; height: number } | null {

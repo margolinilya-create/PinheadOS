@@ -8,7 +8,7 @@
  *   DPI — из `pHYs` PNG; нет метрики — ширина 120 мм «оценочно».
  */
 import type { AssetMeta } from '../types';
-import { MAX_SOURCE_FILE_LEN } from '../limits';
+import { MAX_COORD_MM, MAX_SOURCE_FILE_LEN } from '../limits';
 import { parseViewBox } from '../catalog/svgMeta';
 import { sanitizeSvg } from './sanitizeSvg';
 import { ARTWORK_MIME, sniffArtwork, type ArtworkKind } from './sniff';
@@ -90,6 +90,20 @@ async function readBytes(file: Blob): Promise<Uint8Array> {
   });
 }
 
+/** Верх DPI, который принимает `parseLayout` (`asset.dpi`) */
+const MAX_ASSET_DPI = 10000;
+
+/** Размер в границах раскладки (`parseLayout`): конечный, > 0 и ≤ MAX_COORD_MM */
+function sizeInBounds(w: number, h: number): boolean {
+  return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 && w <= MAX_COORD_MM && h <= MAX_COORD_MM;
+}
+
+/** Оценочный размер, ужатый в границы раскладки с сохранением пропорций */
+function clampSize(w: number, h: number): { w: number; h: number } {
+  const k = Math.min(1, MAX_COORD_MM / Math.max(w, h));
+  return { w: w * k, h: h * k };
+}
+
 function sourceName(fileName: string): string {
   return fileName.slice(0, MAX_SOURCE_FILE_LEN);
 }
@@ -97,7 +111,9 @@ function sourceName(fileName: string): string {
 function svgAsset(bytes: Uint8Array, fileName: string): LoadAssetResult {
   const clean = sanitizeSvg(new TextDecoder().decode(bytes));
   if (!clean.ok) return { status: 'error', error: clean.error };
-  const mm = parseSvgSizeMm(clean.svg);
+  const parsed = parseSvgSizeMm(clean.svg);
+  // Размер вне границ раскладки — как будто его нет (оценка), иначе нанесение пропало бы с холста
+  const mm = parsed && sizeInBounds(parsed.w, parsed.h) ? parsed : null;
   const w = mm?.w ?? DEFAULT_RASTER_WIDTH_MM;
   const h = mm?.h ?? w;
   return {
@@ -115,9 +131,13 @@ function svgAsset(bytes: Uint8Array, fileName: string): LoadAssetResult {
 }
 
 function rasterAsset(bytes: Uint8Array, fileName: string, kind: ArtworkKind, pxW: number, pxH: number): LoadAssetResult {
-  const dpi = kind === 'png' ? readPngDpi(bytes) : null;
-  const w = dpi ? (pxW / dpi) * 25.4 : DEFAULT_RASTER_WIDTH_MM;
-  const h = dpi ? (pxH / dpi) * 25.4 : w * (pxH / pxW);
+  const read = kind === 'png' ? readPngDpi(bytes) : null;
+  // Странный pHYs (ppu = 1 → 0,0254 DPI, сотни метров; или > 10000 DPI) — как будто его нет:
+  // раскладка с таким макетом не прошла бы `parseLayout`, и нанесение пропало бы с холста
+  const dpi = read && read <= MAX_ASSET_DPI && sizeInBounds((pxW / read) * 25.4, (pxH / read) * 25.4) ? read : null;
+  const { w, h } = dpi
+    ? { w: (pxW / dpi) * 25.4, h: (pxH / dpi) * 25.4 }
+    : clampSize(DEFAULT_RASTER_WIDTH_MM, DEFAULT_RASTER_WIDTH_MM * (pxH / pxW));
   const meta: AssetMeta = {
     type: 'png', source_file: sourceName(fileName), intrinsic_w_mm: w, intrinsic_h_mm: h,
     px_w: pxW, px_h: pxH, size_estimated: !dpi, has_preview: false,

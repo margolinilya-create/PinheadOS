@@ -55,8 +55,28 @@ describe('pickFlat — порядок подбора', () => {
     expect(r.flat?.id).toBe('tshirt-regular');
   });
 
-  it('силуэт другой посадки той же категории — тоже «модель сменилась» (категория + посадка)', () => {
+  it('автоподбор по категории → записали flat_id → модель не «сменилась»', () => {
+    const classic = { ...TEE, fit: 'classic' as const };
+    const cat = catalog([oversize, hoodie]);
+    const first = pickFlat(item(), classic, cat);
+    expect(first).toMatchObject({ source: 'typical-category', modelChanged: false });
+    // тот же edit, что ставит нанесение, пишет flat_id
+    const next = pickFlat(item({ flat_id: first.flat!.id }), classic, cat);
+    expect(next).toEqual({ flat: first.flat, source: 'item', modelChanged: false, suggested: null });
+  });
+
+  it('явно выбранный силуэт другой посадки той же категории — без плашки, даже если есть «свой»', () => {
     const r = pickFlat(item({ flat_id: 'tshirt-oversize' }), TEE, catalog([regular, oversize]));
+    expect(r).toEqual({ flat: oversize, source: 'item', modelChanged: false, suggested: null });
+  });
+
+  it('точный флэт другой модели, но той же категории — подходит (категория)', () => {
+    const other = flat({ id: 'tshirt-other', typical: false, sku_codes: ['T-999'], fits: ['oversize'] });
+    expect(pickFlat(item({ flat_id: 'tshirt-other' }), TEE, catalog([other, regular])).modelChanged).toBe(false);
+  });
+
+  it('точный флэт другой модели без категорий — «модель сменилась»', () => {
+    const r = pickFlat(item({ flat_id: 'tshirt-exact', sku_code: 'T-002' }), TEE, catalog([exact, regular]));
     expect(r).toMatchObject({ source: 'item', modelChanged: true });
     expect(r.suggested?.id).toBe('tshirt-regular');
   });
@@ -87,11 +107,12 @@ describe('pickFlat — порядок подбора', () => {
 });
 
 describe('flatFitsModel', () => {
-  it('точный по коду, по категории и посадке, пустые посадки — любые', () => {
+  it('точный по коду либо категория; посадка не сверяется', () => {
     expect(flatFitsModel(exact, item(), TEE)).toBe(true);
     expect(flatFitsModel(regular, item(), TEE)).toBe(true);
-    expect(flatFitsModel(oversize, item(), TEE)).toBe(false);
-    expect(flatFitsModel({ ...oversize, fits: [] }, item(), TEE)).toBe(true);
+    expect(flatFitsModel(oversize, item(), TEE)).toBe(true); // посадка — не условие, только предпочтение подбора
+    expect(flatFitsModel(exact, item({ sku_code: 'T-002' }), TEE)).toBe(false);
+    expect(flatFitsModel(regular, item(), null)).toBe(false);
     expect(flatFitsModel(hoodie, item(), TEE)).toBe(false);
   });
 });

@@ -147,6 +147,21 @@ describe('newPlacedPrint', () => {
   it('нет такой зоны — null', () => {
     expect(newPlacedPrint(ASSET, '', 'pocket', ctx)).toBeNull();
   });
+
+  it('макет вне границ раскладки (pHYs ppu=1: dpi 0,0254, ширина сотни метров) — null, а не нанесение, пропадающее с холста', () => {
+    const odd = { ...ASSET, dpi: 0.0254, intrinsic_w_mm: 400_000, intrinsic_h_mm: 200_000 };
+    expect(newPlacedPrint(odd, '', 'chest', ctx)).toBeNull();
+    expect(newPlacedPrint({ ...ASSET, dpi: 20000 }, '', 'chest', ctx)).toBeNull();
+  });
+});
+
+describe('applyPlacement — раскладка не по форме', () => {
+  const pl = placementOf(newSalesPrint({ method: 'dtf', layout: { ...LAYOUT } }), FLAT)!;
+  it('битый макет — нанесение без изменений (иначе после сохранения разбор его отбросит)', () => {
+    const p = newSalesPrint();
+    expect(applyPlacement(p, { ...pl, asset: { ...pl.asset, intrinsic_w_mm: 6000 } }, CTX)).toBe(p);
+    expect(applyPlacement(p, { ...pl, asset: { ...pl.asset, source_file: 'x'.repeat(300) } }, CTX)).toBe(p);
+  });
 });
 
 describe('remapToFlat', () => {

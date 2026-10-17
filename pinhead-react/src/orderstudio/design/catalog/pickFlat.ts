@@ -12,9 +12,13 @@
  * 5. нет — плашка «Для этой модели нет силуэта».
  * При равенстве — меньший `id` (детерминированно, проверка скиллами).
  *
- * Флэт позиции обязан подходить её модели: сменили модель на вкладке
- * «Изделие» — `modelChanged` и предложенный силуэт; перенос делает
- * `remapToFlat` по действию менеджера, сам по себе — нет.
+ * Флэт позиции обязан подходить её модели — по коду (`sku_codes`) либо по
+ * категории. Посадка — только предпочтение автоподбора, не условие: иначе
+ * флэт, подобранный «типовым по категории» (шаг 4), сразу после записи
+ * `flat_id` признавался бы чужим, а явно выбранный силуэт другой посадки
+ * навсегда держал бы плашку (ревью T3, раунд 1). Сменили модель на вкладке
+ * «Изделие» на другую категорию — `modelChanged` и предложенный силуэт;
+ * перенос делает `remapToFlat` по действию менеджера, сам по себе — нет.
  */
 import type { SalesItem } from '../../model/types';
 import type { SkuItem } from '../../../types/catalog';
@@ -34,6 +38,8 @@ export interface FlatPick {
 
 type ItemRef = Pick<SalesItem, 'flat_id' | 'sku_code' | 'fit'>;
 type SkuRef = Pick<SkuItem, 'code' | 'category' | 'fit'> | null | undefined;
+type FitRef = Pick<SalesItem, 'sku_code'>;
+type FitSkuRef = Pick<SkuItem, 'category'> | null | undefined;
 
 const byId = (a: GarmentFlat, b: GarmentFlat) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -41,12 +47,14 @@ function fitOf(item: ItemRef, sku: SkuRef): string {
   return item.fit || sku?.fit || '';
 }
 
-/** Подходит ли флэт модели: точный по коду либо категория и посадка */
-export function flatFitsModel(flat: GarmentFlat, item: ItemRef, sku: SkuRef): boolean {
+/**
+ * Подходит ли флэт модели: точный по коду либо та же категория. Посадку не
+ * сверяем — её учитывает только автоподбор (`autoPickFlat`), иначе подбор и
+ * проверка противоречили бы друг другу
+ */
+export function flatFitsModel(flat: GarmentFlat, item: FitRef, sku: FitSkuRef): boolean {
   if (item.sku_code && flat.sku_codes.includes(item.sku_code)) return true;
-  if (!sku?.category || !flat.categories.includes(sku.category)) return false;
-  const fit = fitOf(item, sku);
-  return flat.fits.length === 0 || !fit || flat.fits.includes(fit);
+  return !!sku?.category && flat.categories.includes(sku.category);
 }
 
 /** Автоподбор без учёта `item.flat_id`: точный → типовой по крою → типовой по категории */

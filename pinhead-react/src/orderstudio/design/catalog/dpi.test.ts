@@ -31,9 +31,11 @@ describe('printQuality', () => {
   it('пороги — из профиля техники', () => {
     expect(printQuality(png(500), 100, { dpi: { good: 200, min: 120 } }).quality).toBe('mid');
   });
-  it('техника без DPI-контроля в профиле — пороги по умолчанию', () => {
-    expect(printQuality(png(1200), 100, {}).quality).toBe('good');
+  it('техника без DPI-контроля в профиле (решение 8) — unknown, без порогов', () => {
+    expect(printQuality(png(1200), 100, {})).toEqual({ quality: 'unknown' });
+    expect(printQuality(png(100), 100, {})).toEqual({ quality: 'unknown' });
   });
+  it('SVG у техники без DPI — всё равно вектор', () => expect(printQuality(svg, 100, {}).quality).toBe('vector'));
   it('вышивка — контроль детали, а не DPI, и у вектора тоже', () => {
     expect(printQuality(png(1200), 100, EMB).quality).toBe('embroidery');
     expect(printQuality(svg, 200, EMB).quality).toBe('embroidery');

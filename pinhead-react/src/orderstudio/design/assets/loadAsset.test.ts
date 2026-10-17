@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DEFAULT_RASTER_WIDTH_MM, loadAsset, parseSvgSizeMm, readPngDpi } from './loadAsset';
 import { MSG_MISMATCH } from './sniff';
 import { jpegBytes, pngBytes, textBytes } from './bytes.testutil';
+import { MSG_DOCTYPE } from './sanitizeSvg';
 
 const blob = (b: Uint8Array, type = '') => new Blob([b as BlobPart], { type });
 
@@ -82,6 +83,33 @@ describe('loadAsset', () => {
     expect(r.asset.meta).toMatchObject({ type: 'svg', intrinsic_w_mm: 50, intrinsic_h_mm: 20, size_estimated: false });
   });
 
+  it('странный pHYs (ppu = 1 → 0,0254 DPI) — как без метрики: оценка 120 мм, без dpi, раскладка проходит разбор', async () => {
+    const r = await loadAsset(blob(pngBytes(1000, 500, 0.0254)), 'odd.png');
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.asset.meta).toMatchObject({ intrinsic_w_mm: DEFAULT_RASTER_WIDTH_MM, intrinsic_h_mm: 60, size_estimated: true });
+    expect(r.asset.meta.dpi).toBeUndefined();
+  });
+
+  it('pHYs > 10000 DPI — как без метрики', async () => {
+    const r = await loadAsset(blob(pngBytes(1000, 500, 20000)), 'odd.png');
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.asset.meta.size_estimated).toBe(true);
+    expect(r.asset.meta.dpi).toBeUndefined();
+  });
+
+  it('очень вытянутый растр без метрики — размер ужат в 5000 мм с пропорцией', async () => {
+    const r = await loadAsset(blob(jpegBytes(10, 1000)), 'strip.jpg');
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.asset.meta.intrinsic_h_mm).toBe(5000);
+    expect(r.asset.meta.intrinsic_w_mm).toBeCloseTo(50, 5);
+  });
+
+  it('SVG с размером больше 5 м — оценка 120 мм', async () => {
+    const r = await loadAsset(blob(textBytes('<svg xmlns="http://www.w3.org/2000/svg" width="9000mm" height="10mm"/>')), 'a.svg');
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.asset.meta).toMatchObject({ intrinsic_w_mm: 120, size_estimated: true });
+  });
+
   it('SVG без метрик — 120×120 оценочно', async () => {
     const r = await loadAsset(blob(textBytes('<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>')), 'a.svg');
     if (r.status !== 'ok') throw new Error(r.status);
@@ -90,7 +118,7 @@ describe('loadAsset', () => {
 
   it('SVG с DOCTYPE — отказ с текстом', async () => {
     const r = await loadAsset(blob(textBytes('<!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg"/>')), 'a.svg');
-    expect(r).toMatchObject({ status: 'error' });
+    expect(r).toEqual({ status: 'error', error: MSG_DOCTYPE });
   });
 
   it('PDF и AI — дальше в loadPdf', async () => {
