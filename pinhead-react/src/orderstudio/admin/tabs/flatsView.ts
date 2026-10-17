@@ -75,10 +75,35 @@ export interface SeedProgressLike {
   phase: 'files' | 'catalog';
 }
 
-/** Строка состояния сида для `aria-live` */
+/** Строка состояния сида: видимая (на каждый файл) и для `aria-live` (прорежённая) */
 export function seedStatusText(p: SeedProgressLike | null, busy: boolean): string {
   if (!busy) return '';
   if (!p) return 'Готовлю загрузку типовых флэтов…';
   if (p.phase === 'catalog') return 'Файлы загружены, сохраняю справочник флэтов…';
   return `Загружаю файлы флэтов: ${p.done} из ${p.total}`;
 }
+
+/** На сколько шагов делится загрузка файлов для экранного диктора */
+export const SEED_SPOKEN_STEPS = 4;
+
+const spokenStep = (p: SeedProgressLike): number =>
+  (p.total > 0 ? Math.floor((p.done * SEED_SPOKEN_STEPS) / p.total) : 0);
+
+/**
+ * Что объявить диктору: не каждый из 67 файлов, а смену фазы и каждую четверть
+ * загрузки (`SEED_SPOKEN_STEPS`). Возвращает новый прогресс, если его стоит
+ * объявить, иначе прежний — тот же объект, React не перерисует регион.
+ * Видимый прогресс (`<progress>` и строка) идёт по каждому файлу.
+ */
+export function spokenProgress(prev: SeedProgressLike | null, next: SeedProgressLike): SeedProgressLike {
+  if (!prev || prev.phase !== next.phase || spokenStep(prev) !== spokenStep(next)) return next;
+  return prev;
+}
+
+/**
+ * Конфликт записи справочника при сиде. Текст вехи 4 («Ваши правки не сохранены…
+ * внесите их снова») здесь неточен: правок нет, файлы уже в бакете, повтор
+ * идемпотентен — достаточно перечитать справочник и нажать кнопку ещё раз.
+ */
+export const SEED_CONFLICT_TEXT = 'Справочник «Флэты и зоны» уже изменили — в другой вкладке или другой администратор. '
+  + 'Типовые флэты в него не дописаны. Загрузите свежую версию и нажмите «Загрузить типовые флэты» ещё раз.';

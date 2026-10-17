@@ -12,7 +12,7 @@ import { networkFailureMessage, pluralize } from '../../../utils/i18n';
 import { parseFlatsCatalog } from '../../design/catalog/flatsSchema';
 import { SEED_FLATS_COUNT } from '../../design/seed/seedInfo';
 import CatalogNotice from '../CatalogNotice';
-import { FLAT_WRITER_ROLES, flatRow, seedStatusText, zonesCount } from './flatsView';
+import { FLAT_WRITER_ROLES, flatRow, SEED_CONFLICT_TEXT, seedStatusText, spokenProgress, zonesCount } from './flatsView';
 import base from '../../screens/Sales.module.css';
 import notices from '../OrderSettings.module.css';
 import styles from './FlatsTab.module.css';
@@ -47,8 +47,14 @@ function emptyText(canSeed, isWriter) {
  * Правка флэтов — веха 5б. Здесь — только кнопка «Загрузить типовые флэты»
  * (admin и director, не на телефоне): сид дизайн-мейкера грузится `import()`
  * по нажатию, дописывает недостающие флэты, справочник пишет последним
- * (`design/seed/seedFlats.ts`). Конфликт записи — плашка вкладок вехи 4.
+ * (`design/seed/seedFlats.ts`). Конфликт записи — плашка вида вкладок вехи 4
+ * со своим текстом («нажмите ещё раз»). Повторное нажатие после возврата на
+ * вкладку присоединяется к летящему сиду; итог (тост) называет первый вызов.
  * Справочник читается свежим запросом мимо кэша каталогов.
+ *
+ * Прогресс: `<progress>` и видимая строка — на каждый файл; диктору —
+ * отдельная скрытая визуально область `aria-live`, всегда в дереве доступности,
+ * со сменой фазы и четвертями загрузки (`spokenProgress`), а не 67 объявлений.
  */
 export default function FlatsTab({ readOnly }) {
   const role = useAuthStore((s) => s.user?.role);
@@ -58,6 +64,7 @@ export default function FlatsTab({ readOnly }) {
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
+  const [spoken, setSpoken] = useState(null);
   const [conflict, setConflict] = useState(false);
 
   useEffect(() => {
@@ -74,18 +81,24 @@ export default function FlatsTab({ readOnly }) {
     setAttempt((n) => n + 1);
   }, []);
 
+  const onProgress = useCallback((p) => {
+    setProgress(p);
+    setSpoken((prev) => spokenProgress(prev, p));
+  }, []);
+
   const runSeed = async () => {
     if (busy) return;
     setBusy(true);
     setProgress(null);
+    setSpoken(null);
     try {
       const { seedFlats } = await import('../../design/seed/seedFlats');
-      const res = await seedFlats({ onProgress: setProgress });
+      const res = await seedFlats({ onProgress });
       if (res.catalog === 'saved') {
-        toast.success(`Типовые флэты загружены: ${res.added} ${pluralize(res.added, 'модель', 'модели', 'моделей')}`);
+        if (!res.joined) toast.success(`Типовые флэты загружены: ${res.added} ${pluralize(res.added, 'модель', 'модели', 'моделей')}`);
         reload();
       } else if (res.catalog === 'unchanged') {
-        toast.success('Все типовые флэты уже в справочнике');
+        if (!res.joined) toast.success('Все типовые флэты уже в справочнике');
       } else if (res.catalog === 'conflict') {
         setConflict(true);
       }
@@ -97,11 +110,11 @@ export default function FlatsTab({ readOnly }) {
     } finally {
       setBusy(false);
       setProgress(null);
+      setSpoken(null);
     }
   };
 
   const rows = data.flats.map(flatRow);
-  const status = seedStatusText(progress, busy);
 
   return (
     <section className={base.panel} aria-labelledby="flats-head" data-readonly={readOnly ? 'true' : undefined}>
@@ -111,7 +124,12 @@ export default function FlatsTab({ readOnly }) {
         Типовой силуэт подходит многим моделям одной категории, это не лекало модели.
       </p>
 
-      {conflict && <CatalogNotice editor={{ state: 'conflict', reload }} name={NAME} />}
+      {conflict && (
+        <div className={notices.notice} role="alert">
+          <p>{SEED_CONFLICT_TEXT}</p>
+          <button type="button" className="btn" onClick={reload}>Загрузить свежую версию</button>
+        </div>
+      )}
       {data.state === 'loading' && <CatalogNotice editor={{ state: 'loading', reload }} name={NAME} />}
       {data.state === 'error' && (
         <div className={notices.notice} role="status">
@@ -135,9 +153,12 @@ export default function FlatsTab({ readOnly }) {
       )}
 
       {rows.length > 0 && (
-        <div className={styles.scroll}>
+        // Таблица шире телефона прокручивается сама: область в порядке Tab и с именем,
+        // иначе её не прокрутить с клавиатуры — в строках нет фокусируемого (axe, как PaletteEditor)
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- axe scrollable-region-focusable
+        <div className={styles.scroll} role="region" aria-labelledby="flats-caption" tabIndex={0}>
           <table className={styles.table}>
-            <caption className={styles.caption}>{`Флэтов в справочнике: ${rows.length}`}</caption>
+            <caption id="flats-caption" className={styles.caption}>{`Флэтов в справочнике: ${rows.length}`}</caption>
             <thead>
               <tr>
                 <th scope="col">Название</th>
@@ -191,9 +212,11 @@ export default function FlatsTab({ readOnly }) {
             {`Дописывает недостающие типовые силуэты дизайн-мейкера (${SEED_FLATS_COUNT} моделей). Уже загруженные не меняет.`}
           </p>
           {progress && <progress className={styles.progress} max={progress.total || 1} value={progress.done} aria-label="Загрузка типовых флэтов" />}
+          {/* Видимая строка на каждый файл; диктору то же — прорежённо, в области ниже */}
+          {busy && <p className={styles.status} aria-hidden="true">{seedStatusText(progress, busy)}</p>}
         </div>
       )}
-      <p className={styles.status} role="status" aria-live="polite">{status}</p>
+      <p className={styles.srOnly} role="status" aria-live="polite">{seedStatusText(spoken, busy)}</p>
     </section>
   );
 }

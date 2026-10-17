@@ -3,6 +3,7 @@ import { fetchCatalogKey } from '../../../lib/catalogs';
 import { putCatalog } from '../../api/catalogAdmin';
 import { uploadFlatSvg } from '../../api/garmentFlats';
 import { useToastStore } from '../../../store/useToastStore';
+import { sanitizeSvg } from '../assets/sanitizeSvg';
 import seed from './garmentFlats.seed.json';
 import { seedFlats, SEED_CONCURRENCY } from './seedFlats';
 import { SEED_FILES_COUNT, SEED_FLATS_COUNT } from './seedInfo';
@@ -10,12 +11,19 @@ import { SEED_FILES_COUNT, SEED_FLATS_COUNT } from './seedInfo';
 vi.mock('../../../lib/catalogs', async (orig) => ({ ...(await orig<object>()), fetchCatalogKey: vi.fn() }));
 vi.mock('../../api/catalogAdmin', async (orig) => ({ ...(await orig<object>()), putCatalog: vi.fn() }));
 vi.mock('../../api/garmentFlats', async (orig) => ({ ...(await orig<object>()), uploadFlatSvg: vi.fn() }));
+// Настоящий санитайзер под наблюдением: сид обязан грузить ЕГО результат, а не сырой текст
+vi.mock('../assets/sanitizeSvg', async (orig) => {
+  const real = await orig<typeof import('../assets/sanitizeSvg')>();
+  return { ...real, sanitizeSvg: vi.fn(real.sanitizeSvg) };
+});
 
 const fetchMock = vi.mocked(fetchCatalogKey);
 const putMock = vi.mocked(putCatalog);
 const uploadMock = vi.mocked(uploadFlatSvg);
+const sanitizeSpy = vi.mocked(sanitizeSvg);
+const RAW = import.meta.glob('./flats/*.svg', { eager: true, query: '?raw', import: 'default' }) as Record<string, string>;
 
-type Flat = { id: string; views: { svg_path: string }[] };
+type Flat = { id: string; views: { kind: string; svg_path: string }[] };
 const SEED_FLATS = (seed as unknown as { flats: Flat[] }).flats;
 const errors = () => useToastStore.getState().toasts.filter((t) => t.type === 'error').map((t) => t.message);
 
@@ -23,6 +31,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   putMock.mockReset();
   uploadMock.mockReset();
+  sanitizeSpy.mockClear();
   useToastStore.setState({ toasts: [] });
   fetchMock.mockResolvedValue({ exists: false, value: null });
   uploadMock.mockResolvedValue('uploaded');
@@ -47,10 +56,15 @@ describe('seedFlats — пустой справочник', () => {
     const paths = uploadMock.mock.calls.map((c) => c[0]);
     expect(new Set(paths)).toEqual(new Set(SEED_FLATS.flatMap((f) => f.views.map((v) => v.svg_path))));
     expect(paths).toHaveLength(new Set(paths).size);
-    for (const [, text] of uploadMock.mock.calls) {
-      expect(text).toContain('id="garment"');
-      expect(text.startsWith('<svg')).toBe(true);
-    }
+    // Каждый файл прошёл санитайзер, и в бакет ушёл ЕГО результат: сырой текст сида
+    // уже «чистый» (сторож сида), поэтому сверка с выходом санитайзера, а не с `<svg`
+    expect(sanitizeSpy).toHaveBeenCalledTimes(SEED_FILES_COUNT);
+    const cleaned = sanitizeSpy.mock.results.map((r) => (r.value as { svg: string }).svg);
+    expect(uploadMock.mock.calls.map((c) => c[1])).toEqual(cleaned);
+    const byPath = new Map(SEED_FLATS.flatMap((f) => f.views.map((v) => [v.svg_path, `./flats/${f.id}-${v.kind}.svg`] as const)));
+    const [path, text] = uploadMock.mock.calls[0];
+    expect(sanitizeSpy.mock.calls[0][0]).toBe(RAW[byPath.get(path) ?? '']);
+    expect(text).toContain('id="garment"');
   });
 
   it('прогресс: от 0 до всех файлов, затем запись справочника', async () => {
@@ -75,6 +89,41 @@ describe('seedFlats — пустой справочник', () => {
     });
     await seedFlats();
     expect(peak).toBe(SEED_CONCURRENCY);
+  });
+});
+
+describe('seedFlats — один сид на вкладку браузера', () => {
+  it('повторный вызов, пока сид летит, присоединяется к нему: без второй загрузки и записи', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    uploadMock.mockImplementation(async () => {
+      await gate;
+      return 'uploaded';
+    });
+    const first = seedFlats();
+    await vi.waitFor(() => expect(uploadMock).toHaveBeenCalled());
+    const onProgress = vi.fn();
+    const second = seedFlats({ onProgress });
+    // Новый слушатель сразу получает текущий прогресс
+    expect(onProgress).toHaveBeenCalledWith({ done: 0, total: SEED_FILES_COUNT, phase: 'files' });
+    release();
+    const [a, b] = await Promise.all([first, second]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(uploadMock).toHaveBeenCalledTimes(SEED_FILES_COUNT);
+    expect(putMock).toHaveBeenCalledTimes(1);
+    expect(a).toEqual({ uploaded: SEED_FILES_COUNT, existed: 0, failed: 0, added: SEED_FLATS_COUNT, catalog: 'saved' });
+    expect(a.joined).toBeUndefined();
+    expect(b).toEqual({ ...a, joined: true });
+    expect(onProgress.mock.calls.at(-1)?.[0]).toEqual({ done: SEED_FILES_COUNT, total: SEED_FILES_COUNT, phase: 'catalog' });
+  });
+
+  it('после завершения — и после исключения — следующий вызов начинает новый сид', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('сеть'));
+    await expect(seedFlats()).rejects.toThrow('сеть');
+    await seedFlats();
+    await seedFlats();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(putMock).toHaveBeenCalledTimes(2);
   });
 });
 

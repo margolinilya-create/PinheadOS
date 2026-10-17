@@ -8,8 +8,10 @@
   max-width: 72ch;
 }
 
-/* Таблица флэтов: на узком экране — прокрутка таблицы, а не страницы */
+/* Таблица флэтов: на узком экране — прокрутка таблицы, а не страницы.
+   Область в порядке Tab (прокрутка с клавиатуры) — кольцо фокуса видно */
 .scroll { overflow-x: auto; }
+.scroll:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .table {
   width: 100%;
@@ -105,12 +107,22 @@
 }
 
 .status {
-  margin: var(--space-sm) 0 0;
+  flex: 1 1 100%;
+  margin: 0;
   color: var(--text-dim);
   font-size: var(--type-body-sm);
 }
 
-.status:empty { display: none; }
+/* Область `aria-live` для диктора: всегда в дереве доступности (не `display: none`),
+   иначе первое объявление теряется; видна только диктору */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 
 /* Тач-цель ≥ 44 px */
 @media (pointer: coarse) {

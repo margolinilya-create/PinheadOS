@@ -17,6 +17,11 @@
  * Повтор после частичного сбоя идемпотентен. Хоть один файл не загрузился —
  * справочник не пишется, тост называет число файлов; после первого отказа
  * новые загрузки не начинаются (связь легла — не 67 тостов, а до четырёх).
+ *
+ * Сид один на вкладку браузера: ушли с вкладки «Флэты и зоны» во время
+ * загрузки, вернулись и нажали кнопку снова — вызов присоединяется к летящему
+ * сиду (тот же результат с `joined: true`, прогресс — и новому слушателю),
+ * а не начинает второй: без лишних запросов и ложного конфликта записи.
  */
 import seed from './garmentFlats.seed.json';
 import { fetchCatalogKey } from '../../../lib/catalogs';
@@ -45,6 +50,8 @@ export interface SeedResult {
   /** Флэтов дописано в справочник (недостающих типовых) */
   added: number;
   catalog: SeedCatalogOutcome;
+  /** Вызов присоединился к уже летящему сиду: итог (тост) называет первый вызов */
+  joined?: true;
 }
 
 export interface SeedProgress {
@@ -129,8 +136,43 @@ function failedText(failed: number, total: number): string {
     + 'Справочник не изменён — нажмите «Загрузить типовые флэты» ещё раз';
 }
 
-/** Дописать недостающие типовые флэты: файлы, затем справочник (порядок — в шапке модуля) */
-export async function seedFlats({ onProgress }: SeedOptions = {}): Promise<SeedResult> {
+type ProgressListener = (p: SeedProgress) => void;
+
+interface Run {
+  promise: Promise<SeedResult>;
+  listeners: Set<ProgressListener>;
+  last: SeedProgress | null;
+}
+
+/** Летящий сид модуля (не больше одного на вкладку браузера) */
+let inflight: Run | null = null;
+
+/**
+ * Дописать недостающие типовые флэты: файлы, затем справочник (порядок — в шапке
+ * модуля). Пока сид летит, повторный вызов присоединяется к нему.
+ */
+export function seedFlats({ onProgress }: SeedOptions = {}): Promise<SeedResult> {
+  if (inflight) {
+    if (onProgress) {
+      inflight.listeners.add(onProgress);
+      if (inflight.last) onProgress(inflight.last);
+    }
+    return inflight.promise.then((r): SeedResult => ({ ...r, joined: true }));
+  }
+  const run: Omit<Run, 'promise'> = { listeners: new Set(onProgress ? [onProgress] : []), last: null };
+  const report = (p: SeedProgress) => {
+    run.last = p;
+    run.listeners.forEach((fn) => fn(p));
+  };
+  // `finally` срабатывает не раньше микрозадачи — `inflight` к тому времени уже назначен
+  const promise = seedOnce(report).finally(() => {
+    if (inflight?.promise === promise) inflight = null;
+  });
+  inflight = Object.assign(run, { promise });
+  return promise;
+}
+
+async function seedOnce(onProgress: ProgressListener): Promise<SeedResult> {
   const fresh = await fetchCatalogKey('app_config', 'garmentFlats');
   if (!fresh) return result({ catalog: 'error' });
   const base = fresh.exists ? fresh.value : null;
@@ -146,8 +188,8 @@ export async function seedFlats({ onProgress }: SeedOptions = {}): Promise<SeedR
 
   const jobs = jobsOf(missing);
   const total = jobs.length;
-  onProgress?.({ done: 0, total, phase: 'files' });
-  const outcomes = await uploadAll(jobs, (done) => onProgress?.({ done, total, phase: 'files' }));
+  onProgress({ done: 0, total, phase: 'files' });
+  const outcomes = await uploadAll(jobs, (done) => onProgress({ done, total, phase: 'files' }));
   const uploaded = outcomes.filter((o) => o === 'uploaded').length;
   const existed = outcomes.filter((o) => o === 'exists').length;
   const failed = total - uploaded - existed;
@@ -156,7 +198,7 @@ export async function seedFlats({ onProgress }: SeedOptions = {}): Promise<SeedR
     return result({ uploaded, existed, failed, catalog: 'error' });
   }
 
-  onProgress?.({ done: total, total, phase: 'catalog' });
+  onProgress({ done: total, total, phase: 'catalog' });
   const merged = { ...(isObj(base) ? base : {}), version: 1, flats: [...stored, ...missing] };
   const res = await putCatalog('app_config', 'garmentFlats', merged, base);
   const catalog: SeedCatalogOutcome = res.ok ? 'saved' : res.kind === 'conflict' ? 'conflict' : 'error';
