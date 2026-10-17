@@ -16,6 +16,22 @@
 
 **Из ERP в `design/**` — ни одного импорта** (план, решение 9).
 
+## Ядро (задача 3, 17.10) — чистый код без React
+
+| Модуль | Что |
+|---|---|
+| `types.ts`, `limits.ts` | флэт, вид, зона (`zone_id`), раскладка `PrintLayoutV1`, размещение; границы данных (общие с SQL H) и формула пути SVG |
+| `geometry/` | перенос DM 1:1: `coords`, `dimension`, `zone`, `view` (пресеты, `placementInfo`, `yForNecklineOffset`), `dimensionLines`. Ростовка (`grading*`, `gradeRule`) — веха 5б |
+| `catalog/` | `flatsSchema` (`zod/mini`, терпимый `parseFlatsCatalog`), `flatsCases` (случаи для zod и проб H), `pickFlat`, `categoryMap`, `dpi`, `svgMeta`, `fitOrder`, `zoneFit` |
+| `assets/` | `sanitizeSvg` (белый список, режим `scene`), `sniffArtwork` (тип и размер по байтам), `loadAsset` (без PDF) |
+| `model/` | `layout` (`parseLayout` строгий, `placementOf`, `applyPlacement`, `newPlacedPrint`, `remapToFlat`), `offset` (таблица решения 4) |
+| `export/` | `resolveFlat`, `flatMarkup`, `buildPreviewSvg`, `buildSceneSvg` (лист PDF), `preflight`; строки — `svgText` (`num`, `esc`, `safeImageHref`) |
+
+Профили техник — в `model/printMethods.ts` (задача 1): ядро берёт их аргументом
+(`ProfileOf`, `methodAllowed`) и своих не держит. Сторожа модуля — `designGuards.test.ts`
+(нет импортов ERP, нет HTML-строкой в DOM, ядро без React); паритет цены холста и строки —
+`model/pricingParity.test.ts`.
+
 ## Зависимости (задача 0, точные версии)
 
 | Пакет | Версия | Чанк |

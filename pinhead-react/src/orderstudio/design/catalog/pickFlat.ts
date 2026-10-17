@@ -1,0 +1,76 @@
+/**
+ * Флэт позиции (решение 7 плана вехи 5а). Чистая функция: ничего не пишет —
+ * открытие вкладки «Дизайн» не меняет заказ, `flat_id` записывается тем же
+ * `edit`, что и первое размещение, либо явным выбором.
+ *
+ * Порядок:
+ * 1. `item.flat_id`, если флэт активен (снятый — как будто флэта нет: его
+ *    раскладки не показываются на холсте и остаются строками нанесений);
+ * 2. точный — `sku_codes` содержит код модели;
+ * 3. типовой — категория модели и посадка;
+ * 4. типовой — только категория;
+ * 5. нет — плашка «Для этой модели нет силуэта».
+ * При равенстве — меньший `id` (детерминированно, проверка скиллами).
+ *
+ * Флэт позиции обязан подходить её модели: сменили модель на вкладке
+ * «Изделие» — `modelChanged` и предложенный силуэт; перенос делает
+ * `remapToFlat` по действию менеджера, сам по себе — нет.
+ */
+import type { SalesItem } from '../../model/types';
+import type { SkuItem } from '../../../types/catalog';
+import type { GarmentFlat, GarmentFlatsCatalog } from '../types';
+
+export type FlatPickSource = 'item' | 'exact' | 'typical-fit' | 'typical-category';
+
+export interface FlatPick {
+  /** Флэт для холста; `null` — силуэта нет */
+  flat: GarmentFlat | null;
+  source: FlatPickSource | null;
+  /** Флэт позиции не подходит её модели (модель сменили) */
+  modelChanged: boolean;
+  /** Подходящий силуэт для новой модели, когда `modelChanged` */
+  suggested: GarmentFlat | null;
+}
+
+type ItemRef = Pick<SalesItem, 'flat_id' | 'sku_code' | 'fit'>;
+type SkuRef = Pick<SkuItem, 'code' | 'category' | 'fit'> | null | undefined;
+
+const byId = (a: GarmentFlat, b: GarmentFlat) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+function fitOf(item: ItemRef, sku: SkuRef): string {
+  return item.fit || sku?.fit || '';
+}
+
+/** Подходит ли флэт модели: точный по коду либо категория и посадка */
+export function flatFitsModel(flat: GarmentFlat, item: ItemRef, sku: SkuRef): boolean {
+  if (item.sku_code && flat.sku_codes.includes(item.sku_code)) return true;
+  if (!sku?.category || !flat.categories.includes(sku.category)) return false;
+  const fit = fitOf(item, sku);
+  return flat.fits.length === 0 || !fit || flat.fits.includes(fit);
+}
+
+/** Автоподбор без учёта `item.flat_id`: точный → типовой по крою → типовой по категории */
+export function autoPickFlat(item: ItemRef, sku: SkuRef, catalog: GarmentFlatsCatalog): { flat: GarmentFlat; source: FlatPickSource } | null {
+  const active = catalog.flats.filter((f) => f.active).sort(byId);
+  const exact = item.sku_code ? active.find((f) => f.sku_codes.includes(item.sku_code)) : undefined;
+  if (exact) return { flat: exact, source: 'exact' };
+  const category = sku?.category;
+  if (!category) return null;
+  const typical = active.filter((f) => f.typical && f.categories.includes(category));
+  const fit = fitOf(item, sku);
+  const byFit = fit ? typical.find((f) => f.fits.includes(fit)) : undefined;
+  if (byFit) return { flat: byFit, source: 'typical-fit' };
+  return typical[0] ? { flat: typical[0], source: 'typical-category' } : null;
+}
+
+/** Флэт позиции (порядок — в шапке модуля) */
+export function pickFlat(item: ItemRef, sku: SkuRef, catalog: GarmentFlatsCatalog): FlatPick {
+  const stored = item.flat_id ? catalog.flats.find((f) => f.id === item.flat_id) : undefined;
+  if (stored && stored.active) {
+    if (flatFitsModel(stored, item, sku)) return { flat: stored, source: 'item', modelChanged: false, suggested: null };
+    const auto = autoPickFlat(item, sku, catalog);
+    return { flat: stored, source: 'item', modelChanged: true, suggested: auto?.flat ?? null };
+  }
+  const auto = autoPickFlat(item, sku, catalog);
+  return { flat: auto?.flat ?? null, source: auto?.source ?? null, modelChanged: false, suggested: null };
+}
