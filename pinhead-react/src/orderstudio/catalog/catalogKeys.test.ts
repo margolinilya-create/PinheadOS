@@ -19,8 +19,15 @@ import { CATALOG_PUT_KEYS, SALES_CATALOG_KEYS } from '../api/catalogAdmin';
  * клиент, пишущий ключ, которого сервер не примет, — ошибка, видимая только на бою.
  */
 const MIGRATIONS = join(__dirname, '../../../../supabase/migrations');
-const G_FILE = readdirSync(MIGRATIONS).find((f) => f.endsWith('_order_catalogs.sql')) ?? 'нет';
-const G = readFileSync(join(MIGRATIONS, G_FILE), 'utf8');
+const ALL = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
+const read = (f: string) => readFileSync(join(MIGRATIONS, f), 'utf8');
+const G_FILE = ALL.find((f) => f.endsWith('_order_catalogs.sql')) ?? 'нет';
+/**
+ * Белый список читается из ПОСЛЕДНЕЙ миграции, пересоздающей `catalog_put`
+ * (с вехи 5а — H `…_garment_flats`): именно её текст исполняет база
+ */
+const PUT_FILE = ALL.filter((f) => /create or replace function public\.catalog_put\(/.test(read(f))).at(-1) ?? 'нет';
+const G = read(PUT_FILE);
 
 /** Ключи на бою 17.10 (SELECT key FROM …) — старые, в белый список не входят */
 const LIVE_KEYS = {
@@ -35,7 +42,7 @@ type Pairs = Record<'catalog_config' | 'app_config', string[]>;
 /** Пары из выражения `v_<имя> := (p_table = '…' and p_key …) or (…);` функции catalog_put */
 function pairsOf(variable: string): Pairs {
   const m = new RegExp(`${variable} := ([\\s\\S]*?);`).exec(G);
-  if (!m) throw new Error(`нет ${variable} в ${G_FILE}`);
+  if (!m) throw new Error(`нет ${variable} в ${PUT_FILE}`);
   const out: Pairs = { catalog_config: [], app_config: [] };
   const re = /p_table = '(\w+)'\s+and p_key (?:= '(\w+)'|in \(([^)]+)\))/g;
   for (const g of m[1].matchAll(re)) {
@@ -82,6 +89,61 @@ describe('ключи справочников', () => {
 
   it('разбор белого списка не пуст (сторож ловит переименование)', () => {
     expect(pairsOf('v_sales_pair').catalog_config).toEqual(['suppliers']);
-    expect(pairsOf('v_admin_pair').app_config.length).toBe(5);
+    expect(pairsOf('v_admin_pair').app_config.length).toBe(6);
+  });
+});
+
+/** Тело функции `public.<fn>(` между `as $$` и `$$;` */
+function bodyOf(sql: string, fn: string): string {
+  const m = new RegExp(`create or replace function public\\.${fn}\\([\\s\\S]*?\\bas \\$\\$([\\s\\S]*?)\\$\\$;`).exec(sql);
+  if (!m) throw new Error(`нет ${fn}`);
+  return m[1];
+}
+
+/**
+ * Миграция H пересоздаёт `catalog_put` и `catalog_value_check` «подлинным
+ * текстом G» (на бою 17.10 md5 `prosrc` совпал с файлом G). Правка вне
+ * названных мест — молчаливый откат чужой правки или новая дыра.
+ */
+describe('миграция H: тела функций справочников = G плюс названные правки', () => {
+  const H_FILE = ALL.find((f) => f.endsWith('_garment_flats.sql')) ?? 'нет';
+  const G0 = read(G_FILE);
+  const H = read(H_FILE);
+  const BRANCH = / {2}-- Флэты изделий \(миграция H, веха 5а\)[\s\S]*? {2}-- Конец ветки garmentFlats \(миграция H\)\n\n/;
+
+  it('H — последняя редакция catalog_put', () => {
+    expect(PUT_FILE).toBe(H_FILE);
+  });
+
+  it('catalog_put: тело H = тело G, кроме garmentFlats в v_admin_pair', () => {
+    const h = bodyOf(H, 'catalog_put');
+    expect(h).not.toBe(bodyOf(G0, 'catalog_put'));
+    expect(h.replace(", 'zonesCatalog', 'garmentFlats')", ", 'zonesCatalog')")).toBe(bodyOf(G0, 'catalog_put'));
+  });
+
+  it('catalog_value_check: тело H = тело G плюс ветка garmentFlats', () => {
+    const h = bodyOf(H, 'catalog_value_check');
+    expect(h).toMatch(BRANCH);
+    expect(h.replace(BRANCH, '')).toBe(bodyOf(G0, 'catalog_value_check'));
+  });
+
+  it('ветка garmentFlats: svg_path выводится из id, версии и вида; методы = CHECK нанесения', () => {
+    const branch = BRANCH.exec(bodyOf(H, 'catalog_value_check'))?.[0] ?? '';
+    expect(branch).toContain("(v->>'svg_path') <> 'flats/' || (f->>'id') || '/v' || (f->>'version') || '/' || (v->>'kind') || '.svg'");
+    expect(branch).toContain("(f->>'id') !~ '^[a-z0-9][a-z0-9-]{0,62}$'");
+    expect(branch).toContain("(f->>'version') !~ '^[1-9][0-9]{0,3}$'");
+    const methods = /check \(method in \(([^)]*)\)\)/.exec(read(ALL.find((f) => f.endsWith('_order_v4_tz_fields.sql')) ?? ''))?.[1] ?? '';
+    const codes = [...methods.matchAll(/'(\w+)'/g)].map((x) => x[1]);
+    expect(codes).toHaveLength(8);
+    for (const list of branch.match(/not in \('silkscreen'[^)]*\)/g) ?? []) {
+      expect([...list.matchAll(/'(\w+)'/g)].map((x) => x[1])).toEqual(codes);
+    }
+    expect((branch.match(/not in \('silkscreen'[^)]*\)/g) ?? []).length).toBe(2);
+  });
+
+  it('garmentFlats — только admin и director (не в SALES_CATALOG_KEYS)', () => {
+    expect(CATALOG_PUT_KEYS.app_config).toContain('garmentFlats');
+    expect(SALES_CATALOG_KEYS.app_config as readonly string[]).not.toContain('garmentFlats');
+    expect(pairsOf('v_admin_pair').app_config).toContain('garmentFlats');
   });
 });

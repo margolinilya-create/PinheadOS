@@ -10,10 +10,23 @@ vi.mock('./storage', () => ({
 // Mock supabase
 const mockCatalogSelect = vi.fn();
 const mockAppSelect = vi.fn();
+const mockAppNeq = vi.fn();
+/**
+ * `app_config` общий загрузчик читает с `.neq('key', 'garmentFlats')` (веха 5а):
+ * промис ответа получает `neq`, который его же и возвращает; ответ-объект
+ * (`{ eq }` для `fetchCatalogKey`) отдаётся как есть
+ */
+const appSelect = (...args: unknown[]) => {
+  const r = mockAppSelect(...args);
+  if (r && typeof (r as Promise<unknown>).then === 'function') {
+    return Object.assign(r, { neq: (...n: unknown[]) => { mockAppNeq(...n); return r; } });
+  }
+  return r;
+};
 vi.mock('./supabase', () => ({
   supabase: {
     from: vi.fn((table: string) => ({
-      select: table === 'catalog_config' ? mockCatalogSelect : mockAppSelect,
+      select: table === 'catalog_config' ? mockCatalogSelect : appSelect,
     })),
   },
 }));
@@ -52,6 +65,15 @@ describe('loadAllCatalogs', () => {
     const result = await loadAllCatalogs();
     expect(result.fabricsCatalog).toEqual([{ id: 'f1' }]);
     expect(result.skuCatalog).toEqual([{ code: 'T1' }]);
+  });
+
+  it('флэты (garmentFlats) в общую загрузку не входят — дизайн читает их сам', async () => {
+    mockCatalogSelect.mockResolvedValue({ data: [], error: null });
+    mockAppSelect.mockResolvedValue({ data: [{ key: 'tzSettings', value: { footerText: 'x' } }], error: null });
+
+    const result = await loadAllCatalogs();
+    expect(mockAppNeq).toHaveBeenCalledWith('key', 'garmentFlats');
+    expect(result).not.toHaveProperty('garmentFlats');
   });
 
   it('succeeds with partial failure (catalog_config fails)', async () => {
