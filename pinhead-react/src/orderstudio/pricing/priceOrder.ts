@@ -30,6 +30,7 @@ import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
 import type { LabelLibrary, PackOption } from '../catalog/types';
+import { libraryLabelPrice } from '../catalog/labels';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -38,9 +39,9 @@ export interface PriceCatalogs {
   extrasCatalog: { code: string; price: number }[];
   usdRate: number;
   /**
-   * Справочники заказа (веха 4) — заготовка сигнатуры (задача 2): расчёт их
-   * пока НЕ читает, цена прежняя. Бирки из библиотеки (запасной путь —
-   * `salesLabelPrice`) — задача 4; упаковка из `prices.packOptions` — задача 5.
+   * Справочники заказа (веха 4). Бирки — по библиотеке `labelLibrary`
+   * (`salesLabelPrice`; нет библиотеки, вида или варианта — прежний расчёт).
+   * Упаковка из `prices.packOptions` — задача 5.
    */
   labelLibrary?: LabelLibrary;
   packOptions?: PackOption[];
@@ -84,7 +85,7 @@ export interface ItemPrice {
   /** Наценка по тиражу позиции, доля */
   markup_pct: number;
   prints: PrintPrice[];
-  /** Бирки за штуку — ставки визарда (`salesLabelPrice`) */
+  /** Бирки за штуку — по библиотеке бирок (`salesLabelPrice`) */
   labels_unit: number;
   /** Упаковка за штуку — по виду позиции или заказа (`packPrice`) */
   pack_unit: number;
@@ -225,13 +226,25 @@ function garmentCost(
 }
 
 /**
- * Бирка v4 → цена за штуку по ставкам визарда. Вариант — `variant_id`:
- * составник — логотип (`my-logo` / `no-logo` / `standard`), основная —
- * `вариант[:материал]` (`standard`, `custom:canvas`, `send-own` — бирка
- * клиента), хэнгтег — `standard` / `custom`. Без варианта — стандартная,
- * как в визарде по умолчанию. Остальные типы ставки у визарда не имеют.
+ * Бирка v4 → цена за штуку. Источник — библиотека бирок (`labelLibrary`,
+ * веха 4): вариант + надбавка материала (`catalog/labels`). Библиотеки нет
+ * или она не знает вида или варианта — прежний расчёт по ставкам визарда
+ * (`legacyLabelPrice`); сид библиотеки повторяет его на всех комбинациях.
  */
-export function salesLabelPrice(label: Pick<SalesLabel, 'label_type' | 'variant_id'>): number {
+export function salesLabelPrice(
+  label: Pick<SalesLabel, 'label_type' | 'variant_id'>, library?: LabelLibrary | null,
+): number {
+  return libraryLabelPrice(library, label) ?? legacyLabelPrice(label);
+}
+
+/**
+ * Прежний расчёт (до библиотеки). Вариант — `variant_id`: составник — логотип
+ * (`my-logo` / `no-logo` / `standard`), основная — `вариант[:материал]`
+ * (`standard`, `custom:canvas`, `send-own` — бирка клиента), хэнгтег —
+ * `standard` / `custom`. Без варианта — стандартная, как в визарде по
+ * умолчанию. Остальные типы ставки у визарда не имеют.
+ */
+export function legacyLabelPrice(label: Pick<SalesLabel, 'label_type' | 'variant_id'>): number {
   const [variant, material] = (label.variant_id || '').split(':');
   switch (label.label_type) {
     case 'composition': return core.careLabelPrice(variant || 'standard');
@@ -288,7 +301,7 @@ export function priceItem(
   if (qty > 0) printsPerUnit = printsTotal / qty;
 
   // Бирки и упаковка — как в визарде: сверху, без накладных, наценки и срочности
-  const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l), 0);
+  const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l, cat.labelLibrary), 0);
   const packUnit = core.packPrice(P, itemPackaging(item, orderPackaging));
   const rawUnit = garment + printsPerUnit + labelsUnit + packUnit;
   const calcUnit = qty > 0 ? ceilTo(rawUnit, rules.roundTo) : 0;
