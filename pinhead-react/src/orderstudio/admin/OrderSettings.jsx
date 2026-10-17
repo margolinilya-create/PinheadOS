@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 /*
  * БЮДЖЕТ ОБОЛОЧКИ ERP (замер 17.10): `Tabs` тянет `erp/styles`. Если в этом
@@ -22,6 +23,12 @@ import PackagingTab from './tabs/PackagingTab';
 import PricingRulesTab from './tabs/PricingRulesTab';
 import TzTab from './tabs/TzTab';
 
+/**
+ * «Флэты и зоны» (веха 5а) — лениво: схема справочника флэтов (zod) нужна только
+ * этой вкладке и холсту; сид флэтов вкладка грузит ещё одним `import()` по кнопке
+ */
+const FlatsTab = lazy(() => import('./tabs/FlatsTab'));
+
 /** Панель каждой вкладки реестра (`orderSettingsTabs.ts`); вкладка — `({ readOnly }) => JSX` */
 const PANELS = {
   suppliers: SuppliersTab,
@@ -29,6 +36,7 @@ const PANELS = {
   packaging: PackagingTab,
   pricing: PricingRulesTab,
   tz: TzTab,
+  flats: FlatsTab,
 };
 
 /** Телефон: справочники только для просмотра, правка — с компьютера */
@@ -39,7 +47,8 @@ const SKU_ROLES = ['admin', 'director'];
 
 /**
  * Справочники заказа (`/order-settings`): поставщики и палитры, бирки,
- * упаковка, правила цены, подвал ТЗ. Правят admin, director, rop — права
+ * упаковка, правила цены, подвал ТЗ, флэты и зоны (веха 5а; флэты пишут только
+ * admin и director, rop видит их для просмотра). Правят admin, director, rop — права
  * на сервере (`catalog_put`, `prices_patch`), экран только передаёт правку.
  * Вкладка — в адресе; смена вкладки и уход со страницы с несохранённым
  * справочником переспрашивают (`leaveGuard`).
@@ -102,7 +111,9 @@ export default function OrderSettings() {
       </div>
       <TabPanel idPrefix="order-settings" active={active} className={styles.panel}>
         {Panel ? (
-          <Panel readOnly={readOnly} />
+          <Suspense fallback={<p className={styles.loading} role="status">Загрузка вкладки…</p>}>
+            <Panel readOnly={readOnly} />
+          </Suspense>
         ) : (
           <EmptyState icon="settings" title="Справочник не найден" text="Выберите вкладку выше." />
         )}
