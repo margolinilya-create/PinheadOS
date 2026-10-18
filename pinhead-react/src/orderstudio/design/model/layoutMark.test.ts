@@ -61,7 +61,7 @@ describe('hasPlacedLayout — форма раскладки без zod', () => {
   it('битая раскладка — не на холсте', () => {
     const base = placed().layout as Record<string, unknown>;
     const bad: unknown[] = [
-      null, 'x', [], { ...base, v: 2 }, { ...base, view: 'sleeve_left' }, { ...base, x_mm: '10' },
+      null, 'x', [], { ...base, v: 2 }, { ...base, view: 'sleeve' }, { ...base, x_mm: '10' },
       { ...base, flat_id: '../evil' }, { ...base, area_id: 'Chest!' }, { ...base, flip_h: 1 },
       { ...base, asset: { ...(base.asset as object), type: 'pdf' } }, { ...base, asset: null },
       { ...base, x_mm: Number.NaN },

@@ -9,7 +9,13 @@
 import type { SalesPrint } from '../../../model/types';
 import type { DesignView } from '../../types';
 
-export const VIEW_NAMES: Record<DesignView, string> = { front: 'перед', back: 'спина' };
+/** Вид в тексте («вид перед», «вид левый рукав»); рукава — с вехи 5б */
+export const VIEW_NAMES: Record<DesignView, string> = {
+  front: 'перед',
+  back: 'спина',
+  sleeve_left: 'левый рукав',
+  sleeve_right: 'правый рукав',
+};
 
 /** Пауза пересказа для aria-live (проверка скиллами, ~500 мс): протяжка и серия стрелок не тараторят */
 export const ANNOUNCE_DELAY_MS = 500;

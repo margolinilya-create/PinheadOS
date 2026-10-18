@@ -38,7 +38,7 @@ describe('parseLayout — строгий разбор (H1)', () => {
     ['бесконечность', { ...LAYOUT, x_mm: Infinity }],
     ['NaN', { ...LAYOUT, rotation_deg: NaN }],
     ['координата за 5000', { ...LAYOUT, y_mm: 5001 }],
-    ['вид рукава (5б)', { ...LAYOUT, view: 'sleeve_left' }],
+    ['вид не из перечня (рукава — sleeve_left/sleeve_right, 5б)', { ...LAYOUT, view: 'sleeve' }],
     ['id флэта с разметкой', { ...LAYOUT, flat_id: 'x"><script>' }],
     ['id зоны с пробелом', { ...LAYOUT, area_id: 'chest zone' }],
     ['версия флэта дробная', { ...LAYOUT, flat_version: 1.5 }],

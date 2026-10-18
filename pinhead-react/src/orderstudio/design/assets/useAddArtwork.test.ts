@@ -270,3 +270,25 @@ describe('useAddArtwork', () => {
     expect(none.result.current.addExisting({ path: PATH, asset: parseLayout(item().prints[0].layout)!.asset })).toBeNull();
   });
 });
+
+describe('веха 5б: версия позиции и зоны модели (К15)', () => {
+  it('флэт версии позиции (v1 после выпуска v2) — новое нанесение с flat_version: 1', async () => {
+    open();
+    const v1 = { ...FLAT, version: 1 };
+    const key = await addArtworkFile(png(), { ...T, flat: v1 });
+    expect(parseLayout(item().prints.find((p) => p.key === key)!.layout)?.flat_version).toBe(1);
+  });
+
+  it('зона не из зон модели не предлагается: берётся первая допустимая', async () => {
+    open();
+    const key = await addArtworkFile(png(), { ...T, view: 'back', areaAllowed: (a) => a.zone_id === null }, { areaId: 'back' });
+    expect(parseLayout(item().prints.find((p) => p.key === key)!.layout)?.area_id).toBe('label');
+  });
+
+  it('на виде нет допустимой зоны — отказ до загрузки файла', async () => {
+    open();
+    expect(await addArtworkFile(png(), { ...T, areaAllowed: () => false })).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(MSG_NO_AREA);
+    expect(api.uploadArtwork).not.toHaveBeenCalled();
+  });
+});
