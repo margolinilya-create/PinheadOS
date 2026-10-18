@@ -5,9 +5,18 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { useTheme } from '../../hooks/useTheme';
 import { switchToProduction } from '../switchToProduction';
+import { ROLE_LABELS } from '../../data/roles';
 import { canUseSales } from './orderNav';
 import { OrderSidebar } from './OrderSidebar';
 import styles from './OrderLayout.module.css';
+
+/** Подпись роли в шапке: в разделе важна роль продаж; код роли человек не читает (обход, M-2) */
+function roleCaption(user) {
+  if (!user) return '';
+  if (user.is_ms) return 'Менеджер сопровождения';
+  if (user.is_sales) return 'Менеджер продаж';
+  return ROLE_LABELS[user.role] ?? user.role ?? '';
+}
 
 /**
  * Оболочка раздела «ТЗ» в стиле ERP (стили — снимок ERP, см. шапку OrderLayout.module.css): сайдбар, шапка, область прокрутки.
@@ -81,7 +90,7 @@ export default function OrderLayout({ user, children }) {
 
           <div className={styles.userChip}>
             {user?.name || user?.email}
-            <div className={styles.userRole}>{user?.role}</div>
+            <div className={styles.userRole}>{roleCaption(user)}</div>
           </div>
 
           {/* Выход переспрашивает: промах пальцем стоил бы сессии и набранного в формах */}

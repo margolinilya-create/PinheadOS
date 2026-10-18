@@ -52,6 +52,17 @@ describe('OrderLayout', () => {
     expect(current.map((a) => a.textContent)).toEqual([active]);
   });
 
+  it.each([
+    [SELLER, 'Менеджер продаж'],
+    [{ ...SELLER, is_sales: false, is_ms: true }, 'Менеджер сопровождения'],
+    [{ ...SELLER, role: 'rop', is_sales: false }, 'РОП'],
+    [ADMIN, 'Админ'],
+  ])('роль в шапке — русской подписью, не кодом (обход, M-2): %#', (user, caption) => {
+    renderLayout(user);
+    expect(screen.getByText(caption)).toBeTruthy();
+    expect(screen.queryByText(user.role)).toBeNull();
+  });
+
   it('продавец видит «Мои заказы» и не видит настроек', () => {
     renderLayout(SELLER);
     expect(screen.getByRole('link', { name: 'Мои заказы' })).toBeTruthy();
