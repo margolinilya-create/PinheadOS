@@ -78,10 +78,21 @@ function creationDate(issuedOn: string): Date {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
+/** Мокап или превью не легли в PDF */
+export const MSG_TZ_SCENE = 'мокап или превью ТЗ не собрались — сообщите администратору';
+
 function drawOps(pdf: PdfDoc, doc: Document): DrawOps {
   return {
     raster: (v, box) => addRaster(pdf, { bytes: v.bytes, kind: v.type, alias: v.alias }, box),
-    svg: (markup, box) => svgInto(pdf, doc, markup, box),
+    svg: async (markup, box) => {
+      try {
+        await svgInto(pdf, doc, markup, box);
+      } catch (e) {
+        // Ядро отказывает текстом листа макета — экрану ТЗ нужен отказ ТЗ
+        if (e instanceof MaketPdfError) throw new TzPdfError(MSG_TZ_SCENE);
+        throw e;
+      }
+    },
   };
 }
 

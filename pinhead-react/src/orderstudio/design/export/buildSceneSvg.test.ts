@@ -175,6 +175,17 @@ describe('buildSceneSvg — чужие данные (H1)', () => {
     expect((svg.match(/<image /g) ?? []).length).toBe(1);
   });
 
+  it("клиент с $' и $& остаётся текстом: шаблоны замены строки не срабатывают", () => {
+    const client = "A$'B$&C$$D$`E";
+    const svg = scene({ meta: { client, orderNumber: 'N$$1', itemTitle: "$'", size: 'M', date: '', notes: ['$&'] } });
+    expect(svg).toContain("A$'B$&amp;C$$D$`E");
+    expect(svg).toContain('N$$1');
+    expect(svg).not.toContain('@@BG@@');
+    expect((svg.match(/<svg/g) ?? []).length).toBe(1);
+    const again = sanitizeSvg(svg, 'scene');
+    expect(again.ok && again.removed).toEqual([]);
+  });
+
   it('строка вместо числа в раскладке — исключение, а не атрибут', () => {
     const bad = placement({ y_mm: '"><script>' as unknown as number });
     expect(() => scene({ placements: [bad] })).toThrow();

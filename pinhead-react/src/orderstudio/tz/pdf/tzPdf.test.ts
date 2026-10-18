@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { FIXTURE_OPTS, fixtureCatalogs, loadFixture, type FixtureName } from '../../fixtures/loadFixture.testutil';
 import { sanitizeSvg } from '../../design/assets/sanitizeSvg';
 import { buildSceneSvg, mockupSceneMm } from '../../design/export/buildSceneSvg';
-import { addRaster, newPdf, svgInto } from '../../design/export/pdfCore';
+import { MSG_SCENE, addRaster, newPdf, svgInto } from '../../design/export/pdfCore';
+import { MaketPdfError } from '../../design/export/maketPages';
 import { layoutTz } from '../model/layoutTz';
 import { tzGroups } from '../model/tzGroups';
 import { NO_CRYPTO_MESSAGE } from '../model/tzHash';
 import { fontMeasure } from './drawBoxes';
-import { buildAllTzPdf, buildTzPdf, TZ_MAX_BYTES, TzPdfError, type TzPdfInput } from './tzPdf';
+import { buildAllTzPdf, buildTzPdf, MSG_TZ_SCENE, TZ_MAX_BYTES, TzPdfError, type TzPdfInput } from './tzPdf';
 import { FONTS, deps, filesByExt, pdfPages, rawPdf, stubLayout } from './tzPdf.testutil';
 
 // svg2pdf: в Vitest — ES-модуль, как в сборке (см. exportPdf.test.ts)
@@ -137,6 +138,13 @@ describe('buildTzPdf — отказы словами', () => {
     const fonts = async () => { throw new MaketPdfError('шрифт для PDF не загрузился'); };
     await expect(buildTzPdf(input('68180-polo'), deps({ fonts }))).rejects.toThrow(TzPdfError);
   }, 60_000);
+
+  it('лист мокапа не лёг в PDF — отказ ТЗ (TzPdfError), а не текст листа макета', async () => {
+    vi.mocked(svgInto).mockRejectedValueOnce(new MaketPdfError(MSG_SCENE));
+    const run = buildTzPdf(input('67108'), deps());
+    await expect(run).rejects.toThrow(TzPdfError);
+    await expect(run).rejects.toThrow(MSG_TZ_SCENE);
+  });
 
   it('не одна группа — отказ', async () => {
     const inp = input('68180-tee', (i) => { i.groups = tzGroups(i.order); });

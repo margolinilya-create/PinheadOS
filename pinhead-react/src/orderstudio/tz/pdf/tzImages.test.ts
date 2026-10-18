@@ -39,13 +39,21 @@ describe('tzImages — фото, превью макета, мокапы', () =>
     expect(photoPx({ w: 40, h: 20 }, { w: 10, h: 10 })).toEqual({ w: 10, h: 10 });
   });
 
-  it('растр в пределах 200 dpi — байты как есть, алиас — путь; крупный PNG — ужимается PNG, WEBP — в JPEG', async () => {
+  it('растр в пределах 200 dpi — байты как есть, алиас — путь; уменьшенный — путь и размер; крупный PNG — ужимается PNG, WEBP — в JPEG', async () => {
     const d = deps({ 'a/small.jpg': JPEG_1PX, 'a/big.png': pngHeader(4000, 2000), 'a/w.webp': WEBP });
     const v = await prepareVisuals(layoutOf(img('a/small.jpg', 'label'), img('a/big.png', 'note'), img('a/w.webp', 'sticker')), ctx(), d);
     expect(v.get(0)).toMatchObject({ kind: 'raster', type: 'jpeg', alias: 'a/small.jpg', bytes: JPEG_1PX });
-    expect(v.get(1)).toMatchObject({ kind: 'raster', type: 'png', alias: 'a/big.png', w: 315, h: 157 });
+    expect(v.get(1)).toMatchObject({ kind: 'raster', type: 'png', alias: 'a/big.png#315x157', w: 315, h: 157 });
     expect(d.shrink).toHaveBeenCalledWith(expect.any(Blob), 315, 157, 'image/png');
-    expect(v.get(2)).toMatchObject({ kind: 'raster', type: 'jpeg', alias: 'a/w.webp' });
+    expect(v.get(2)).toMatchObject({ kind: 'raster', type: 'jpeg', alias: expect.stringMatching(/^a\/w\.webp#\d+x\d+$/) });
+  });
+
+  it('одно фото в двух ячейках разного размера — одна загрузка, разные алиасы (jsPDF кэширует по алиасу)', async () => {
+    const d = deps({ 'a/big.png': pngHeader(4000, 2000) });
+    const v = await prepareVisuals(layoutOf(img('a/big.png', 'note', 40, 20), img('a/big.png', 'note', 80, 40)), ctx(), d);
+    expect(d.download).toHaveBeenCalledTimes(1);
+    expect(v.get(0)).toMatchObject({ alias: 'a/big.png#315x157', w: 315, h: 157 });
+    expect(v.get(1)).toMatchObject({ alias: 'a/big.png#630x315', w: 630, h: 315 });
   });
 
   it('один путь — одна загрузка', async () => {

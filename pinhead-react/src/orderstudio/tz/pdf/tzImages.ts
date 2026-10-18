@@ -127,7 +127,8 @@ async function rasterPhoto(bytes: Uint8Array, path: string, box: TzBox, deps: Tz
   const out = await deps.shrink(new Blob([bytes as BlobPart], { type: ARTWORK_MIME[s.kind] }), px.w, px.h, type === 'png' ? 'image/png' : 'image/jpeg');
   const check = out ? sniffArtwork(out, type === 'png' ? 'x.png' : 'x.jpg') : null;
   if (!out || !check?.ok) throw fail('не открылась как картинка');
-  return { kind: 'raster', bytes: out, type, alias: path, w: px.w, h: px.h };
+  // jsPDF кэширует растр по алиасу: уменьшенная копия зависит от ячейки — размер в алиасе
+  return { kind: 'raster', bytes: out, type, alias: `${path}#${px.w}x${px.h}`, w: px.w, h: px.h };
 }
 
 async function photoVisual(path: string, box: TzBox, read: Reader, deps: TzImageDeps): Promise<TzVisual> {

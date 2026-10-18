@@ -227,9 +227,13 @@ function drawing(input: SceneInput, top: number, sz: MarkSize, numberOf: Map<str
     + `<g data-layer="markup">${marksMarkup(input, sz, numberOf)}</g></g>`;
 }
 
+/**
+ * Заполнитель `@@BG@@` меняется только ФУНКЦИЕЙ: строка замены разбирает `$&`, `$'`, `` $` ``, `$$`,
+ * а `esc()` знак `$` не трогает — текст клиента в шапке стал бы шаблоном замены
+ */
 function svgRoot(W: number, H: number, body: string): string {
   const raw = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}mm" height="${num(H)}mm" viewBox="0 0 ${num(W)} ${num(H)}" font-family="${PDF_FONT_FAMILY}, Helvetica, sans-serif">`
-    + body.replace('@@BG@@', `<rect x="0" y="0" width="${num(W)}" height="${num(H)}" fill="#ffffff"/>`)
+    + body.replace('@@BG@@', () => `<rect x="0" y="0" width="${num(W)}" height="${num(H)}" fill="#ffffff"/>`)
     + '</svg>';
   const clean = sanitizeSvg(raw, 'scene');
   if (!clean.ok) throw new Error(`Лист макета не собран: ${clean.error}`);
@@ -254,7 +258,7 @@ export function buildSceneSvg(input: SceneInput): string {
   const sizeY = HEADER_H + flatMm.h + 30;
   const sizeFs = meta.size.length <= 3 ? 34 : 20;
   const sizeHalf = meta.size.length * sizeFs * 0.35;
-  const body = drawing(input, HEADER_H, sz, numberOf).replace('@@BG@@', `@@BG@@${header(W, meta)}`)
+  const body = drawing(input, HEADER_H, sz, numberOf).replace('@@BG@@', () => `@@BG@@${header(W, meta)}`)
     + legendMarkup(legend, HEADER_H + flatMm.h, W / 2 - sizeHalf - PAD - 6)
     + `<g data-size-label="${escAttr(meta.size)}"><text x="${num(W / 2)}" y="${num(sizeY + 4)}" font-size="${sizeFs}" font-weight="bold" fill="${C.ink}" text-anchor="middle">${esc(meta.size)}</text></g>`
     + calibrationBar(W - PAD - 100, sizeY - 4);

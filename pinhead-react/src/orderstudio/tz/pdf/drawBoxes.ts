@@ -40,9 +40,12 @@ export interface DrawOps {
   svg: (markup: string, box: Box) => Promise<void>;
 }
 
-/** Ширина строки шрифтом PDF (жирным), мм */
+/**
+ * Ширина строки шрифтом PDF (жирным) плюс отступы ячейки с двух сторон, мм.
+ * Раскладка T2 отступа `CELL_PAD` не знает: без него жирная строка впритык заходит на рамку
+ */
 export function fontMeasure(pdf: PdfDoc): Measure {
-  return (s, pt) => pdf.getStringUnitWidth(s, { fontName: PDF_FONT_FAMILY, fontStyle: 'bold' }) * pt * PT_MM;
+  return (s, pt) => pdf.getStringUnitWidth(s, { fontName: PDF_FONT_FAMILY, fontStyle: 'bold' }) * pt * PT_MM + 2 * CELL_PAD;
 }
 
 /** Защита, если чек-лист обошли: знак вне шрифта — отказ с названием знака (К10) */
