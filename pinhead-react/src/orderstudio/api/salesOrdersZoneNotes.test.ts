@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { supabase } from '../../lib/supabase';
 import { SALES_CLIENT_REV, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
 import {
-  rowKnowsZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests, markServerZoneNotes,
+  probeServerZoneNotes, rowKnowsZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests, markServerZoneNotes,
 } from './serverZoneNotes';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 
@@ -86,6 +87,36 @@ describe('признак «сервер знает zone_id и notes»', () => {
     markServerZoneNotes();
     expect(serverKnowsZoneNotes()).toBe(true);
     __resetServerZoneNotesForTests();
+    expect(serverKnowsZoneNotes()).toBe(false);
+  });
+});
+
+describe('probeServerZoneNotes — проба без записи', () => {
+  const from = supabase.from as unknown as ReturnType<typeof vi.fn>;
+  const answer = (result: unknown) => {
+    const c = { select: vi.fn(() => c), limit: vi.fn(() => Promise.resolve(result)) };
+    from.mockReturnValueOnce(c);
+    return c;
+  };
+
+  it('колонка zone_id читается (limit 0) — сервер после K, метка ставится', async () => {
+    const c = answer({ data: [], error: null });
+    expect(await probeServerZoneNotes()).toBe(true);
+    expect(from).toHaveBeenCalledWith('order_item_prints');
+    expect(c.select).toHaveBeenCalledWith('zone_id');
+    expect(c.limit).toHaveBeenCalledWith(0);
+    expect(serverKnowsZoneNotes()).toBe(true);
+    // узнанное — без повторного запроса
+    from.mockClear();
+    expect(await probeServerZoneNotes()).toBe(true);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('до K (42703) или сбой сети — «не знает», метки нет', async () => {
+    answer({ data: null, error: { code: '42703', message: 'column order_item_prints.zone_id does not exist' } });
+    expect(await probeServerZoneNotes()).toBe(false);
+    from.mockImplementationOnce(() => { throw new Error('Failed to fetch'); });
+    expect(await probeServerZoneNotes()).toBe(false);
     expect(serverKnowsZoneNotes()).toBe(false);
   });
 });

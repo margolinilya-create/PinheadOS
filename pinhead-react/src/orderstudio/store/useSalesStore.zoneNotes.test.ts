@@ -21,6 +21,12 @@ vi.mock('../api/salesOrders', async (orig) => ({
   ...api,
 }));
 
+const probe = vi.hoisted(() => ({ probeServerZoneNotes: vi.fn() }));
+vi.mock('../api/serverZoneNotes', async (orig) => ({
+  ...(await orig<typeof import('../api/serverZoneNotes')>()),
+  ...probe,
+}));
+
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 vi.mock('../../store/useToastStore', () => ({ toast }));
 
@@ -37,6 +43,7 @@ beforeEach(() => {
   __resetSalesStoreForTests();
   vi.useFakeTimers();
   Object.values(api).forEach((f) => f.mockReset());
+  probe.probeServerZoneNotes.mockReset().mockResolvedValue(false);
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -78,6 +85,24 @@ describe('useSalesStore — сервер знает zone_id и notes', () => {
     api.saveSalesOrder.mockResolvedValue(saved({ notes: 'Упаковать по 10' }));
     await editAndSave();
     expect(api.saveSalesOrder.mock.calls[0][0].items[0].prints[0].zone_id).toBe('front');
+  });
+
+  it('заказ без нанесений: проба без записи при открытии — сервер после K, поле есть, записи нет', async () => {
+    probe.probeServerZoneNotes.mockResolvedValue(true);
+    api.fetchSalesOrder.mockResolvedValueOnce(newSalesOrder({ id: 'o-1', updated_at: 'v1' }));
+    await useSalesStore.getState().open('o-1');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(probe.probeServerZoneNotes).toHaveBeenCalledTimes(1);
+    expect(useSalesStore.getState().serverHasNotes).toBe(true);
+    expect(api.saveSalesOrder).not.toHaveBeenCalled();
+  });
+
+  it('проба отказала (сервер до K) — признак ложный, тоста нет', async () => {
+    api.fetchSalesOrder.mockResolvedValueOnce(order());
+    await useSalesStore.getState().open('o-1');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useSalesStore.getState().serverHasNotes).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('выход не снимает признак: это свойство сервера, а не пользователя', async () => {

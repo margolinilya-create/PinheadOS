@@ -39,8 +39,8 @@
  * через `editDuringSend` — правка человека не перемешается с отправляемым ТЗ.
  *
  * Сервер знает `zone_id` и `notes` (веха 8, миграция K; К5) — `serverHasNotes`:
- * ставится ответом сохранения с ключом `notes` или чтением заказа (метку ставит
- * `fetchSalesOrder`). Пока ложно, payload этих полей не несёт и поле
+ * ставится ответом сохранения с ключом `notes`, чтением заказа (метку ставит
+ * `fetchSalesOrder`) или пробой без записи при открытии (`probeServerZoneNotes`). Пока ложно, payload этих полей не несёт и поле
  * «Комментарий для цехов» скрыто: старый сервер молча их пропустил бы.
  * Это свойство сервера, а не пользователя, — выход признак не снимает.
  *
@@ -55,7 +55,9 @@ import { useAppUpdateStore } from '../../store/useAppUpdateStore';
 import {
   fetchSalesOrder, fetchSalesOrders, saveSalesOrder, salesOrderToPayload,
 } from '../api/salesOrders';
-import { markServerZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests } from '../api/serverZoneNotes';
+import {
+  markServerZoneNotes, probeServerZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests,
+} from '../api/serverZoneNotes';
 import type { SalesOrderListRow, SaveFailure } from '../api/salesOrders';
 import { newSalesOrder } from '../model/factory';
 import { isEditable } from '../model/editable';
@@ -302,6 +304,12 @@ export const useSalesStore = create<SalesState>((set, get) => {
         currentLoading: false, current: order, saveState: order && !isEditable(order) ? 'locked' : 'clean',
         serverHasNotes: get().serverHasNotes || serverKnowsZoneNotes(),
       });
+      // Заказ без нанесений не скажет, знает ли сервер поля, — проба без записи
+      if (order && !get().serverHasNotes) {
+        void probeServerZoneNotes().then((known) => {
+          if (known && !get().serverHasNotes) set({ serverHasNotes: true });
+        });
+      }
       return order;
     },
 

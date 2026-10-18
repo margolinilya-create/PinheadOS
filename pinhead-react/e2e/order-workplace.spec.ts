@@ -169,6 +169,8 @@ test.describe('рабочее место заказа', () => {
     await page.getByRole('button', { name: 'Далее: клиент и доставка' }).click();
     await expect(page).toHaveURL(/tab=client/);
     await page.getByLabel('Клиент', { exact: true }).fill('ООО Ромашка');
+    // «Комментарий для цехов» (веха 8): мок отвечает как сервер после K — поле есть
+    await page.getByRole('textbox', { name: 'Комментарий для цехов' }).fill('Упаковать по 10 шт.');
     await settled(page);
 
     // «ТЗ и цена» — итог больше нуля
@@ -182,7 +184,8 @@ test.describe('рабочее место заказа', () => {
     await settled(page);
 
     const last = saves(calls).at(-1)!;
-    expect(last.client_rev).toBe(3);
+    expect(last.client_rev).toBe(4);
+    expect(last.notes).toBe('Упаковать по 10 шт.');
     expect(last.id).toBe('mock-sales-1');
     expect(last.customer).toBe('ООО Ромашка');
     expect(last.price_total).toBeGreaterThan(0);
@@ -211,6 +214,9 @@ test.describe('рабочее место заказа', () => {
     await expect(page.getByRole('spinbutton', { name: 'Размер M', exact: true })).toHaveValue('10');
     await expect(page.getByRole('spinbutton', { name: 'Размер L', exact: true })).toHaveValue('5');
     await expect(page.getByRole('button', { name: 'Чёрный (40-01)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    // Комментарий для цехов на месте после перезагрузки
+    await page.getByRole('tab', { name: /^Клиент/ }).click();
+    await expect(page.getByRole('textbox', { name: 'Комментарий для цехов' })).toHaveValue('Упаковать по 10 шт.');
     // Открытие ничего не пишет
     await page.waitForTimeout(1500);
     expect(saves(calls)).toHaveLength(savesBefore);
