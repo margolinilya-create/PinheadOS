@@ -25,6 +25,7 @@
 import * as core from '../../utils/pricingCore';
 import * as cost from '../../utils/costRules';
 import * as printRules from '../../utils/printRules';
+import { ceilToStep, SCREEN_MIN_QTY, UNIT_PRICE_STEP } from '../../utils/quoteRules';
 import type { PricesExt } from '../../utils/pricingCore';
 import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
@@ -63,7 +64,7 @@ export interface PriceRules {
   minMarginPct: number | null;
 }
 
-export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: cost.UNIT_PRICE_STEP, prepFees: {}, minMarginPct: null };
+export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: UNIT_PRICE_STEP, prepFees: {}, minMarginPct: null };
 
 export type PriceIssue =
   | 'no_qty'            // сетка пуста
@@ -182,7 +183,7 @@ function printUnitPrice(
     case 'silkscreen': {
       const sf = screenFormat(print.width_mm, print.height_mm);
       const unit = core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode);
-      return { unit, issue: sf.issue ?? (qty < printRules.SCREEN_MIN_QTY ? 'screen_low_qty' : undefined) };
+      return { unit, issue: sf.issue ?? (qty < SCREEN_MIN_QTY ? 'screen_low_qty' : undefined) };
     }
     case 'heat_transfer':
       return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };
@@ -321,7 +322,7 @@ export function priceItem(
   const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l, cat.labelLibrary), 0);
   const packUnit = core.packPrice(P, itemPackaging(item, orderPackaging));
   const rawUnit = garment + printsPerUnit + labelsUnit + packUnit;
-  const calcUnit = qty > 0 ? cost.ceilToStep(rawUnit, rules.roundTo) : 0;
+  const calcUnit = qty > 0 ? ceilToStep(rawUnit, rules.roundTo) : 0;
 
   const manual = item.manual_unit_price != null;
   const unit = manual ? item.manual_unit_price! : calcUnit;

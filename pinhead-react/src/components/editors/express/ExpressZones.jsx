@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { Icon } from '../../../erp/components/Icon';
 import { ZONE_LABELS } from '../../../data';
 import { fmtPerUnit } from '../../../utils/displayNames';
-import { SCREEN_MIN_QTY } from '../../../utils/printRules';
+import { SCREEN_MIN_QTY } from '../../../utils/quoteRules';
 import OptionGroup from './OptionGroup';
 import ExpressSilk from './ExpressSilk';
 import ExpressFlex from './ExpressFlex';

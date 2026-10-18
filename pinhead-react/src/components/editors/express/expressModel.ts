@@ -10,7 +10,8 @@
  * `salesLabelPrice` по библиотеке, отдельной копии здесь не заводим.
  */
 import { calcZonePriceDirect, getMarkup, getPrices } from '../../../utils/pricing';
-import { skuCost, garmentSellPrice, overheadOf, ceilToStep, UNIT_PRICE_STEP } from '../../../utils/costRules';
+import { skuCost, garmentSellPrice, overheadOf } from '../../../utils/costRules';
+import { ceilToStep, UNIT_PRICE_STEP } from '../../../utils/quoteRules';
 import type { ExtraItem, Fabric, SkuItem, Trim } from '../../../types/catalog';
 
 export type Tech = 'screen' | 'flex' | 'dtf' | 'dtg' | 'embroidery';
