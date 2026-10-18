@@ -25,7 +25,7 @@ import { useStore } from '../store/useStore'
 import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
 import {
-  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText,
+  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText, salesLeaveDialogTitle,
   shouldBlockCatalogLeave, catalogHasUnsaved, CATALOG_LEAVE_TEXT,
 } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
@@ -129,6 +129,7 @@ function OrderStudioShell({ user }) {
   // справочником (`/order-settings`; смена `?tab=` — не уход, путь тот же)
   const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockSalesLeave({
     saveState: useSalesStore.getState().saveState,
+    sending: useSalesStore.getState().sending,
     from: currentLocation.pathname,
     to: nextLocation.pathname,
   }) || shouldBlockCatalogLeave({ from: currentLocation.pathname, to: nextLocation.pathname }));
@@ -139,7 +140,8 @@ function OrderStudioShell({ user }) {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (salesHasUnsaved(useSalesStore.getState().saveState) || catalogHasUnsaved()) {
+      const { saveState, sending } = useSalesStore.getState();
+      if (salesHasUnsaved(saveState, sending) || catalogHasUnsaved()) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -191,12 +193,13 @@ function OrderStudioShell({ user }) {
  */
 function SalesLeaveDialog({ blocker }) {
   const saveState = useSalesStore((s) => s.saveState);
+  const sending = useSalesStore((s) => s.sending);
   return (
     <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title" aria-describedby="blocker-text">
       <div className={styles.blockerCard}>
-        <div id="blocker-title" className={styles.blockerTitle}>Правки заказа не сохранены</div>
+        <div id="blocker-title" className={styles.blockerTitle}>{salesLeaveDialogTitle(sending)}</div>
         <div id="blocker-text" className={styles.blockerText}>
-          {salesLeaveDialogText(saveState)}
+          {salesLeaveDialogText(saveState, sending)}
         </div>
         <div className={styles.blockerActions}>
           <button className="btn btn-primary" onClick={() => blocker.reset()}>

@@ -145,6 +145,19 @@ describe('OrderStudioApp — диалог ухода с карточки v4', ()
     expect(dialog).toHaveTextContent('Последнее сохранение не удалось.');
     expect(dialog).not.toHaveTextContent('скопируйте изменения');
   });
+
+  it('идёт отправка в работу — уход остановлен, текст «дождитесь окончания»', async () => {
+    const router = renderApp(prof('admin'), '/sales/o-1');
+    await waitFor(() => expect(useSalesStore.getState().currentLoading).toBe(false));
+    act(() => useSalesStore.setState({ saveState: 'clean', sending: true }));
+    act(() => { void router.navigate('/sales'); });
+    const dialog = await screen.findByRole('dialog', { name: 'Заказ отправляется в работу' });
+    expect(dialog).toHaveTextContent('Идёт отправка в работу — дождитесь окончания');
+    expect(router.state.location.pathname).toBe('/sales/o-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Остаться' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    act(() => useSalesStore.setState({ sending: false }));
+  });
 });
 
 describe('OrderStudioApp — уход с несохранённым справочником', () => {

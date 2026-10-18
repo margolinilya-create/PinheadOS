@@ -15,13 +15,22 @@
 const LEAVE_BLOCK_STATES: ReadonlySet<string> = new Set(['error', 'outdated', 'conflict']);
 
 /**
- * Уход с карточки заказа v4, чьи правки не уйдут сами.
+ * Уход с карточки заказа v4, чьи правки не уйдут сами, — или пока идёт
+ * «Отправить в работу» (`sending`, веха 6+7): цепочка ещё грузит ТЗ и ждёт ответа.
  * Вложенный адрес того же заказа (`/sales/:id/…`) — не уход.
  */
-export function shouldBlockSalesLeave(p: { saveState: string; from: string; to: string }): boolean {
-  if (!LEAVE_BLOCK_STATES.has(p.saveState)) return false;
+export function shouldBlockSalesLeave(p: { saveState: string; sending?: boolean; from: string; to: string }): boolean {
+  if (!p.sending && !LEAVE_BLOCK_STATES.has(p.saveState)) return false;
   if (!/^\/sales\/[^/]+$/.test(p.from)) return false;
   return !p.to.startsWith(`${p.from}/`) && p.to !== p.from;
+}
+
+/** Уход во время отправки в работу */
+export const SENDING_LEAVE_TEXT = 'Идёт отправка в работу — дождитесь окончания';
+
+/** Заголовок диалога ухода */
+export function salesLeaveDialogTitle(sending = false): string {
+  return sending ? 'Заказ отправляется в работу' : 'Правки заказа не сохранены';
 }
 
 /**
@@ -29,7 +38,8 @@ export function shouldBlockSalesLeave(p: { saveState: string; from: string; to: 
  * возможен; при `outdated`/`conflict` запись остановлена — спасти правки
  * можно только руками, поэтому и текст другой.
  */
-export function salesLeaveDialogText(saveState: string): string {
+export function salesLeaveDialogText(saveState: string, sending = false): string {
+  if (sending) return SENDING_LEAVE_TEXT;
   if (saveState === 'outdated' || saveState === 'conflict') {
     return 'Правка не сохранена — скопируйте изменения и обновите страницу. Уйти без сохранения?';
   }
@@ -44,8 +54,8 @@ export function salesLeaveDialogText(saveState: string): string {
  */
 const UNSAVED_STATES: ReadonlySet<string> = new Set(['dirty', 'saving', 'error', 'outdated', 'conflict']);
 
-export function salesHasUnsaved(saveState: string): boolean {
-  return UNSAVED_STATES.has(saveState);
+export function salesHasUnsaved(saveState: string, sending = false): boolean {
+  return sending || UNSAVED_STATES.has(saveState);
 }
 
 /*

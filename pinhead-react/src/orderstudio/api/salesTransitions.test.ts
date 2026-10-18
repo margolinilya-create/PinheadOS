@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import {
-  launchCheck, setPayment, transitionFailureKind, transitionOrder, TRANSITION_TARGETS, SERVER_OUTDATED_TEXT,
+  launchCheck, setPayment, transitionFailureKind, transitionOrder, transitionOrderDetailed, TRANSITION_TARGETS, SERVER_OUTDATED_TEXT,
 } from './salesTransitions';
 
 /**
@@ -157,5 +157,33 @@ describe('salesTransitions', () => {
     expect(transitionFailureKind('Сформируйте ТЗ — PDF позиции не найден в хранилище')).toBe('other');
     expect(transitionFailureKind(null)).toBe('other');
     expect(transitionFailureKind(undefined)).toBe('other');
+  });
+
+  it('transitionOrderDetailed: отказ — тост, data = null и тот же текст в message', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'Заказ изменён в другой вкладке — обновите страницу', code: 'P0001' } });
+    const r = await transitionOrderDetailed('o-1', 'ready_to_launch', undefined, 'v2');
+    expect(rpc).toHaveBeenCalledWith('order_v4_transition', {
+      p_id: 'o-1', p_to: 'ready_to_launch', p_reason: null, p_expected_updated_at: 'v2',
+    });
+    expect(r).toEqual({ data: null, message: 'Заказ изменён в другой вкладке — обновите страницу' });
+    expect(transitionFailureKind(r.message)).toBe('conflict');
+    expect(err).toHaveBeenCalledWith('Заказ изменён в другой вкладке — обновите страницу');
+  });
+
+  it('transitionOrderDetailed: успех — ответ и пустой message', async () => {
+    const row = { id: 'o-1', status: 'ready_to_launch', erp_order_id: null, updated_at: 'v3', sent_at: 's' };
+    rpc.mockResolvedValueOnce({ data: row, error: null });
+    expect(await transitionOrderDetailed('o-1', 'ready_to_launch', undefined, 'v2')).toEqual({ data: row, message: '' });
+  });
+
+  it('transitionOrderDetailed: отказ сети — текст с причиной, без исключения', async () => {
+    vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const r = await transitionOrderDetailed('o-1', 'ready_to_launch');
+    expect(r.data).toBeNull();
+    expect(r.message).toMatch(/^Не удалось сменить статус заказа: /);
   });
 });

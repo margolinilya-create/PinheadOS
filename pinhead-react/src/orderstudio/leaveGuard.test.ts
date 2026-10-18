@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText,
+  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText, salesLeaveDialogTitle, SENDING_LEAVE_TEXT,
   setCatalogUnsaved, catalogHasUnsaved, shouldBlockCatalogLeave,
 } from './leaveGuard';
 
@@ -46,11 +46,11 @@ describe('salesLeaveDialogText — текст диалога ухода', () => 
 
 describe('salesHasUnsaved — предупреждение при закрытии вкладки', () => {
   it('правка не ушла или ушла с ошибкой', () => {
-    expect(['dirty', 'saving', 'error'].every(salesHasUnsaved)).toBe(true);
+    expect(['dirty', 'saving', 'error'].every((s) => salesHasUnsaved(s))).toBe(true);
     expect(salesHasUnsaved('clean')).toBe(false);
   });
   it('outdated и conflict — правки в карточке так и не ушли: предупредить', () => {
-    expect(['outdated', 'conflict'].every(salesHasUnsaved)).toBe(true);
+    expect(['outdated', 'conflict'].every((s) => salesHasUnsaved(s))).toBe(true);
   });
   it('locked — правка закрыта, терять нечего', () => {
     expect(salesHasUnsaved('locked')).toBe(false);
@@ -79,5 +79,21 @@ describe('справочники заказа — уход с несохранё
     expect(catalogHasUnsaved()).toBe(true);
     setCatalogUnsaved('b', false);
     expect(catalogHasUnsaved()).toBe(false);
+  });
+});
+
+describe('отправка в работу — уход с карточки (веха 6+7)', () => {
+  it('идёт отправка — уход спрашивается даже при clean; вложенный адрес — не уход', () => {
+    expect(shouldBlockSalesLeave({ saveState: 'clean', sending: true, from: '/sales/o-1', to: '/sales' })).toBe(true);
+    expect(shouldBlockSalesLeave({ saveState: 'clean', sending: true, from: '/sales/o-1', to: '/sales/o-1/launch' })).toBe(false);
+    expect(shouldBlockSalesLeave({ saveState: 'clean', sending: false, from: '/sales/o-1', to: '/sales' })).toBe(false);
+  });
+  it('текст и заголовок диалога; закрытие вкладки предупреждает', () => {
+    expect(salesLeaveDialogText('clean', true)).toBe(SENDING_LEAVE_TEXT);
+    expect(SENDING_LEAVE_TEXT).toBe('Идёт отправка в работу — дождитесь окончания');
+    expect(salesLeaveDialogTitle(true)).toBe('Заказ отправляется в работу');
+    expect(salesLeaveDialogTitle(false)).toBe('Правки заказа не сохранены');
+    expect(salesHasUnsaved('clean', true)).toBe(true);
+    expect(salesHasUnsaved('locked', false)).toBe(false);
   });
 });

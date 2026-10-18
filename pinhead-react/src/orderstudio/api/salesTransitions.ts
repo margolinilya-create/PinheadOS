@@ -71,25 +71,38 @@ export function transitionFailureKind(message: string | null | undefined): 'conf
   return (message ?? '').includes('изменён в другой вкладке') ? 'conflict' : 'other';
 }
 
-/** Вызов RPC: ошибка или отказ сети — тост и `null` */
-async function call<T>(fn: string, args: Record<string, unknown>, fallback: string): Promise<T | null> {
+/** Ответ RPC с текстом отказа (тот же, что ушёл в тост; успех — пустая строка) */
+export interface RpcOutcome<T> {
+  data: T | null;
+  message: string;
+}
+
+/** Вызов RPC: ошибка или отказ сети — тост, `data = null` и текст отказа */
+async function callDetailed<T>(fn: string, args: Record<string, unknown>, fallback: string): Promise<RpcOutcome<T>> {
   try {
     const { data, error, status } = await supabase.rpc(fn, args) as {
       data: unknown; error: RpcError | null; status?: number;
     };
     if (error) {
       console.error(fn, error);
-      toast.error(isMissingFunction(error, status)
+      const message = isMissingFunction(error, status)
         ? SERVER_OUTDATED_TEXT
-        : translateSupabaseError(error.message) || fallback);
-      return null;
+        : translateSupabaseError(error.message) || fallback;
+      toast.error(message);
+      return { data: null, message };
     }
-    return data as T;
+    return { data: data as T, message: '' };
   } catch (e) {
     console.error(fn, e);
-    toast.error(`${fallback}: ${networkFailureMessage(e)}`);
-    return null;
+    const message = `${fallback}: ${networkFailureMessage(e)}`;
+    toast.error(message);
+    return { data: null, message };
   }
+}
+
+/** Вызов RPC: ошибка или отказ сети — тост и `null` */
+async function call<T>(fn: string, args: Record<string, unknown>, fallback: string): Promise<T | null> {
+  return (await callDetailed<T>(fn, args, fallback)).data;
 }
 
 /**
@@ -98,6 +111,20 @@ async function call<T>(fn: string, args: Record<string, unknown>, fallback: stri
  * отказывает «изменён в другой вкладке»); `erpOrderId` — id, который вернул
  * `createOrder` этого запуска (переход в `production`). Пустые не уходят.
  */
+function transitionArgs(
+  id: string, to: TransitionTarget, reason?: string, expectedUpdatedAt?: string | null, erpOrderId?: string,
+): Record<string, unknown> {
+  return {
+    p_id: id,
+    p_to: to,
+    p_reason: reason ?? null,
+    ...(expectedUpdatedAt ? { p_expected_updated_at: expectedUpdatedAt } : {}),
+    ...(erpOrderId ? { p_erp_order_id: erpOrderId } : {}),
+  };
+}
+
+const TRANSITION_FAIL = 'Не удалось сменить статус заказа';
+
 export function transitionOrder(
   id: string,
   to: TransitionTarget,
@@ -105,17 +132,21 @@ export function transitionOrder(
   expectedUpdatedAt?: string | null,
   erpOrderId?: string,
 ): Promise<TransitionResult | null> {
-  return call<TransitionResult>(
-    'order_v4_transition',
-    {
-      p_id: id,
-      p_to: to,
-      p_reason: reason ?? null,
-      ...(expectedUpdatedAt ? { p_expected_updated_at: expectedUpdatedAt } : {}),
-      ...(erpOrderId ? { p_erp_order_id: erpOrderId } : {}),
-    },
-    'Не удалось сменить статус заказа',
-  );
+  return call<TransitionResult>('order_v4_transition', transitionArgs(id, to, reason, expectedUpdatedAt, erpOrderId), TRANSITION_FAIL);
+}
+
+/**
+ * Тот же переход, но отказ возвращается и текстом (`message`): «Отправить
+ * в работу» отличает «изменён в другой вкладке» (`transitionFailureKind`)
+ * от прочих отказов сервера и показывает текст на экране, а не только тостом.
+ */
+export function transitionOrderDetailed(
+  id: string,
+  to: TransitionTarget,
+  reason?: string,
+  expectedUpdatedAt?: string | null,
+): Promise<RpcOutcome<TransitionResult>> {
+  return callDetailed<TransitionResult>('order_v4_transition', transitionArgs(id, to, reason, expectedUpdatedAt), TRANSITION_FAIL);
 }
 
 /** Проверка перед созданием заказа ERP: ставит метку начала запуска */

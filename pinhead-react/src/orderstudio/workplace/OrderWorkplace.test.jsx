@@ -43,6 +43,17 @@ vi.mock('../design/ui/DesignTab', () => ({
   },
 }));
 
+/**
+ * Справочники ТЗ (веха 6+7): без сети — образцы фикстур. Иначе справочник
+ * флэтов читал бы `app_config`, и сторож «не пишет в app_config» (он считает
+ * обращения к таблице) путал бы чтение с записью
+ */
+vi.mock('../tz/tzCatalogs', async () => {
+  const { fixtureCatalogs } = await import('../fixtures/loadFixture.testutil');
+  const catalogs = fixtureCatalogs();
+  return { useTzCatalogs: () => ({ catalogs, failed: false }) };
+});
+
 const SKU = SKU_CATALOG_DEFAULT[2];
 /**
  * Каталог моделей урезан: каждая строка `SkuList` считает цену «от …»,

@@ -84,10 +84,12 @@ describe('запись в order-artworks — только api/artworks.ts', () =
     const w = files.find((f) => f.name === WRITER);
     expect(w).toBeDefined();
     const writes = bucketWrites(w!.text);
-    expect(writes.filter((x) => x === 'upload').length).toBe(3);
+    // Загрузки: макет (`uploadArtwork`) и проверенный по сигнатуре файл (`putChecked`:
+    // превью PNG и PDF ТЗ) — у обеих `upsert: false`
+    expect(writes.filter((x) => x === 'upload').length).toBe(2);
     expect(writes.filter((x) => x === 'remove').length).toBe(1);
     expect(writes.every((x) => x === 'upload' || x === 'remove')).toBe(true);
-    expect(w!.text.match(/\.upload\([^;]*?\{\s*upsert: false/g)?.length).toBe(3);
+    expect(w!.text.match(/\.upload\([^;]*?\{\s*upsert: false/g)?.length).toBe(2);
     expect(w!.text).not.toMatch(/upsert: true/);
   });
 
@@ -95,8 +97,11 @@ describe('запись в order-artworks — только api/artworks.ts', () =
     const w = files.find((f) => f.name === WRITER)!.text;
     const fn = /export async function uploadTzPdf[\s\S]*?\n}\n/.exec(w)?.[0] ?? '';
     expect(fn).toMatch(/artworkPath\(orderId, 'tz', fileName\)/);
-    expect(fn).toMatch(/upload\(path, body, \{ upsert: false, contentType: 'application\/pdf' \}\)/);
-    expect(fn).toMatch(/PDF_SIG\.every/);
+    expect(fn).toMatch(/putChecked\(path, blob, PDF_SIG, 'application\/pdf', context, 'файл не PDF'\)/);
+    const put = /async function putChecked[\s\S]*?\n}\n/.exec(w)?.[0] ?? '';
+    // Сигнатура проверяется ДО загрузки; тип — аргументом, а не из Blob
+    expect(put).toMatch(/if \(!\(await hasSig\(blob, sig\)\)\) return fail\(context, notSig\);[\s\S]*\.upload\(path, body, \{ upsert: false, contentType: type \}\)/);
+    expect(w).toMatch(/const PDF_SIG = \[0x25, 0x50, 0x44, 0x46, 0x2d\]/);
   });
 
   it('самопроверка: образцы ловятся, чтение — нет', () => {
