@@ -1,3 +1,12 @@
+// Часовой пояс тестов — Europe/Moscow (веха 6+7, задача 0; решение 40): даты ТЗ, запуска
+// и «следующий рабочий день» считаются по Москве, а раннер CI живёт в UTC. Функции дат
+// принимают `today`/`now` аргументом; пояс задан здесь, чтобы локальный и CI-прогон
+// видели одни и те же календарные дни. Тест, которому нужен другой пояс, ставит
+// и возвращает `process.env.TZ` сам (как `utils/date.test.ts`).
+import process from 'node:process';
+
+process.env.TZ = 'Europe/Moscow';
+
 import '@testing-library/jest-dom';
 
 // Mock SVG imports (Vite ?raw)
