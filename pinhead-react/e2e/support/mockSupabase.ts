@@ -13,6 +13,8 @@
  */
 import type { Page, Route } from '@playwright/test';
 import { DEPARTMENTS, isQueueDept } from '../../src/erp/data/departments';
+import { RpcFailure, v4Rpc, v4ServerColumns, v4Table, type V4Ctx, type V4MockOptions } from './mock/orderV4Rpc';
+import { storageList, storageRead, storageWrite } from './mock/storageBuckets';
 
 // Фиксированные метки времени — никаких «сегодня» в фикстурах.
 const CREATED = '2026-07-10T08:00:00Z';
@@ -638,24 +640,14 @@ export type MockExtras = {
    */
   ordersGate?: Promise<void>;
   /**
-   * Запуск заказа v4 в производство (`bridge/launch.ts`, веха 2).
-   *
-   * Мок повторяет ФОРМУ ответов миграции 20261017062110_order_v4_rights —
-   * клиент различает по ней два смысла «уже запущен»:
-   * - заказ уже переведён (`status` = `production`/`done`): `already` БЕЗ
-   *   `launch_started_at` (строка 734), а переход в `production` — отказ
-   *   PostgREST «Такой переход статуса недоступен», как у сервера;
-   * - иначе первый вызов — «можно» (`already: false`), каждый следующий —
-   *   сирота этого запуска: `already` С `launch_started_at` (строки 755–760).
-   *   Так и бывает на бою: `erp_create_order` мока отвечает id, а `loadOne`
-   *   такого заказа в фикстуре не находит — `createOrder` отдаёт `null`,
-   *   и клиент спрашивает сервер повторно.
-   *
-   * `status` — статус заказа v4 на старте (по умолчанию `ready_to_launch`);
-   * успешный переход его меняет. `checks` — свои ответы проверки ПО ПОРЯДКУ
-   * (последний повторяется), например конфликт вторым ответом.
+   * Запуск и статусы заказа v4 — мок миграции J (`mock/orderV4Rpc.ts`).
+   * `status` — статус заказа на старте (иначе — из строки `salesOrders`, иначе
+   * `ready_to_launch`); `checks` — свои ответы проверки запуска ПО ПОРЯДКУ
+   * (последний повторяется).
    */
   launch?: { checks?: unknown[]; status?: string };
+  /** Вызывающий, его права ERP, чужая метка запуска — см. `V4MockOptions` */
+  v4?: V4MockOptions;
   /**
    * Отказ на КАЖДОЕ сохранение заказа v4 — как PostgREST отвечает на
    * `raise exception`: например `{ code: 'P0001', message: 'Вышло обновление…' }`
@@ -700,71 +692,6 @@ export type MockExtras = {
    */
   storageListHidden?: string[];
 };
-
-const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
-const MOCK_ERP_ORDER = 'mock-erp-order-1';
-
-/** Состояние запуска — на каждый набор `MockExtras` своё */
-const launchState = new WeakMap<MockExtras, { checks: number; status: string }>();
-
-function launchOf(extra: MockExtras) {
-  let st = launchState.get(extra);
-  if (!st) {
-    st = { checks: 0, status: extra.launch?.status ?? 'ready_to_launch' };
-    launchState.set(extra, st);
-  }
-  return st;
-}
-
-function launchCheckAnswer(extra: MockExtras): unknown {
-  const st = launchOf(extra);
-  const n = st.checks++;
-  const checks = extra.launch?.checks;
-  if (checks && checks.length > 0) return checks[Math.min(n, checks.length - 1)];
-  if (st.status === 'production' || st.status === 'done') {
-    return { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER };
-  }
-  return n === 0
-    ? { ok: true, already: false, launch_started_at: MOCK_LAUNCH_STARTED }
-    : { ok: true, already: true, erp_order_id: MOCK_ERP_ORDER, launch_started_at: MOCK_LAUNCH_STARTED };
-}
-
-/** Ответ RPC ошибкой PostgREST (400 + `{ code, message }`), как у `raise exception` */
-class RpcFailure {
-  readonly code: string;
-  readonly message: string;
-  /** HTTP-статус ответа PostgREST: `raise exception` — 400, нет функции — 404 */
-  readonly status: number;
-  constructor(code: string, message: string, status = 400) {
-    this.code = code;
-    this.message = message;
-    this.status = status;
-  }
-}
-
-/** Повторяет белый список `order_v4_transition` (миграция 20261017062110_order_v4_rights.sql) */
-const MOCK_TRANSITIONS: Record<string, string[]> = {
-  draft: ['ready_to_launch', 'archived'],
-  ready_to_launch: ['production', 'draft'],
-  production: ['done'],
-};
-
-function transitionAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
-  const st = launchOf(extra);
-  const to = String(body.p_to ?? '');
-  // Как сервер: повторный переход в production — идемпотентный успех
-  if (st.status === 'production' && to === 'production') {
-    return { id: body.p_id, status: to, erp_order_id: MOCK_ERP_ORDER };
-  }
-  if (st.status === 'ready_to_launch' && to === 'draft' && !String(body.p_reason ?? '').trim()) {
-    return new RpcFailure('P0001', 'Укажите причину возврата');
-  }
-  if (!(MOCK_TRANSITIONS[st.status] ?? []).includes(to)) {
-    return new RpcFailure('P0001', 'Такой переход статуса недоступен');
-  }
-  st.status = to;
-  return { id: body.p_id, status: to, erp_order_id: to === 'production' ? MOCK_ERP_ORDER : null };
-}
 
 /**
  * Версии заказов v4 (`orders.updated_at`) — на каждый набор `MockExtras` свои.
@@ -823,7 +750,7 @@ function payloadToSalesRow(
     ...head,
     id,
     schema_version: 4,
-    status: prev?.status ?? 'draft',
+    ...v4ServerColumns(prev),
     created_by: prev?.created_by ?? null,
     order_number: prev?.order_number ?? 'PH-9001',
     bitrix_deal: bitrix_id ?? '',
@@ -888,6 +815,26 @@ function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unkn
   const row = payloadToSalesRow(order as Record<string, unknown>, id, updated_at, prev);
   saved.set(id, row);
   return { id, order_number: row.order_number, updated_at };
+}
+
+/** Строки и версии заказов v4 — для мока RPC миграции J (`mock/orderV4Rpc.ts`) */
+function v4Ctx(extra: MockExtras): V4Ctx {
+  const row = (id: string) => salesSavedOf(extra).get(id)
+    ?? ((extra.salesOrders ?? []) as Record<string, unknown>[]).find((r) => r.id === id);
+  return {
+    row,
+    version: (id) => salesVersion(extra, id),
+    bump: (id, fields) => {
+      const st = salesVersionsOf(extra);
+      st.n += 1;
+      const updated_at = `2026-10-17T10:00:${String(st.n).padStart(2, '0')}.000001+00:00`;
+      st.map.set(id, updated_at);
+      const prev = row(id);
+      if (prev) salesSavedOf(extra).set(id, { ...prev, ...fields, updated_at });
+      return updated_at;
+    },
+    storage: () => extra.storageObjects,
+  };
 }
 
 type OrderFx = { id: string; bitrix_id: string; status: string };
@@ -971,96 +918,10 @@ function pricesPatchAnswer(body: Record<string, unknown>, extra: MockExtras): un
   return { updated_at: catalogStamp() };
 }
 
-function salesSetStaffAnswer(body: Record<string, unknown>, extra: MockExtras): unknown {
-  // Миграция H: перегрузки (p_profile, p_on) нет — PostgREST не находит функцию
-  if (!('p_kind' in body)) {
-    return new RpcFailure('PGRST202', 'Could not find the function public.sales_set_staff(p_on, p_profile) in the schema cache', 404);
-  }
-  const kind = body.p_kind;
-  if (kind !== 'sales' && kind !== 'ms') return new RpcFailure('22023', 'Неизвестный признак');
-  const row = (extra.salesStaff ?? []).find((r) => r.id === body.p_profile);
-  if (row) row[kind === 'ms' ? 'is_ms' : 'is_sales'] = Boolean(body.p_on);
-  return null;
-}
-
-// ── Объекты Storage с телом (веха 5а) ───────────────────────────────────
-
-type StorageReply = { status: number; type?: string; body?: unknown };
-
-/** Файл из multipart/form-data supabase-js (часть с `Content-Type`); иначе тело как есть */
-function uploadedFile(contentType: string, buf: Buffer): { type: string; body: Buffer } {
-  const boundary = /boundary=([^;]+)/.exec(contentType)?.[1];
-  if (!contentType.startsWith('multipart/form-data') || !boundary) return { type: contentType, body: buf };
-  const sep = Buffer.from(`--${boundary}`);
-  let from = buf.indexOf(sep);
-  while (from >= 0) {
-    const next = buf.indexOf(sep, from + sep.length);
-    if (next < 0) break;
-    const part = buf.subarray(from + sep.length, next);
-    const headEnd = part.indexOf('\r\n\r\n');
-    const head = headEnd >= 0 ? part.subarray(0, headEnd).toString() : '';
-    const type = /content-type:\s*([^\r\n]+)/i.exec(head)?.[1];
-    if (type) return { type: type.trim(), body: part.subarray(headEnd + 4, part.length - 2) };
-    from = next;
-  }
-  return { type: contentType, body: buf };
-}
-
-/** Загрузка `<bucket>/<path>`: с картой — хранит тело, повтор без upsert — 409 Duplicate */
-function storageWrite(name: string, contentType: string, buf: Buffer, upsert: string | undefined, extra: MockExtras): StorageReply {
-  const objects = extra.storageObjects;
-  if (!objects) return { status: 200 };
-  if (objects[name] && upsert !== 'true') {
-    return { status: 400, body: { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' } };
-  }
-  objects[name] = uploadedFile(contentType, buf);
-  return { status: 200 };
-}
-
-/** Строка ответа `list` как у Storage: у «папки» `id: null` и нет метаданных */
-type StorageListRow = { name: string; id: string | null; metadata: Record<string, unknown> | null };
-
-/**
- * `POST object/list/<bucket>` (`{ prefix, limit, offset }`): имена непосредственно
- * под `prefix` из карты `storageObjects` — «папки» (`id: null`) и файлы, по
- * алфавиту, страницей `offset…offset+limit`. Ключи `storageListHidden` не
- * видны; папка, все объекты которой скрыты, не видна тоже. Без карты — `[]`
- * (прежнее поведение).
- */
-function storageList(bucket: string, body: Record<string, unknown>, extra: MockExtras): StorageListRow[] {
-  const objects = extra.storageObjects;
-  if (!objects) return [];
-  const prefix = String(body.prefix ?? '').replace(/\/+$/, '');
-  const base = `${bucket}/${prefix ? `${prefix}/` : ''}`;
-  const hidden = new Set(extra.storageListHidden ?? []);
-  const found = new Map<string, boolean>();
-  for (const key of Object.keys(objects)) {
-    if (hidden.has(key) || !key.startsWith(base)) continue;
-    const rest = key.slice(base.length);
-    const slash = rest.indexOf('/');
-    const name = slash < 0 ? rest : rest.slice(0, slash);
-    if (name) found.set(name, (found.get(name) ?? false) || slash >= 0);
-  }
-  const rows = [...found.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, folder]): StorageListRow => (folder
-      ? { name, id: null, metadata: null }
-      : { name, id: `mock-${name}`, metadata: { size: objects[`${base}${name}`].body.length, mimetype: objects[`${base}${name}`].type } }));
-  const offset = Number(body.offset ?? 0) || 0;
-  const limit = Number(body.limit ?? 100) || 100;
-  return rows.slice(offset, offset + limit);
-}
-
-/** Чтение `GET object/[authenticated/|sign/|public/]<bucket>/<path>`: тело из карты или 404 */
-function storageRead(method: string, key: string, extra: MockExtras): StorageReply {
-  if (method !== 'GET' || !extra.storageObjects) return { status: 404 };
-  const segs = key.split('/').map(decodeURIComponent);
-  const name = (['authenticated', 'sign', 'public'].includes(segs[0]) ? segs.slice(1) : segs).join('/');
-  const hit = extra.storageObjects[name];
-  return hit ? { status: 200, type: hit.type, body: hit.body } : { status: 404 };
-}
-
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
+  // Журнал заказа v4 и вложения запуска — мок J
+  const v4 = v4Table(table, params, extra);
+  if (v4) return v4;
   switch (table) {
     case 'erp_departments':
       return departmentsFx;
@@ -1262,17 +1123,22 @@ export function resetChatMock(): void {
 resetChatMock();
 
 function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras): unknown {
+  /**
+   * Заказ v4 и запуск (`order_v4_transition`/`_launch_check`/`_set_payment`,
+   * `erp_create_order`, `sales_set_staff`) — мок миграции J. `erp_create_order`
+   * отвечает ГОЛОЙ СТРОКОЙ id (`createOrder` делает `newId = data as string`).
+   */
+  const v4 = v4Rpc(fn, body, extra as Parameters<typeof v4Rpc>[2], v4Ctx(extra));
+  if (v4 !== undefined) return v4;
   switch (fn) {
     /** Справочники с защитой от затирания — см. `MockExtras.catalogs` */
     case 'catalog_put':
       return catalogPutAnswer(body, extra);
     case 'prices_patch':
       return pricesPatchAnswer(body, extra);
-    /** «Сотрудники продаж» — см. `MockExtras.salesStaff` */
+    /** «Сотрудники продаж» — см. `MockExtras.salesStaff`; `sales_set_staff` — мок J */
     case 'sales_staff_list':
       return extra.salesStaff ?? [];
-    case 'sales_set_staff':
-      return salesSetStaffAnswer(body, extra);
     /**
      * Сохранение Order v4 одной транзакцией (`order_v4_save_full`). Клиент
      * читает из ответа id (для нового заказа его назначает сервер), номер
@@ -1281,27 +1147,6 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
      */
     case 'order_v4_save_full':
       return salesSaveAnswer(body, extra);
-    /**
-     * Запуск заказа в производство. Форма ответа ОПРЕДЕЛЕНА КЛИЕНТОМ:
-     * `orderWriteSlice.createOrder` делает `newId = data as string` и сразу
-     * зовёт `loadOne(newId)` — то есть RPC отдаёт ГОЛУЮ СТРОКУ id, а не объект.
-     * Объект `{ id, items: [] }` из плана тут сломал бы загрузку заказа
-     * (`id=eq.[object Object]`), поэтому отвечаем строкой; `loadOne` затем
-     * находит заказ в `erp_orders` по этому id, если спека положила его
-     * в `extra.orders`.
-     */
-    case 'erp_create_order':
-      return 'mock-erp-order-1';
-    /** Проверка запуска заказа v4 — см. `MockExtras.launch` */
-    case 'order_v4_launch_check':
-      return launchCheckAnswer(extra);
-    /**
-     * Переход статуса заказа v4. Связь с заказом ERP ставит сам RPC: для
-     * `production` мок отвечает тем id, который вернул `erp_create_order`.
-     * Недопустимый переход — ошибка, как у сервера (см. `MockExtras.launch`).
-     */
-    case 'order_v4_transition':
-      return transitionAnswer(body, extra);
     case 'erp_experimental_add_tasks': {
       const devId = String(body.p_experimental_id ?? '');
       const list = (body.p_tasks ?? []) as Record<string, unknown>[];

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100mm" height="50mm" viewBox="0 0 200 100" onload="alert('svg-onload')">
+  <script>alert('svg-script');document.title='pwned';</script>
+  <rect x="10" y="10" width="180" height="80" fill="#1E5AA8" onclick="alert('click')"/>
+  <circle cx="100" cy="50" r="30" fill="#F2C230"/>
+  <foreignObject x="0" y="0" width="200" height="100"><body xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="alert('fo')"/></body></foreignObject>
+  <image href="https://evil.example/track.png" x="0" y="0" width="10" height="10"/>
+  <a href="javascript:alert('a')"><text x="20" y="95">x</text></a>
+</svg>

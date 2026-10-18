@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
-import { launchCheck, setPayment, transitionOrder, TRANSITION_TARGETS } from './salesTransitions';
+import {
+  launchCheck, setPayment, transitionFailureKind, transitionOrder, transitionOrderDetailed, TRANSITION_TARGETS, SERVER_OUTDATED_TEXT,
+} from './salesTransitions';
 
 /**
  * Действия заказа v4 — только RPC миграции 20261017062110_order_v4_rights:
@@ -93,5 +95,95 @@ describe('salesTransitions', () => {
     rpc.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     expect(await transitionOrder('o-1', 'done')).toBeNull();
     expect(err).toHaveBeenCalledTimes(1);
+  });
+
+  it('transitionOrder шлёт p_expected_updated_at только при значении', async () => {
+    rpc.mockResolvedValue({ data: { id: 'o-1', status: 'ready_to_launch', erp_order_id: null, updated_at: 'u2' }, error: null });
+    await transitionOrder('o-1', 'ready_to_launch', undefined, 'u1');
+    expect(rpc).toHaveBeenLastCalledWith('order_v4_transition', {
+      p_id: 'o-1', p_to: 'ready_to_launch', p_reason: null, p_expected_updated_at: 'u1',
+    });
+    await transitionOrder('o-1', 'ready_to_launch', undefined, null);
+    expect(rpc).toHaveBeenLastCalledWith('order_v4_transition', { p_id: 'o-1', p_to: 'ready_to_launch', p_reason: null });
+    await transitionOrder('o-1', 'ready_to_launch', undefined, '');
+    expect(rpc).toHaveBeenLastCalledWith('order_v4_transition', { p_id: 'o-1', p_to: 'ready_to_launch', p_reason: null });
+  });
+
+  it('erpOrderId уходит как p_erp_order_id; ответ с updated_at и sent_at', async () => {
+    const row = { id: 'o-1', status: 'production', erp_order_id: 'e-1', updated_at: 'u3', sent_at: 's' };
+    rpc.mockResolvedValueOnce({ data: row, error: null });
+    expect(await transitionOrder('o-1', 'production', undefined, undefined, 'e-1')).toEqual(row);
+    expect(rpc).toHaveBeenCalledWith('order_v4_transition', {
+      p_id: 'o-1', p_to: 'production', p_reason: null, p_erp_order_id: 'e-1',
+    });
+  });
+
+  it('PGRST202 (нет функции с такими аргументами) — «Вышло обновление сервера» и null', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function public.order_v4_transition(p_expected_updated_at, p_id, p_reason, p_to) in the schema cache' },
+    });
+    expect(await transitionOrder('o-1', 'ready_to_launch', undefined, 'u1')).toBeNull();
+    expect(err).toHaveBeenCalledWith(SERVER_OUTDATED_TEXT);
+    expect(SERVER_OUTDATED_TEXT).toBe('Вышло обновление сервера — обновите страницу');
+  });
+
+  it('404 на функцию оплаты и проверки — тот же текст', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '404', message: 'Not Found' }, status: 404 });
+    expect(await setPayment('o-1', 'full')).toBeNull();
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find' } });
+    expect(await launchCheck('o-1')).toBeNull();
+    expect(err.mock.calls.map((c) => c[0])).toEqual([SERVER_OUTDATED_TEXT, SERVER_OUTDATED_TEXT]);
+  });
+
+  it('launchCheck: ответ формы J — launched и updated_at', async () => {
+    const r = { ok: true, already: false, launched: false, launch_started_at: 't', updated_at: 'u' };
+    rpc.mockResolvedValueOnce({ data: r, error: null });
+    expect(await launchCheck('o-2')).toEqual(r);
+  });
+
+  it('setPayment: ответ J с updated_at и status', async () => {
+    const row = { id: 'o-3', paid_at: 't', paid_kind: 'prepaid', paid_override_reason: null, updated_at: 'u', status: 'ready_to_launch' };
+    rpc.mockResolvedValueOnce({ data: row, error: null });
+    expect(await setPayment('o-3', 'prepaid')).toEqual(row);
+  });
+
+  it('transitionFailureKind: «изменён в другой вкладке» — conflict, прочее — other', () => {
+    expect(transitionFailureKind('Заказ изменён в другой вкладке — обновите страницу')).toBe('conflict');
+    expect(transitionFailureKind('Сформируйте ТЗ — PDF позиции не найден в хранилище')).toBe('other');
+    expect(transitionFailureKind(null)).toBe('other');
+    expect(transitionFailureKind(undefined)).toBe('other');
+  });
+
+  it('transitionOrderDetailed: отказ — тост, data = null и тот же текст в message', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'Заказ изменён в другой вкладке — обновите страницу', code: 'P0001' } });
+    const r = await transitionOrderDetailed('o-1', 'ready_to_launch', undefined, 'v2');
+    expect(rpc).toHaveBeenCalledWith('order_v4_transition', {
+      p_id: 'o-1', p_to: 'ready_to_launch', p_reason: null, p_expected_updated_at: 'v2',
+    });
+    expect(r).toEqual({ data: null, message: 'Заказ изменён в другой вкладке — обновите страницу' });
+    expect(transitionFailureKind(r.message)).toBe('conflict');
+    expect(err).toHaveBeenCalledWith('Заказ изменён в другой вкладке — обновите страницу');
+  });
+
+  it('transitionOrderDetailed: успех — ответ и пустой message', async () => {
+    const row = { id: 'o-1', status: 'ready_to_launch', erp_order_id: null, updated_at: 'v3', sent_at: 's' };
+    rpc.mockResolvedValueOnce({ data: row, error: null });
+    expect(await transitionOrderDetailed('o-1', 'ready_to_launch', undefined, 'v2')).toEqual({ data: row, message: '' });
+  });
+
+  it('transitionOrderDetailed: отказ сети — текст с причиной, без исключения', async () => {
+    vi.spyOn(toast, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rpc.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const r = await transitionOrderDetailed('o-1', 'ready_to_launch');
+    expect(r.data).toBeNull();
+    expect(r.message).toMatch(/^Не удалось сменить статус заказа: /);
   });
 });

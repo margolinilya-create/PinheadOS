@@ -11,9 +11,9 @@ import { EmptyResult, EmptyState } from '../../erp/components/ErpStates';
  */
 import { TableSkeleton } from '../../erp/components/ErpSkeletons';
 import { parseDateLocal } from '../../utils/date';
-import { canCreateOrders, isSalesLead, ordersLabel } from '../layout/orderNav';
+import { canCreateOrders, canSeeLaunchQueue, isSalesLead, ordersLabel } from '../layout/orderNav';
 import { STATUS_LABELS, rub } from './labels';
-import { filterSalesList, isFiltered } from './salesListFilter';
+import { filterFromParams, filterSalesList, isFiltered } from './salesListFilter';
 import { useNewOrder } from './useNewOrder';
 import styles from './Sales.module.css';
 
@@ -32,6 +32,21 @@ const fmtUpdated = (ts) => {
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_LABELS);
+
+/** Оплата строки списка (К22): вид отметки или разрешение «без оплаты» */
+function paymentLabel(row) {
+  if (row.paid_kind === 'full') return 'Оплачен';
+  if (row.paid_kind === 'prepaid') return 'Предоплата';
+  if (row.paid_override_reason) return 'Без оплаты (разрешено)';
+  return 'Не отмечена';
+}
+
+/** «Отправлен»: дата отправки в работу; черновик — прочерк */
+const fmtSent = (ts) => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ru-RU');
+};
 
 /**
  * Список заказов v4. Видимость строк решает RLS (продавец — свои,
@@ -53,11 +68,12 @@ export default function SalesList() {
   useEffect(() => { loadList(); }, [loadList]);
 
   const lead = isSalesLead(user);
-  const filter = {
-    query: params.get('q') ?? '',
-    status: params.get('status') ?? '',
-    mine: lead && params.get('mine') === '1',
-  };
+  const launcher = canSeeLaunchQueue(user);
+  const filter = filterFromParams(params, lead);
+  // Пресет «К запуску» (К22): статус «ждёт запуска» у МС и руководства производства
+  const queue = launcher && filter.status === 'ready_to_launch';
+  /** Строка, ждущая запуска, у МС ведёт на экран запуска, прочие — в карточку */
+  const rowPath = (o) => (launcher && o.status === 'ready_to_launch' ? `/sales/${o.id}/launch` : `/sales/${o.id}`);
   const uid = user?.id ?? null;
   // Строк не больше 200 (`fetchSalesOrders`) — фильтр на каждом рендере дёшев
   const rows = filterSalesList(list, filter, uid);
@@ -71,7 +87,8 @@ export default function SalesList() {
   };
   const resetFilters = () => setParams({}, { replace: true });
 
-  const title = ordersLabel(user);
+  const title = queue ? 'К запуску' : ordersLabel(user);
+  const queueEmpty = 'Заказов к запуску нет — менеджеры ещё не отправили';
   const createLabel = creating ? 'Открываем…' : 'Новый заказ';
   // МС без признака продавца своих заказов не заводит (`orders_insert`)
   const canCreate = canCreateOrders(user);
@@ -96,11 +113,13 @@ export default function SalesList() {
       ) : list.length === 0 ? (
         <EmptyState
           icon="orders"
-          title={canCreate ? 'Заказов пока нет' : 'Заказов в работе пока нет'}
-          text={canCreate
-            ? 'Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране.'
-            : 'Здесь появятся заказы, отправленные в работу.'}
-          action={createButton || undefined}
+          title={queue ? queueEmpty : canCreate ? 'Заказов пока нет' : 'Заказов в работе пока нет'}
+          text={queue
+            ? 'Отправленные заказы появятся здесь по сроку сдачи.'
+            : canCreate
+              ? 'Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране.'
+              : 'Здесь появятся заказы, отправленные в работу.'}
+          action={(!queue && createButton) || undefined}
         />
       ) : (
         <>
@@ -124,6 +143,17 @@ export default function SalesList() {
                 {STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
+            <label className={styles.filterLabel}>
+              <span>Порядок</span>
+              <select
+                className={styles.select}
+                value={filter.sort}
+                onChange={(e) => setParam('sort', e.target.value === 'due' ? 'due' : '')}
+              >
+                <option value="updated">Недавно изменённые</option>
+                <option value="due">По сроку сдачи</option>
+              </select>
+            </label>
             {lead && (
               <div className={styles.segmented} role="group" aria-label="Чьи заказы">
                 <button type="button" aria-pressed={filter.mine} onClick={() => setParam('mine', '1')}>Мои</button>
@@ -132,7 +162,9 @@ export default function SalesList() {
             )}
           </div>
 
-          {rows.length === 0 ? (
+          {rows.length === 0 && queue && !filter.query.trim() ? (
+            <EmptyState icon="orders" title={queueEmpty} text="Отправленные заказы появятся здесь по сроку сдачи." />
+          ) : rows.length === 0 ? (
             <EmptyResult query={filter.query} onReset={isFiltered(filter) ? resetFilters : undefined} resetLabel="Сбросить фильтры" />
           ) : (
             <table className={`${styles.table} ${styles.listTable}`}>
@@ -143,6 +175,8 @@ export default function SalesList() {
                   <th>Название</th>
                   {lead && <th>Менеджер</th>}
                   <th>Статус</th>
+                  <th>Оплата</th>
+                  <th>Отправлен</th>
                   <th className={styles.right}>Сумма</th>
                   <th>Срок</th>
                   <th>Обновлён</th>
@@ -152,7 +186,7 @@ export default function SalesList() {
                 {rows.map((o) => (
                   <tr key={o.id}>
                     <td className={styles.num} data-label="Номер">
-                      <button type="button" className={styles.link} onClick={() => navigate(`/sales/${o.id}`)}>
+                      <button type="button" className={styles.link} onClick={() => navigate(rowPath(o))}>
                         {o.order_number || 'без номера'}
                       </button>
                     </td>
@@ -160,6 +194,8 @@ export default function SalesList() {
                     <td data-label="Название">{o.title || <span className={styles.muted}>без названия</span>}</td>
                     {lead && <td data-label="Менеджер">{o.manager_name || '—'}</td>}
                     <td data-label="Статус"><span className={styles.badge}>{STATUS_LABELS[o.status] ?? o.status}</span></td>
+                    <td data-label="Оплата">{paymentLabel(o)}</td>
+                    <td className={styles.num} data-label="Отправлен">{fmtSent(o.sent_at)}</td>
                     <td className={`${styles.num} ${styles.right}`} data-label="Сумма">{rub(o.price_total)}</td>
                     <td className={styles.num} data-label="Срок">{fmtDate(o.due_date)}</td>
                     <td className={styles.num} data-label="Обновлён">{fmtUpdated(o.updated_at)}</td>

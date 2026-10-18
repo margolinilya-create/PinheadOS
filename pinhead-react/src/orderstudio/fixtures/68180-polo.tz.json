@@ -1,0 +1,25 @@
+{
+  "header": {
+    "orderNumber": "PH-6818",
+    "productTitle": "Поло",
+    "qty": 30,
+    "packaging": "БОПП пакет",
+    "packagingNote": "Поло — каждое в свой пакет",
+    "comments": [{ "label": null, "text": "Поло с вышивкой логотипа слева на груди" }]
+  },
+  "fabric": {
+    "main": "Пике, 220 г/м²",
+    "trim": "Воротник и манжеты вязаные, в цвет",
+    "supplier": "Коттонпром",
+    "colors": [{ "color": "Белый", "parts": [] }],
+    "grid": { "total": 30 }
+  },
+  "labels": { "none": true, "items": [] },
+  "prints": [
+    { "n": 1, "column": "В", "sizeText": "В 22 × Ш 60 мм", "offset": "120 мм от шва горловины", "on": "на готовом",
+      "row": "front", "rowLabel": "Полочка",
+      "mockup": { "view": "front", "flatId": "polo-navis", "flatVersion": 1, "printKeys": ["68180-polo-p1"], "highlight": "68180-polo-p1" } }
+  ],
+  "footer": { "group": "PH-6818 · ТЗ 3 из 3" },
+  "typicalFlat": false
+}

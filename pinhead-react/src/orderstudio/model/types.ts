@@ -252,6 +252,8 @@ export interface SalesOrder {
   launch_by: string | null;
   launched_at: string | null;
   launched_by: string | null;
+  /** Автор заказа (`orders.created_by`): гейты «свой заказ» (веха 6+7, К16, К20); в сохранение не идёт */
+  created_by: string | null;
   /**
    * Версия строки `orders.updated_at` (с чтения или из ответа сохранения):
    * уходит в сохранение как `expected_updated_at`. У несохранённого — null

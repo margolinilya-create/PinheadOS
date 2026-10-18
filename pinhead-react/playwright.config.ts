@@ -93,6 +93,8 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     screenshot: 'on',
     viewport: { width: 1280, height: 800 },
+    // Часовой пояс браузера — Europe/Moscow (веха 6+7, задача 0; решение 40), как у vitest
+    timezoneId: 'Europe/Moscow',
     launchOptions: {
       args: ['--no-proxy-server'],
     },

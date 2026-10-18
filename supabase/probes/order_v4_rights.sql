@@ -8,9 +8,14 @@
 -- sales_set_staff по виду 'sales' / 'ms', отмечает и rop — до применения на бою
 -- только сухим прогоном вместе с ней в одной транзакции: файл читает is_ms),
 -- и миграция H (…_garment_flats: перегрузка sales_set_staff(uuid, boolean) снята —
--- двухаргументный вызов отвечает 42883; до применения H — только сухим прогоном с ней).
+-- двухаргументный вызов отвечает 42883; до применения H — только сухим прогоном с ней),
+-- и миграция J (20261018120000_order_v4_launch, веха 6+7: автор по is_sales, ответы RPC
+-- с updated_at, PDF ТЗ и макеты объектами в бакете при отправке, МС отмечает оплату с правом
+-- ERP order.manage, переход в production — только с p_erp_order_id подлинного заказа ERP;
+-- до применения J — только сухим прогоном вместе с ней: 1b-dryrun-J-regress.sql). Новые
+-- правила J подробно — supabase/probes/order_v4_launch.sql.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=155 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=157 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -130,6 +135,12 @@ insert into public.order_items (id, order_id, supplier) values
   ('00000000-0000-4000-8000-000000000b10', '00000000-0000-4000-8000-000000000a10', 'Поставщик-проба');
 insert into public.order_item_prints (id, item_id, method) values
   ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-0000000000b1', 'dtf');
+-- Миграция J: отправка проверяет объекты в бакете — PDF ТЗ позиции b1 и макет нанесения c1
+update public.order_item_prints set artwork_path = 'orders/00000000-0000-4000-8000-0000000000a1/a.png'
+ where id = '00000000-0000-4000-8000-0000000000c1';
+insert into storage.objects (bucket_id, name, owner, metadata) values
+  ('order-artworks', 'orders/00000000-0000-4000-8000-0000000000a1/tz/t.pdf', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{"mimetype": "application/pdf", "size": 1000}'),
+  ('order-artworks', 'orders/00000000-0000-4000-8000-0000000000a1/a.png', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{"mimetype": "image/png", "size": 1000}');
 insert into public.order_item_labels (id, item_id) values
   ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000b1');
 insert into public.order_notes_cards (id, order_id, caption) values
@@ -181,7 +192,7 @@ select pg_temp.p('s_parent_ok', 'OK rows=1', $q$update public.orders set parent_
 select pg_temp.p('s_path_sticker_foreign', '22023', $q$update public.orders set sticker_preview_path = 'orders/00000000-0000-4000-8000-0000000000a2/s.png' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_path_sticker_ok', 'OK rows=1', $q$update public.orders set sticker_preview_path = 'orders/00000000-0000-4000-8000-0000000000a1/s.png' where id = '00000000-0000-4000-8000-0000000000a1'$q$);
 select pg_temp.p('s_path_tz_pdf', '22023', $q$update public.order_items set tz_pdf_path = 'orders/00000000-0000-4000-8000-0000000000a2/tz.pdf' where id = '00000000-0000-4000-8000-0000000000b1'$q$);
-select pg_temp.p('s_path_tz_pdf_ok', 'OK rows=1', $q$update public.order_items set tz_pdf_path = 'orders/00000000-0000-4000-8000-0000000000a1/tz.pdf' where id = '00000000-0000-4000-8000-0000000000b1'$q$);
+select pg_temp.p('s_path_tz_pdf_ok', 'OK rows=1', $q$update public.order_items set tz_pdf_path = 'orders/00000000-0000-4000-8000-0000000000a1/tz/t.pdf' where id = '00000000-0000-4000-8000-0000000000b1'$q$);
 select pg_temp.p('s_path_artwork', '22023', $q$insert into public.order_item_prints (item_id, method, artwork_path) values ('00000000-0000-4000-8000-0000000000b1', 'dtf', 'orders/00000000-0000-4000-8000-0000000000a2/a.png')$q$);
 select pg_temp.p('s_path_artwork_dotdot', '22023', $q$update public.order_item_prints set artwork_path = 'orders/00000000-0000-4000-8000-0000000000a1/../x.png' where id = '00000000-0000-4000-8000-0000000000c1'$q$);
 select pg_temp.p('s_path_attach', '22023', $q$update public.order_item_labels set attach_image_path = 'orders/00000000-0000-4000-8000-0000000000a2/l.png' where id = '00000000-0000-4000-8000-0000000000d1'$q$);
@@ -207,7 +218,7 @@ select pg_temp.p('s_tr_foreign', '42501 Заказ не найден или не
 select pg_temp.p('s_tr_missing', '42501 Заказ не найден или недоступен', $q$select public.order_v4_transition(gen_random_uuid(), 'ready_to_launch')$q$);
 select pg_temp.p('s_send', 'OK {"id": "00000000-0000-4000-8000-0000000000a1", "status": "ready_to_launch"', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a1', 'ready_to_launch')::text$q$);
 select pg_temp.p('s_sent_at', 'OK true', $q$select (sent_at is not null)::text from public.orders where id = '00000000-0000-4000-8000-0000000000a1'$q$);
-select pg_temp.p('s_pay', 'OK {"id": "00000000-0000-4000-8000-0000000000a1", "paid_at": "', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', 'prepaid')::text$q$);
+select pg_temp.p('s_pay', 'OK {"id": "00000000-0000-4000-8000-0000000000a1", "status": "ready_to_launch", "paid_at": "', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', 'prepaid')::text$q$);
 select pg_temp.p('s_pay_override', '42501', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', null, 'без оплаты')$q$);
 select pg_temp.p('s_pay_bad_kind', '22023', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a1', 'partial')$q$);
 select pg_temp.p('s_launch_check', '42501', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')$q$);
@@ -348,8 +359,11 @@ select pg_temp.p('ms_item_update', '42501', $q$update public.order_items set tz_
 select pg_temp.p('ms_draft_hidden', '42501 Заказ не найден или недоступен', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a2', 'ready_to_launch')$q$);
 select pg_temp.p('ms_back_no_reason', 'P0001 Укажите причину', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'draft')$q$);
 select pg_temp.p('ms_prod_no_check', 'P0001 Сначала проверка запуска', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'production')$q$);
-select pg_temp.p('ms_check_unpaid', 'OK {"ok": false, "reason": "Нет отметки оплаты"}', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')::text$q$);
-select pg_temp.p('ms_pay', '42501', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a3', 'full')$q$);
+select pg_temp.p('ms_check_unpaid', 'OK {"ok": false, "reason": "Нет отметки оплаты", "launched": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')::text$q$);
+-- миграция J: МС с правом ERP order.manage отмечает оплату чужого заказа в ready_to_launch;
+-- снять отметку — только руководство
+select pg_temp.p('ms_pay', 'OK {"id": "00000000-0000-4000-8000-0000000000a3", "status": "ready_to_launch", "paid_at": "', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a3', 'full')::text$q$);
+select pg_temp.p('ms_pay_null', '42501 Снять отметку или запустить без оплаты может только руководитель', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a3', null)$q$);
 select pg_temp.p('ms_capture_conflict', 'OK {"ok": false, "reason": "Заказ ERP с этой связью создан не этим запуском', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a6')::text$q$);
 select pg_temp.p('ms_back_with_erp', 'P0001 Заказ уже создан в производстве', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a6', 'draft', 'правка')$q$);
 select pg_temp.p('ms_cancelled_erp', 'OK {"ok": false, "reason": "Прежний заказ ERP отменён', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a8')::text$q$);
@@ -359,22 +373,30 @@ reset role;
 -- ── ADMIN: запуск без оплаты — причина руководителя ─────────────────────
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
-select pg_temp.p('a_override', 'OK {"id": "00000000-0000-4000-8000-0000000000a3", "paid_at": null, "paid_kind": null, "paid_override_reason": "постоянный клиент"}', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a3', null, 'постоянный клиент')::text$q$);
+select pg_temp.p('a_override', 'OK {"id": "00000000-0000-4000-8000-0000000000a3", "status": "ready_to_launch", "paid_at": null, "paid_kind": null, "updated_at": "', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-0000000000a3', null, 'постоянный клиент')::text$q$);
+select pg_temp.p('a_override_effect', 'OK null/null/постоянный клиент', $q$select coalesce(paid_kind, 'null') || '/' || coalesce(paid_at::text, 'null') || '/' || paid_override_reason from public.orders where id = '00000000-0000-4000-8000-0000000000a3'$q$);
 select pg_temp.p('a_archive_foreign', 'OK {"id": "00000000-0000-4000-8000-0000000000a2", "status": "archived"', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a2', 'archived')::text$q$);
 reset role;
 
 -- ── MS: проверка запуска, заказ ERP, переход; сирота при повторе ──────────
 select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 set local role authenticated;
-select pg_temp.p('ms_check_ok', 'OK {"ok": true, "already": false, "launch_started_at": "', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')::text$q$);
+select pg_temp.p('ms_check_ok', 'OK {"ok": true, "already": false, "launched": false, "updated_at": "', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')::text$q$);
 select pg_temp.p('ms_prod_no_erp', 'P0001 Заказ ERP этого запуска не найден', $q$select public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'production')$q$);
 reset role;
 select pg_temp.as_user(null);
-insert into public.erp_orders (title, tz_order_id, tz_number)
-values ('PROBE запуск 3', '00000000-0000-4000-8000-0000000000a3', 'PROBE-3');
+insert into public.erp_orders (id, title, tz_order_id, tz_number)
+values ('00000000-0000-4000-8000-0000000003e3', 'PROBE запуск 3', '00000000-0000-4000-8000-0000000000a3', 'PROBE-3');
+-- Миграция J: подлинный заказ ERP — у позиции документ ТЗ из копии запуска, объект загрузил МС
+insert into public.erp_order_items (id, order_id, product_type, qty)
+values ('00000000-0000-4000-8000-0000000003d3', '00000000-0000-4000-8000-0000000003e3', 'Футболка', 1);
+insert into public.erp_tz_documents (order_id, item_id, group_id, file_path, mime_type, uploaded_by)
+values ('00000000-0000-4000-8000-0000000003e3', '00000000-0000-4000-8000-0000000003d3', '00000000-0000-4000-8000-0000000003f3', 'tz/v4-00000000-0000-4000-8000-0000000003f3/g/v1-tz.pdf', 'application/pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
+values ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-0000000003f3/g/v1-tz.pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{"mimetype": "application/pdf", "size": 1000}');
 select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 set local role authenticated;
-select pg_temp.p('ms_prod_ok', 'OK production', $q$select (public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'production'))->>'status'$q$);
+select pg_temp.p('ms_prod_ok', 'OK production', $q$select (public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'production', p_erp_order_id => (select id from public.erp_orders where tz_order_id = '00000000-0000-4000-8000-0000000000a3')))->>'status'$q$);
 select pg_temp.p('ms_prod_link', 'OK true', $q$select (erp_order_id = (select id from public.erp_orders where tz_order_id = '00000000-0000-4000-8000-0000000000a3') and launched_by is not null)::text from public.orders where id = '00000000-0000-4000-8000-0000000000a3'$q$);
 select pg_temp.p('ms_prod_repeat', 'OK production', $q$select (public.order_v4_transition('00000000-0000-4000-8000-0000000000a3', 'production'))->>'status'$q$);
 select pg_temp.p('ms_check_after', 'OK {"ok": true, "already": true', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a3')::text$q$);
@@ -388,12 +410,19 @@ set local role authenticated;
 select pg_temp.p('ms_check_a1', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a1')::text$q$);
 reset role;
 select pg_temp.as_user(null);
-insert into public.erp_orders (title, tz_order_id, tz_number)
-values ('PROBE сирота 1', '00000000-0000-4000-8000-0000000000a1', 'PROBE-1');
+insert into public.erp_orders (id, title, tz_order_id, tz_number)
+values ('00000000-0000-4000-8000-0000000001e1', 'PROBE сирота 1', '00000000-0000-4000-8000-0000000000a1', 'PROBE-1');
+-- Миграция J: подлинный заказ ERP — у позиции документ ТЗ из копии запуска, объект загрузил МС
+insert into public.erp_order_items (id, order_id, product_type, qty)
+values ('00000000-0000-4000-8000-0000000001d1', '00000000-0000-4000-8000-0000000001e1', 'Футболка', 1);
+insert into public.erp_tz_documents (order_id, item_id, group_id, file_path, mime_type, uploaded_by)
+values ('00000000-0000-4000-8000-0000000001e1', '00000000-0000-4000-8000-0000000001d1', '00000000-0000-4000-8000-0000000001f1', 'tz/v4-00000000-0000-4000-8000-0000000001f1/g/v1-tz.pdf', 'application/pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+insert into storage.objects (bucket_id, name, owner, owner_id, metadata)
+values ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-0000000001f1/g/v1-tz.pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{"mimetype": "application/pdf", "size": 1000}');
 select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 set local role authenticated;
 select pg_temp.p('ms_orphan_retry_check', 'OK {"ok": true, "already": true', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-0000000000a1')::text$q$);
-select pg_temp.p('ms_orphan_retry_prod', 'OK production', $q$select (public.order_v4_transition('00000000-0000-4000-8000-0000000000a1', 'production'))->>'status'$q$);
+select pg_temp.p('ms_orphan_retry_prod', 'OK production', $q$select (public.order_v4_transition('00000000-0000-4000-8000-0000000000a1', 'production', p_erp_order_id => (select id from public.erp_orders where tz_order_id = '00000000-0000-4000-8000-0000000000a1')))->>'status'$q$);
 reset role;
 
 -- ── ERP удаляет свой заказ: заказ v4 в production теряет только ссылку ──
@@ -423,7 +452,7 @@ reset role;
 -- ── Журнал (как ADMIN) ──────────────────────────────────────────────────
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
 set local role authenticated;
-select pg_temp.p('a_events', 'OK a1:payment:prepaid,a1:status:draft>ready_to_launch,a1:status:ready_to_launch>production,a2:status:draft>archived,a3:payment:-,a3:status:production>done,a3:status:ready_to_launch>production,a7:status:ready_to_launch>draft',
+select pg_temp.p('a_events', 'OK a1:payment:prepaid,a1:status:draft>ready_to_launch,a1:status:ready_to_launch>production,a2:status:draft>archived,a3:payment:full,a3:payment:-,a3:status:production>done,a3:status:ready_to_launch>production,a7:status:ready_to_launch>draft',
   $q$select string_agg(right(o.id::text, 2) || ':' || e.kind || ':' ||
        case e.kind when 'status' then e.from_status || '>' || e.to_status else coalesce(e.payment_kind, '-') end, ','
        order by right(o.id::text, 2), e.kind, e.from_status, e.payment_kind)

@@ -1,0 +1,71 @@
+{
+  "sample": "67108",
+  "group": 0,
+  "order": {
+    "id": "6f710800-0000-4000-8000-000000067108",
+    "number": "PH-6710",
+    "kind": "sample",
+    "bitrix_id": "67108",
+    "title": "Фертоинг (образец)",
+    "customer": "Фертоинг",
+    "manager": "Никита Орлов",
+    "due_date": "2026-10-30",
+    "packaging": "none",
+    "stickers": "none",
+    "no_chestny_znak": false,
+    "items": [
+      {
+        "key": "67108-i1",
+        "sku_code": "tee-regular",
+        "client_pattern": "Fertoing_T-shirt_Regular_01.10.2025",
+        "product_type": "Футболка Regular",
+        "fabric_code": "medas-kulirnaya-100-180",
+        "main_fabric": "Кулирная гладь 100% хлопок, 180 г/м²",
+        "trim_material": "Рибана 1×1",
+        "supplier": "Медас (партия 0925)",
+        "part_colors": { "Перед": "Чёрный", "Спинка": "Чёрный", "Рукава": "Белый" },
+        "model_description": "Лекала клиента, регуляр. Колорблок: рукава белые",
+        "extra_processing_note": "Отстрочка плечевых швов",
+        "extras": ["double-stitch"],
+        "tz_comment": "Образец: проверить посадку перед партией",
+        "flat_id": "tee-typical",
+        "size_grid": { "sizes": ["M", "L"], "rows": [{ "color": "Чёрный", "sizes": { "M": 1, "L": 1 } }] },
+        "prints": [
+          { "key": "67108-p1", "method": "dtf", "zone": "Грудь (перед)", "width_mm": 250, "height_mm": 120,
+            "offset_mm": 80, "offset_from": "neck_seam", "offset_dir": "down", "on": "finished", "pantone": [],
+            "artwork_path": "orders/6f710800-0000-4000-8000-000000067108/logo/a0000001-front.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "front", "area_id": "chest", "x_mm": 300, "y_mm": 232, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "front.png", "intrinsic_w_mm": 250, "intrinsic_h_mm": 120, "size_estimated": false, "has_preview": false } } },
+          { "key": "67108-p2", "method": "silkscreen", "special": "puff", "zone": "Спина", "width_mm": 300, "height_mm": 60,
+            "offset_mm": 50, "offset_from": "neck_seam", "offset_dir": "down", "on": "cut", "pantone": ["1204", "Белый"],
+            "artwork_path": "orders/6f710800-0000-4000-8000-000000067108/logo/a0000002-back1.svg",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "back", "area_id": "back", "x_mm": 300, "y_mm": 120, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "svg", "source_file": "back1.svg", "intrinsic_w_mm": 300, "intrinsic_h_mm": 60, "size_estimated": false, "has_preview": false } } },
+          { "key": "67108-p3", "method": "dtf", "zone": "Спина", "width_mm": 280, "height_mm": 280,
+            "offset_note": "согласно комментарию", "on": "finished", "comment": "Центр спины, под надписью",
+            "artwork_path": "orders/6f710800-0000-4000-8000-000000067108/logo/a0000003-back2.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "back", "area_id": "back", "x_mm": 300, "y_mm": 300, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "back2.png", "intrinsic_w_mm": 280, "intrinsic_h_mm": 280, "size_estimated": false, "has_preview": false } } },
+          { "key": "67108-p4", "method": "dtg", "zone": "Спина", "width_mm": 100, "height_mm": 30,
+            "offset_mm": 30, "offset_from": "top_edge", "offset_dir": "up", "on": "finished",
+            "artwork_path": "orders/6f710800-0000-4000-8000-000000067108/logo/a0000004-back3.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "back", "area_id": "back", "x_mm": 300, "y_mm": 470, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "back3.png", "intrinsic_w_mm": 100, "intrinsic_h_mm": 30, "size_estimated": false, "has_preview": false } } },
+          { "key": "67108-p5", "method": "embroidery", "zone": "Левый рукав", "width_mm": 60, "height_mm": 20,
+            "offset_mm": 20, "offset_from": "part_seam", "offset_dir": "up", "on": "cut", "pantone": ["Белый"],
+            "artwork_path": "orders/6f710800-0000-4000-8000-000000067108/logo/a0000005-sleeve.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "sleeve_left", "area_id": "sleeve-l", "x_mm": 100, "y_mm": 100, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "sleeve.png", "intrinsic_w_mm": 60, "intrinsic_h_mm": 20, "size_estimated": false, "has_preview": false } } },
+          { "key": "67108-p6", "method": "other", "zone": "Грудь (перед)", "width_mm": 40, "height_mm": 40,
+            "on": "finished", "comment": "Эмбоссинг логотипа", "contractor": "Тиснение-Про", "contractor_days": 5,
+            "artwork_path": "" }
+        ],
+        "labels": []
+      }
+    ],
+    "notes_cards": [
+      { "key": "67108-n1", "item_key": null, "group_title": "Фурнитура", "caption": "Молния YKK №5, в цвет", "link": "https://ykk.example.ru/catalog/5", "image_path": "" },
+      { "key": "67108-n2", "item_key": "67108-i1", "group_title": "Фурнитура", "caption": "Кнопка 15 мм", "link": "javascript:alert(1)", "image_path": "" }
+    ]
+  }
+}

@@ -178,7 +178,8 @@ describe('миграция I: форма флэтов и зон, страж app_
   it('I сортируется после H и после всех миграций 5а — последняя по имени', () => {
     expect(I_FILE).not.toBe('нет');
     expect(I_FILE > H_FILE).toBe(true);
-    expect(ALL.at(-1)).toBe(I_FILE);
+    // после I — только миграции следующих вех (J вехи 6+7 — 20261018120000 и дальше)
+    expect(ALL.filter((f) => f > I_FILE).every((f) => f >= '20261018120000')).toBe(true);
   });
 
   it('I — последняя редакция catalog_value_check, H остаётся последней редакцией catalog_put', () => {

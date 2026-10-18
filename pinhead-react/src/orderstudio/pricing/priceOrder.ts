@@ -31,6 +31,7 @@ import { gridQty } from '../model/factory';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } from '../model/types';
 import type { LabelLibrary } from '../catalog/types';
 import { libraryLabelPrice } from '../catalog/labels';
+import { itemPackaging } from '../model/packaging';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -254,10 +255,8 @@ export function legacyLabelPrice(label: Pick<SalesLabel, 'label_type' | 'variant
   }
 }
 
-/** Упаковка позиции: своя или заказа (`inherit`/пусто) */
-export function itemPackaging(item: Pick<SalesItem, 'packaging'>, orderPackaging: string): string {
-  return !item.packaging || item.packaging === 'inherit' ? (orderPackaging || 'none') : item.packaging;
-}
+/** Упаковка позиции живёт в `model/packaging` (её читает и ТЗ); здесь — реэкспорт для прежних импортов */
+export { itemPackaging };
 
 /** Дни срочного пошива: новое поле заказа, иначе прежний флажок (= 5 дней) */
 export function orderUrgentDays(order: Pick<SalesOrder, 'urgent' | 'urgent_days'>): number {

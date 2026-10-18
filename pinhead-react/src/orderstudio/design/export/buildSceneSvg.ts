@@ -18,6 +18,16 @@
  *   с пометкой типового силуэта;
  * - жирный — только словом `bold`: у шрифта PDF два начертания (normal, bold),
  *   а «800» svg2pdf искал бы как отдельное и уходил бы на Times без кириллицы.
+ *
+ * Веха 6+7, задача 3 (К6) — мокап в ячейке ТЗ:
+ * - `outputScale` (мм листа ТЗ на мм сцены) ≠ 1 — режим мокапа: без шапки,
+ *   шкалы «1:1» и метки размера (лист уменьшен — «1:1» было бы неправдой),
+ *   лист = флэт с полями (`mockupSceneMm`). Подписи разметки крупнее в сцене
+ *   ровно настолько, чтобы в PDF выйти не мельче 7 pt, линии — не тоньше 0,25 мм;
+ * - `highlight` — `print_key` текущего нанесения: отступ и плашка Ш×В только
+ *   у него, рисунки — у всех нанесений вида;
+ * - по умолчанию (`outputScale` = 1, без `highlight`) лист макета 5а побайтно
+ *   прежний — sha-256 эталона закреплён в тесте.
  */
 import type { FlatView, Placement, ProfileOf } from '../types';
 import { sanitizeSvg } from '../assets/sanitizeSvg';
@@ -72,6 +82,37 @@ export interface SceneInput {
   profileOf?: ProfileOf;
   /** Легенда листа (PDF макета); нет — без легенды и номеров на плашках */
   legend?: LegendRow[];
+  /** Мм листа ТЗ на мм сцены (мокап в ячейке); 1 — лист макета 1:1 */
+  outputScale?: number;
+  /** `print_key` выделенного нанесения: разметка только у него */
+  highlight?: string;
+}
+
+const PAD = 14;
+/** 7 pt в мм: подписи мокапа в PDF не мельче */
+const MIN_LABEL_MM = (7 * 25.4) / 72;
+/** Линии разметки мокапа в PDF не тоньше, мм */
+const MIN_LINE_MM = 0.25;
+/** Кегль подписей разметки (число отступа и плашка Ш×В) на листе 1:1 */
+const MARK_FONT = 11;
+
+/** Лист мокапа: флэт с полями, без шапки и нижнего блока */
+export function mockupSceneMm(flatMm: { w: number; h: number }): { w: number; h: number } {
+  return { w: PAD + flatMm.w + PAD, h: PAD + flatMm.h + PAD };
+}
+
+/** Размеры разметки: `k` — множитель подписей, `line` — толщина линии в единицах сцены */
+interface MarkSize { k: number; line: (v: number) => number }
+
+const SIZE_1_1: MarkSize = { k: 1, line: (v) => v };
+
+/** Вверх до тысячной — `num` округляет до 0,001, и порог не должен уйти вниз */
+const ceil3 = (v: number) => Math.ceil(v * 1000 - 1e-9) / 1000;
+
+function markSize(outputScale: number): MarkSize {
+  if (outputScale === 1) return SIZE_1_1;
+  const font = ceil3(Math.max(MARK_FONT, MIN_LABEL_MM / outputScale));
+  return { k: font / MARK_FONT, line: (v) => ceil3(Math.max(v, MIN_LINE_MM / outputScale)) };
 }
 
 const C = {
@@ -94,27 +135,30 @@ function calibrationBar(x: number, y: number): string {
 }
 
 /** Красная линия отступа от опоры (горловина, пояс, верх зоны) с числом */
-function offsetMarkup(scene: DimensionScene): string {
+function offsetMarkup(scene: DimensionScene, sz: MarkSize): string {
   const v = scene.lines.find((l) => l.kind === 'vertical-anchor')!;
   const { aabb, centerX, anchorY } = scene;
+  const { k } = sz;
   const label = String(Math.round(v.value));
-  const w = label.length * 3.5 + 6;
-  const ly = anchorY + Math.max(9, (aabb.y - anchorY) / 2);
-  return `<line x1="${num(v.from.x)}" y1="${num(v.from.y)}" x2="${num(v.to.x)}" y2="${num(v.to.y)}" stroke="${C.anchor}" stroke-width="1" stroke-dasharray="5 4"/>`
-    + `<rect x="${num(centerX - 5 - w)}" y="${num(ly - 9)}" width="${num(w)}" height="12" rx="2" fill="${C.halo}" fill-opacity="0.85"/>`
-    + `<text x="${num(centerX - 8)}" y="${num(ly)}" font-size="11" fill="${C.anchor}" text-anchor="end">${esc(label)}</text>`
-    + `<circle cx="${num(centerX)}" cy="${num(anchorY)}" r="3" fill="${C.anchor}"/>`;
+  const w = (label.length * 3.5 + 6) * k;
+  const ly = anchorY + Math.max(9 * k, (aabb.y - anchorY) / 2);
+  const dash = k === 1 ? '5 4' : `${num(5 * k)} ${num(4 * k)}`;
+  return `<line x1="${num(v.from.x)}" y1="${num(v.from.y)}" x2="${num(v.to.x)}" y2="${num(v.to.y)}" stroke="${C.anchor}" stroke-width="${num(sz.line(1))}" stroke-dasharray="${dash}"/>`
+    + `<rect x="${num(centerX - 5 * k - w)}" y="${num(ly - 9 * k)}" width="${num(w)}" height="${num(12 * k)}" rx="${num(2 * k)}" fill="${C.halo}" fill-opacity="0.85"/>`
+    + `<text x="${num(centerX - 8 * k)}" y="${num(ly)}" font-size="${num(MARK_FONT * k)}" fill="${C.anchor}" text-anchor="end">${esc(label)}</text>`
+    + `<circle cx="${num(centerX)}" cy="${num(anchorY)}" r="${num(3 * k)}" fill="${C.anchor}"/>`;
 }
 
 /** Синяя плашка «Ш×В мм» у верха нанесения; с легендой — «N · Ш×В мм» */
-function sizePlate(scene: DimensionScene, n?: number): string {
+function sizePlate(scene: DimensionScene, sz: MarkSize, n?: number): string {
   const { aabb } = scene;
+  const { k } = sz;
   const midX = aabb.x + aabb.w / 2;
   const size = `${Math.round(aabb.w)}×${Math.round(aabb.h)} мм`;
   const text = n === undefined ? size : `${n} · ${size}`;
-  const half = text.length * 3.6 + 3;
-  return `<rect x="${num(midX - half)}" y="${num(aabb.y + 3)}" width="${num(half * 2)}" height="16" rx="2" fill="${C.zone}"/>`
-    + `<text x="${num(midX)}" y="${num(aabb.y + 14)}" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">${esc(text)}</text>`;
+  const half = (text.length * 3.6 + 3) * k;
+  return `<rect x="${num(midX - half)}" y="${num(aabb.y + 3 * k)}" width="${num(half * 2)}" height="${num(16 * k)}" rx="${num(2 * k)}" fill="${C.zone}"/>`
+    + `<text x="${num(midX)}" y="${num(aabb.y + 14 * k)}" font-size="${num(MARK_FONT * k)}" font-weight="bold" fill="#ffffff" text-anchor="middle">${esc(text)}</text>`;
 }
 
 /** Шапка: вордмарк, клиент · № заказа · дата, позиция, статус, пометка типового силуэта */
@@ -159,41 +203,64 @@ function layerAttrs(p: Placement, profileOf?: ProfileOf): string {
   return ` data-layer="production" data-method="${escAttr(p.method)}"${mode}`;
 }
 
-/** Собрать лист вида. Рисунок и страница — в мм. Итог очищен `sanitizeSvg(scene)` */
-export function buildSceneSvg(input: SceneInput): string {
-  const { view, flatMm, placements, images, meta } = input;
-  const legend = input.legend ?? [];
-  const numberOf = new Map(legend.map((r) => [r.printKey, r.n]));
-  const PAD = 14;
-  const HEADER_H = 32;
-  const SIZE_H = 42;
-  const W = PAD + flatMm.w + PAD;
-  const H = HEADER_H + flatMm.h + bottomHeight(legend.length, SIZE_H) + PAD;
+/** Разметка нанесений: отступ от опоры и плашка Ш×В; с выделением — только у него */
+function marksMarkup(input: SceneInput, sz: MarkSize, numberOf: Map<string, number>): string {
+  const own = input.highlight === undefined ? input.placements : input.placements.filter((p) => p.print_key === input.highlight);
+  return own.map((p) => {
+    const scene = buildDimensionLines(input.view, { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm }, p.rotation_deg, undefined, p.area_id);
+    return offsetMarkup(scene, sz) + sizePlate(scene, sz, numberOf.get(p.print_key));
+  }).join('');
+}
 
+/** Рисунок вида: флэт в цвете ткани, нанесения, разметка; `top` — отступ сверху */
+function drawing(input: SceneInput, top: number, sz: MarkSize, numberOf: Map<string, number>): string {
+  const { view, placements, images } = input;
   const clips = placements.map((p, i) => clipRect(view, p, `clip-${i}`)).join('');
   const art = placements.map((p, i) => placementImage(p, images[p.print_key], `clip-${i}`, layerAttrs(p, input.profileOf))).join('');
-  const marks = placements.map((p) => {
-    const scene = buildDimensionLines(view, { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm }, p.rotation_deg, undefined, p.area_id);
-    return offsetMarkup(scene) + sizePlate(scene, numberOf.get(p.print_key));
-  }).join('');
   const garment = `<g transform="scale(${num(view.scale_mm_per_unit)})">${innerSvg(recolorGarment(input.flatMarkup, input.garmentColor ?? ''))}</g>`;
-
-  const sizeY = HEADER_H + flatMm.h + 30;
-  const sizeFs = meta.size.length <= 3 ? 34 : 20;
-  const sizeHalf = meta.size.length * sizeFs * 0.35;
-  const raw = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}mm" height="${num(H)}mm" viewBox="0 0 ${num(W)} ${num(H)}" font-family="${PDF_FONT_FAMILY}, Helvetica, sans-serif">`
-    + `<defs>${clips}</defs>`
-    + `<rect x="0" y="0" width="${num(W)}" height="${num(H)}" fill="#ffffff"/>`
-    + header(W, meta)
-    + `<g transform="translate(${PAD} ${HEADER_H})">`
+  const mark = input.highlight === undefined ? '' : ` data-highlight="${escAttr(input.highlight)}"`;
+  return `<defs>${clips}</defs>`
+    + `@@BG@@`
+    + `<g transform="translate(${PAD} ${top})"${mark}>`
     + `<g data-layer="garment">${garment}</g>`
     + `<g data-layer="production-artwork">${art}</g>`
-    + `<g data-layer="markup">${marks}</g></g>`
-    + legendMarkup(legend, HEADER_H + flatMm.h, W / 2 - sizeHalf - PAD - 6)
-    + `<g data-size-label="${escAttr(meta.size)}"><text x="${num(W / 2)}" y="${num(sizeY + 4)}" font-size="${sizeFs}" font-weight="bold" fill="${C.ink}" text-anchor="middle">${esc(meta.size)}</text></g>`
-    + calibrationBar(W - PAD - 100, sizeY - 4)
+    + `<g data-layer="markup">${marksMarkup(input, sz, numberOf)}</g></g>`;
+}
+
+/**
+ * Заполнитель `@@BG@@` меняется только ФУНКЦИЕЙ: строка замены разбирает `$&`, `$'`, `` $` ``, `$$`,
+ * а `esc()` знак `$` не трогает — текст клиента в шапке стал бы шаблоном замены
+ */
+function svgRoot(W: number, H: number, body: string): string {
+  const raw = `<svg xmlns="http://www.w3.org/2000/svg" width="${num(W)}mm" height="${num(H)}mm" viewBox="0 0 ${num(W)} ${num(H)}" font-family="${PDF_FONT_FAMILY}, Helvetica, sans-serif">`
+    + body.replace('@@BG@@', () => `<rect x="0" y="0" width="${num(W)}" height="${num(H)}" fill="#ffffff"/>`)
     + '</svg>';
   const clean = sanitizeSvg(raw, 'scene');
   if (!clean.ok) throw new Error(`Лист макета не собран: ${clean.error}`);
   return clean.svg;
+}
+
+/** Собрать лист вида. Рисунок и страница — в мм. Итог очищен `sanitizeSvg(scene)` */
+export function buildSceneSvg(input: SceneInput): string {
+  const { flatMm, meta } = input;
+  const scale = input.outputScale ?? 1;
+  const sz = markSize(scale);
+  const legend = input.legend ?? [];
+  const numberOf = new Map(legend.map((r) => [r.printKey, r.n]));
+  if (scale !== 1) {
+    const { w, h } = mockupSceneMm(flatMm);
+    return svgRoot(w, h, drawing(input, PAD, sz, numberOf));
+  }
+  const HEADER_H = 32;
+  const SIZE_H = 42;
+  const W = PAD + flatMm.w + PAD;
+  const H = HEADER_H + flatMm.h + bottomHeight(legend.length, SIZE_H) + PAD;
+  const sizeY = HEADER_H + flatMm.h + 30;
+  const sizeFs = meta.size.length <= 3 ? 34 : 20;
+  const sizeHalf = meta.size.length * sizeFs * 0.35;
+  const body = drawing(input, HEADER_H, sz, numberOf).replace('@@BG@@', () => `@@BG@@${header(W, meta)}`)
+    + legendMarkup(legend, HEADER_H + flatMm.h, W / 2 - sizeHalf - PAD - 6)
+    + `<g data-size-label="${escAttr(meta.size)}"><text x="${num(W / 2)}" y="${num(sizeY + 4)}" font-size="${sizeFs}" font-weight="bold" fill="${C.ink}" text-anchor="middle">${esc(meta.size)}</text></g>`
+    + calibrationBar(W - PAD - 100, sizeY - 4);
+  return svgRoot(W, H, body);
 }
