@@ -150,7 +150,7 @@ export default function AuthScreen() {
     <div className="auth-overlay">
       <div className="auth-card">
         <div className="auth-logo">✳ PINHEAD</div>
-        <div className="auth-subtitle">Order Studio</div>
+        <div className="auth-subtitle">Производство и оформление заказов</div>
 
         <div className="auth-tabs">
           <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => switchTab('login')}>Вход</button>
