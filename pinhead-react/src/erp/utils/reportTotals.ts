@@ -48,6 +48,9 @@ export function reportTotals<R extends RollLike>(input: ReportInput & { rolls?: 
    * Старый формат (размеры на рулоне) по-прежнему считает годные с рулонов.
    */
   const rolledSizes = rolls.some((r) => (r.sizes ?? []).length > 0);
+  /** Число берётся из строк размеров, только если рулонов нет и строки его несут */
+  const fromSizes = (key: 'qty_defect' | 'qty_rework' | 'qty_extra'): boolean =>
+    rolls.length === 0 && sizes.some((s) => s[key] != null);
   return {
     sizes,
     rolls,
@@ -60,9 +63,15 @@ export function reportTotals<R extends RollLike>(input: ReportInput & { rolls?: 
      * строки закроя несут только годные. Прежде брак брался из них и терялся
      * по дороге — форма требовала комментарий к браку, а на сервер уходил 0
      * (правка 28.09).
+     *
+     * С правки 19.10 (Р7, «Сдать без списания») закрой шлёт строки выпуска
+     * и БЕЗ рулонов — поэтому решает не только наличие рулонов, но и то,
+     * несут ли строки это поле вовсе: строки закроя знают одно `qty_good`,
+     * строки швейки (`sizeReportPayload`) — все три числа. Иначе брак
+     * закроя без рулонов молча становился нулём.
      */
-    defect: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_defect) : scalar(input.qtyDefect),
-    rework: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_rework) : scalar(input.qtyRework),
-    extraQty: sizes.length > 0 && rolls.length === 0 ? sizeSum((s) => s.qty_extra) : scalar(input.qtyExtra),
+    defect: fromSizes('qty_defect') ? sizeSum((s) => s.qty_defect) : scalar(input.qtyDefect),
+    rework: fromSizes('qty_rework') ? sizeSum((s) => s.qty_rework) : scalar(input.qtyRework),
+    extraQty: fromSizes('qty_extra') ? sizeSum((s) => s.qty_extra) : scalar(input.qtyExtra),
   };
 }

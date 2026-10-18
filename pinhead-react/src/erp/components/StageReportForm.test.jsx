@@ -5,6 +5,7 @@ import { useErpStore } from '../store/useErpStore';
 import { attemptKeyFor } from '../store/attempts';
 import { useConfirmStore } from '../../store/useConfirmStore';
 import { attachDomainSlices } from '../store/domainSlices';
+import { reportTotals } from '../utils/reportTotals';
 
 attachDomainSlices();
 
@@ -651,6 +652,24 @@ describe('сдача закроя — результат один раз, рас
     await vi.waitFor(() => expect(document.activeElement).toBe(
       screen.getByRole('checkbox', { name: 'Выбрать все в группе Футер · чёрный' }),
     ));
+  });
+
+  /**
+   * Р7 + брак (ревизия A4): без рулонов строки выпуска несут одно `qty_good`,
+   * и `reportTotals` прежде брал брак из них — нулём. Теперь брак — скаляр формы.
+   */
+  it('«Сдать без списания» с браком — брак доходит до отчёта и reportTotals', async () => {
+    const { onSubmit } = setup();
+    fill();
+    fireEvent.change(screen.getByLabelText(/^Брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText('что именно пошло не так'), { target: { value: 'пятно' } });
+    fireEvent.click(screen.getByRole('button', { name: /Сдать результат/ }));
+    await vi.waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    await act(async () => { useConfirmStore.getState()._close(true); });
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).toMatchObject({ qtyGood: 100, qtyDefect: 2, comment: 'пятно', rolls: [] });
+    expect(reportTotals(payload)).toMatchObject({ good: 100, defect: 2 });
   });
 
   it('сдача с ошибкой — alert и фокус на первом ошибочном поле', async () => {

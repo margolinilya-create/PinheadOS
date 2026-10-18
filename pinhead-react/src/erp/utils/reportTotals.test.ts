@@ -63,4 +63,26 @@ describe('reportTotals', () => {
     expect(r).toMatchObject({ good: 100, defect: 2, rework: 0 });
     expect(r.rolls).toHaveLength(2);
   });
+
+  /**
+   * Р7 «Сдать без списания» (ревизия A4): закрой шлёт строки выпуска без
+   * рулонов, и строки несут одно `qty_good`. Брак, переделка и плюс — скаляры
+   * формы; строки швейки (все три числа) по-прежнему задают их сами.
+   */
+  it('закрой без рулонов: брак, переделка и плюс — скаляры, если строки их не несут', () => {
+    const r = reportTotals({
+      qtyGood: 999, qtyDefect: 2, qtyRework: 1, qtyExtra: 3,
+      sizes: [size(40), size(60, { size: 'L' })],
+      rolls: [],
+    });
+    expect(r).toMatchObject({ good: 100, defect: 2, rework: 1, extraQty: 3 });
+  });
+
+  it('швейка: строки с браком задают его, даже нулём, скаляр игнорируется', () => {
+    const r = reportTotals({
+      qtyDefect: 5,
+      sizes: [size(10, { qty_defect: 0, qty_rework: 0 })],
+    });
+    expect(r).toMatchObject({ good: 10, defect: 0, rework: 0 });
+  });
 });
