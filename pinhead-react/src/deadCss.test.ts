@@ -37,6 +37,9 @@ const KNOWN_DEAD: Record<string, Record<string, string>> = {
     'supplier-tab-count': 'то же',
     'validation-warning': 'предупреждение шага визарда v3 (шаги убраны в вехе 3); файл уходит в задаче 6',
   },
+  'styles/express.css': {
+    'exp-close': 'крестик карточки модели — карточка на примитиве Modal (задача 3); файл уходит в задаче 4',
+  },
 };
 
 function withoutCssComments(css: string): string {

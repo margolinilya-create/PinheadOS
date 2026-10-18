@@ -1,0 +1,130 @@
+/*
+ * «Каталог моделей и цен» (`/sku`) — страница на примитивах ERP (веха 8, задача 3).
+ * Раскладка страницы — `orderstudio/screens/Sales.module.css` (`.page`), здесь —
+ * шапка, курс, ряд вкладок и плашки. Только токены `:root`.
+ */
+
+.page { min-width: 0; }
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.readOnlyNote {
+  margin: 0 0 var(--space-md);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--card);
+  border: 1px solid var(--border-mid);
+  border-left: 4px solid var(--color-warning-ink);
+  border-radius: var(--radius-md);
+  font-size: var(--type-body-sm);
+}
+
+.notice p { margin: 0; }
+
+.noticeError { border-left-color: var(--color-error); }
+
+/* ── Курс доллара ── */
+
+.rateBar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+
+.rateField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.rateLabel {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.rateBar .rateInput {
+  width: 120px;
+  min-height: var(--control-h-md);
+  font-family: var(--mono);
+}
+
+.rateCb {
+  margin: 0;
+  align-self: center;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.iconBtn:hover { background: var(--surface); }
+.iconBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Вкладки ── */
+
+/* Ряд из восьми вкладок длиннее экрана — прокручивается ряд, а не страница */
+.tabs {
+  overflow-x: auto;
+  margin-bottom: var(--space-lg);
+}
+
+/*
+ * «Есть несохранённые правки»: кольцо цветом текста вкладки. Формой отличается
+ * от точки «не заполнено» рабочего места (сплошная, `--color-warning-ink`) —
+ * разные вопросы: «чего не хватает» и «что не сохранено». На активной вкладке
+ * (тёмный фон) кольцо берёт её цвет текста и остаётся видимым.
+ */
+.dirtyDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: var(--space-xs);
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.panel { min-width: 0; }
+.panel:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+@media (max-width: 760px) {
+  .actions { width: 100%; }
+}

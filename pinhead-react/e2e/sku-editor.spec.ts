@@ -1,114 +1,121 @@
-// spec: SKU Editor Navigation — All 8 tabs render and switch correctly
+// spec: «Каталог моделей и цен» (/sku) — вкладки, адрес, правила, зоны, цены
 // seed: pinhead-react/e2e/navigation.spec.ts
+// Веха 8 (задача 3): экран на примитивах ERP — селекторы ролями, не классами.
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 test.use({ actionTimeout: 15000 });
+
+const tab = (page: Page, name: string) => page.getByRole('tab', { name: new RegExp(`^${name}`) });
+const sub = (page: Page, name: string) =>
+  page.getByRole('tablist', { name: 'Разделы прайса' }).getByRole('tab', { name: new RegExp(`^${name}`) });
 
 test.describe('SKU Editor Navigation', () => {
   test('All 8 tabs render and switch correctly', async ({ page }) => {
     await page.goto('/sku');
-    await expect(page.getByRole('button', { name: 'Изделия' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Каталог моделей и цен' })).toBeVisible({ timeout: 10000 });
+    const list = page.getByRole('tablist', { name: 'Разделы каталога' });
+    await expect(list.getByRole('tab')).toHaveText([
+      'Изделия', 'Основная ткань', 'Отделочная ткань', 'Обработки',
+      'Фурнитура', 'Ценообразование', 'Правила категорий', 'Зоны нанесения',
+    ]);
 
-    // Verify all 8 tab buttons are visible
-    await expect(page.getByRole('button', { name: 'Основная ткань' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Отделочная ткань' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Обработки' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Фурнитура' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ценообразование' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Правила категорий' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Зоны нанесения' })).toBeVisible();
+    await tab(page, 'Основная ткань').click();
+    await expect(page.getByRole('region', { name: 'Основные ткани' })).toBeVisible();
 
-    // Click tabs and verify content
-    await page.getByRole('button', { name: 'Основная ткань' }).click();
-    await expect(page.locator('.fabrics-table')).toBeVisible();
+    await tab(page, 'Ценообразование').click();
+    await expect(page.getByRole('tablist', { name: 'Разделы прайса' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Ценообразование' }).click();
-    await expect(page.locator('.pricing-tab-content')).toBeVisible();
-    await expect(page.locator('.pricing-sub-tabs')).toBeVisible();
+    await tab(page, 'Правила категорий').click();
+    await expect(page.getByRole('button', { name: /^Футболки/ })).toBeVisible();
+    await expect(page.getByRole('tabpanel').getByRole('listitem')).toHaveCount(11);
 
-    await page.getByRole('button', { name: 'Правила категорий' }).click();
-    await expect(page.locator('.cat-rules-list')).toBeVisible();
-    await expect(page.locator('.cat-rule-card')).toHaveCount(11);
-
-    await page.getByRole('button', { name: 'Зоны нанесения' }).click();
-    await expect(page.locator('.zones-catalog-table')).toBeVisible();
+    await tab(page, 'Зоны нанесения').click();
+    await expect(page.getByRole('table', { name: 'Справочник зон нанесения' })).toBeVisible();
   });
 
   test('URL param ?tab=pricing opens Pricing tab directly', async ({ page }) => {
     await page.goto('/sku?tab=pricing');
-    await expect(page.locator('.pricing-tab-content')).toBeVisible({ timeout: 10000 });
+    await expect(tab(page, 'Ценообразование')).toHaveAttribute('aria-selected', 'true', { timeout: 10000 });
+    await expect(page.getByRole('tablist', { name: 'Разделы прайса' })).toBeVisible();
   });
 
   test('/prices redirects to /sku?tab=pricing', async ({ page }) => {
     await page.goto('/prices');
-    await expect(page.locator('.pricing-tab-content')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tablist', { name: 'Разделы прайса' })).toBeVisible({ timeout: 10000 });
     expect(page.url()).toContain('/sku');
     expect(page.url()).toContain('tab=pricing');
   });
 
   test('Active tab is reflected in URL param', async ({ page }) => {
     await page.goto('/sku');
-    await expect(page.getByRole('button', { name: 'Изделия' })).toBeVisible({ timeout: 10000 });
-
-    // Default tab (Изделия) has no tab param
+    await expect(tab(page, 'Изделия')).toBeVisible({ timeout: 10000 });
     expect(page.url()).not.toContain('tab=');
 
-    // Click Ценообразование → URL gets tab=pricing
-    await page.getByRole('button', { name: 'Ценообразование' }).click();
+    await tab(page, 'Ценообразование').click();
     await expect(page).toHaveURL(/tab=pricing/);
 
-    // Click Изделия → tab param removed
-    await page.getByRole('button', { name: 'Изделия' }).click();
+    await tab(page, 'Изделия').click();
     expect(page.url()).not.toContain('tab=');
+  });
+
+  test('правка модели — точка «есть несохранённые правки» в имени вкладки', async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 1280) <= 760, 'На телефоне каталог только для просмотра');
+    await page.goto('/sku');
+    const name = page.getByRole('textbox', { name: /^Название:/ }).first();
+    await expect(name).toBeVisible({ timeout: 10000 });
+    await name.fill('Футболка правка');
+    await expect(page.getByRole('tab', { name: 'Изделия, есть несохранённые правки' })).toBeVisible();
   });
 });
 
 test.describe('SKU Editor — Правила категорий', () => {
   test('Category accordion expands with all sections', async ({ page }) => {
     await page.goto('/sku?tab=rules');
-    await expect(page.locator('.cat-rules-list')).toBeVisible({ timeout: 10000 });
+    const tee = page.getByRole('button', { name: /^Футболки/ });
+    await expect(tee).toBeVisible({ timeout: 10000 });
+    await tee.click();
+    await expect(tee).toHaveAttribute('aria-expanded', 'true');
 
-    // Click Футболки to expand
-    await page.getByText('Футболки').first().click();
-
-    // All 5 sections visible
-    await expect(page.getByText('ТЕХНИКИ НАНЕСЕНИЯ')).toBeVisible();
-    await expect(page.getByText('ТЕХНИКИ ПО ЗОНАМ')).toBeVisible();
-    await expect(page.getByText('МИНИМАЛЬНЫЙ ТИРАЖ (MOQ)')).toBeVisible();
-    await expect(page.getByText('ДОСТУПНЫЕ РАЗМЕРЫ')).toBeVisible();
-    await expect(page.getByText('ОБРАБОТКИ ПО УМОЛЧАНИЮ')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Техники нанесения' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Техники по зонам' })).toBeVisible();
+    await expect(page.getByLabel('Минимальный тираж (MOQ)')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Доступные размеры' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Обработки по умолчанию' })).toBeVisible();
   });
 
   test('Only one category expanded at a time', async ({ page }) => {
     await page.goto('/sku?tab=rules');
-    await expect(page.locator('.cat-rules-list')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: /^Футболки/ })).toBeVisible({ timeout: 10000 });
+    const expanded = page.locator('button[aria-expanded="true"][aria-controls^="cat-rule-"]');
 
-    await page.getByText('Футболки').first().click();
-    await expect(page.locator('.cat-rule-card.expanded')).toHaveCount(1);
+    await page.getByRole('button', { name: /^Футболки/ }).click();
+    await expect(expanded).toHaveCount(1);
 
-    await page.getByText('Худи').first().click();
-    await expect(page.locator('.cat-rule-card.expanded')).toHaveCount(1);
+    await page.getByRole('button', { name: /^Худи/ }).click();
+    await expect(expanded).toHaveCount(1);
   });
 });
 
 test.describe('SKU Editor — Зоны нанесения', () => {
+  const zones = (page: Page) => page.getByRole('table', { name: 'Справочник зон нанесения' });
+
   test('Zones table renders with existing zones (только просмотр)', async ({ page }) => {
     await page.goto('/sku?tab=zones');
-    await expect(page.locator('.zones-catalog-table')).toBeVisible({ timeout: 10000 });
+    await expect(zones(page)).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Справочник зон нанесения — только просмотр')).toBeVisible();
 
     // Зоны по умолчанию: 8 прежних + левая и правая штанина (правка 13.10)
     // + штанина перед/зад (веха 5а)
-    await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(12, { timeout: 5000 });
+    await expect(zones(page).locator('tbody tr')).toHaveCount(12, { timeout: 5000 });
   });
 
   test('правка зон — ссылкой на «Справочники заказа» → «Флэты и зоны» (веха 5б)', async ({ page }) => {
     await page.goto('/sku?tab=zones');
-    await expect(page.locator('.zones-catalog-table')).toBeVisible({ timeout: 10000 });
+    await expect(zones(page)).toBeVisible({ timeout: 10000 });
 
     // Ни добавления, ни удаления: справочник зон правится в одном месте
-    await expect(page.locator('.zones-catalog-table input, .zones-catalog-table button')).toHaveCount(0);
+    await expect(zones(page).locator('input, button')).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Флэты и зоны/ }))
       .toHaveAttribute('href', '/order-settings?tab=flats&part=zones');
   });
@@ -117,27 +124,41 @@ test.describe('SKU Editor — Зоны нанесения', () => {
 test.describe('SKU Editor — Ценообразование sub-tabs', () => {
   test('All 8 pricing sub-tabs switch correctly', async ({ page }) => {
     await page.goto('/sku?tab=pricing');
-    await expect(page.locator('.pricing-tab-content')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tablist', { name: 'Разделы прайса' })).toBeVisible({ timeout: 10000 });
 
-    // Verify sub-tabs
-    await expect(page.locator('.pricing-sub-tabs')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Вышивка' }).click();
+    await sub(page, 'Вышивка').click();
     await expect(page.getByText('Стежков на 1 см²')).toBeVisible();
 
-    await page.getByRole('button', { name: 'DTF' }).click();
+    await sub(page, 'DTF').click();
     await expect(page.getByText('DTF — ступени цены за погонный метр')).toBeVisible();
 
-    await page.getByRole('button', { name: 'DTG' }).click();
+    await sub(page, 'DTG').click();
     await expect(page.getByText('DTG — цена за одно нанесение, ₽')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Наценки' }).click();
-    await expect(page.locator('.pe-markup-table')).toBeVisible();
+    await sub(page, 'Наценки').click();
+    await expect(page.getByRole('table', { name: 'Наценка по группам и тиражу' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Доп' }).click();
+    await sub(page, 'Доп').click();
     await expect(page.getByText('Бирка')).toBeVisible();
 
-    await page.getByRole('button', { name: 'История' }).click();
+    await sub(page, 'История').click();
     await expect(page.getByText('История изменений')).toBeVisible();
+  });
+});
+
+test.describe('SKU Editor — телефон (К2 вехи 8)', () => {
+  test('на 375 px — только просмотр, без горизонтальной прокрутки страницы', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/sku');
+    await expect(page.getByRole('note')).toHaveText('На телефоне каталог только для просмотра. Править — с компьютера.', { timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'Выгрузить в Excel' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Загрузить из Excel' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Сохранить каталог' })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: /^Название:/ }).first()).toBeDisabled();
+    for (const name of ['Изделия', 'Основная ткань', 'Ценообразование', 'Правила категорий']) {
+      await tab(page, name).click();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `горизонтальная прокрутка на вкладке «${name}»`).toBeLessThanOrEqual(0);
+    }
   });
 });
