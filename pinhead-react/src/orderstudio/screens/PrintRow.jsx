@@ -10,11 +10,31 @@ const toInt = (v) => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
+const OFFSET_FROM = { neck_seam: 'шва горловины', top_edge: 'верхнего края', part_seam: 'шва' };
+
+/** Отступ с холста текстом: «80 мм от шва горловины» */
+function offsetText(p) {
+  const from = OFFSET_FROM[p.offset_from];
+  if (p.offset_mm == null || !from) return '';
+  return p.offset_dir === 'up' ? `${p.offset_mm} мм выше ${from}` : `${p.offset_mm} мм от ${from}`;
+}
+
 /**
  * Нанесение позиции v4: техника, зона, группа размеров, мм, цвета, Pantone,
  * эффект, на крое / на готовом. Цена за штуку — из расчёта (`unitPrice`).
+ *
+ * Веха 5а (задача 6б):
+ * - `placed` — нанесение стоит на холсте вкладки «Дизайн»: зона, мм и отступ
+ *   только для чтения (их пишет холст), ссылка «Изменить на холсте»;
+ *   иначе при `onOpenDesign` — «Поставить на изделие →»;
+ * - `designViewOnly` — холст только для просмотра (≤ 760 px): у строки на
+ *   холсте «Открыть на холсте», у остальных ссылки нет — действия не будет;
+ * - `embedded` — строка под инспектором холста: техники, зоны, мм и кнопки
+ *   удаления нет (они в инспекторе; удаление строки — только на «Изделии»).
  */
-export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qty, onChange, onRemove }) {
+export default function PrintRow({
+  print, index, itemSizes, zones, unitPrice, qty, onChange, onRemove, placed = false, embedded = false, onOpenDesign, designViewOnly = false,
+}) {
   const id = useId();
   const m = print.method;
   const needsColors = m === 'silkscreen' || m === 'heat_transfer';
@@ -33,25 +53,39 @@ export default function PrintRow({ print, index, itemSizes, zones, unitPrice, qt
         <span>Нанесение {index + 1} · {METHOD_LABELS[m]}</span>
         <span className={styles.row}>
           <span className={styles.muted}>{unitPrice != null ? `${rub(unitPrice)} × ${qty} шт.` : ''}</span>
-          <button type="button" className={styles.remove} onClick={onRemove}>Удалить</button>
+          {onOpenDesign && (placed || !designViewOnly) && (
+            <button type="button" className={styles.link} onClick={onOpenDesign}>
+              {designViewOnly ? 'Открыть на холсте' : placed ? 'Изменить на холсте' : 'Поставить на изделие →'}
+            </button>
+          )}
+          {!embedded && onRemove && <button type="button" className={styles.remove} onClick={onRemove}>Удалить</button>}
         </span>
       </div>
+      {placed && !embedded && (
+        <p className={styles.muted}>
+          Зона, размер и отступ заданы на холсте{offsetText(print) ? ` · отступ ${offsetText(print)}` : ''}.
+        </p>
+      )}
       <div className={styles.grid2}>
-        <label className={styles.field}>Техника
-          <select className={styles.select} value={m} onChange={(e) => onChange({ method: e.target.value, special: '' })}>
-            {METHOD_ORDER.map((k) => <option key={k} value={k}>{METHOD_LABELS[k]}</option>)}
-          </select>
-        </label>
-        <label className={styles.field}>Зона
-          <input className={styles.input} list={`${id}-zones`} value={print.zone} onChange={(e) => onChange({ zone: e.target.value })} placeholder="Грудь, спина, рукав…" />
-          <datalist id={`${id}-zones`}>{zones.map((z) => <option key={z} value={z} />)}</datalist>
-        </label>
-        <label className={styles.field}>Ширина, мм
-          <input className={styles.input} type="number" min="1" value={print.width_mm ?? ''} onChange={(e) => onChange({ width_mm: toInt(e.target.value) })} />
-        </label>
-        <label className={styles.field}>Высота, мм
-          <input className={styles.input} type="number" min="1" value={print.height_mm ?? ''} onChange={(e) => onChange({ height_mm: toInt(e.target.value) })} />
-        </label>
+        {!embedded && (
+          <>
+            <label className={styles.field}>Техника
+              <select className={styles.select} value={m} onChange={(e) => onChange({ method: e.target.value, special: '' })}>
+                {METHOD_ORDER.map((k) => <option key={k} value={k}>{METHOD_LABELS[k]}</option>)}
+              </select>
+            </label>
+            <label className={styles.field}>Зона
+              <input className={styles.input} list={`${id}-zones`} value={print.zone} readOnly={placed} onChange={(e) => onChange({ zone: e.target.value })} placeholder="Грудь, спина, рукав…" />
+              <datalist id={`${id}-zones`}>{zones.map((z) => <option key={z} value={z} />)}</datalist>
+            </label>
+            <label className={styles.field}>Ширина, мм
+              <input className={styles.input} type="number" min="1" value={print.width_mm ?? ''} readOnly={placed} onChange={(e) => onChange({ width_mm: toInt(e.target.value) })} />
+            </label>
+            <label className={styles.field}>Высота, мм
+              <input className={styles.input} type="number" min="1" value={print.height_mm ?? ''} readOnly={placed} onChange={(e) => onChange({ height_mm: toInt(e.target.value) })} />
+            </label>
+          </>
+        )}
         {needsColors && (
           <label className={styles.field}>Цветов
             <BufferedInput className={styles.input} inputMode="numeric" value={print.colors} format={String} parse={parseIntIn(1, maxColors)} onCommit={(colors) => onChange({ colors })} />

@@ -37,6 +37,9 @@ Pinhead — внутренняя ERP/CRM-система для типограф�
 - **Графики:** библиотеки графиков нет. Chart.js и react-chartjs-2 убраны вместе
   с аналитикой продаж (веха 1 единого потока, 16.10; решение владельца); Recharts
   не было никогда. Понадобятся графики — обсудить библиотеку заново
+- **Дизайн-мейкер (веха 5а, вкладка «Дизайн»):** `konva` 9.3.22 + `react-konva` 19.2.7 (холст,
+  только Core-импорты), `jspdf` 4.2.1 + `svg2pdf.js` 2.8.1 (PDF макета), `pdfjs-dist` 4.10.38
+  (логотипы PDF/AI), `zod` 4.3.6 (только `zod/mini`, схема флэтов) — все в ленивых чанках
 - **Тесты:** Vitest + Testing Library (unit), Playwright (e2e)
 - **Линтинг:** ESLint 9, Husky + lint-staged
 - **CSS:** Vanilla CSS + CSS Modules (*.module.css), CSS-токены
@@ -57,7 +60,7 @@ pinhead-react/src/
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Zustand store визарда — с вехи 3 БУФЕР ОДНОЙ позиции рабочего места (resetItemFields)
 │   ├── appReset.ts          # registerAppReset: сторы регистрируют сброс, выход зовёт все
-│   ├── slices/              # wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts
+│   ├── slices/              # wizardSlice, productSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice — все .ts (действия зон визарда убраны в вехе 5а)
 │   ├── useAuthStore.ts      # Auth + роли
 │   ├── useOrdersStore.ts    # CRUD заказов v3 (вкладка ERP «Заказы ТЗ»; канбан v3 убран)
 │   ├── useCommentsStore.ts  # Комментарии к заказам
@@ -104,7 +107,16 @@ pinhead-react/src/
                              # admin/SalesStaff (/sales-staff), api/salesStaff, leaveGuard, switchToProduction;
                              # веха 4: catalog/ (типы и сиды справочников, suppliers — палитры, labels — бирки),
                              # api/catalogAdmin (catalog_put/prices_patch — единственный писатель справочников),
-                             # admin/OrderSettings (/order-settings) + useCatalogEditor + tabs/ (вкладки справочников)
+                             # admin/OrderSettings (/order-settings) + useCatalogEditor + tabs/ (вкладки справочников);
+                             # веха 5а: design/ — вкладка «Дизайн» одним ленивым чанком (карта и бюджет — design/README.md):
+                             # types/limits, geometry/ (перенос DM), catalog/ (flatsSchema на zod/mini, pickFlat,
+                             # useFlatsCatalog), assets/ (sanitizeSvg, sniff, loadPdf, кэши картинок, useAddArtwork),
+                             # model/ (layout + layoutMark — разбор без zod, placeArtwork, offset), store/useDesignStore
+                             # (выбор, вид, undo; запись — только commit → useSalesStore.edit), ui/ (DesignTab, canvas/,
+                             # panel/, DesignPreview, свои иконки designIcons), export/ (PDF макета, сцена, шрифты),
+                             # seed/ (35 флэтов, 67 SVG, seedFlats — только по кнопке); api/garmentFlats (бакет
+                             # garment-flats), model/printMethods (профили 8 техник, DPI, TECH_TO_METHOD),
+                             # admin/tabs/FlatsTab (/order-settings?tab=flats)
 ```
 
 ```
@@ -151,9 +163,9 @@ sales_is_lead() or sales_is_ms()`; МС без `is_sales` видит «Зака�
 | `/admin` | AdminScreen (единая админка ERP) | admin, director |
 | `/orders`, `/print`, `/analytics`, `*` | → redirect `/sales` (`legacyRedirect`; старый `/sales/:id/item/:key` — тоже) | С продажами |
 | `/sales` | SalesList — «Мои заказы» (продавец) / «Заказы отдела» (rop) / «Все заказы» (admin, director) с фильтром «Мои / Все», поиск и статус в адресе | С продажами |
-| `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|client\|summary&item=<key>` | С продажами |
+| `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Дизайн» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|design\|client\|summary&item=<key>`. «Дизайн» (веха 5а) — холст konva с флэтом позиции, логотипы, «Скачать PDF макета»; на ≤ 760 px — превью `<img>` | С продажами |
 | `/sales-staff` | SalesStaff — «Сотрудники продаж»: «Ведёт заказы» (`is_sales`) и «Запускает в производство (МС)» (`is_ms`), `sales_set_staff(id, kind, on)` | admin, director, rop |
-| `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ); на ≤ 760 px — только просмотр | admin, director, rop |
+| `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz\|flats` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ, «Флэты и зоны» — веха 5а: список силуэтов и кнопка «Загрузить типовые флэты» для admin/director); на ≤ 760 px — только просмотр | admin, director, rop |
 
 ## Роли
 
@@ -175,7 +187,8 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Компоненты: `.jsx`, утилиты/типы: `.ts`
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
-- Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff, OrderSettings
+- Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff, OrderSettings;
+  веха 5а — DesignTab (холст), DesignSide, DesignPreview, exportPdf, loadPdf, seedFlats, FlatsTab, схема флэтов
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 - **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
@@ -190,13 +203,13 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 | Таблица | Назначение |
 |---------|-----------|
 | `orders` | id, order_number (PH-XXXX: `generate_order_number()` из `order_number_seq`; её же зовёт умолчание колонки — формат в одном месте, сессия 68), status, data JSONB, bitrix_deal; `schema_version` — 3 визард, 4 Order v4 (колонки шапки v4, итог в `price_total`, НЕ в `total_sum` — его пишет в аудит `log_order_changes`; старый список читает только 3). Веха 2 (миграции A `20261017053703`, B `20261017062110`): служебные колонки v4 — `paid_kind`/`paid_at`/`paid_override_reason`, `sent_at`, `launch_started_at`/`launch_by`, `launched_at`/`launched_by`, `erp_order_id`, `archived_at`, плюс `sticker_preview_path`; формат номера — `order_number_format(bigint)` (его зовёт `generate_order_number()`), уникальный индекс `orders_order_number_uniq`. Веха 3 (миграция D `20261017101513`, на бой — после выкладки фронта): `order_v4_save_full`/`order_v4_save` отказывают `client_rev` < 3 («Вышло обновление»), обёртка сверяет `expected_updated_at` с `updated_at` строки у заказа в `draft` («Заказ изменён в другой вкладке») |
-| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10). С вехи 2 — поля ТЗ (поставщик, описание модели, цвета частей, комментарий и PDF ТЗ; раскладка, файл макета, отступ, эффекты, подрядчик; метод `other`; бирки — `blank`, превью, схема крепления) |
+| `order_items` / `order_item_prints` / `order_item_labels` | Order v4 (миграция 20260928213529): позиции, нанесения, бирки; RLS на команду через родителя; запись — только `order_v4_save_full(jsonb)` (security invoker: `order_v4_save` + дни срочности одной транзакцией, 16.10). С вехи 2 — поля ТЗ (поставщик, описание модели, цвета частей, комментарий и PDF ТЗ; раскладка, файл макета, отступ, эффекты, подрядчик; метод `other`; бирки — `blank`, превью, схема крепления). Веха 5а (миграция H `20261017185435`): `order_item_prints.layout` — только геометрия холста, форма v1 (`v`, `flat_id`, `flat_version`, `view`, `area_id`, `x_mm`/`y_mm`, поворот, отражения, `asset`; путей нет), CHECK `order_item_prints_layout_check` (null или объект `v = '1'` ≤ 8 КБ); `order_items.flat_id` — CHECK `order_items_flat_id_check` (`''` или id флэта) |
 | `order_notes_cards` | Order v4 (веха 2): карточки заметок ТЗ (`order_id`, `item_id` null, группа, подпись, ссылка, картинка); составной FK `(item_id, order_id)`; RLS через родителя |
 | `order_events` | Order v4 (веха 2): журнал статусов и оплаты (`kind` = `status` / `payment`, `actor` = `auth.uid()`); у клиента только SELECT через родителя, пишут только RPC |
-| `profiles` | id, name, email, role, approved, active, `is_sales` (веха 3, миграция E `20261017093841`: «Менеджер продаж»; меняет только RPC `sales_set_staff` admin/director (с вехи 4 — и rop), страж `profiles_sales_guard`; список — `sales_staff_list()`; `sales_is_seller()` = active + approved + `is_sales`). Веха 4, миграция F `20261017142210`: `is_ms` — МС (менеджер сопровождения) на стороне ТЗ; `sales_is_ms()` = active + approved + `is_ms` (должность ERP больше не читает); `sales_set_staff(uuid, text, boolean)` — вид `'sales'`/`'ms'`, отмечают admin/director/rop (перегрузка `(uuid, boolean)` = вид `'sales'`, уходит в вехе 5); `sales_staff_list()` — роль, `is_sales`, `is_ms`; страж — исключения `is_sales` и `is_ms` |
+| `profiles` | id, name, email, role, approved, active, `is_sales` (веха 3, миграция E `20261017093841`: «Менеджер продаж»; меняет только RPC `sales_set_staff` admin/director (с вехи 4 — и rop), страж `profiles_sales_guard`; список — `sales_staff_list()`; `sales_is_seller()` = active + approved + `is_sales`). Веха 4, миграция F `20261017142210`: `is_ms` — МС (менеджер сопровождения) на стороне ТЗ; `sales_is_ms()` = active + approved + `is_ms` (должность ERP больше не читает); `sales_set_staff(uuid, text, boolean)` — вид `'sales'`/`'ms'`, отмечают admin/director/rop (перегрузки `(uuid, boolean)` с вехи 5а, миграция H, нет — двухаргументный вызов отвечает 42883); `sales_staff_list()` — роль, `is_sales`, `is_ms`; страж — исключения `is_sales` и `is_ms` |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | SKU (sku_catalog), цены (prices; с вехи 4 в нём и правила цены `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog); веха 4 — бирки `labelLibrary` (виды, варианты, материалы, схемы притачивания) и подвал ТЗ `tzSettings` |
+| `app_config` | SKU (sku_catalog), цены (prices; с вехи 4 в нём и правила цены `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog; с вехи 5а — `pants-front`/`pants-back`, миграция H дописывает их в живой справочник); веха 4 — бирки `labelLibrary` (виды, варианты, материалы, схемы притачивания) и подвал ТЗ `tzSettings`; веха 5а — флэты изделий `garmentFlats` (`{ version: 1, flats: [{ id, version, active, name, typical, categories, fits, sku_codes, views: [{ kind, svg_path, scale_mm_per_unit, print_areas: [{ id, name, zone_id, polygon_mm, methods, default_method }] }] }] }`; `svg_path` = `flats/<id>/v<version>/<kind>.svg`; в общую загрузку каталогов не входит) |
 | `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog); веха 4 — поставщики с палитрами `suppliers` (`isDefault`, `fabricSupplierNames`, `palette: { groups, colors }`) |
 
 **Справочники заказа (веха 4, миграция G `20261017150000`)** — подробно
@@ -204,7 +217,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 (сторож `catalog/catalogKeys.test.ts`). Запись новых экранов — только `security definer` RPC
 `catalog_put(p_table, p_key, p_value, p_base)` (справочник целиком; белый список статическими
 ветками: `suppliers`/`labelLibrary`/`tzSettings` — admin, director, rop; каталог моделей и тканей —
-admin, director) и `prices_patch(p_patch, p_base)` (верхние ключи прайса; rop — только три ключа
+admin, director; с вехи 5а — `app_config.garmentFlats`, только admin, director) и `prices_patch(p_patch, p_base)` (верхние ключи прайса; rop — только три ключа
 правил). Защита от затирания — на сервере `where value = p_base` (смысловое равенство jsonb), иначе
 `P0001`; форма записи (тип, 1 МБ, hex, уникальность id) — `22023`. Прямая запись в таблицы —
 admin/director с `active and approved` (`catalog_writer()`). Чтение — только активным и одобренным
@@ -224,7 +237,8 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
 | `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md` |
-| `storage-backup` | Ночная копия трёх бакетов выше (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
+| `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема). Пишет только `orderstudio/api/garmentFlats.ts`; наполняет кнопка «Загрузить типовые флэты». Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
+| `storage-backup` | Ночная копия бакетов выше (с вехи 5а — четырёх, `garment-flats` в `SOURCES`) (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
 `npm run storage:gc`; носителей ключа четыре, уборщиков два, ошибка проверки =
@@ -297,7 +311,7 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 - Состояния сохранения v4 `locked`/`outdated`/`conflict` — конечные: без повторов и потока RPC;
   правка только в `draft` (`model/editable`); выход сбрасывает заказ и буфер (`registerAppReset`)
 - Новый импорт ERP-примитива в Order — сверять `npm run bundle:budget`: бюджет оболочки ERP
-  держится на том, как Rollup режет чанки `ErpStates`/`ErpSkeletons` (запас 889 Б на 17.10)
+  держится на том, как Rollup режет чанки `ErpStates`/`ErpSkeletons` (запас 595 Б на 18.10, после вехи 5а)
 - **Статус, оплата и связь с ERP у v4 — только RPC** (`order_v4_transition` / `_launch_check` /
   `_set_payment`); прямую запись отклоняют стражи Order (`order_v4_guard` белым списком,
   `_delete_guard`, `_child_guard`). Новая колонка `orders` — классифицировать в страже (сторож
@@ -320,6 +334,15 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   список RPC и в `CATALOG_PUT_KEYS` одним коммитом. Порог маржи — подсказка, сервер доверяет
   `price_total`; тексты справочников в PDF — только текстовым API. Подробно —
   `docs/rules/pravila-spravochnikov-zakaza-i-ms-veha-4-17-10.md`
+- **Вкладка «Дизайн» (веха 5а): источник правды — заказ.** Холст пишет только
+  `useDesignStore.commit` → `useSalesStore.edit`; открытие заказа и вкладки ничего не пишет (и `flat_id`);
+  не черновик — только чтение, undo не копит. Мм, зона, техника, отступ, файл — в стандартных полях
+  нанесения (одна цена со строкой), `layout` — только геометрия v1, **путей в нём нет**; превью PDF/AI —
+  `<artwork_path>.preview.png`. SVG — санитайзер белым списком, тип по байтам (`sniff`), на холсте только
+  Blob → `<img>`, сцена PDF — `DOMParser` + `importNode`; в `design/**` нет `innerHTML` и импортов `/erp/`
+  (сторож `designGuards.test.ts`). Флэты неизменяемы по версии; сид — кнопкой, справочник последним.
+  Холст ≤ 100 000 Б gzip, маркер `data-design-canvas` не во входе и не в оболочках (`bundle:budget`).
+  Подробно — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md`
 - Цена материала — `priceRub` за единицу `unit` (метр / штука); `priceUSD` у тканей был ценой ЗА КГ
   и в формулу не идёт (13.10). Формула цены одна — `costRules`/`printRules`; своих копий в экранах не заводить
 - Материальный гейт — из данных (`gate_material_kinds`), пусто = fail-open
@@ -418,7 +441,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (94 файла, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (95 файлов, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |

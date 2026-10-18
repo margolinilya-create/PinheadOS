@@ -165,11 +165,71 @@ const BUDGETS = {
    *
    * 23.08: 160 → 155 кБ — форма входа и стор Order Studio уехали из входного
    * чанка (13,1 → 10,3 кБ своего кода).
+   *
+   * ВЕХА 5а, ЗАДАЧА 8 (18.10) — «вход и оболочка ERP не растут». Сверка с замером
+   * задачи 0 (сборка с `VERCEL_GIT_COMMIT_SHA=000000000000base`, побайтно по файлам):
+   * вход 151 750 → 151 780, оболочка ERP 194 369 → 194 405. Из них КОДОМ выросла
+   * только `vendor-react`: 92 193 → 92 215 (+22 Б) — привязки, которые берёт
+   * `vendor-konva` (`require` React и `scheduler` для react-reconciler: экземпляр React
+   * обязан быть один). Остальное — длина хешей в именах чанков (±10 Б на файл,
+   * у ErpApp, входа и примитивов от сборки к сборке). Было +64 Б: помощник CommonJS
+   * `commonjsGlobal`, нужный одной konva, жил в `vendor-react` — его снимает плагин
+   * `konvaWithoutNodeGlobal` в `vite.config.js` (−42 Б). Потолки не тронуты.
    */
   entryJs: 155_000,
   /** Ни один отдельный чанк не должен незаметно распухнуть */
   singleChunk: 100_000,
+  /**
+   * ХОЛСТ ВКЛАДКИ «ДИЗАЙН» (веха 5а): граф `design/ui/DesignTab` минус оболочка Order.
+   * Потолок — из спеки (строка 126: «холст — один ленивый чанк ≤ 100 кБ gzip»),
+   * а не по замеру. Замер спайка 17.10 (konva 9.3.22, react-konva 19.2.7): ядро konva
+   * с Stage/Layer/Image/Rect/Line/Text/Transformer и reconciler — 79,3 кБ; `Arrow` тянет
+   * `Path` + `BezierFunctions` ещё +8,5 кБ; zod целиком +19 кБ, `zod/mini` +6,5 кБ.
+   * Нашему коду холста и панели остаётся ≈ 14–20 кБ — подробности в design/README.md.
+   * Задача 8 (18.10), готовый код: 96 627 Б (97 %); вкладка при открытии — 110 469 справочно.
+   *
+   * РАУНД 1 РЕВЬЮ 6б (17.10): с панелью 6б граф был 109,9 кБ. Потолок НЕ поднят:
+   * ядро konva без Tween/Animation/FastLayer (`ui/konvaCore.ts`, −3,1 кБ), кэши
+   * картинок, панель и листы PDF — своими чанками по требованию (ниже `designImages`
+   * и `designPanel`). Граф холста — 96,6 кБ. ЧЕСТНО: вкладка при открытии (холст +
+   * картинки + панель) весит столько же, ≈ 110,4 кБ, — разрезка не уменьшила
+   * скачивание, а разнесла его по чанкам; эта сумма печатается справочно ниже.
+   */
+  designCanvas: 100_000,
+  /**
+   * КЭШИ КАРТИНОК ХОЛСТА (`assets/flatImages` + `assets/artworkImages`, их грузит
+   * `assets/imageLayer` по первой картинке) минус холст и оболочка Order.
+   * Замер раунда 1 ревью 6б: 8,5 кБ (санитайзер, проверка байтов, бакеты); потолок +~10 %.
+   */
+  designImages: 9_400,
+  /**
+   * ПАНЕЛЬ «ДИЗАЙН» (`ui/panel/DesignSide`, ленивый чанк рядом с холстом) минус холст,
+   * кэши картинок и оболочка Order. Замер раунда 1 ревью 6б: 5,3 кБ (панель и проверка
+   * макета `preflight`); потолок +~10 %.
+   */
+  designPanel: 5_800,
+  /**
+   * PDF МАКЕТА: граф `design/export/exportPdf` минус холст и оболочка Order.
+   * Замер спайка 17.10: jsPDF 4.2.1 + svg2pdf.js 2.8.1 (+ fflate, fast-png, pako) —
+   * 152,5 кБ. Потолок — замер +5 %.
+   *
+   * ЗАДАЧА 8 (18.10), готовый код: 159 426 Б (движок, сцена, шрифты PH Maket Sans
+   * подмножеством, растр логотипов). Потолок НЕ поднят: 99,6 % — это и есть страж
+   * «PDF не растёт молча»; следующая правка движка обязана либо уложиться, либо
+   * объяснить рост здесь. Ни во вход, ни в оболочки PDF не попадает (FORBIDDEN_IN_SHELL).
+   */
+  designPdf: 160_000,
+  /**
+   * PDFJS (логотипы PDF/AI): граф `design/assets/loadPdf` минус холст и оболочка Order.
+   * Замер спайка 17.10: pdfjs-dist 4.10.38 — 98,8 кБ. Воркер (1,38 МБ сырого)
+   * — отдельный ассет `?url`, в JS-граф не входит и здесь не считается.
+   * Задача 8 (18.10), готовый код: 99 991 Б (96 %).
+   */
+  designPdfjs: 104_000,
 };
+
+/** Вендоры вкладки «Дизайн» (веха 5а) — им нечего делать ни в одной оболочке */
+const DESIGN_VENDORS = ['vendor-konva', 'vendor-pdf', 'vendor-pdfjs'];
 
 /** Чанки, которым нечего делать в критическом пути ни при каких обстоятельствах */
 const FORBIDDEN_IN_SHELL = [
@@ -179,6 +239,9 @@ const FORBIDDEN_IN_SHELL = [
   'vendor-charts',
   // Order Studio за флагом: если он попал в статический граф — флаг перестал работать
   'OrderStudioApp',
+  // Холст, PDF-движок и pdfjs вехи 5а — только ленивыми чанками вкладки «Дизайн»
+  // (группы задаёт manualChunks в vite.config.js)
+  ...DESIGN_VENDORS,
 ];
 
 function fail(message) {
@@ -323,6 +386,140 @@ if (inShell.length) {
 } else {
   console.log('✓ виджет agentation остаётся ленивым — в критический путь не попал');
 }
+
+// ── Вкладка «Дизайн» (веха 5а) ──────────────────────────────────────────────
+
+/** Ключ модуля в манифесте: по пути исходника или по `name` (как у ErpApp выше) */
+function findKey(name, srcPath) {
+  return Object.keys(manifest).find((k) => k === srcPath || manifest[k].name === name);
+}
+
+/**
+ * Модуль дизайна, который обязан быть в манифесте, если его исходник существует.
+ * Пока исходника нет (задачи 3–7 ещё не слиты), проверка честно говорит «пропущено»,
+ * а не «0 Б»: «оболочка весит 0» — худший исход для стража. Задача 8 включает
+ * `DESIGN_REQUIRED`, и тогда отсутствие любого модуля — красный страж.
+ *
+ * `waitsFor` — исходник, через который модуль попадает в приложение. Пока его
+ * нет, модуль ещё никто не подключил (`loadPdf` грузит `useAddArtwork`, а его —
+ * вкладка «Дизайн», задача 6; `exportPdf` грузит кнопка «Скачать PDF макета»,
+ * а её монтирует та же вкладка): «⧗ ещё не подключён», а не красный, — ветка
+ * зелёная между слияниями задач 5–7 и 6. Появился `waitsFor`, а модуля в манифесте
+ * нет — красный, как и без `waitsFor`.
+ */
+/*
+ * ЗАДАЧА 8 (18.10): все модули вехи 5а слиты — `DESIGN_REQUIRED = true`. Теперь
+ * пропавший из манифеста модуль дизайна (переименовали, вклеили статически) — красный,
+ * а не «⧗ пропущено»: зелёный страж на исчезнувшем модуле хуже отсутствия стража.
+ */
+const DESIGN_REQUIRED = true;
+function designKey(name, srcPath, waitsFor = null) {
+  const key = findKey(name, srcPath);
+  if (key) return key;
+  const exists = existsSync(join(ROOT, srcPath));
+  const notWired = exists && waitsFor && !existsSync(join(ROOT, waitsFor));
+  if (DESIGN_REQUIRED || (exists && !notWired)) {
+    fail(`${srcPath} есть в исходниках, но не найден в манифесте — проверьте страж`);
+  } else if (notWired) {
+    console.log(`⧗ ${srcPath} ещё не подключён (нет ${waitsFor}) — проверка пропущена`);
+  } else {
+    console.log(`⧗ ${srcPath} ещё нет — проверка пропущена`);
+  }
+  return null;
+}
+
+const minus = (files, ...sets) => files.filter((f) => !sets.some((set) => set.includes(f)));
+
+/**
+ * ОБОЛОЧКА ORDER — вход + статический граф раздела ТЗ и рабочего места заказа.
+ * Сюда холст попасть не может ни при каких обстоятельствах: вкладка «Дизайн» —
+ * одна из четырёх, и платить за konva на «Клиенте» и «ТЗ и цене» никто не должен.
+ * Ключи — по `name`, как у ErpApp: OrderStudioApp ленив из App.jsx и в манифесте
+ * лежит под `_OrderStudioApp-<hash>.js`.
+ */
+const orderAppKey = findKey('OrderStudioApp', 'src/orderstudio/OrderStudioApp.jsx');
+const workplaceKey = findKey('OrderWorkplace', 'src/orderstudio/workplace/OrderWorkplace.jsx');
+if (!orderAppKey || !workplaceKey) {
+  fail('в манифесте нет OrderStudioApp или OrderWorkplace — оболочка Order переехала, поправьте страж');
+}
+const order = staticGraph(manifest, [entryKey, orderAppKey, workplaceKey].filter(Boolean));
+const orderJs = report('Оболочка Order — JS (вход + OrderStudioApp + OrderWorkplace)', order.js);
+
+/**
+ * Сид флэтов (`design/seed/**`: `seedFlats` с 67 SVG через `import.meta.glob(..., '?raw')`)
+ * — только в чанке кнопки «Загрузить типовые флэты». Два признака, потому что статический
+ * импорт вклеивается в чанк импортёра без своей записи в манифесте:
+ *   · ключи манифеста под `src/orderstudio/design/seed/` (ленивый случай, отдельные SVG);
+ *   · содержимое: ключи `import.meta.glob` — строки `./flats/<имя>.svg` — переживают
+ *     минификацию и встречаются только в коде сида (мутация 17.10: статический импорт
+ *     сида в OrderWorkplace по манифесту НЕ виден, по содержимому — виден).
+ */
+const SEED_MARKER = /\.\/flats\/[a-z0-9-]+\.svg/;
+const seedFiles = Object.entries(manifest)
+  .filter(([k, v]) => k.includes('src/orderstudio/design/seed/') || v.name === 'seedFlats')
+  .map(([, v]) => v.file);
+const isSeed = (f) => seedFiles.includes(f) || SEED_MARKER.test(readFileSync(join(DIST, f), 'utf8'));
+for (const f of order.js) {
+  const vendor = DESIGN_VENDORS.find((name) => f.includes(name));
+  if (vendor) fail(`${vendor} попал в оболочку Order (${f}) — холст и PDF обязаны быть ленивыми`);
+}
+for (const f of new Set([...shell.js, ...order.js])) {
+  if (isSeed(f)) fail(`сид флэтов попал во вход или оболочку (${f}) — он грузится только кнопкой`);
+}
+
+/**
+ * Маркер холста — литерал `data-design-canvas` в `DesignTab.jsx` (тот же приём,
+ * что у agentation выше). Статический импорт Rollup вклеивает в чанк импортёра
+ * без своей записи в манифесте, поэтому ищем по содержимому файлов, а не по ключам.
+ * Проверено мутацией 17.10: статический импорт DesignTab в OrderWorkplace —
+ * маркер в чанке OrderWorkplace, страж красный.
+ */
+const CANVAS_MARKER = 'data-design-canvas';
+const withMarker = [...new Set([...shell.js, ...order.js])].filter(
+  (f) => readFileSync(join(DIST, f), 'utf8').includes(CANVAS_MARKER),
+);
+if (withMarker.length) {
+  fail(`холст попал во вход или оболочку (${withMarker.join(', ')}) — DesignTab обязан быть ленивым`);
+} else {
+  console.log('✓ холст вкладки «Дизайн» не попал ни во вход, ни в оболочки ERP и Order');
+}
+
+const canvasKey = designKey('DesignTab', 'src/orderstudio/design/ui/DesignTab.jsx');
+const canvasJs = canvasKey ? minus(staticGraph(manifest, [canvasKey]).js, order.js) : [];
+if (canvasKey) check('Холст «Дизайн», JS', report('Холст — JS (DesignTab минус оболочка Order)', canvasJs).total, BUDGETS.designCanvas);
+
+/*
+ * Кэши картинок: PDF макета доступен только с флэтом и размещениями — к этому
+ * моменту холст (или превью телефона) уже загрузил оба кэша, чтобы их показать;
+ * pdfjs грузит конвейер логотипа, а он сам статически читает `sniff`. Поэтому
+ * PDF и pdfjs считаются за вычетом кэшей, как и за вычетом холста.
+ */
+const flatImagesKey = designKey('flatImages', 'src/orderstudio/design/assets/flatImages.ts', 'src/orderstudio/design/assets/imageLayer.ts');
+const artworkImagesKey = designKey('artworkImages', 'src/orderstudio/design/assets/artworkImages.ts', 'src/orderstudio/design/assets/imageLayer.ts');
+const imageKeys = [flatImagesKey, artworkImagesKey].filter(Boolean);
+const imagesJs = imageKeys.length ? minus(staticGraph(manifest, imageKeys).js, order.js, canvasJs) : [];
+if (imageKeys.length) check('Кэши картинок холста, JS', report('Кэши картинок — JS (flatImages + artworkImages минус холст и оболочка Order)', imagesJs).total, BUDGETS.designImages);
+
+const panelKey = designKey('DesignSide', 'src/orderstudio/design/ui/panel/DesignSide.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const panelJs = panelKey ? minus(staticGraph(manifest, [panelKey]).js, order.js, canvasJs, imagesJs) : [];
+if (panelKey) check('Панель «Дизайн», JS', report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total, BUDGETS.designPanel);
+if (canvasKey) {
+  const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
+  console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);
+}
+
+const pdfKey = designKey('exportPdf', 'src/orderstudio/design/export/exportPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
+if (pdfKey) {
+  const files = minus(staticGraph(manifest, [pdfKey]).js, order.js, canvasJs, imagesJs);
+  check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdf);
+}
+
+const pdfjsKey = designKey('loadPdf', 'src/orderstudio/design/assets/loadPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
+if (pdfjsKey) {
+  const files = minus(staticGraph(manifest, [pdfjsKey]).js, order.js, canvasJs, imagesJs);
+  check('pdfjs, JS', report('pdfjs — JS (loadPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdfjs);
+}
+console.log(`  оболочка Order: ${orderJs.total} Б gzip (справочно, без потолка)`);
 
 console.log(
   process.exitCode

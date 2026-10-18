@@ -40,9 +40,10 @@ afterEach(() => {
 });
 
 describe('OrderSettings — вкладки в адресе', () => {
-  it('реестр: пять вкладок в порядке плана', () => {
-    expect(ORDER_SETTINGS_TABS.map((t) => t.id)).toEqual(['suppliers', 'labels', 'packaging', 'pricing', 'tz']);
+  it('реестр: шесть вкладок в порядке плана (флэты — веха 5а)', () => {
+    expect(ORDER_SETTINGS_TABS.map((t) => t.id)).toEqual(['suppliers', 'labels', 'packaging', 'pricing', 'tz', 'flats']);
     expect(tabFromSearch('tz')).toBe('tz');
+    expect(tabFromSearch('flats')).toBe('flats');
     expect(tabFromSearch('nope')).toBe('suppliers');
     expect(tabFromSearch(null)).toBe('suppliers');
   });
@@ -54,6 +55,14 @@ describe('OrderSettings — вкладки в адресе', () => {
     const panel = screen.getByRole('tabpanel');
     expect(panel).toHaveAttribute('aria-labelledby', tab('Бирки и схемы').id);
     expect(panel).toHaveTextContent('«Бирки и схемы»');
+  });
+
+  it('«Флэты и зоны» из ?tab=flats: ленивая панель внутри вкладки', async () => {
+    renderAt('/order-settings?tab=flats', 'rop');
+    expect(tab('Флэты и зоны')).toHaveAttribute('aria-selected', 'true');
+    const heading = await screen.findByRole('heading', { name: 'Флэты и зоны' });
+    expect(screen.getByRole('tabpanel')).toContainElement(heading);
+    expect(screen.getByText('Флэты меняет администратор или директор')).toBeInTheDocument();
   });
 
   it('неизвестная вкладка — первая', () => {
@@ -78,7 +87,7 @@ describe('OrderSettings — вкладки в адресе', () => {
     await waitFor(() => expect(tabParam(router)).toBe('labels'));
     expect(document.activeElement).toBe(tab('Бирки и схемы'));
     fireEvent.keyDown(tab('Бирки и схемы'), { key: 'End' });
-    await waitFor(() => expect(tabParam(router)).toBe('tz'));
+    await waitFor(() => expect(tabParam(router)).toBe('flats'));
   });
 });
 

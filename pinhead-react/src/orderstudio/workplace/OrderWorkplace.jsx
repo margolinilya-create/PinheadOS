@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import { EmptyState } from '../../erp/components/ErpStates';
 /*
  * Скелет загрузки — тот же примитив, что у списка заказов. Импорт держит
@@ -15,6 +16,7 @@ import { gridQty, newSalesItem } from '../model/factory';
 import { duplicateInColor, splitByColor } from '../model/itemOps';
 import { useOrderPrice } from '../screens/useOrderPrice';
 import { STATUS_LABELS } from '../screens/labels';
+import { unplacedCount } from '../design/model/layoutMark';
 import ItemList from './ItemList';
 import ItemTab from './ItemTab';
 import ClientTab from './ClientTab';
@@ -24,8 +26,15 @@ import { confirmSplit } from './confirmSplit';
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
 
+/**
+ * Вкладка «Дизайн» — ленивый чанк холста (konva, панель, стор дизайна):
+ * в оболочку Order он не попадает (страж `bundle-budget`, маркер `data-design-canvas`)
+ */
+const DesignTab = lazy(() => import('../design/ui/DesignTab'));
+
 const TABS = [
   { key: 'item', label: 'Изделие' },
+  { key: 'design', label: 'Дизайн' },
   { key: 'client', label: 'Клиент' },
   { key: 'summary', label: 'ТЗ и цена' },
 ];
@@ -40,13 +49,19 @@ const clientReady = (order) => order.customer.trim() !== '';
 function tabMarker(key, order) {
   if (key === 'item') return itemsReady(order) ? ' ✓' : ' — не заполнено';
   if (key === 'client') return clientReady(order) ? ' ✓' : ' — не заполнено';
+  if (key === 'design') {
+    const prints = order.items.reduce((n, it) => n + it.prints.length, 0);
+    const free = unplacedCount(order.items);
+    if (prints === 0) return '';
+    return free > 0 ? ` — не размещено ${free}` : ' ✓';
+  }
   return '';
 }
 
 /**
- * Рабочее место заказа v4 `/sales/:id` (веха 3): список изделий и три вкладки —
- * «Изделие», «Клиент», «ТЗ и цена». Вкладка и позиция — в адресе
- * (`?tab=item|client|summary&item=<key>`).
+ * Рабочее место заказа v4 `/sales/:id` (веха 3): список изделий и вкладки —
+ * «Изделие», «Дизайн» (веха 5а: холст, ленивый чанк), «Клиент», «ТЗ и цена».
+ * Вкладка и позиция — в адресе (`?tab=item|design|client|summary&item=<key>`).
  *
  * Открытие заказа ничего не пишет: новая позиция — только по кнопке.
  * Уход с экрана сохраняет несохранённое сразу (`flush`).
@@ -192,46 +207,82 @@ export default function OrderWorkplace() {
       </div>
 
       <div role="tabpanel" id={`wp-panel-${tab}`} aria-labelledby={`wp-tab-${tab}`} className={styles.panel}>
-        {tab === 'item' && (
-          items.length === 0 ? (
-            <EmptyState
-              icon="inbox"
-              title="В заказе пока нет изделий"
-              text={readOnly ? undefined : 'Добавьте первое изделие — модель, ткань, цвет и размеры.'}
-              action={!readOnly && (
-                <button type="button" className="btn btn-primary" onClick={addItem}>Добавить изделие</button>
-              )}
+        {(tab === 'item' || tab === 'design') && items.length === 0 && (
+          <EmptyState
+            icon="inbox"
+            title="В заказе пока нет изделий"
+            text={readOnly ? undefined : 'Добавьте первое изделие — модель, ткань, цвет и размеры.'}
+            action={!readOnly && (
+              <button type="button" className="btn btn-primary" onClick={addItem}>Добавить изделие</button>
+            )}
+          />
+        )}
+        {tab === 'design' && selected && (
+          <div className={styles.designLayout}>
+            <ItemList
+              order={order}
+              selectedKey={selected.key}
+              onSelect={(key) => go({ item: key })}
+              onAdd={addItem}
+              onCopyColor={copyColor}
+              onRemove={remove}
+              onSplit={split}
+              readOnly={readOnly}
+              compact
             />
-          ) : (
-            <div className={styles.itemLayout}>
-              <ItemList
-                order={order}
-                selectedKey={selected?.key}
-                onSelect={(key) => go({ item: key })}
-                onAdd={addItem}
-                onCopyColor={copyColor}
-                onRemove={remove}
-                onSplit={split}
-                readOnly={readOnly}
-                compact={compact}
-              />
-              <div className={styles.itemMain}>
-                <ItemTab
-                  key={selected.key}
+            <ErrorBoundary
+              key={selected.key}
+              fallback={<p className={sales.empty}>Холст не открылся — обновите страницу. Нанесения можно править на вкладке «Изделие».</p>}
+            >
+              <Suspense fallback={<p className={sales.empty} role="status">Загружаю холст…</p>}>
+                <DesignTab
+                  order={order}
                   item={selected}
                   price={itemPrice}
                   readOnly={readOnly}
-                  onChange={(patch) => setItem(selected.key, patch)}
-                  onSplit={splitFromNotice}
+                  compact={compact}
+                  onOpenItem={() => go({ tab: 'item' })}
                 />
-                <div className={styles.next}>
-                  <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
-                    Далее: клиент и доставка
-                  </button>
-                </div>
+              </Suspense>
+            </ErrorBoundary>
+            <div className={styles.next}>
+              <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
+                Далее: клиент и доставка
+              </button>
+            </div>
+          </div>
+        )}
+        {tab === 'item' && selected && (
+          <div className={styles.itemLayout}>
+            <ItemList
+              order={order}
+              selectedKey={selected?.key}
+              onSelect={(key) => go({ item: key })}
+              onAdd={addItem}
+              onCopyColor={copyColor}
+              onRemove={remove}
+              onSplit={split}
+              readOnly={readOnly}
+              compact={compact}
+            />
+            <div className={styles.itemMain}>
+              <ItemTab
+                key={selected.key}
+                item={selected}
+                price={itemPrice}
+                readOnly={readOnly}
+                compact={compact}
+                onChange={(patch) => setItem(selected.key, patch)}
+                onSplit={splitFromNotice}
+                onOpenDesign={() => go({ tab: 'design' })}
+              />
+              <div className={styles.next}>
+                <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
+                  Далее: клиент и доставка
+                </button>
               </div>
             </div>
-          )
+          </div>
         )}
         {tab === 'client' && (
           <ClientTab

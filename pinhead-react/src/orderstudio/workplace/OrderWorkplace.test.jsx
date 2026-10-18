@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import OrderWorkplace from './OrderWorkplace';
 import { useSalesStore, __resetSalesStoreForTests } from '../store/useSalesStore';
 import { useStore } from '../../store/useStore';
-import { newSalesItem, newSalesOrder } from '../model/factory';
+import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 import { isEditable } from '../model/editable';
 import { SKU_CATALOG_DEFAULT } from '../../data/skuCatalog';
 import * as api from '../api/salesOrders';
@@ -27,6 +27,21 @@ vi.mock('../../lib/supabase', () => {
   });
   return { supabase: { from: vi.fn(() => chain()), rpc: vi.fn(() => chain()) } };
 });
+
+/**
+ * Вкладка «Дизайн» — заглушка: холст (konva, справочник флэтов) проверяет
+ * `design/ui/DesignTab.test.jsx`, здесь — встройка: ленивый вход, пропсы, адрес
+ */
+vi.mock('../design/ui/DesignTab', () => ({
+  default: function DesignTabStub({ item, readOnly, compact, onOpenItem }) {
+    return (
+      <div data-testid="design-tab" data-design-canvas="">
+        {`позиция ${item.key}; только чтение: ${readOnly}; узко: ${compact}`}
+        <button type="button" onClick={onOpenItem}>Открыть нанесения</button>
+      </div>
+    );
+  },
+}));
 
 const SKU = SKU_CATALOG_DEFAULT[2];
 /**
@@ -233,6 +248,8 @@ describe('OrderWorkplace — вкладки', () => {
     item.focus();
     fireEvent.keyDown(item, { key: 'Home' });
     fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: /^Дизайн/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(document.activeElement, { key: 'ArrowRight' });
     const client = screen.getByRole('tab', { name: /^Клиент/ });
     expect(client).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByLabelText('Клиент')).toBeInTheDocument();
@@ -261,6 +278,57 @@ describe('OrderWorkplace — вкладки', () => {
     const manager = screen.getByLabelText('Менеджер');
     expect(manager).toHaveAttribute('readonly');
     expect(manager).toHaveValue('Анна');
+  });
+});
+
+describe('OrderWorkplace — вкладка «Дизайн» (веха 5а)', () => {
+  const layout = { v: 1, flat_id: 'tshirt-test', flat_version: 1, view: 'front', area_id: 'chest', x_mm: 240, y_mm: 167, rotation_deg: 0, flip_h: false, flip_v: false,
+    asset: { type: 'png', source_file: 'logo.png', intrinsic_w_mm: 120, intrinsic_h_mm: 80, size_estimated: false, has_preview: false } };
+
+  it('?tab=design: холст лениво, позиции выпадающим списком; открытие ничего не пишет', async () => {
+    const a = itemA();
+    const b = itemA();
+    renderWp(newSalesOrder({ id: 'o-1', items: [a, b] }), `?tab=design&item=${b.key}`);
+    expect(screen.getByRole('tab', { name: /^Дизайн/ })).toHaveAttribute('aria-selected', 'true');
+    const stub = await screen.findByTestId('design-tab');
+    expect(stub.textContent).toContain(`позиция ${b.key}; только чтение: false; узко: false`);
+    expect(screen.queryByRole('list', { name: 'Изделия заказа' })).toBeNull();
+    expect(current().items[0]).toBe(a);
+    expect(current().items[1]).toBe(b);
+    expect(useSalesStore.getState().saveState).toBe('clean');
+  });
+
+  it('маркер вкладки: «— не размещено N», когда строки без холста', () => {
+    const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout }), newSalesPrint({ zone: 'Рукав' })] });
+    renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
+    expect(screen.getByRole('tab', { name: 'Дизайн — не размещено 1' })).toBeInTheDocument();
+  });
+
+  it('все нанесения на холсте — ✓; нанесений нет — без маркера', () => {
+    const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout })] });
+    const { unmount } = renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
+    expect(screen.getByRole('tab', { name: 'Дизайн ✓' })).toBeInTheDocument();
+    unmount();
+    renderWp(newSalesOrder({ id: 'o-2', items: [itemA()] }));
+    expect(screen.getByRole('tab', { name: 'Дизайн' })).toBeInTheDocument();
+  });
+
+  it('«Изделие»: строка на холсте — мм только чтение, «Изменить на холсте» ведёт на ?tab=design', async () => {
+    const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', width_mm: 120, height_mm: 80, layout })] });
+    renderWp(newSalesOrder({ id: 'o-1', items: [a] }), `?tab=item&item=${a.key}`);
+    // Первое «Ширина, мм» — у нанесения (второе — упаковка позиции)
+    expect(screen.getAllByLabelText('Ширина, мм')[0]).toHaveAttribute('readonly');
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить на холсте' }));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('tab=design'));
+    expect(screen.getByTestId('location').textContent).toContain(`item=${a.key}`);
+    await screen.findByTestId('design-tab');
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть нанесения' }));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('tab=item'));
+  });
+
+  it('заказ не черновик — холст только для чтения', async () => {
+    renderWp(newSalesOrder({ id: 'o-1', status: 'production', items: [itemA()] }), '?tab=design');
+    expect((await screen.findByTestId('design-tab')).textContent).toContain('только чтение: true');
   });
 });
 

@@ -10,6 +10,7 @@ import LabelRow from '../screens/LabelRow';
 import BufferedInput from '../screens/BufferedInput';
 import { formatMoney, parseMoney } from '../screens/fieldParse';
 import { ISSUE_LABELS, usePackagingOptions, rub } from '../screens/labels';
+import { hasPlacedLayout } from '../design/model/layoutMark';
 import { bindBuffer, canLoadIntoBuffer, loadItemIntoBuffer } from './itemBuffer';
 import GarmentPanel from './GarmentPanel';
 import sales from '../screens/Sales.module.css';
@@ -55,8 +56,15 @@ function useItemBuffer(key, bufferable, readOnly) {
  * Вкладка «Изделие» рабочего места: панели визарда для одежды позиции,
  * нанесения и бирки строками v4, доп. поля ТЗ, упаковка и цена позиции.
  * Все правки — по `item.key` (`onChange(patch)` родителя).
+ *
+ * Нанесение, стоящее на холсте вкладки «Дизайн» (веха 5а), — строка
+ * `placed`: зона и мм только для чтения, ссылка «Изменить на холсте»
+ * (`onOpenDesign`). ≤ 760 px холст только смотрят: у строки на холсте
+ * «Открыть на холсте», у остальных ссылки нет (`designViewOnly`). Заказ только
+ * для чтения — ссылки нет вовсе: строки закрыты `fieldset disabled`, кнопка
+ * в нём была бы мёртвой, а вкладка «Дизайн» рядом. Признак — без zod (`layoutMark`): zod в оболочку Order не идёт.
  */
-export default function ItemTab({ item, price, readOnly, onChange, onSplit }) {
+export default function ItemTab({ item, price, readOnly, compact = false, onChange, onSplit, onOpenDesign }) {
   const bufferable = canLoadIntoBuffer(item);
   const packOptions = usePackagingOptions();
   useItemBuffer(item.key, bufferable, readOnly);
@@ -113,6 +121,9 @@ export default function ItemTab({ item, price, readOnly, onChange, onSplit }) {
             qty={price?.prints.find((x) => x.key === p.key)?.qty ?? 0}
             onChange={(patch) => setPrint(i, patch)}
             onRemove={() => onChange({ prints: item.prints.filter((_, j) => j !== i) })}
+            placed={hasPlacedLayout(p.layout, item.flat_id)}
+            onOpenDesign={readOnly ? undefined : onOpenDesign}
+            designViewOnly={compact}
           />
         ))}
         {!readOnly && (

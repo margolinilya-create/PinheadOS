@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { installSupabaseMock, FX_CREATED, type MockCall } from './support/mockSupabase';
 import { hoodieItem, orderCatalogs } from './support/orderCatalogFx';
+import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 
 /**
  * Рабочее место заказа v4 `/sales/:id` (веха 3, задача 7): настоящий
@@ -315,12 +316,55 @@ test.describe('рабочее место заказа', () => {
     expect(saves(calls)).toHaveLength(0);
   });
 
+  test('нанесение на холсте: на «Изделии» зона и мм только для чтения, «Изменить на холсте» ведёт на «Дизайн»', async ({ page }) => {
+    // Веха 5а: строка нанесения с раскладкой — зону, мм и отступ пишет холст
+    test.skip(compact(page), 'На телефоне холст только для просмотра — e2e/order-design.spec.ts');
+    const calls: MockCall[] = [];
+    const id = '6f1c2d3e-0000-4000-8000-0000000000e5';
+    const itemId = '6f1c2d3e-0000-4000-8000-0000000000e6';
+    const print = {
+      id: '6f1c2d3e-0000-4000-8000-0000000000e7', sort_order: 0, method: 'dtf', zone: 'Грудь (перед)', sizes: [],
+      width_mm: 200, height_mm: 100, colors: 1, textile: 'white', fill: 1,
+      artwork_path: `orders/${id}/logo/00000000-0000-4000-8000-000000000001-logo.png`,
+      offset_mm: 111, offset_from: 'neck_seam', offset_dir: 'down',
+      layout: {
+        v: 1, flat_id: 'tshirt-freefit', flat_version: 1, view: 'front', area_id: 'chest',
+        x_mm: 377.6, y_mm: 230, rotation_deg: 0, flip_h: false, flip_v: false,
+        asset: { type: 'png', source_file: 'logo.png', intrinsic_w_mm: 50.8, intrinsic_h_mm: 25.4, size_estimated: false, has_preview: false },
+      },
+    };
+    const item = {
+      ...DRAFT_ITEM, id: itemId, sku_code: 'T-004', product_type: 'Футболка', flat_id: 'tshirt-freefit',
+      size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 30 } }] },
+      order_item_prints: [print],
+    };
+    await installSupabaseMock(page, {
+      calls,
+      salesOrders: [salesRow(id, 'draft', [item])],
+      catalogs: { app_config: { garmentFlats: seedFlatsCatalog(['tshirt-freefit']) } },
+      storageObjects: seedFlatObjects(['tshirt-freefit']),
+    });
+    await page.goto(`/sales/${id}?tab=item&item=${itemId}&studio=1`);
+    await expect(page.getByText(/^Зона, размер и отступ заданы на холсте · отступ/)).toBeVisible();
+    const row = page.getByText(/^Зона, размер и отступ заданы на холсте/).locator('..');
+    await expect(row.getByLabel('Зона', { exact: true })).toHaveAttribute('readonly', '');
+    await expect(row.getByLabel('Ширина, мм', { exact: true })).toHaveAttribute('readonly', '');
+    await expect(row.getByLabel('Ширина, мм', { exact: true })).toHaveValue('200');
+
+    await page.getByRole('button', { name: 'Изменить на холсте' }).click();
+    await expect(page).toHaveURL(/tab=design/);
+    await expect(page.getByRole('application', { name: /^Холст/ })).toHaveAttribute('data-ready', 'true');
+    await expect(page.getByRole('list', { name: 'Нанесения на виде' }).getByRole('listitem')).toHaveCount(1);
+    await page.waitForTimeout(1500);
+    expect(saves(calls)).toHaveLength(0);
+  });
+
   test('рабочее место: нет нарушений axe уровня serious/critical', async ({ page }) => {
     const id = '6f1c2d3e-0000-4000-8000-0000000000dd';
     const item = { ...DRAFT_ITEM, size_grid: { sizes: ['M', 'L'], rows: [DRAFT_ITEM.size_grid.rows[0]] } };
     await installSupabaseMock(page, { salesOrders: [salesRow(id, 'draft', [item])] });
 
-    for (const tab of ['item', 'client', 'summary']) {
+    for (const tab of ['item', 'design', 'client', 'summary']) {
       await page.goto(`/sales/${id}?tab=${tab}&studio=1`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('PH-9100 · ООО Тест');
       await expect(page.getByRole('tabpanel')).toBeVisible();

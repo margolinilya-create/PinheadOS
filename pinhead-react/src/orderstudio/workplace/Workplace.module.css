@@ -443,3 +443,6 @@
 
   .garment :global(.swatch) { min-width: 44px; min-height: 44px; }
 }
+
+/* Вкладка «Дизайн» (веха 5а): позиции — выпадающим списком над холстом */
+.designLayout { display: flex; flex-direction: column; gap: var(--space-md); min-width: 0; }

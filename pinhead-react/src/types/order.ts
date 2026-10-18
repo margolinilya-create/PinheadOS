@@ -121,8 +121,6 @@ export interface OrderItem {
   labelConfig: LabelConfig;
   tech: string;
   textileColor: string;
-  zoneArtworks: Record<string, string>;
-  designNotes: string;
   sizeComment: string;
   noPrint: boolean;
   fitChosen: boolean;

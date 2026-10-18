@@ -99,7 +99,8 @@ test.describe('SKU Editor — Зоны нанесения', () => {
     await expect(page.getByText('Глобальный каталог зон')).toBeVisible();
 
     // Зоны по умолчанию: 8 прежних + левая и правая штанина (правка 13.10)
-    await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(10, { timeout: 5000 });
+    // + штанина перед/зад (веха 5а)
+    await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(12, { timeout: 5000 });
   });
 
   test('Add zone button is disabled with empty ID', async ({ page }) => {

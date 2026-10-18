@@ -1,24 +1,21 @@
 /**
- * Визард Order Studio ↔ позиция Order v4.
+ * Позиция Order v4 ↔ поля стора визарда (буфер позиции рабочего места, веха 3).
  *
- * Шаги визарда «Изделие» и «Дизайн» работают в карточке v4 как есть (см.
- * `itemSession.ts`): на выходе у них снимок позиции визарда (`snapshotItem`,
- * поля `ITEM_FIELDS`), здесь он становится `SalesItem`, и обратно — для
- * «Изменить в визарде».
+ * - `salesItemToWizard` — позиция → поля визарда: панели вкладки «Изделие»
+ *   (`GarmentPanel`) работают на сторе визарда, `itemBuffer` грузит в него позицию;
+ * - `garmentPatch` — разница буфера → новая позиция (пишется только изменённое).
  *
- * Карточка v4 знает больше визарда: Pantone, группу размеров нанесения,
- * отступ, «на крое/готовом», ТЗ пошива, бирки поштучно, несколько цветов
- * в сетке. Поэтому перевод из визарда НАКЛАДЫВАЕТСЯ на прежнюю позицию
- * (`base`), а не заменяет её: визард правит то, что умеет, остальное остаётся.
+ * Обратный перенос «снимок визарда → позиция» (`wizardToSalesItem`) убран в вехе 5а:
+ * визарда v3 как экрана нет с вехи 3, читателей у переноса не осталось.
+ * Техники визарда ↔ Order — `model/printMethods`.
  */
 import { findPaletteColor, supplierForFabric } from '../catalog/suppliers';
 import type { Supplier } from '../catalog/types';
 import { initSizes, sizeOrder } from '../../store/slices/helpers';
-import { FMT_SIZES } from '../../utils/pricingCore';
-import { DTG_SIZES, dtgFitSize, dtgSizeKey } from '../../utils/printRules';
-import { SCREEN_MAX_MM, embroideryExtras, fitFormat, screenFormat } from '../pricing/priceOrder';
-import { newSalesItem, newSalesLabel, newSalesPrint } from '../model/factory';
-import type { SalesItem, SalesLabel, SalesPrint, SalesPrintMethod } from '../model/types';
+import { dtgFitSize } from '../../utils/printRules';
+import { embroideryExtras, fitFormat, screenFormat } from '../pricing/priceOrder';
+import { METHOD_TO_TECH, type WizardTech } from '../model/printMethods';
+import type { SalesItem } from '../model/types';
 import type { Fabric, SkuItem, ZoneDefinition } from '../../types/catalog';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- снимок визарда нетипизирован (см. types/order.ts: типы техник устарели) */
@@ -32,33 +29,6 @@ export interface WizardCatalogs {
   /** Поставщики и палитры (`catalog_config.suppliers`) — подписи и коды цветов */
   suppliers: Supplier[];
 }
-
-type WizardTech = 'screen' | 'flex' | 'dtg' | 'embroidery' | 'dtf';
-
-const TECH_TO_METHOD: Record<WizardTech, SalesPrintMethod> = {
-  screen: 'silkscreen',
-  flex: 'heat_transfer',
-  dtg: 'dtg',
-  embroidery: 'embroidery',
-  dtf: 'dtf',
-};
-
-const METHOD_TO_TECH: Partial<Record<SalesPrintMethod, WizardTech>> = {
-  silkscreen: 'screen',
-  heat_transfer: 'flex',
-  dtg: 'dtg',
-  embroidery: 'embroidery',
-  dtf: 'dtf',
-};
-
-/** Поле параметров техники в сторе визарда */
-const TECH_FIELD: Record<WizardTech, string> = {
-  screen: 'zonePrints',
-  flex: 'flexZones',
-  dtg: 'dtgZones',
-  embroidery: 'embZones',
-  dtf: 'dtfZones',
-};
 
 // ── Цвет ──────────────────────────────────────────────────────────────────
 
@@ -88,36 +58,17 @@ function paletteOfFabric(code: string, cat: WizardCatalogs): Supplier | null {
 
 // ── Зона ──────────────────────────────────────────────────────────────────
 
-function zoneName(id: string, zones: ZoneDefinition[]): string {
-  return zones.find((z) => z.id === id)?.name ?? id;
-}
-
 function zoneId(name: string, zones: ZoneDefinition[]): string {
   return zones.find((z) => z.name === name || z.id === name)?.id ?? name;
-}
-
-/**
- * Формат визарда ↔ мм v4 — ПО ТЕХНИКЕ. Один перевод через размеры листа
- * ломал цену при переносе: DTG A4 (лист 210×297) не входил в DTG-размер
- * A4 (200×300) и считался как A3; Max у шелкографии мм не имел и становился
- * A4. Здесь у каждой техники свои размеры, и обратный перевод даёт тот же
- * формат (`fmtOf(mmOf(f)) === f`).
- */
-type Mm = { w: number; h: number };
-
-function mmOf(tech: WizardTech, fmt: string | undefined): Mm {
-  const f = fmt || 'A4';
-  if (tech === 'dtg') {
-    const s = DTG_SIZES.find((d) => d.key === dtgSizeKey(f)) ?? DTG_SIZES.find((d) => d.key === 'A4')!;
-    return { w: s.w, h: s.h };
-  }
-  if (tech === 'screen' && f === 'Max') return SCREEN_MAX_MM;
-  return FMT_SIZES[f] ?? FMT_SIZES.A4;
 }
 
 /** DTG-размер `40x45` у визарда — кнопка A3+ */
 const DTG_KEY_TO_WIZARD: Record<string, string> = { '40x45': 'A3+' };
 
+/**
+ * Мм v4 → формат визарда ПО ТЕХНИКЕ: у каждой техники свои размеры
+ * (DTG A4 — 200×300, а не лист 210×297; Max у шелкографии — свой предел).
+ */
 function fmtOf(tech: WizardTech, w: number | null, h: number | null): string {
   if (tech === 'dtg') {
     const k = dtgFitSize(w, h);
@@ -125,84 +76,6 @@ function fmtOf(tech: WizardTech, w: number | null, h: number | null): string {
   }
   if (tech === 'screen') return screenFormat(w, h).fmt;
   return fitFormat(w, h).fmt;
-}
-
-/** Способ вышивки визарда ↔ «где наносим» и тип изделия v4 */
-const PATCH_KIND = 'Шеврон';
-
-// ── Визард → v4 ──────────────────────────────────────────────────────────
-
-function printFromZone(snap: WizardItem, id: string, cat: WizardCatalogs, base: SalesPrint | undefined): SalesPrint {
-  const tech = (snap.zoneTechs?.[id] || 'screen') as WizardTech;
-  const p = snap[TECH_FIELD[tech]]?.[id] ?? {};
-  const patch: Partial<SalesPrint> = {
-    method: TECH_TO_METHOD[tech] ?? 'silkscreen',
-    zone: zoneName(id, cat.zonesCatalog),
-  };
-  if (tech === 'screen' || tech === 'flex' || tech === 'dtg') {
-    // Мм, заданные в карточке, остаются, пока формат в визарде не меняли:
-    // иначе проход «Изменить в визарде» без правок сбивал 250×300 до листа A3
-    const keepMm = base && METHOD_TO_TECH[base.method] === tech
-      && fmtOf(tech, base.width_mm, base.height_mm) === (p.size || 'A4');
-    if (!keepMm) {
-      const { w, h } = mmOf(tech, p.size);
-      patch.width_mm = w;
-      patch.height_mm = h;
-    }
-  }
-  if (tech === 'screen' || tech === 'flex') patch.colors = Math.max(1, parseInt(p.colors) || 1);
-  if (tech === 'screen' || tech === 'dtg') patch.textile = p.textile === 'color' ? 'color' : 'white';
-  if (tech === 'screen') patch.special = p.fx && p.fx !== 'none' ? p.fx : '';
-  if (tech === 'embroidery') {
-    patch.width_mm = Number(p.width_mm) || 50;
-    patch.height_mm = Number(p.height_mm) || 50;
-    patch.fill = Number(p.fill) || 1;
-    // Надбавки суммируются: одна из списка `extras` плюс выбор `extra`
-    const fx = [...new Set([...(p.extras ?? []), ...(p.extra ? [p.extra] : [])])];
-    patch.special = embroideryExtras(fx.join('+')).join('+');
-    if (p.mode === 'patch') patch.garment_kind = PATCH_KIND;
-    else {
-      patch.on = p.mode === 'garment' ? 'finished' : 'cut';
-      if (base?.garment_kind === PATCH_KIND) patch.garment_kind = '';
-    }
-  }
-  if (tech === 'dtf') {
-    const { w, h } = mmOf('dtf', p.fmt || p.size);
-    patch.width_mm = Number(p.width_mm) || w;
-    patch.height_mm = Number(p.height_mm) || h;
-  }
-  const art = snap.zoneArtworks?.[id];
-  if (art) patch.artwork_url = art;
-  // Доработанное в карточке (Pantone, группа размеров, отступ, «где», комментарий) остаётся
-  return base ? { ...base, ...patch } : newSalesPrint(patch);
-}
-
-function labelsFrom(snap: WizardItem, base: SalesLabel[]): SalesLabel[] {
-  const cfg = snap.labelConfig;
-  const out = [...base];
-  const has = (type: string) => base.some((l) => l.label_type === type);
-  const note = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(', ');
-  if (cfg?.careLabel?.enabled && !has('composition')) {
-    out.push(newSalesLabel({
-      label_type: 'composition',
-      // Вариант — для цены (`salesLabelPrice`): та же ставка, что в визарде
-      variant_id: cfg.careLabel.logoOption || 'standard',
-      comment: note(cfg.careLabel.composition, cfg.careLabel.country, cfg.careLabel.comments),
-    }));
-  }
-  const main = cfg?.mainLabel;
-  if (main && main.option !== 'none' && !has('brand')) {
-    out.push(newSalesLabel({
-      label_type: 'brand',
-      variant_id: [main.option, main.material].filter(Boolean).join(':'),
-      place: main.placement === 'inseam' ? 'Боковой шов' : 'Горловина',
-      comment: note(main.option === 'send-own' ? 'бирка клиента' : main.option, main.material, main.color, main.comments),
-    }));
-  }
-  if (cfg?.hangTag && cfg.hangTag.option !== 'none' && !has('hangtag')) {
-    out.push(newSalesLabel({ label_type: 'hangtag', variant_id: cfg.hangTag.option, comment: note(cfg.hangTag.option, cfg.hangTag.comments) }));
-  }
-  return out;
 }
 
 /** Ткань для ТЗ: «Кулирка, 100% хб, 180 г/м²» */
@@ -236,71 +109,12 @@ function wizardQty(snap: { sizes?: Record<string, unknown>; customSizes?: { labe
   return out;
 }
 
-/**
- * Снимок визарда → позиция v4.
- * `base` — прежняя позиция при «Изменить в визарде»; `editRow` — подпись
- * строки сетки, которую правил визард (у визарда один цвет на позицию).
- */
-export function wizardToSalesItem(
-  snap: WizardItem, cat: WizardCatalogs, base?: SalesItem, editRow?: string,
-): SalesItem {
-  const item: SalesItem = base
-    ? { ...base, prints: [...base.prints], labels: [...base.labels] }
-    : newSalesItem({ kind: 'sku' });
-
-  const sku = snap.sku as SkuItem | null;
-  if (sku) {
-    item.sku_code = sku.code;
-    item.product_type = sku.name;
-    item.fit = sku.fit || snap.fit || item.fit;
-  }
-
-  const fabric = cat.fabricsCatalog.find((f) => f.code === snap.fabric);
-  item.fabric_code = snap.fabric || '';
-  const palette = supplierForFabric(fabric, cat.suppliers);
-  const color = colorLabel(snap.color || '', cat.suppliers, palette);
-  const codeOf = (label: string) => colorCodeOf(label, cat.suppliers, palette);
-  if (fabric) {
-    item.main_fabric = fabricText(fabric);
-    item.color_supplier = colorSupplierText(color, fabric, cat.suppliers);
-  }
-
-  // Сетка: строка цвета визарда заменяется, остальные строки остаются
-  const qty = wizardQty(snap);
-  const rows = base ? [...base.size_grid.rows] : [];
-  const target = editRow ?? color;
-  const idx = rows.findIndex((r) => r.color === target
-    || (codeOf(r.color) !== '' && codeOf(r.color) === snap.color));
-  const row = { color: color || target || '', sizes: qty };
-  if (idx >= 0) rows[idx] = row;
-  else if (Object.keys(qty).length > 0 || rows.length === 0) rows.push(row);
-  const sizes = [...new Set([...(base?.size_grid.sizes ?? []), ...Object.keys(qty)])]
-    .sort((a, b) => sizeOrder(a) - sizeOrder(b));
-  item.size_grid = { sizes, rows };
-
-  // Нанесения: по зонам визарда; техники, которых у визарда нет (сублимация,
-  // шевроны), заведённые в карточке, остаются как есть
-  const zones: string[] = snap.noPrint ? [] : (snap.zones ?? []);
-  const byZone = new Map((base?.prints ?? []).map((p) => [p.zone, p]));
-  const keep = (base?.prints ?? []).filter((p) => !METHOD_TO_TECH[p.method]);
-  const fromWizard = zones.map((z) => printFromZone(snap, z, cat, byZone.get(zoneName(z, cat.zonesCatalog))));
-  const notes = String(snap.designNotes ?? '').trim();
-  if (notes && fromWizard[0] && !fromWizard[0].comment) fromWizard[0] = { ...fromWizard[0], comment: `Дизайн: ${notes}` };
-  item.prints = [...fromWizard, ...keep];
-
-  item.labels = labelsFrom(snap, base?.labels ?? []);
-  item.extras = [...(snap.extras ?? [])];
-  const sizeComment = String(snap.sizeComment ?? '').trim();
-  if (sizeComment && !item.cutting_note) item.cutting_note = sizeComment;
-  return item;
-}
-
 // ── v4 → визард ──────────────────────────────────────────────────────────
 
 /**
- * Позиция v4 → поля визарда для «Изменить в визарде».
+ * Позиция v4 → поля визарда для буфера позиции (`itemBuffer`).
  * `rowColor` — какая строка сетки редактируется (по умолчанию первая).
- * `type` не возвращается: его ставит штатный `selectSku` визарда (сессия
+ * `type` не возвращается: его ставит штатный `selectSku` визарда (буфер
  * вызывает его по `sku`), иначе тип разошёлся бы с тем, что ставит визард.
  */
 export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor?: string): WizardItem {
@@ -320,7 +134,6 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
   const fields: Record<string, Record<string, unknown>> = {
     zonePrints: {}, flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
   };
-  const zoneArtworks: Record<string, string> = {};
   for (const p of item.prints) {
     const tech = METHOD_TO_TECH[p.method];
     if (!tech) continue;
@@ -340,7 +153,6 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
       };
     }
     if (tech === 'dtf') fields.dtfZones[id] = { fmt, width_mm: p.width_mm, height_mm: p.height_mm };
-    if (p.artwork_url) zoneArtworks[id] = p.artwork_url;
   }
 
   return {
@@ -356,7 +168,6 @@ export function salesItemToWizard(item: SalesItem, cat: WizardCatalogs, rowColor
     zones,
     zoneTechs,
     ...fields,
-    zoneArtworks,
     noPrint: item.prints.length === 0,
   };
 }

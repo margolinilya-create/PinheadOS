@@ -14,7 +14,7 @@ const baseState = () => ({
   customSizes: [],
   extras: [], labels: [], zones: [], zoneTechs: {}, zonePrints: {},
   flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
-  zoneArtworks: {}, noPrint: false,
+  noPrint: false,
   packOption: false, urgentOption: false,
   labelConfig: {
     careLabel: { enabled: false, logoOption: 'no-logo' },

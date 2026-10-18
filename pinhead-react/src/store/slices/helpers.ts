@@ -19,7 +19,7 @@ export function sizeOrder(label: string): number {
 export const ITEM_FIELDS: (keyof OrderItem)[] = [
   'type', 'fabric', 'color', 'sku', 'sizes', 'customSizes', 'fit', 'fitChosen',
   'extras', 'labels', 'zones', 'tech', 'textileColor', 'zoneTechs', 'zonePrints',
-  'flexZones', 'dtgZones', 'embZones', 'dtfZones', 'zoneArtworks', 'designNotes',
+  'flexZones', 'dtgZones', 'embZones', 'dtfZones',
   'sizeComment', 'noPrint', 'labelConfig', 'colorSupplier', 'skuFilter',
 ];
 
@@ -29,7 +29,7 @@ export const defaultItemFields: OrderItem = {
   extras: [], labels: [],
   zones: [], tech: 'screen', textileColor: 'white',
   zoneTechs: {}, zonePrints: {}, flexZones: {}, dtgZones: {}, embZones: {}, dtfZones: {},
-  zoneArtworks: {}, designNotes: '', sizeComment: '', noPrint: false,
+  sizeComment: '', noPrint: false,
   labelConfig: {
     careLabel: { enabled: false, logoOption: 'no-logo', composition: '', country: '', uploadData: null, comments: '' },
     mainLabel: { option: 'none', placement: 'neck', material: 'woven', color: 'white', uploadData: null, comments: '' },

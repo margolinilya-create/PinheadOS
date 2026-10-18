@@ -132,6 +132,17 @@ URL: https://pinhead-os.vercel.app
   бирки из библиотеки); `api/catalogAdmin` — единственный писатель `app_config`/`catalog_config`
   (RPC `catalog_put`/`prices_patch`); «Сотрудники продаж» `/sales-staff` — `is_sales` и `is_ms`
   (МС на стороне ТЗ), правит и rop. Правила — `docs/rules/pravila-spravochnikov-zakaza-i-ms-veha-4-17-10.md`.
+  Веха 5а (17–18.10): `design/` — вкладка «Дизайн» рабочего места (`/sales/:id?tab=design&item=`): холст
+  konva с флэтом позиции, логотипы (PNG/JPEG/WEBP/SVG/PDF/AI → бакет `order-artworks`), инспектор,
+  слои, undo, «Скачать PDF макета» (jsPDF + svg2pdf, ленивый по клику); на ≤ 760 px — превью `<img>`.
+  Ленивые чанки: `DesignTab` (холст ≤ 100 кБ gzip), `DesignSide`, `DesignPreview`, `exportPdf`, `loadPdf`
+  (pdfjs), `seedFlats`. Источник правды — заказ: запись только `useDesignStore.commit` → `useSalesStore.edit`;
+  `layout` нанесения — геометрия v1 без путей (`model/layoutMark` — разбор без zod для оболочки Order);
+  `PrintRow placed` на «Изделии». Флэты — приватный бакет `garment-flats` (`api/garmentFlats`) +
+  `app_config.garmentFlats` (`catalog/flatsSchema` на `zod/mini`, `useFlatsCatalog`, `pickFlat`);
+  вкладка «Флэты и зоны» `/order-settings?tab=flats` (`admin/tabs/FlatsTab`, кнопка «Загрузить
+  типовые флэты» — admin/director). Техники — `model/printMethods.ts`. Карта модуля и бюджет —
+  `src/orderstudio/design/README.md`; правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -146,9 +157,9 @@ URL: https://pinhead-os.vercel.app
   - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
   - шапка и сайдбар Order — orderstudio/layout/
 - store/ — Zustand (все .ts)
-  - useStore.ts — store визарда (7 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
+  - useStore.ts — store визарда (6 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
     (`resetItemFields`, сброс при выходе через `appReset.registerAppReset`)
-  - slices/ — все .ts: wizardSlice, productSlice, designSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice
+  - slices/ — все .ts: wizardSlice, productSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice (действия зон визарда убраны в вехе 5а)
   - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
 - utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
@@ -161,7 +172,7 @@ URL: https://pinhead-os.vercel.app
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
-- app_config хранит: sku_catalog, prices (+ `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, labelLibrary, tzSettings (веха 4)
+- app_config хранит: sku_catalog, prices (+ `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, labelLibrary, tzSettings (веха 4), garmentFlats (веха 5а: флэты изделий; в `loadAllCatalogs` не входит — вкладка «Дизайн» читает сама)
 - catalog_config хранит: fabricsCatalog, trimCatalog, suppliers (веха 4: поставщики с палитрами)
 - Запись справочников — только `orderstudio/api/catalogAdmin.ts` (RPC с базой; сторож `catalogWrites.test.ts`); стор знает `catalogSource: 'db' | 'fallback'` — на запасном пути редактор не сохраняет
 - hex из справочника в стиль — только через `utils/sanitizeHex`
@@ -213,7 +224,13 @@ URL: https://pinhead-os.vercel.app
   pricing/wizardParity (цена буфера = цена заказа); веха 4: catalog/seedsMatch (сид миграции G =
   `seeds.ts`, цены бирок = `pricingCore`), catalog/catalogKeys (ключи уникальны по двум таблицам),
   catalogWrites (единственный писатель справочников), useCatalogEditor (конфликт, запасной путь),
-  catalog/suppliers и catalog/labels (снятое значение в заказе остаётся)
+  catalog/suppliers и catalog/labels (снятое значение в заказе остаётся); веха 5а: design/designGuards
+  (нет импортов ERP и HTML-строкой в DOM, ядро без React), design/assets/sanitizeSvg + sniff + assetGuards
+  (белый список SVG, тип по байтам, object URL только в кэшах картинок), design/model/pricingParity (цена
+  холста = цена строки), layoutMark (эталон против zod), useDesignStore (запись только в черновике, undo),
+  DesignTab (открытие ничего не пишет), export/pdfGuards (PDF только `import()`), seed/garmentFlatsSeed
+  (сид проходит санитайзер, `zone_id` есть в справочнике зон), garmentFlatsBucket / flatsWrites /
+  artworkWrites (бакеты и единственные писатели), ui/konva (ядро konva без Tween, плагины сборки)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

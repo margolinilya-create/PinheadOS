@@ -93,8 +93,9 @@ jobs:
             auth: { persistSession: false },
           });
           // order-artworks (веха 2) — приватный, как и копия: ключ service_role
-          // читает его без политик, макеты клиента наружу не выходят
-          const SOURCES = ['erp-attachments', 'sku-photos', 'order-artworks'];
+          // читает его без политик, макеты клиента наружу не выходят;
+          // garment-flats (веха 5а, миграция H) — приватные флэты изделий
+          const SOURCES = ['erp-attachments', 'sku-photos', 'order-artworks', 'garment-flats'];
           const TARGET = 'storage-backup';
 
           /**
