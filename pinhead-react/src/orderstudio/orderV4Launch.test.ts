@@ -238,6 +238,19 @@ describe('пробы J: тексты, файлы, мутации', () => {
     }
   });
 
+  it('остаточный путь подделки (объект МС у заказа ERP продавца) записан пробой и README, а не скрыт', () => {
+    // Находка безопасности №1 закрыта частично: хелпер сверяет только владельца объекта.
+    // Пока путь открыт, пробы фиксируют его как OK; закроют — ожидания станут отказом,
+    // и README обязан перестать называть путь открытым (правка одним коммитом).
+    for (const name of ['resid_seller_perm', 'resid_doc', 'resid_check', 'resid_prod', 'resid_worker_doc']) {
+      expect(probeNames.has(name), name).toBe(true);
+    }
+    const readme = readFileSync(join(PROBES, 'README.md'), 'utf8');
+    const open = /select pg_temp\.p\('resid_prod', 'OK /.test(launch);
+    expect(readme.includes('Остаточный путь подделки'), 'README: раздел об остаточном пути').toBe(open);
+    expect(launch).toContain('ОСТАТОЧНЫЙ ПУТЬ ПОДДЕЛКИ');
+  });
+
   it('генератор мутаций: каждая правка находится ровно один раз, «убиваемая» проба есть', async () => {
     const url = pathToFileURL(join(PROBES, 'mutations/make-mutations.mjs')).href;
     const mod = (await import(/* @vite-ignore */ url)) as {

@@ -1,7 +1,7 @@
 -- Пробы миграции J (20261018120000_order_v4_launch, веха 6+7): «Отправить в работу»,
 -- оплата МС, проверка запуска и переход в production.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=126 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=138 {…}
 --
 -- До применения J — только сухим прогоном вместе с ней (1-dryrun-J.sql: предусловие, J,
 -- этот файл). На схеме без J (B/F) файл обязан дать fails>0 — это «красный» прогон
@@ -14,7 +14,10 @@
 -- меняются внутри транзакции (откат вернёт):
 --   ADMIN  b9c3e42e-…  admin, строки erp_employees нет
 --   DIR    36a4e89d-…  designer → director, строки erp_employees нет
---   SELLER 9285888e-…  manager → production, is_sales (продавец с ролью не manager)
+--   SELLER 9285888e-…  manager → production, is_sales (продавец с ролью не manager);
+--                      должность ERP production_head (как у всех 10 продавцов боя на 18.10:
+--                      tz.manage и order.manage ЕСТЬ); раздел «Остаточный путь» понижает её
+--                      до worker внутри транзакции (сценарий плана «продавец без tz.manage»)
 --   OLDMGR e73bd7fd-…  manager без is_sales (автор старых черновиков)
 --   MS1    f13c33f3-…  is_ms, должность ERP manager
 --   MS2    05bbc552-…  is_ms, должность ERP production_head
@@ -36,6 +39,18 @@
 -- ПИШУТ (пробы фиксируют это как факт, К13); не пускает их launch_check (права ERP).
 -- erp_has_permission у admin/director без строки ERP — роль 'director' (права есть),
 -- erp_is_member — true: проверка запуска и запись в бакет дают один итог.
+--
+-- ОСТАТОЧНЫЙ ПУТЬ ПОДДЕЛКИ (известный факт, ревью задачи 1, раунд 1; закрыть внутри J без
+-- правки ERP нельзя — erp_orders.created_by без умолчания, аудит пишет только UPDATE):
+-- order_v4_erp_authentic проверяет лишь ВЛАДЕЛЬЦА объекта Storage (= launch_by). Продавец
+-- с правом ERP tz.manage (на бою — должность production_head) после метки МС вставляет свой
+-- erp_orders с tz_order_id, позицию и erp_tz_documents с путём к объекту, который загрузил
+-- сам МС (копия ТЗ на шаге files, оставшаяся после отказа erp_create_order; ключи видны
+-- любому члену ERP списком бакета). Тогда launch_check отвечает already с поддельным
+-- erp_order_id, а transition(production) проходит — пробы resid_* фиксируют это как OK.
+-- Без tz.manage (должность worker) вставка документа ТЗ — 42501 (resid_worker_doc), запись
+-- в бакет — OK (К13). Решение — за владельцем: снять у продавцов production_head, принять
+-- риск или ослабить заморозку ERP (README, раздел «Остаточный путь подделки»).
 
 begin;
 set local lock_timeout = '3s';
@@ -113,9 +128,10 @@ values
   ('00000000-0000-4000-8000-000067020010', 'PROBE-J30', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
   ('00000000-0000-4000-8000-000067020011', 'PROBE-J31', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
   ('00000000-0000-4000-8000-000067020012', 'PROBE-J32', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
-  ('00000000-0000-4000-8000-000067020013', 'PROBE-J33', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10);
+  ('00000000-0000-4000-8000-000067020013', 'PROBE-J33', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020014', 'PROBE-J34', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10);
 update public.orders set paid_at = now(), paid_kind = 'full'
- where id in ('00000000-0000-4000-8000-000067020001', '00000000-0000-4000-8000-000067020002', '00000000-0000-4000-8000-000067020003', '00000000-0000-4000-8000-000067020004', '00000000-0000-4000-8000-000067020005', '00000000-0000-4000-8000-000067020007', '00000000-0000-4000-8000-000067020008', '00000000-0000-4000-8000-000067020009', '00000000-0000-4000-8000-000067020013');
+ where id in ('00000000-0000-4000-8000-000067020001', '00000000-0000-4000-8000-000067020002', '00000000-0000-4000-8000-000067020003', '00000000-0000-4000-8000-000067020004', '00000000-0000-4000-8000-000067020005', '00000000-0000-4000-8000-000067020007', '00000000-0000-4000-8000-000067020008', '00000000-0000-4000-8000-000067020009', '00000000-0000-4000-8000-000067020013', '00000000-0000-4000-8000-000067020014');
 
 -- Позиции: у L1 два нанесения (dtf с макетом и «прочее» без), у остальных черновиков — по одному
 insert into public.order_items (id, order_id, tz_pdf_path) values
@@ -133,7 +149,7 @@ insert into public.order_items (id, order_id, tz_pdf_path) values
   ('00000000-0000-4000-8000-000067030014', '00000000-0000-4000-8000-000067010014', 'orders/00000000-0000-4000-8000-000067010014/tz/t.pdf'),
   ('00000000-0000-4000-8000-000067040001', '00000000-0000-4000-8000-000067020001', ''), ('00000000-0000-4000-8000-000067040002', '00000000-0000-4000-8000-000067020002', ''), ('00000000-0000-4000-8000-000067040003', '00000000-0000-4000-8000-000067020003', ''), ('00000000-0000-4000-8000-000067040004', '00000000-0000-4000-8000-000067020004', ''),
   ('00000000-0000-4000-8000-000067040005', '00000000-0000-4000-8000-000067020005', ''), ('00000000-0000-4000-8000-000067040007', '00000000-0000-4000-8000-000067020007', ''), ('00000000-0000-4000-8000-000067040008', '00000000-0000-4000-8000-000067020008', ''), ('00000000-0000-4000-8000-000067040009', '00000000-0000-4000-8000-000067020009', ''),
-  ('00000000-0000-4000-8000-000067040010', '00000000-0000-4000-8000-000067020010', ''), ('00000000-0000-4000-8000-000067040011', '00000000-0000-4000-8000-000067020011', ''), ('00000000-0000-4000-8000-000067040012', '00000000-0000-4000-8000-000067020012', '');
+  ('00000000-0000-4000-8000-000067040010', '00000000-0000-4000-8000-000067020010', ''), ('00000000-0000-4000-8000-000067040011', '00000000-0000-4000-8000-000067020011', ''), ('00000000-0000-4000-8000-000067040012', '00000000-0000-4000-8000-000067020012', ''), ('00000000-0000-4000-8000-000067040014', '00000000-0000-4000-8000-000067020014', '');
 insert into public.order_item_prints (item_id, method, artwork_path) values
   ('00000000-0000-4000-8000-000067030001', 'dtf', 'orders/00000000-0000-4000-8000-000067010001/a.png'),
   ('00000000-0000-4000-8000-000067030001', 'other', ''),
@@ -298,6 +314,44 @@ select pg_temp.p('fake_prod', 'P0001 Заказ ERP с этой связью с�
 select pg_temp.p('fake_empty_check', 'OK {"ok": false, "reason": "Заказ ERP с этой связью создан не этим запуском — обратитесь к администратору"', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020003')::text$q$);
 select pg_temp.p('fake_empty_prod', 'P0001 Заказ ERP с этой связью создан не этим запуском', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020003', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050003')$q$);
 select pg_temp.p('fake_kept', 'OK ready_to_launch/ready_to_launch', $q$select string_agg(status, '/' order by order_number) from public.orders where id in ('00000000-0000-4000-8000-000067020002', '00000000-0000-4000-8000-000067020003')$q$);
+reset role;
+
+-- ── Остаточный путь подделки (известный факт, не закрыт J — см. шапку) ───
+-- Продавец с должностью ERP production_head ссылается на объект, загруженный МС (launch_by):
+-- order_v4_erp_authentic смотрит только на владельца объекта и отвечает true.
+select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
+set local role authenticated;
+select pg_temp.p('resid_seller_perm', 'OK true/true', $q$select public.erp_has_permission('order.manage')::text || '/' || public.erp_has_permission('tz.manage')::text$q$);
+reset role;
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('resid_ms1_check', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020014')::text$q$);
+-- копия ТЗ под МС1 на шаге files; erp_create_order затем отказал (заказ ERP уже вставлен продавцом)
+select pg_temp.p('resid_ms1_object', 'OK rows=1', $q$insert into storage.objects (bucket_id, name, owner, owner_id, metadata) values ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-000067070010/00000000-0000-4000-8000-000067070011/v1-tz.pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{"mimetype": "application/pdf", "size": 1000}')$q$);
+reset role;
+select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
+set local role authenticated;
+select pg_temp.p('resid_order', 'OK rows=1', $q$insert into public.erp_orders (id, title, tz_order_id, tz_number) values ('00000000-0000-4000-8000-000067050004', 'PROBE остаточный путь', '00000000-0000-4000-8000-000067020014', 'PROBE-J34')$q$);
+select pg_temp.p('resid_item', 'OK rows=1', $q$insert into public.erp_order_items (id, order_id, product_type, qty) values ('00000000-0000-4000-8000-000067060004', '00000000-0000-4000-8000-000067050004', 'Футболка', 1)$q$);
+select pg_temp.p('resid_doc', 'OK rows=1', $q$insert into public.erp_tz_documents (order_id, item_id, group_id, file_path) values ('00000000-0000-4000-8000-000067050004', '00000000-0000-4000-8000-000067060004', '00000000-0000-4000-8000-000067070011', 'tz/v4-00000000-0000-4000-8000-000067070010/00000000-0000-4000-8000-000067070011/v1-tz.pdf')$q$);
+reset role;
+-- сценарий плана: продавец без tz.manage (должность worker) документ ТЗ не вставит, в бакет пишет
+select pg_temp.as_user(null);
+select set_config('probe.seller_erp_role', (select role from public.erp_employees where profile_id = '9285888e-4401-4b1b-b523-a3e6a9b90e82'), true);
+update public.erp_employees set role = 'worker' where profile_id = '9285888e-4401-4b1b-b523-a3e6a9b90e82';
+select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
+set local role authenticated;
+select pg_temp.p('resid_worker_doc', '42501', $q$insert into public.erp_tz_documents (order_id, item_id, group_id, file_path) values ('00000000-0000-4000-8000-000067050004', '00000000-0000-4000-8000-000067060004', '00000000-0000-4000-8000-000067070012', 'tz/v4-00000000-0000-4000-8000-000067070010/00000000-0000-4000-8000-000067070011/v1-tz.pdf')$q$);
+select pg_temp.p('resid_worker_storage', 'OK rows=1', $q$insert into storage.objects (bucket_id, name, owner, owner_id) values ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-000067070012/g/v1-tz.pdf', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '9285888e-4401-4b1b-b523-a3e6a9b90e82')$q$);
+reset role;
+select pg_temp.as_user(null);
+update public.erp_employees set role = current_setting('probe.seller_erp_role') where profile_id = '9285888e-4401-4b1b-b523-a3e6a9b90e82';
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('resid_check', 'OK {"ok": true, "already": true, "launched": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020014')::text$q$);
+select pg_temp.p('resid_check_id', 'OK 00000000-0000-4000-8000-000067050004', $q$select pg_temp.r('resid_check')->>'erp_order_id'$q$);
+select pg_temp.p('resid_prod', 'OK {"id": "00000000-0000-4000-8000-000067020014", "status": "production"', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020014', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050004')::text$q$);
+select pg_temp.p('resid_linked', 'OK 00000000-0000-4000-8000-000067050004', $q$select erp_order_id::text from public.orders where id = '00000000-0000-4000-8000-000067020014'$q$);
 reset role;
 
 -- ── Гонка возврата: свой возврат и старая метка — можно ──────────────────
