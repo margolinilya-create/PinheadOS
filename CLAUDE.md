@@ -123,7 +123,20 @@ pinhead-react/src/
                              # flatLabels; catalog/tzRows (строки матрицы ТЗ, ZONE_ID_RE); admin/flats/ — редактор
                              # флэта (ленивые FlatEditor с холстом canvas/ и FlatPreview без konva для телефона,
                              # saveFlat + useFlatEditor — файлы → версия → справочник, ZonesCatalogEditor + zonesEdit,
-                             # свои иконки flatIcons); api/garmentFlatsRead (чтение бакета для холста)
+                             # свои иконки flatIcons); api/garmentFlatsRead (чтение бакета для холста);
+                             # веха 6+7: tz/ — ТЗ в PDF (model/ — группы tzGroups, документ tzDocument, раскладка
+                             # layoutTz/layoutTzPrints/layoutPager, fitText, глифы, хэш tzHash, имя tzFileName,
+                             # чек-лист sendChecklist, safeUrl; pdf/ — движок tzPdf + drawBoxes + tzImages, только
+                             # import() из ui/tzExport; ui/ — «ТЗ и цена»: TzSummary (ленивый), SendPanel, ChecklistView,
+                             # TzPreviewButton, ReturnBanner; sendToWork — цепочка отправки; tzCatalogs — ОДНА сборка
+                             # справочников для хэша); design/export/pdfCore (единственный файл с jsPDF/svg2pdf);
+                             # payment/ (PaymentPanel — оплата и «без оплаты»); api/salesEvents (возврат, «без оплаты»),
+                             # api/erpFiles (единственный писатель erp-attachments вне ERP); bridge/launch (шаги
+                             # check → bootstrap → payload → tzcheck → files → recheck → create → transition),
+                             # bridge/launchFiles (копии ТЗ и макетов), bridge/erpKeys (ключи tz/v4-…, att/v4-…),
+                             # bridge/tzCheck (хэш ТЗ против пути), bridge/erpGateway (шлюз к стору ERP);
+                             # launch/ — экран «К запуску» (LaunchScreen ленивый, LaunchSide, LaunchOutcome,
+                             # ReturnDialog, TzFrame, RouteView, launchView, nextWorkingDay); fixtures/ — 5 образцов ТЗ
 ```
 
 ```
@@ -169,8 +182,9 @@ sales_is_lead() or sales_is_ms()`; МС без `is_sales` видит «Зака�
 | `/sku` | SkuEditor (8 табов; «Зоны нанесения» с вехи 5б — только просмотр со ссылкой на `/order-settings?tab=flats&part=zones`) | admin, director |
 | `/admin` | AdminScreen (единая админка ERP) | admin, director |
 | `/orders`, `/print`, `/analytics`, `*` | → redirect `/sales` (`legacyRedirect`; старый `/sales/:id/item/:key` — тоже) | С продажами |
-| `/sales` | SalesList — «Мои заказы» (продавец) / «Заказы отдела» (rop) / «Все заказы» (admin, director) с фильтром «Мои / Все», поиск и статус в адресе | С продажами |
-| `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Дизайн» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|design\|client\|summary&item=<key>`. «Дизайн» (веха 5а) — холст konva с флэтом позиции, логотипы, «Скачать PDF макета»; на ≤ 760 px — превью `<img>` | С продажами |
+| `/sales` | SalesList — «Мои заказы» (продавец) / «Заказы отдела» (rop) / «Все заказы» (admin, director) с фильтром «Мои / Все», поиск и статус в адресе; колонки «Оплата», «Отправлен», порядок `sort=due\|updated`; пресет «К запуску» — `/sales?status=ready_to_launch&sort=due` (`LAUNCH_QUEUE_PATH`, МС и руководство, `canSeeLaunchQueue`) | С продажами |
+| `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Дизайн» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|design\|client\|summary&item=<key>`. «Дизайн» (веха 5а) — холст konva с флэтом позиции, логотипы, «Скачать PDF макета»; на ≤ 760 px — превью `<img>`. «ТЗ и цена» (веха 6+7) — оплата, ТЗ по группам с предпросмотром, чек-лист и «Отправить в работу» (якорь `#send`, единственная точка отправки); в шапке — бейдж оплаты, «Отправить в работу · N пунктов» (навигация), «Отметить: заказ сдан» | С продажами |
+| `/sales/:id/launch` | LaunchScreen — «К запуску» (веха 6+7): PDF ТЗ (`TzFrame`), чек-лист МС в форме факта, оплата, маршрут (просмотр), маржа, дата запуска; «Вернуть менеджеру» / «Запустить в производство»; итог — «Открыть PH-… в производстве», «Отметить: заказ сдан», «Следующий к запуску» | МС, admin, director (`canSeeLaunchQueue`) |
 | `/sales-staff` | SalesStaff — «Сотрудники продаж»: «Ведёт заказы» (`is_sales`) и «Запускает в производство (МС)» (`is_ms`), `sales_set_staff(id, kind, on)` | admin, director, rop |
 | `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz\|flats` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ, «Флэты и зоны» — веха 5а: список силуэтов и кнопка «Загрузить типовые флэты» для admin/director; веха 5б — редактор флэта `?tab=flats&flat=<id>&view=<вид>` (`flat=new` — новый из SVG), режим «Зоны нанесения» `?tab=flats&part=zones`; правят admin/director, rop — просмотр); на ≤ 760 px — только просмотр (флэт — `FlatPreview` картинкой) | admin, director, rop |
 
@@ -196,7 +210,9 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
 - Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff, OrderSettings;
   веха 5а — DesignTab (холст), DesignSide, DesignPreview, exportPdf, loadPdf, seedFlats, FlatsTab, схема флэтов;
-  веха 5б — FlatEditor (редактор флэта с холстом konva), FlatPreview (телефон, без konva)
+  веха 5б — FlatEditor (редактор флэта с холстом konva), FlatPreview (телефон, без konva);
+  веха 6+7 — TzSummary (панели «ТЗ и цена»), модель чек-листа (`useSendChecklist`), движок `tzPdf`
+  (по клику, чанк `vendor-pdf`), LaunchScreen («К запуску»), шлюз `bridge/erpGateway` (стор ERP — по «Запустить»)
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 - **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
@@ -243,8 +259,8 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 | Bucket | Назначение |
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
-| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
-| `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md` |
+| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read. С вехи 6+7 — копии ТЗ (`tz/v4-<попытка>/<группа>/v1-tz.pdf`) и макетов (`att/v4-<попытка>/<вид>/<uid>.<ext>`) при запуске заказа v4: пишет только `orderstudio/api/erpFiles.ts` (тип по сигнатуре байт из `ERP_FILE_TYPES`, SVG только очищенный, `upsert: false`, 409 — отказ), ключи без id заказа и номера; после запуска их видят все одобренные и любой со ссылкой |
+| `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`. Веха 6+7: PDF ТЗ — `orders/<id>/tz/<uuid>-<PH-…>-g<hash8>-c<hash12>-<модель>.pdf` (`uploadTzPdf`, только `%PDF-`, ≤ 8 МБ), новая версия — новый ключ, старые — история (уборка — веха 8) |
 | `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема; L1 плана 5а «delete неупомянутых версий» отменён решением К5 вехи 5б). Пишет только `orderstudio/api/garmentFlats.ts` (`uploadFlatSvgOnce`: «уже есть» сверяется содержимым), читает холст через `api/garmentFlatsRead.ts`; наполняет кнопка «Загрузить типовые флэты», новые версии — редактор флэта (стартовая версия — и по занятым `v<N>` в бакете). Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
 | `storage-backup` | Ночная копия бакетов выше (с вехи 5а — четырёх, `garment-flats` в `SOURCES`) (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
@@ -264,10 +280,21 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   (удалить — только черновик без связи с ERP), `order_v4_child_guard` (позиции, нанесения,
   бирки, карточки — только у черновика, пути `orders/<id>/…`).
 - Пробы на бою — `supabase/probes/` (README там же).
+- **Веха 6+7, миграция J `20261018120000_order_v4_launch`** (в ветке; на бой — после H и I, ДО выкладки
+  фронта 6+7) — подробно `docs/rules/pravila-tz-i-zapuska-veha-6-7-18-10.md`: автор во всех трёх RPC —
+  `sales_is_seller() and created_by = auth.uid()`; ответы несут `updated_at`; `order_v4_transition(p_id, p_to,
+  p_reason, p_expected_updated_at, p_erp_order_id)` — сверка версии первой в ветке отправки, проверка PDF ТЗ
+  и макетов по `storage.objects`, переход в `production` — только с подлинным заказом ERP этого запуска
+  (хелпер `order_v4_erp_authentic`); `launch_check` — права ERP МС (`erp_is_member`, `order.manage`,
+  `tz.manage`) до метки, чужая метка 10 минут от продления, `launched` в ответе; разделение обязанностей
+  (свой заказ и свой «без оплаты» запускает другой); МС отмечает предоплату/полную оплату (не на своём,
+  с `order.manage`), при свежей метке оплату не меняет никто; свой признак в `sales_set_staff` и `ms` для
+  rop — только admin/director. Пробы `order_v4_launch.sql` (`total=162`), мутации `probes/mutations/`.
 
 Статусы заказа v3: draft → review → approved → production → done.
 Переходы v4 (RPC вехи 2): draft → ready_to_launch → production → done; ready_to_launch → draft
-(возврат с причиной); draft → archived. CHECK знает ещё `price_review`, `quoted`, `cancel_requested` —
+(возврат с причиной: МС, admin, director; не во время чужого свежего запуска); draft → archived;
+`production → done` — вручную «Отметить: заказ сдан» (МС, admin, director), подпись `done` — «Сдан». CHECK знает ещё `price_review`, `quoted`, `cancel_requested` —
 переходов в них пока нет
 
 Статусы профиля (ProfileStatus): active | pending_approval | disabled | no_profile
@@ -326,7 +353,10 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   `orderV4Rights.test.ts`). Подробно — `docs/rules/pravila-prav-i-strazhey-order-v4-veha-2-17-10.md`
 - Миграции на бой, пока MCP `execute_sql` виснет на `delete`/`drop`: сухой прогон
   (`begin; …; PROBE_RESULT`) и применение — файлами через SQL Editor владельцем
-- Сторож импортов разрешает `bridge/launch.ts` ровно три модуля ERP и только динамически
+- Стор ERP в Order берёт только шлюз `bridge/erpGateway.ts` — ровно пять модулей ERP списком
+  (`lazyScreen`, `useErpStore`, `orderPayload`, `garmentSource`, `statusUi` — якорь графа чанков), а сам шлюз
+  грузится только `import('./erpGateway')` из `bridge/launch.ts` (сторож `erpImports.test.ts`; веха 6+7 —
+  три прямых `import()` ERP резали ядро стора ERP на чанки и роняли бюджет оболочки ERP)
 - ERP: доступ — `useErpAccess`, кнопки этапа — `useStagePermissions`; прогресс в штуках;
   финальный ОТК (`qc`) зависит от ВСЕХ терминальных этапов
 - ERP, realtime: `useErpStore()` без селектора запрещён; **живой канал ровно один**
@@ -362,6 +392,17 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   `zonesWrites.test.ts`), зоны снимаются `active: false`, не удаляются. `design/edit/**` — без `api/`,
   стора и тостов; в `admin/flats/**` нет `/erp/`, konva — только в ленивом `FlatEditor`. Подробно —
   `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`
+- **ТЗ и запуск (веха 6+7).** Ответ RPC перехода и оплаты кладётся только `useSalesStore.applyServer`
+  (несёт `updated_at`; без него — ложный «изменён в другой вкладке»); без оптимистичных переходов.
+  PDF ТЗ собирается при «Отправить в работу» (`tz/sendToWork.ts`, флаг стора `sending` закрывает правку),
+  ключ с хэшем содержимого, новая версия — новый ключ; предпросмотр ничего не грузит. jsPDF и svg2pdf —
+  только в `design/export/pdfCore.ts`; тексты в PDF — только текстовым API, ссылки — после `isSafeHttpUrl`;
+  `tzPdf` — только `import()`. Справочники для хэша ТЗ собирает только `tz/tzCatalogs.ts`. `erp-attachments`
+  из Order пишет только `api/erpFiles.ts` (сторож `erpFilesWrites.test.ts`): тип по сигнатуре байт, 409 — отказ.
+  `transition(production)` — только с `p_erp_order_id` из `createOrder` этого запуска. Гейты экрана
+  (`canSendToWork`, `canSetPayment`, `canLaunch`, `canReturn`, `canFinish`, `canSeeLaunchQueue`) — зеркало J
+  (сторож `orderV4Launch.test.ts`). Блок по чек-листу или оплате — `aria-disabled` с причиной, `disabled` —
+  только на время запроса. Подробно — `docs/rules/pravila-tz-i-zapuska-veha-6-7-18-10.md`
 - Цена материала — `priceRub` за единицу `unit` (метр / штука); `priceUSD` у тканей был ценой ЗА КГ
   и в формулу не идёт (13.10). Формула цены одна — `costRules`/`printRules`; своих копий в экранах не заводить
 - Материальный гейт — из данных (`gate_material_kinds`), пусто = fail-open
@@ -383,7 +424,7 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   хэши `src/erp` и миграций ERP с `erpFrozen.json` и запрещает DDL по `erp_*` в новых
   миграциях. Правка ERP с согласия владельца — затем `npm run erp:freeze`
 - **Order импортирует из ERP** только `erp/erp.module.css`, белый список примитивов
-  `ERP_PRIMITIVES` (`erp/components`) и стор для моста — сторож `erpImports.test.ts`
+  `ERP_PRIMITIVES` (`erp/components`) и стор для моста (через шлюз `bridge/erpGateway.ts`) — сторож `erpImports.test.ts`
   (реэкспорт и динамический `import()` тоже считаются)
 - Оболочка Order (`orderstudio/layout/`) — снимок CSS оболочки ERP (импорт `erp.module.css`
   раздувал CSS оболочки ERP за бюджет); палитру и `--header-h: 0` у `.orderMain`
@@ -460,7 +501,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (96 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (97 файлов, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |
