@@ -10,22 +10,18 @@
  * условиями функций. Ответы — только формой J: `updated_at` во всех трёх
  * RPC, `launched` в каждом ответе проверки запуска.
  *
- * Состояние — на каждый набор `MockExtras` своё (WeakMap). Строки заказов
- * и их версии живут в `mockSupabase.ts` — сюда они приходят через `V4Ctx`.
- * Модуль регистрирует `mockSupabase.ts`; сценарии запуска (T6) и сквозной
- * e2e (T7) дописывают его сами, паритет с J держит сторож.
+ * Состояние — на каждый набор `MockExtras` своё (WeakMap). Строки заказов и их версии —
+ * в `mockSupabase.ts` (через `V4Ctx`); колонки, которые пишут только RPC J, сохранение
+ * не трогает (`v4ServerColumns`). Паритет с J держит сторож.
  */
 
-/** Ответ RPC ошибкой PostgREST (400 + `{ code, message }`), как у `raise exception` */
+/** Ответ RPC ошибкой PostgREST (400 + `{ code, message }`), как у `raise exception`; нет функции — 404 */
 export class RpcFailure {
-  readonly code: string;
-  readonly message: string;
-  /** HTTP-статус ответа PostgREST: `raise exception` — 400, нет функции — 404 */
-  readonly status: number;
+  readonly code!: string;
+  readonly message!: string;
+  readonly status!: number;
   constructor(code: string, message: string, status = 400) {
-    this.code = code;
-    this.message = message;
-    this.status = status;
+    Object.assign(this, { code, message, status });
   }
 }
 
@@ -112,7 +108,6 @@ export type V4Ctx = {
 };
 
 type Extras = { v4?: V4MockOptions; launch?: { checks?: unknown[]; status?: string } };
-
 const DEV: V4Caller = { id: 'dev', name: 'Dev Mode', role: 'admin', is_sales: false, is_ms: false };
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
 export const MOCK_ERP_ORDER = 'mock-erp-order-1';
@@ -123,10 +118,13 @@ type OrderSt = {
   launchAt: string | null; launchBy: string | null; erp: { id: string; by: string } | null; linked: string | null;
 };
 type Row = Record<string, unknown>;
+const SERVER_COLUMNS = ['status', 'paid_kind', 'paid_at', 'paid_override_reason', 'sent_at', 'erp_order_id'] as const;
+/** Колонки строки заказа, которые пишут только RPC J: `order_v4_save_full` их сохраняет как были */
+export const v4ServerColumns = (prev: Row | undefined): Row =>
+  Object.fromEntries(SERVER_COLUMNS.map((k) => [k, prev?.[k] ?? (k === 'status' ? 'draft' : null)]));
 type V4State = { orders: Map<string, OrderSt>; checks: number; erpCreates: Row[]; attachments: Row[]; events: Row[] };
 
 const states = new WeakMap<object, V4State>();
-
 /** Состояние мока v4 набора `MockExtras` — спеки читают записанные тела и события */
 export function v4State(extra: object): V4State {
   let st = states.get(extra);
@@ -199,8 +197,10 @@ function sendFailure(id: string, ctx: V4Ctx): RpcFailure | null {
   return null;
 }
 
+/** Журнал идёт по времени: событие N — через N секунд после метки (возврат свежее `sent_at`) */
 function event(extra: Extras, row: Row): void {
-  v4State(extra).events.push({ id: v4State(extra).events.length + 1, at: MOCK_LAUNCH_STARTED, ...row });
+  const { events } = v4State(extra);
+  events.push({ id: events.length + 1, at: new Date(Date.parse(MOCK_LAUNCH_STARTED) + (events.length + 1) * 1000).toISOString(), ...row });
 }
 
 function transition(body: Row, extra: Extras, ctx: V4Ctx): unknown {

@@ -13,7 +13,7 @@
  */
 import type { Page, Route } from '@playwright/test';
 import { DEPARTMENTS, isQueueDept } from '../../src/erp/data/departments';
-import { RpcFailure, v4Rpc, v4Table, type V4Ctx, type V4MockOptions } from './mock/orderV4Rpc';
+import { RpcFailure, v4Rpc, v4ServerColumns, v4Table, type V4Ctx, type V4MockOptions } from './mock/orderV4Rpc';
 import { storageList, storageRead, storageWrite } from './mock/storageBuckets';
 
 // Фиксированные метки времени — никаких «сегодня» в фикстурах.
@@ -750,7 +750,7 @@ function payloadToSalesRow(
     ...head,
     id,
     schema_version: 4,
-    status: prev?.status ?? 'draft',
+    ...v4ServerColumns(prev),
     created_by: prev?.created_by ?? null,
     order_number: prev?.order_number ?? 'PH-9001',
     bitrix_deal: bitrix_id ?? '',

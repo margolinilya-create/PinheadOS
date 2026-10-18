@@ -192,3 +192,24 @@ describe('sales_set_staff и erp-attachments', () => {
     expect(erpUploadsByAttempt(e).get('1f0e2d3c-4b5a-4968-8776-655443322110')).toBe(1);
   });
 });
+
+describe('состояние строки между RPC и сохранением (задача 7)', () => {
+  it('сохранение после оплаты и отправки не стирает колонки, которые пишут только RPC J', () => {
+    const e = draft({ v4: { caller: { id: 'dev', name: 'Dev', role: 'admin' } } });
+    rpc('order_v4_set_payment', { p_id: ID, p_kind: 'prepaid', p_override_reason: null }, e);
+    const save = rpc('order_v4_save_full', { p_order: { id: ID, client_rev: 3, customer: 'ООО Ромашка', items: [] } }, e);
+    expect(save.error).toBeUndefined();
+    const [row] = mock.table('orders', `schema_version=eq.4&id=eq.${ID}`, e) as Record<string, unknown>[];
+    expect(row).toMatchObject({ status: 'draft', paid_kind: 'prepaid', paid_override_reason: null });
+    expect(row.paid_at).toEqual(expect.any(String));
+  });
+
+  it('журнал идёт по времени: возврат свежее отправки (плашка причины у продавца)', () => {
+    const e = draft({ v4: { caller: { id: 'dev', name: 'Dev', role: 'admin' } } });
+    const sent = rpc('order_v4_transition', { p_id: ID, p_to: 'ready_to_launch' }, e).data!;
+    rpc('order_v4_transition', { p_id: ID, p_to: 'draft', p_reason: 'Цвет' }, e);
+    const [ret] = mock.table('order_events', `order_id=eq.${ID}&kind=eq.status&from_status=eq.ready_to_launch&to_status=eq.draft`, e) as
+      { at: string }[];
+    expect(Date.parse(ret.at)).toBeGreaterThan(Date.parse(String(sent.sent_at)));
+  });
+});

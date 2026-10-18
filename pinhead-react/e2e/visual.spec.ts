@@ -4,6 +4,9 @@ import { installSupabaseMock, FX_CREATED, type MockExtras } from './support/mock
 import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 import { orderCatalogs, staffFx } from './support/orderCatalogFx';
 import { TEE, adminExtras, teeObjects, teeV2WithHistory } from './support/flatsAdminFx';
+import { flowMock } from './support/orderFlowFx';
+import { buildOrder, launchButton, markPrepaid, openLaunchAsMs, sentOrder } from './support/orderFlowUi';
+import { TZ_VISUAL_NOW, renderTz67108 } from './support/tzPdfVisualFx';
 
 /**
  * Visual-регрешн ключевых экранов.
@@ -25,7 +28,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_TIME);
 });
 
-async function shoot(page: Page, name: string, target?: Locator, mask: Locator[] = []) {
+async function shoot(page: Page, name: string, target?: Locator, mask: Locator[] = [], ratio?: number) {
   /**
    * КУРСОР УВОДИТСЯ ИЗ УГЛА ПЕРЕД СНИМКОМ (правка 22.09).
    *
@@ -75,7 +78,8 @@ async function shoot(page: Page, name: string, target?: Locator, mask: Locator[]
      * потолок вернулся. Поднимать его — последнее средство, и только когда
      * расхождение не воспроизводится и не объясняется.
      */
-    maxDiffPixels: 40,
+    // Экраны 6+7 — допуск долей (1 %, план задачи 7): длинные формы с живыми датами и ценой
+    ...(ratio ? { maxDiffPixelRatio: ratio } : { maxDiffPixels: 40 }),
   });
 }
 
@@ -425,4 +429,52 @@ test('visual: studio-settings-zones', async ({ page }) => {
   await page.goto('/order-settings?tab=flats&part=zones&studio=1');
   await expect(page.getByRole('heading', { name: 'Капюшон' }).or(page.getByLabel('Название зоны «Капюшон»'))).toBeVisible();
   await shoot(page, 'studio-settings-zones', page.locator('#main-content'));
+});
+
+// ─── Веха 6+7: «ТЗ и цена», «К запуску», PDF ТЗ образца 67108 ───
+
+/** Сборка через экраны идёт на десктопной ширине (холст «Дизайн»), снимок — на ширине проекта */
+const projectWidth = (page: Page) => page.viewportSize()!.width;
+/** Тосты «Оплата отмечена», «Заказ отправлен…» живут секунды и ложатся поверх снимка элемента */
+const toasts = (page: Page) => page.getByRole('status', { name: 'Оповещения' });
+
+test('visual: studio-tz-summary', async ({ page }) => {
+  skipUntilBaseline('studio-tz-summary');
+  test.setTimeout(120_000);
+  const width = projectWidth(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await buildOrder(page, flowMock([]));
+  await markPrepaid(page);
+  await page.setViewportSize({ width, height: 900 });
+  await expect(page.getByRole('button', { name: 'Предпросмотр ТЗ' })).toBeVisible();
+  await expect(page.getByText('Чек-лист пройден — заказ готов к отправке')).toBeVisible();
+  await shoot(page, 'studio-tz-summary', page.locator('#main-content'), [toasts(page)], 0.01);
+});
+
+/** «К запуску» глазами МС; на телефоне (проект mobile) — 375 px */
+test('visual: studio-launch', async ({ page }) => {
+  skipUntilBaseline('studio-launch');
+  test.setTimeout(120_000);
+  const width = projectWidth(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const extra = flowMock([]);
+  await sentOrder(page, extra);
+  await openLaunchAsMs(page, extra);
+  await expect(launchButton(page)).not.toHaveAttribute('aria-disabled', 'true');
+  await page.setViewportSize({ width, height: 900 });
+  // Просмотрщик PDF внутри iframe рисует браузер, а не код экрана
+  await shoot(page, 'studio-launch', page.locator('#main-content'), [page.locator('iframe'), toasts(page)], 0.01);
+});
+
+/** PDF ТЗ 67108: страницы 1 (шапка) и 3 (бирки) — pdfjs в canvas, масштаб 2 */
+test('visual: tz-pdf-67108', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'PDF от ширины окна не зависит — один прогон');
+  for (const n of [1, 3]) skipUntilBaseline(`tz-pdf-67108-p${n}`);
+  await page.clock.setFixedTime(new Date(TZ_VISUAL_NOW));
+  await page.goto('/sales?studio=1');
+  await expect(page.locator('#root')).not.toBeEmpty();
+  expect(await renderTz67108(page, [1, 3])).toBe(10);
+  for (const n of [1, 3]) {
+    await expect(page.locator(`#tz-page-${n}`)).toHaveScreenshot(`tz-pdf-67108-p${n}.png`, { maxDiffPixelRatio: 0.01 });
+  }
 });

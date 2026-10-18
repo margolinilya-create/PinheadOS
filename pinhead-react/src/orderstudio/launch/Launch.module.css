@@ -22,6 +22,13 @@
   font-size: var(--type-body-sm);
 }
 
+/* «Открыть заказ» в подзаголовке — тоже тач-цель (замер e2e задачи 7: было 16 px по высоте) */
+.sub a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 /* Слева PDF, справа сводка и действия; на ≤ 760 — одна колонка, ТЗ в конце */
 .layout {
   display: grid;
