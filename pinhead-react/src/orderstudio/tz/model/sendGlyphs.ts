@@ -27,6 +27,7 @@ const FIELD_NAMES: [RegExp, string, 'client' | 'item' | null][] = [
   [/^header\.(stickers|stickersNote)$/, 'Стикеры', 'client'],
   [/^header\.productTitle$/, 'Вид изделия', 'item'],
   [/^header\.comments\./, 'Комментарий ТЗ', 'item'],
+  [/^header\.orderNotes$/, 'Комментарий для цехов', 'client'],
   [/^fabric\.(main|trim)$/, 'Ткань', 'item'],
   [/^fabric\.supplier$/, 'Поставщик', 'item'],
   [/^fabric\.(colors|grid)\./, 'Цвет', 'item'],

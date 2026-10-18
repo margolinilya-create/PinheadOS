@@ -238,8 +238,12 @@ describe('веха 8: K — код зоны и комментарий', () => {
     expect(4).toBeGreaterThanOrEqual(SALES_CLIENT_REV);
   });
 
-  // Задача 8 поднимает SALES_CLIENT_REV до 4 и снимает пометку: порог K === SALES_CLIENT_REV
-  it.todo('порог ревизии K равен SALES_CLIENT_REV (клиент ревизии 4 — задача 8)');
+  // Пара «клиент + миграция» (задача 8): клиент ревизии 4 и порог K — одно число
+  it('порог ревизии K равен SALES_CLIENT_REV (клиент ревизии 4 — задача 8)', () => {
+    const rev = Number(code.match(/if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < (\d+) then/)?.[1]);
+    expect(rev).toBe(SALES_CLIENT_REV);
+    expect(SALES_CLIENT_REV).toBe(4);
+  });
 
   it('invoker, revoke public/anon, grant authenticated', () => {
     expect(gen.fnStatement(K, 'order_v4_save_full').text).toMatch(/security invoker/);

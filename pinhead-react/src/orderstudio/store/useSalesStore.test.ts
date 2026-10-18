@@ -203,7 +203,7 @@ describe('useSalesStore — версия заказа и отказы серве
     const { edit } = useSalesStore.getState();
     edit((o) => ({ ...o, title: 'B' }));
     await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
-    expect(api.saveSalesOrder.mock.calls[0][0]).toMatchObject({ client_rev: 3, expected_updated_at: 't0' });
+    expect(api.saveSalesOrder.mock.calls[0][0]).toMatchObject({ client_rev: 4, expected_updated_at: 't0' });
     expect(useSalesStore.getState().current?.updated_at).toBe('t1');
     edit((o) => ({ ...o, title: 'C' }));
     await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS);
@@ -228,7 +228,7 @@ describe('useSalesStore — версия заказа и отказы серве
     api.saveSalesOrder.mockResolvedValue(ok('new-1', 't1'));
     await useSalesStore.getState().createNew();
     expect(api.saveSalesOrder.mock.calls[0][0]).not.toHaveProperty('expected_updated_at');
-    expect(api.saveSalesOrder.mock.calls[0][0].client_rev).toBe(3);
+    expect(api.saveSalesOrder.mock.calls[0][0].client_rev).toBe(4);
     expect(useSalesStore.getState().current).toMatchObject({ id: 'new-1', updated_at: 't1' });
   });
 

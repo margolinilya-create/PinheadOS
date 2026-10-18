@@ -89,3 +89,23 @@ describe('PrintRow — снятая зона (веха 5б, задача 4)', ()
     expect(screen.getByLabelText('Зона')).not.toHaveAttribute('aria-describedby');
   });
 });
+
+describe('PrintRow — код зоны (веха 8, К5)', () => {
+  const ZONES = [
+    { id: 'front', name: 'Грудь', forCategories: null, sortOrder: 1 },
+    { id: 'pocket', name: 'Карман', forCategories: null, sortOrder: 2 },
+  ];
+  beforeEach(() => useStore.setState({ zonesCatalog: ZONES }));
+
+  it('зона из справочника — вместе с названием уходит её код', () => {
+    const props = setup();
+    fireEvent.change(screen.getByLabelText('Зона'), { target: { value: 'карман' } });
+    expect(props.onChange).toHaveBeenCalledWith({ zone: 'карман', zone_id: 'pocket' });
+  });
+
+  it('свободный текст — код снимается (null), а не остаётся от прежней зоны', () => {
+    const props = setup({ print: newSalesPrint({ zone: 'Грудь', zone_id: 'front' }) });
+    fireEvent.change(screen.getByLabelText('Зона'), { target: { value: 'Над карманом слева' } });
+    expect(props.onChange).toHaveBeenCalledWith({ zone: 'Над карманом слева', zone_id: null });
+  });
+});

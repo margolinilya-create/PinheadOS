@@ -58,7 +58,14 @@ export type PrintOn = 'cut' | 'finished';
 export interface SalesPrint {
   key: string;
   method: SalesPrintMethod;
+  /** Название зоны — для человека и для строк без кода (до вехи 8) */
   zone: string;
+  /**
+   * Код зоны справочника (`zonesCatalog[].id`, формат `ZONE_ID_RE`; веха 8, миграция K):
+   * по нему считаются карман DTG и строка ТЗ — переименование зоны их не ломает.
+   * null — код не известен (свободный текст, служебная зона флэта, строка до K)
+   */
+  zone_id: string | null;
   /**
    * Размеры группы, к которой относится нанесение (v4 §4.3: «зона × группа»).
    * Пусто — на всех размерах позиции. Тираж нанесения — сумма сетки по ним.
@@ -244,6 +251,11 @@ export interface SalesOrder {
   /** Превью стикера на упаковку (путь в бакете) */
   sticker_preview_path: string;
   notes_cards: SalesNoteCard[];
+  /**
+   * «Комментарий для цехов» (`orders.notes`, до 2000 знаков; веха 8): печатается в ТЗ
+   * блоком «Общее». Пишет `order_v4_save_full` после миграции K
+   */
+  notes: string;
   // ── служебные (веха 2): пишут только RPC переходов, оплаты и запуска ──
   paid_kind: PaidKind | null;
   paid_override_reason: string | null;
