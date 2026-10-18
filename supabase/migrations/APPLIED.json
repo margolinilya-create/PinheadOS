@@ -2530,6 +2530,20 @@
       "files": [
         "20261018150000_order_v3_readonly_staff_audit.sql"
       ]
+    },
+    {
+      "version": "20261018160000",
+      "name": "order_v4_zone_notes",
+      "files": [
+        "20261018160000_order_v4_zone_notes.sql"
+      ]
+    },
+    {
+      "version": "20261018170000",
+      "name": "catalog_legacy_keys",
+      "files": [
+        "20261018170000_catalog_legacy_keys.sql"
+      ]
     }
   ]
 }
