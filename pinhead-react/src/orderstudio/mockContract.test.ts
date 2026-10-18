@@ -3,8 +3,10 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  J_TEXTS, LAUNCH_WINDOW_MINUTES, MS_PAYMENT_KINDS, SEND_RULES,
+  J_TEXTS, K_CLIENT_REV, K_NOTES_MAX, K_TEXTS, K_ZONE_ID_RE, LAUNCH_WINDOW_MINUTES, MS_PAYMENT_KINDS, SEND_RULES,
 } from '../../e2e/support/mock/orderV4Rpc';
+import { SALES_CLIENT_REV } from './api/salesOrders';
+import { ZONE_ID_RE } from './catalog/tzRows';
 
 /**
  * Сторож контракта мока e2e с миграцией J (веха 6+7, задача 4; решение 41).
@@ -113,5 +115,32 @@ describe.skipIf(!HAS_J)('мок e2e = миграция J', () => {
     const windows = [...bodies(sql).matchAll(/now\(\)\s*-\s*interval\s+'(\d+) minutes'/g)].map((m) => Number(m[1]));
     expect(windows.length).toBeGreaterThanOrEqual(2);
     expect(new Set(windows)).toEqual(new Set([LAUNCH_WINDOW_MINUTES]));
+  });
+});
+
+/**
+ * Веха 8: мок сохранения = миграция K (`order_v4_save_full`): тексты отказов
+ * побуквенно в обе стороны, порог ревизии = K = клиент, предел комментария,
+ * формат кода зоны = `ZONE_ID_RE`.
+ */
+const K_FILE = join(process.cwd(), '..', 'supabase', 'migrations', '20261018160000_order_v4_zone_notes.sql');
+const HAS_K = existsSync(K_FILE);
+
+describe.skipIf(!HAS_K)('мок e2e = миграция K', () => {
+  const sql = HAS_K ? readFileSync(K_FILE, 'utf8') : '';
+
+  it('тексты отказов сохранения совпадают побуквенно в обе стороны', () => {
+    expect(contractProblems(sql, K_TEXTS)).toEqual([]);
+  });
+
+  it('порог ревизии мока = порог K = ревизия клиента', () => {
+    expect(bodies(sql)).toMatch(new RegExp(`\\(p_order->>'client_rev'\\)::int, 0\\) < ${K_CLIENT_REV} then`));
+    expect(K_CLIENT_REV).toBe(SALES_CLIENT_REV);
+  });
+
+  it('предел комментария и формат кода зоны — как в K и в справочнике', () => {
+    expect(bodies(sql)).toContain(`> ${K_NOTES_MAX}`);
+    expect(K_ZONE_ID_RE.source).toBe(ZONE_ID_RE.source);
+    expect(bodies(sql)).toContain(`!~ '${K_ZONE_ID_RE.source}'`);
   });
 });

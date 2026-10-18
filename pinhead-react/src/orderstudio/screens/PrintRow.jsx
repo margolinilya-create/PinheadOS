@@ -5,6 +5,7 @@ import { METHOD_LABELS, METHOD_ORDER, SCREEN_EFFECTS, EMBROIDERY_EFFECTS, rub } 
 import BufferedInput from './BufferedInput';
 import { formatPantone, parseIntIn, parsePantone } from './fieldParse';
 import { offsetText } from '../model/printOffset';
+import { zoneIdByName } from '../catalog/tzRows';
 import styles from './Sales.module.css';
 
 const toInt = (v) => {
@@ -89,7 +90,7 @@ export default function PrintRow({
                 list={`${id}-zones`}
                 value={print.zone}
                 readOnly={placed}
-                onChange={(e) => onChange({ zone: e.target.value })}
+                onChange={(e) => onChange({ zone: e.target.value, zone_id: zoneIdByName(e.target.value, zonesCatalog) })}
                 placeholder="Грудь, спина, рукав…"
                 aria-describedby={retired ? `${id}-retired` : undefined}
               />

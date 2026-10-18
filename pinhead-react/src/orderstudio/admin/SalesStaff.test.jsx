@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SalesStaff from './SalesStaff';
-import { fetchSalesStaff, setSalesStaff } from '../api/salesStaff';
+import { fetchSalesStaff, fetchStaffEvents, setSalesStaff } from '../api/salesStaff';
 
 vi.mock('../api/salesStaff', () => ({
   fetchSalesStaff: vi.fn(),
   setSalesStaff: vi.fn(),
+  fetchStaffEvents: vi.fn(),
+  STAFF_EVENTS_LIMIT: 50,
 }));
 
 const ROWS = [
@@ -30,6 +32,7 @@ describe('SalesStaff', () => {
   beforeEach(() => {
     vi.mocked(fetchSalesStaff).mockReset().mockResolvedValue(ROWS.map((r) => ({ ...r })));
     vi.mocked(setSalesStaff).mockReset();
+    vi.mocked(fetchStaffEvents).mockReset().mockResolvedValue([]);
   });
 
   it('заголовок, две колонки признаков, роль профиля и счётчики', async () => {

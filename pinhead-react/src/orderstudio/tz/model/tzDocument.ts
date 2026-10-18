@@ -7,7 +7,7 @@
  *  - упаковка — `itemPackaging` (`model/packaging`) → `packName` из `packOptions`;
  *  - бирка — `findLabelKind`, `shownVariantId`, схема из `labelLibrary.schemes`;
  *  - строка матрицы — К7 (`tzRowOfArea` по флэту версии раскладки, иначе
- *    `tzRowOfZone` по имени зоны), столбец — `tzColumnOf`;
+ *    `tzRowOfZone` по коду зоны `zone_id`, без кода — по имени, веха 8), столбец — `tzColumnOf`;
  *  - отступ — `offsetText` (`model/printOffset`);
  *  - срок — `parseDateLocal`; дата оформления и адрес — аргументом.
  *
@@ -18,7 +18,7 @@ import type { SalesItem, SalesOrder, SalesPrint } from '../../model/types';
 import { METHOD_LABELS } from '../../model/printMethods';
 import { offsetText } from '../../model/printOffset';
 import { itemPackaging } from '../../model/packaging';
-import { TZ_MATRIX_ROWS, TZ_ROW_LABELS, tzRowOfArea, tzRowOfZone, type TzRow } from '../../catalog/tzRows';
+import { TZ_MATRIX_ROWS, TZ_ROW_LABELS, tzRowOfArea, tzRowOfZone, zoneOfPrint, type TzRow } from '../../catalog/tzRows';
 import { UNKNOWN_MARK, findLabelKind, parseLabelVariant, shownVariantId } from '../../catalog/labels';
 import { parseLayout } from '../../design/model/layoutMark';
 import { flatAtVersion } from '../../design/catalog/flatVersion';
@@ -89,8 +89,8 @@ function printRow(print: SalesPrint, cat: TzCatalogs): TzRow {
   const atVersion = flat && layout ? flatAtVersion(flat, layout.flat_version) : null;
   const area = atVersion?.views.find((v) => v.kind === layout?.view)?.print_areas.find((a) => a.id === layout?.area_id);
   if (area) return tzRowOfArea(area, cat.zonesCatalog);
-  const name = trim(print.zone).toLowerCase();
-  return tzRowOfZone(name ? cat.zonesCatalog.find((z) => trim(z.name).toLowerCase() === name) : undefined);
+  // Веха 8: по коду зоны (переименование не сдвигает строку), без кода — по названию
+  return tzRowOfZone(zoneOfPrint(print, cat.zonesCatalog));
 }
 
 const rowLabel = (row: TzRow, zone: string): string => (row === 'other' ? `${TZ_ROW_LABELS.other}: ${trim(zone) || '—'}` : TZ_ROW_LABELS[row]);
@@ -221,6 +221,7 @@ export function tzDocument(order: SalesOrder, group: TzGroup, cat: TzCatalogs, o
       stickerImage: order.sticker_preview_path || null,
       noChestnyZnak: order.no_chestny_znak,
       comments: byColor(items.map((item) => ({ item, text: item.tz_comment }))),
+      ...(trim(order.notes) ? { orderNotes: trim(order.notes) } : {}),
     },
     fabric: {
       main: fabricName(first, cat),

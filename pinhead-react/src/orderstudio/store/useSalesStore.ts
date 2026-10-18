@@ -38,6 +38,12 @@
  * закрыта (`edit` — no-op), путь PDF ТЗ пишет только держатель знака отправки
  * через `editDuringSend` — правка человека не перемешается с отправляемым ТЗ.
  *
+ * Сервер знает `zone_id` и `notes` (веха 8, миграция K; К5) — `serverHasNotes`:
+ * ставится ответом сохранения с ключом `notes`, чтением заказа (метку ставит
+ * `fetchSalesOrder`) или пробой без записи при открытии (`probeServerZoneNotes`). Пока ложно, payload этих полей не несёт и поле
+ * «Комментарий для цехов» скрыто: старый сервер молча их пропустил бы.
+ * Это свойство сервера, а не пользователя, — выход признак не снимает.
+ *
  * Выход (`runAppResets`) обнуляет всё: таймер, полёт, карточку и список —
  * следующий пользователь той же вкладки не видит чужого заказа, а отложенное
  * сохранение прежнего не уходит под новой сессией.
@@ -49,6 +55,9 @@ import { useAppUpdateStore } from '../../store/useAppUpdateStore';
 import {
   fetchSalesOrder, fetchSalesOrders, saveSalesOrder, salesOrderToPayload,
 } from '../api/salesOrders';
+import {
+  markServerZoneNotes, probeServerZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests,
+} from '../api/serverZoneNotes';
 import type { SalesOrderListRow, SaveFailure } from '../api/salesOrders';
 import { newSalesOrder } from '../model/factory';
 import { isEditable } from '../model/editable';
@@ -95,6 +104,8 @@ interface SalesState {
   saveState: SaveState;
   /** Идёт «Отправить в работу»: правка закрыта (`edit` — no-op) */
   sending: boolean;
+  /** Сервер знает `zone_id` нанесения и `notes` заказа (миграция K) */
+  serverHasNotes: boolean;
   loadList: () => Promise<void>;
   open: (id: string, opts?: OpenOptions) => Promise<SalesOrder | null>;
   close: () => Promise<void>;
@@ -196,7 +207,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
     }
     dirtyDuringFlight = false;
     set({ saveState: 'saving' });
-    const payload = salesOrderToPayload(order, pricer ? pricer(order) : null);
+    const payload = salesOrderToPayload(order, pricer ? pricer(order) : null, { zoneNotes: get().serverHasNotes });
     const mySession = session;
     // Полёт обнуляет только СВОЮ ссылку: после выхода (`runAppResets`) ответ
     // запроса, ушедшего до сброса, иначе затёр бы ссылку на новое сохранение,
@@ -225,6 +236,10 @@ export const useSalesStore = create<SalesState>((set, get) => {
       }
       lastFailed = false;
       const saved = res.saved;
+      if (typeof saved.notes === 'string') {
+        markServerZoneNotes();
+        if (!get().serverHasNotes) set({ serverHasNotes: true });
+      }
       // Новая версия строки — основа следующего сохранения; у нового заказа ещё id и номер
       if (cur && (!cur.id || cur.id === saved.id)) {
         set({
@@ -261,6 +276,7 @@ export const useSalesStore = create<SalesState>((set, get) => {
     currentLoading: false,
     saveState: 'clean',
     sending: false,
+    serverHasNotes: serverKnowsZoneNotes(),
 
     loadList: async () => {
       const myEpoch = epoch;
@@ -284,7 +300,16 @@ export const useSalesStore = create<SalesState>((set, get) => {
       // Пока шёл запрос, карточку закрыли или открыли другую — ответ устарел
       if (mySession !== session) return null;
       // Не черновик — «только чтение» сразу: правка закрыта и сервером
-      set({ currentLoading: false, current: order, saveState: order && !isEditable(order) ? 'locked' : 'clean' });
+      set({
+        currentLoading: false, current: order, saveState: order && !isEditable(order) ? 'locked' : 'clean',
+        serverHasNotes: get().serverHasNotes || serverKnowsZoneNotes(),
+      });
+      // Заказ без нанесений не скажет, знает ли сервер поля, — проба без записи
+      if (order && !get().serverHasNotes) {
+        void probeServerZoneNotes().then((known) => {
+          if (known && !get().serverHasNotes) set({ serverHasNotes: true });
+        });
+      }
       return order;
     },
 
@@ -402,6 +427,8 @@ registerAppReset(resetSalesStore);
 /** Сброс модульного состояния — только для тестов */
 export function __resetSalesStoreForTests(): void {
   resetSalesStore();
+  __resetServerZoneNotesForTests();
+  useSalesStore.setState({ serverHasNotes: false });
   pricer = null;
   session = 0;
   epoch = 0;

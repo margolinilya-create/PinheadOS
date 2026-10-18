@@ -157,14 +157,6 @@
 .sku-zone-check:hover      { border-color: var(--black); }
 .sku-zone-check.active     { border-color: var(--accent); background: rgba(29,25,234,.05); }
 .sku-zone-check input      { width: 15px; height: 15px; cursor: pointer; }
-/* SKU read-only tables */
-.sku-table    { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
-.sku-table th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-dim); padding: 8px 8px; border-bottom: 1.5px solid var(--border-light); }
-.sku-table td { padding: 8px 8px; border-bottom: 1px solid var(--bg3); }
-.sku-table tr:hover { background: var(--bg2); }
-.sku-code     { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
-.sku-price    { font-family: var(--font-display); font-weight: 700; font-size: 12px; }
-.sku-table select   { border: 1px solid var(--border-light); padding: 2px 6px; font-size: 11px; }
 /* ═══════════════════════════════════════════ */
 /* PRICE / SKU EDITOR                         */
 /* ═══════════════════════════════════════════ */
@@ -176,12 +168,6 @@
 .pe-tab.active::after { content: ''; position: absolute; bottom: -1.5px; left: 0; right: 0; height: 2px; background: var(--black); }
 .pe-tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
 .pe-body { flex: 1; padding: 24px 0; }
-/* Page-level tabs (Analytics, etc.) */
-.page-tabs { display: flex; gap: 0; border-bottom: 1.5px solid var(--border-light); padding: 0 40px; }
-.page-tab  { padding: 10px 24px; background: none; border: none; cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); position: relative; transition: color 150ms ease-out; }
-.page-tab:hover { color: var(--text-mid); }
-.page-tab.active { color: var(--text); }
-.page-tab.active::after { content: ''; position: absolute; bottom: -1.5px; left: 0; right: 0; height: 2px; background: var(--accent); }
 .pe-section h3 { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); margin: 24px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--bg3); }
 .pe-section h3:first-child { margin-top: 0; }
 .pe-hint  { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
@@ -476,15 +462,6 @@ td.pe-markup-cat,
 }
 .pe-matrix-table tbody tr:hover {
   background: var(--accent-light);
-}
-.sku-table tbody tr:nth-child(even) {
-  background: var(--surface);
-}
-.sku-table tbody tr:hover {
-  background: var(--accent-light);
-}
-.sku-table tbody tr {
-  transition: background 0.15s ease;
 }
 
 @media (max-width: 768px) {

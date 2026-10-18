@@ -67,23 +67,25 @@ test('мок пишет журнал RPC и Storage', async ({ page }) => {
   expect(calls).toContainEqual(expect.objectContaining({ kind: 'storage', name: 'order-artworks/t/a.txt' }));
 });
 
-test('мок сохранения v4 отвечает как сервер миграции D: ревизия клиента и версия заказа', async ({ page }) => {
+test('мок сохранения v4 отвечает как сервер миграции K (D — версия заказа): ревизия клиента 4 и версия заказа', async ({ page }) => {
   await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
   await page.goto('/?studio=1');
 
   const r = await page.evaluate(async (created) => {
     const { saveSalesOrder } = await import('/src/orderstudio/api/salesOrders.ts');
     const noRev = await saveSalesOrder({ id: 'sales-1' });
-    const first = await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: created });
-    const stale = await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: created });
+    const rev3 = await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: created });
+    const first = await saveSalesOrder({ id: 'sales-1', client_rev: 4, expected_updated_at: created });
+    const stale = await saveSalesOrder({ id: 'sales-1', client_rev: 4, expected_updated_at: created });
     const next = first.ok
-      ? await saveSalesOrder({ id: 'sales-1', client_rev: 3, expected_updated_at: first.saved.updated_at })
+      ? await saveSalesOrder({ id: 'sales-1', client_rev: 4, expected_updated_at: first.saved.updated_at })
       : null;
-    const fresh = await saveSalesOrder({ id: null, client_rev: 3 });
-    return { noRev, first, stale, next, fresh };
+    const fresh = await saveSalesOrder({ id: null, client_rev: 4 });
+    return { noRev, rev3, first, stale, next, fresh };
   }, FX_CREATED);
 
   expect(r.noRev).toEqual({ ok: false, kind: 'outdated', message: 'Вышло обновление — обновите страницу, правка не сохранена' });
+  expect(r.rev3).toEqual(r.noRev);
   expect(r.first).toMatchObject({ ok: true, saved: { id: 'sales-1', order_number: 'PH-9001' } });
   expect(r.stale).toEqual({ ok: false, kind: 'conflict', message: 'Заказ изменён в другой вкладке — обновите страницу' });
   expect(r.next).toMatchObject({ ok: true });

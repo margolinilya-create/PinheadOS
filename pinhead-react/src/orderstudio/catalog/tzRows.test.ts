@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_TZ_ROW_BY_ZONE, TZ_MATRIX_ROWS, TZ_ROW_CODES, TZ_ROW_LABELS, ZONE_ID_RE, asTzRow, tzRowOfArea, tzRowOfZone,
+  zoneIdByName, zoneOfPrint,
 } from './tzRows';
 import { ZONES_CATALOG_DEFAULT } from '../../data/constants';
 import { AREA_ID_RE } from '../design/limits';
@@ -60,5 +61,24 @@ describe('tzRows — строки матрицы ТЗ (К8)', () => {
     expect(tzRowOfArea({ zone_id: 'pocket' }, zones)).toBe('pocket');
     expect(tzRowOfArea({ zone_id: null }, zones)).toBe('other');
     expect(tzRowOfArea({ zone_id: null, tz_row: 'back' }, zones)).toBe('back');
+  });
+
+  it('zoneIdByName: код зоны справочника по названию (без регистра и пробелов); нет или код не по формату — null', () => {
+    const zones = [{ id: 'front', name: 'Грудь' }, { id: 'pocket', name: 'Карман' }, { id: 'Bad Id', name: 'Плечо' }];
+    expect(zoneIdByName(' грудь ', zones)).toBe('front');
+    expect(zoneIdByName('Карман', zones)).toBe('pocket');
+    expect(zoneIdByName('Плечо', zones)).toBeNull();
+    expect(zoneIdByName('Где-то', zones)).toBeNull();
+    expect(zoneIdByName('', zones)).toBeNull();
+    expect(zoneIdByName('Грудь', undefined)).toBeNull();
+  });
+
+  it('zoneOfPrint: по zone_id (справочник или умолчание кода), без кода — по названию', () => {
+    const zones = [{ id: 'chest-pocket', name: 'Нагрудный карман', tz_row: 'pocket' }, { id: 'front', name: 'Грудь' }];
+    expect(tzRowOfZone(zoneOfPrint({ zone: 'Переименовали', zone_id: 'chest-pocket' }, zones))).toBe('pocket');
+    // кода нет в справочнике — строка по умолчанию кода, имя не читается
+    expect(tzRowOfZone(zoneOfPrint({ zone: 'Грудь', zone_id: 'pocket' }, zones))).toBe('pocket');
+    expect(tzRowOfZone(zoneOfPrint({ zone: 'грудь', zone_id: null }, zones))).toBe('front');
+    expect(zoneOfPrint({ zone: '', zone_id: null }, zones)).toBeUndefined();
   });
 });

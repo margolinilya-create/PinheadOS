@@ -32,6 +32,7 @@ import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } 
 import type { LabelLibrary } from '../catalog/types';
 import { libraryLabelPrice } from '../catalog/labels';
 import { itemPackaging } from '../model/packaging';
+import { tzRowOfZone, zoneOfPrint } from '../catalog/tzRows';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -46,6 +47,11 @@ export interface PriceCatalogs {
    * → `core.packPrice`), смена прайса и так пересчитывает заказ.
    */
   labelLibrary?: LabelLibrary;
+  /**
+   * Справочник зон (веха 8): карман DTG — по `zone_id` нанесения и строке ТЗ зоны
+   * (`tzRowOfZone`); нет справочника — строка по умолчанию кода
+   */
+  zonesCatalog?: readonly { id: string; name?: string; tz_row?: string }[];
 }
 
 export interface PriceRules {
@@ -154,9 +160,20 @@ export function embroideryExtras(special: string): string[] {
 
 const ceilTo = (v: number, step: number): number => (step > 0 ? Math.ceil(v / step) * step : Math.round(v));
 
+/**
+ * Нанесение по карману (веха 8, К5): с кодом зоны — строка ТЗ зоны справочника
+ * «Карман» (переименование зоны цену не меняет); без кода (строки до вехи 8,
+ * свободный текст) — по названию, как прежде
+ */
+export function isPocketPrint(print: SalesPrint, zones: PriceCatalogs['zonesCatalog'] = []): boolean {
+  if (print.zone_id) return tzRowOfZone(zoneOfPrint(print, zones ?? [])) === 'pocket';
+  return /карман|pocket/i.test(print.zone || '');
+}
+
 /** Цена одного нанесения за штуку; null — у техники нет конструктора цен */
 function printUnitPrice(
   P: PricesExt, print: SalesPrint, qty: number, fabricCode: string, embMode: printRules.EmbMode = 'cut',
+  zones: PriceCatalogs['zonesCatalog'] = [],
 ): { unit: number | null; issue?: PriceIssue } {
   const { fmt, issue } = fitFormat(print.width_mm, print.height_mm);
   const w = print.width_mm ?? undefined;
@@ -171,8 +188,8 @@ function printUnitPrice(
     case 'dtg': {
       // Размеры DTG свои (А4 — 20×30, А3 — 30×41, 40×45 см): подбор по мм макета
       const size = w && h ? printRules.dtgFitSize(w, h) : 'A4';
-      // Зона v4 хранит название («Карман»); печать по карману — × 1,2
-      const placement = /карман|pocket/i.test(print.zone || '') ? 'pocket' : 'standard';
+      // Печать по карману — × 1,2: по коду зоны, без кода — по названию («Карман»)
+      const placement = isPocketPrint(print, zones) ? 'pocket' : 'standard';
       return {
         unit: core.calcZonePriceDirect(P, 'dtg', { fmt: size || '40x45', textile: print.textile, placement }, qty),
         issue: !w || !h ? 'print_no_size' : size ? undefined : 'print_oversize',
@@ -291,7 +308,7 @@ export function priceItem(
     const mode: printRules.EmbMode = /шеврон|нашивк|patch/i.test(pr.garment_kind || '')
       ? 'patch'
       : sewn && pr.on === 'cut' ? 'cut' : 'garment';
-    const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode);
+    const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode, cat.zonesCatalog);
     if (issue && !issues.includes(issue)) issues.push(issue);
     const u = unit ?? 0;
     prints.push({ key: pr.key, method: pr.method, qty: pq, unit: u });

@@ -190,6 +190,14 @@ describe('tzToErpDraft — нанесения и бирки', () => {
     expect(d.warnings).toContainEqual({ kind: 'method_as_other', item: d.items[0].key, method: 'other' });
   });
 
+  it('зона едет в ERP названием, как прежде; код зоны (веха 8) и комментарий для цехов в форму ERP не идут', () => {
+    const p = newSalesPrint({ method: 'dtf', zone: 'Карман', zone_id: 'pocket' });
+    const d = tzToErpDraft(order([sku({ prints: [p] })], { notes: 'Упаковать по 10' }));
+    expect(d.items[0].prints[0].zone).toBe('Карман');
+    expect(d.items[0].prints[0]).not.toHaveProperty('zone_id');
+    expect(d.form).not.toHaveProperty('notes');
+  });
+
   it('«прочее» без подрядчика — в комментарии только название техники', () => {
     const d = tzToErpDraft(order([sku({ prints: [newSalesPrint({ method: 'other' })] })]));
     expect(d.items[0].prints[0].comment).toBe('Прочее / подряд');
