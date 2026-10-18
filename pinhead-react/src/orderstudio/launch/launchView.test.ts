@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 import type { SalesOrderListRow } from '../api/salesOrders';
-import { launchDateWarnings, launchSummary, marginLine, nextInQueue, routeRows, launchDateError } from './launchView';
+import { launchDateWarnings, launchSummary, marginLine, nextInQueue, routeRows, launchDateError, launchFailText, STAGE_NAME, STAGE_TEXT } from './launchView';
 
 const grid = (qty: number) => ({ sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: qty } }] });
 
@@ -79,5 +79,21 @@ describe('launchDateError', () => {
     expect(launchDateError('2026-10-17', '2026-10-18')).toMatch(/уже прошла/);
     expect(launchDateError('2026-10-18', '2026-10-18')).toBe('');
     expect(launchDateError('2026-11-02', '2026-10-18')).toBe('');
+  });
+});
+
+describe('launchFailText', () => {
+  it('называет шаг, на котором запуск остановился, и причину', () => {
+    expect(launchFailText('create', 'Не удалось создать заказ в производстве'))
+      .toBe('Запуск остановлен на шаге «создание заказа в производстве»: Не удалось создать заказ в производстве');
+    expect(launchFailText('transition', 'r')).toContain('«обновление статуса»');
+  });
+
+  it('без шага — только причина', () => {
+    expect(launchFailText(undefined, 'r')).toBe('Запуск не выполнен: r');
+  });
+
+  it('у каждого шага хода есть название для отказа', () => {
+    expect(Object.keys(STAGE_NAME).sort()).toEqual(Object.keys(STAGE_TEXT).sort());
   });
 });

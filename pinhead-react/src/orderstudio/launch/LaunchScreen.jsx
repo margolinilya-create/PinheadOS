@@ -22,7 +22,7 @@ import { useTzCatalogs } from '../tz/tzCatalogs';
 import { rulesFromPrices, useOrderPrice } from '../screens/useOrderPrice';
 import PaymentPanel from '../payment/PaymentPanel';
 import { isoLocal, nextWorkingDay } from './nextWorkingDay';
-import { STAGE_TEXT, launchDateError, launchDateWarnings, launchSummary, marginLine } from './launchView';
+import { STAGE_TEXT, launchDateError, launchFailText, launchDateWarnings, launchSummary, marginLine } from './launchView';
 import LaunchOutcome from './LaunchOutcome';
 import LaunchSide from './LaunchSide';
 import ReturnDialog from './ReturnDialog';
@@ -122,7 +122,7 @@ export default function LaunchScreen() {
     setBusy(false);
     setStage('');
     if (!r.ok) {
-      setError(r.reason);
+      setError(launchFailText(r.stage, r.reason));
       return;
     }
     if (r.patch) useSalesStore.getState().applyServer(r.patch);
@@ -174,7 +174,7 @@ export default function LaunchScreen() {
           </div>
           {blocked && <p id={`${uid}-why`} className={styles.hint}>{blocked}</p>}
           <p className={styles.srOnly} aria-live="polite">{busy ? (STAGE_TEXT[stage] ?? 'Запускаем…') : ''}</p>
-          {error && <p ref={errRef} tabIndex={-1} role="alert" className={styles.error}>Запуск не выполнен: {error}</p>}
+          {error && <p ref={errRef} tabIndex={-1} role="alert" className={styles.error}>{error}</p>}
           <LaunchSide order={order} catalogs={catalogs} warnings={warnings} />
         </div>
         <div className={styles.tzCol}><TzFrame order={order} /></div>

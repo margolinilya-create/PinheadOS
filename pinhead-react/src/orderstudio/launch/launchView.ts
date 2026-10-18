@@ -7,13 +7,16 @@
  * и связана с ней `aria-describedby`.
  */
 import type { SalesOrder } from '../model/types';
-import type { ProductionType } from '../../erp/types';
 import type { SalesOrderListRow } from '../api/salesOrders';
 import { METHOD_LABELS } from '../model/printMethods';
 import { gridQty } from '../model/factory';
 import { parseDateLocal } from '../../utils/date';
 import { pluralize } from '../../utils/i18n';
 import { tzToErpDraft } from '../bridge/tzToErpDraft';
+import type { ErpDraft } from '../bridge/tzToErpDraft';
+
+/** Тип производства — из модели моста (сам `launch/**` типов ERP не импортирует) */
+type ErpDraftProductionType = ErpDraft['items'][number]['production_type'];
 import type { LaunchStage } from '../bridge/launch';
 import { sortSalesList } from '../screens/salesListFilter';
 
@@ -24,7 +27,7 @@ const p2 = (n: number) => String(n).padStart(2, '0');
 const ddmm = (d: Date) => `${p2(d.getDate())}.${p2(d.getMonth() + 1)}`;
 
 /** Тип производства — подпись для маршрута (зеркало `PRODUCTION_TYPE_LABELS` ERP без импорта) */
-const PRODUCTION_LABELS: Record<ProductionType, string> = {
+const PRODUCTION_LABELS: Record<ErpDraftProductionType, string> = {
   no_product: 'Нанесение на изделие клиента',
   ready_garment: 'Готовое изделие',
   cut: 'Крой',
@@ -58,6 +61,24 @@ export const STAGE_TEXT: Record<LaunchStage, string> = {
   create: 'Создаём заказ в производстве…',
   transition: 'Обновляем статус заказа…',
 };
+
+/** Шаг запуска — названием, для текста отказа («причина и шаг») */
+export const STAGE_NAME: Record<LaunchStage, string> = {
+  check: 'проверка готовности',
+  bootstrap: 'справочники производства',
+  payload: 'сборка заказа для производства',
+  tzcheck: 'сверка ТЗ',
+  files: 'копирование ТЗ и макетов',
+  recheck: 'повторная проверка',
+  create: 'создание заказа в производстве',
+  transition: 'обновление статуса',
+};
+
+/** Текст отказа запуска: шаг, на котором остановились, и причина */
+export function launchFailText(stage: LaunchStage | undefined, reason: string): string {
+  const name = stage ? STAGE_NAME[stage] : '';
+  return name ? `Запуск остановлен на шаге «${name}»: ${reason}` : `Запуск не выполнен: ${reason}`;
+}
 
 /** Неблокирующие предупреждения даты запуска */
 export function launchDateWarnings(date: string, dueDate: string | null | undefined): string[] {
@@ -102,7 +123,7 @@ export function routeRows(order: SalesOrder): RouteRow[] {
       key: it.key,
       name: it.product_type.trim() || `Позиция ${i + 1}`,
       qty: gridQty(it.size_grid),
-      production: PRODUCTION_LABELS[d.production_type as ProductionType] ?? String(d.production_type),
+      production: PRODUCTION_LABELS[d.production_type] ?? String(d.production_type),
       brandingOn: it.prints.length === 0 ? null : d.branding_on === 'finished' ? 'по готовому изделию' : 'по крою',
       methods: [...new Set(it.prints.map((p) => METHOD_LABELS[p.method]))],
     }];

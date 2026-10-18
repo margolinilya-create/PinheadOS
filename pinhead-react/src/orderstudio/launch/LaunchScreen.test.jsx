@@ -126,13 +126,14 @@ describe('LaunchScreen', () => {
       expect.objectContaining({ launchDate: '2099-10-27', catalogs: CATALOGS, actor: 'u-ms' }));
   });
 
-  it('отказ запуска — текст ошибки role=alert с фокусом', async () => {
+  it('отказ запуска — шаг и причина role=alert с фокусом', async () => {
     bridge.launchToErp.mockResolvedValue({ ok: false, stage: 'files', reason: 'Файл с таким именем уже есть в производстве — повторите запуск' });
     renderScreen(MS);
     await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
     fireEvent.click(launchBtn());
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('уже есть в производстве');
+    expect(alert).toHaveTextContent('на шаге «копирование ТЗ и макетов»');
     await waitFor(() => expect(document.activeElement).toBe(alert));
   });
 

@@ -3,14 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { transitionOrder } from '../api/salesTransitions';
 import { useSalesStore } from '../store/useSalesStore';
-import { canFinish } from '../layout/orderNav';
+import { LAUNCH_QUEUE_PATH, canFinish } from '../layout/orderNav';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
 import { switchToProduction } from '../switchToProduction';
 import { nextInQueue } from './launchView';
 import styles from './Launch.module.css';
-
-export const QUEUE_PATH = '/sales?status=ready_to_launch&sort=due';
 
 const TITLES = {
   launched: 'Заказ запущен в производство',
@@ -77,7 +75,7 @@ export default function LaunchOutcome({ order, user, kind, warnings = [] }) {
             Следующий к запуску (осталось {left})
           </button>
         ) : (
-          <button type="button" className="btn btn-primary" onClick={() => navigate(QUEUE_PATH)}>К списку</button>
+          <button type="button" className="btn btn-primary" onClick={() => navigate(LAUNCH_QUEUE_PATH)}>К списку</button>
         )}
       </div>
     </section>
