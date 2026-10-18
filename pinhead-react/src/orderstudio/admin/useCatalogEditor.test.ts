@@ -117,6 +117,23 @@ describe('useCatalogEditor — сохранение', () => {
     expect(result.current.state).toBe('ready');
   });
 
+  it('форма записи (22023, вид invalid) — как прежний other: error и текст сервера дословно', async () => {
+    const server = 'Флэты: неверная запись — модель T-006 у двух активных флэтов';
+    putMock.mockResolvedValue({ ok: false, kind: 'invalid', message: server });
+    const { result } = await ready();
+    expect(result.current.errorText).toBeNull();
+    act(() => result.current.setValue({ footerText: 'X' }));
+    await act(async () => { await result.current.save(); });
+    expect(result.current.state).toBe('error');
+    expect(result.current.errorText).toBe(server);
+    expect(result.current.dirty).toBe(true);
+    // Повтор возможен; успех снимает текст
+    putMock.mockResolvedValue({ ok: true });
+    await act(async () => { await result.current.save(); });
+    expect(result.current.state).toBe('ready');
+    expect(result.current.errorText).toBeNull();
+  });
+
   it('прайс: prices_patch только изменённых верхних ключей с их прежними значениями', async () => {
     const base = { usdRate: 90, packOptions: [{ key: 'none', name: 'Без упаковки', price: 0 }], minMarginPct: null };
     fetchMock.mockResolvedValue({ exists: true, value: base });
