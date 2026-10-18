@@ -172,6 +172,8 @@ export interface NewPlacedCtx extends PlaceCtx {
   itemKind: SalesItemKind;
   /** Техника нового нанесения — `defaultMethod(area, rules)` из `model/printMethods` */
   method: SalesPrintMethod;
+  /** Подложка нового нанесения по цвету изделия (`model/garmentTextile`); нет — умолчание фабрики */
+  textile?: SalesPrint['textile'];
 }
 
 /** Новое нанесение сразу на холсте; зона не найдена или раскладка не по форме (`parseLayout`) — `null` */
@@ -179,7 +181,7 @@ export function newPlacedPrint(asset: AssetMeta, artworkPath: string, areaId: st
   const where = locate(ctx.flat, ctx.view, areaId);
   if (!where) return null;
   const box = initialBox(where.view, where.area, asset);
-  const base = newSalesPrint({ on: ctx.itemKind === 'sku' ? 'cut' : 'finished' });
+  const base = newSalesPrint({ on: ctx.itemKind === 'sku' ? 'cut' : 'finished', ...(ctx.textile ? { textile: ctx.textile } : {}) });
   const placed = applyPlacement(base, {
     print_key: base.key, view: ctx.view, area_id: areaId, x_mm: box.x, y_mm: box.y,
     width_mm: box.w, height_mm: box.h, rotation_deg: 0, flip_h: false, flip_v: false,

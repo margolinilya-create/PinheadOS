@@ -118,7 +118,9 @@ describe('связка буфера с позицией', () => {
     store().selectColor('15-01');
     expect(onItem).toHaveBeenCalledTimes(1);
     expect(onItem.mock.calls[0][0].size_grid.rows[0].color).toBe('Светло-фиолетовый (15-01)');
-    expect(onItem.mock.calls[0][0].prints).toBe(a.prints);
+    // Подложка шелкографии — вслед за цветом: белое → цветное (обход, H-2); прочее в нанесении — то же
+    const [print] = onItem.mock.calls[0][0].prints;
+    expect(print).toEqual({ ...a.prints[0], textile: 'color' });
     off();
   });
 

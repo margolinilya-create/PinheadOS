@@ -5,6 +5,7 @@ import { zonesForSku } from '../../utils/skuRules';
 import { pluralize } from '../../utils/i18n';
 import { useSalesStore } from '../store/useSalesStore';
 import { newSalesLabel, newSalesPrint } from '../model/factory';
+import { textileOfItem } from '../model/garmentTextile';
 import PrintRow from '../screens/PrintRow';
 import LabelRow from '../screens/LabelRow';
 import BufferedInput from '../screens/BufferedInput';
@@ -69,10 +70,12 @@ export default function ItemTab({ item, price, readOnly, compact = false, onChan
   const packOptions = usePackagingOptions();
   useItemBuffer(item.key, bufferable, readOnly);
 
-  const { skuCatalog, zonesCatalog, extrasCatalog } = useStore(useShallow((s) => ({
+  const { skuCatalog, zonesCatalog, extrasCatalog, suppliers, fabricsCatalog } = useStore(useShallow((s) => ({
     skuCatalog: s.skuCatalog,
     zonesCatalog: s.zonesCatalog,
     extrasCatalog: s.extrasCatalog,
+    suppliers: s.suppliers,
+    fabricsCatalog: s.fabricsCatalog,
   })));
   const sku = skuCatalog.find((s) => s.code === item.sku_code);
   // Зоны модели (категория, капюшон, карман); без модели — все
@@ -86,6 +89,13 @@ export default function ItemTab({ item, price, readOnly, compact = false, onChan
     // Буфер знает признак: garmentPatch не перепишет ткань позиции клиента
     useStore.setState({ clientFabric: checked });
   };
+  // Подложка нового нанесения — по цвету изделия: на чёрном не «белое» (обход, H-2)
+  const addPrint = () => onChange({
+    prints: [...item.prints, newSalesPrint({
+      on: item.kind === 'sku' ? 'cut' : 'finished',
+      textile: textileOfItem(item, { suppliers: suppliers ?? [], fabricsCatalog: fabricsCatalog ?? [] }),
+    })],
+  });
   const setPrint = (i, patch) => onChange({ prints: item.prints.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const setLabel = (i, patch) => onChange({ labels: item.labels.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const colors = item.size_grid.rows.length;
@@ -127,7 +137,7 @@ export default function ItemTab({ item, price, readOnly, compact = false, onChan
           />
         ))}
         {!readOnly && (
-          <button type="button" className={sales.add} onClick={() => onChange({ prints: [...item.prints, newSalesPrint({ on: item.kind === 'sku' ? 'cut' : 'finished' })] })}>
+          <button type="button" className={sales.add} onClick={addPrint}>
             + Нанесение
           </button>
         )}

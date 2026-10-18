@@ -45,6 +45,13 @@ describe('placeArtwork', () => {
     expect(parseLayout(p.layout)).toMatchObject({ v: 1, flat_id: FLAT.id, view: 'front', area_id: 'chest' });
   });
 
+  it('подложка нового нанесения — из ctx.textile; свободная строка зоны оставляет свою (обход, H-2)', () => {
+    expect(placeArtwork([], asset(), PATH, 'chest', { ...CTX, textile: 'color' })!.prints[0].textile).toBe('color');
+    expect(placeArtwork([], asset(), PATH, 'chest', CTX)!.prints[0].textile).toBe('white');
+    const row = newSalesPrint({ zone: 'Грудь (перед)', textile: 'white' });
+    expect(placeArtwork([row], asset(), PATH, 'chest', { ...CTX, textile: 'color' })!.prints[0].textile).toBe('white');
+  });
+
   it('существующие нанесения не меняются, новое — в конец (порядок = номер в ТЗ)', () => {
     const other = newSalesPrint({ zone: 'Спина' });
     const res = placeArtwork([other], asset(), PATH, 'chest', CTX)!;

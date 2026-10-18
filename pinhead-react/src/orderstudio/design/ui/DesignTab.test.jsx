@@ -10,6 +10,7 @@ import { useOrderPrice } from '../../screens/useOrderPrice';
 import { useDesignStore } from '../store/useDesignStore';
 import { catalog, flat as makeFlat } from '../fixtures.testutil';
 import { newPlacedPrint, parseLayout } from '../model/layout';
+import { artworkPipeline } from './useArtworkActions';
 
 /**
  * Вкладка «Дизайн» в jsdom: konva подменён простыми div (konva — в e2e),
@@ -213,6 +214,22 @@ describe('DesignTab — правка', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
     expect(await screen.findByText('Цвета, Pantone, эффект')).toBeInTheDocument();
     expect(await screen.findAllByLabelText('Техника')).toHaveLength(1);
+  });
+});
+
+describe('DesignTab — подложка нового логотипа (обход, H-2)', () => {
+  it.each([
+    ['Сиреневый (14-02)', 'color'],
+    ['Белый (01-01)', 'white'],
+  ])('изделие «%s» — в конвейер логотипа уходит подложка %s', async (color, textile) => {
+    const addArtworkFile = vi.fn().mockResolvedValue(null);
+    vi.spyOn(artworkPipeline, 'load').mockResolvedValue({ addArtworkFile, addExistingArtwork: vi.fn() });
+    const { container } = setup(item({ size_grid: { sizes: ['M'], rows: [{ color, sizes: { M: 50 } }] } }));
+    await panelReady();
+    const file = new File(['x'], 'logo.png', { type: 'image/png' });
+    fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } });
+    await waitFor(() => expect(addArtworkFile).toHaveBeenCalledTimes(1));
+    expect(addArtworkFile.mock.calls[0][1]).toMatchObject({ textile });
   });
 });
 

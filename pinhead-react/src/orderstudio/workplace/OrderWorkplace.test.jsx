@@ -158,6 +158,20 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     expect(current().items[1].size_grid.rows[0].color).toContain(code);
   });
 
+  it('«+ Нанесение» на цветном изделии — с подложкой «цветное», на белом — «белое» (обход, H-2)', () => {
+    const dark = itemA({ size_grid: { sizes: ['S'], rows: [{ color: 'Сиреневый (14-02)', sizes: { S: 30 } }] } });
+    renderWp(newSalesOrder({ id: 'o-1', items: [dark, itemA()] }), `?tab=item&item=${dark.key}`);
+    fireEvent.click(screen.getByRole('button', { name: '+ Нанесение' }));
+    expect(current().items[0].prints.map((p) => p.textile)).toEqual(['color']);
+  });
+
+  it('«+ Нанесение» на белом изделии — «белое»', () => {
+    const a = itemA();
+    renderWp(newSalesOrder({ id: 'o-1', items: [a] }), `?tab=item&item=${a.key}`);
+    fireEvent.click(screen.getByRole('button', { name: '+ Нанесение' }));
+    expect(current().items[0].prints.map((p) => p.textile)).toEqual(['white']);
+  });
+
   it('правка на «Изделии» сохраняется с ценой заказа', async () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
     fireEvent.click(otherSwatch().el);

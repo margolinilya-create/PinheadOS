@@ -52,6 +52,8 @@ export interface ArtworkTarget {
   category: string;
   /** Правила категории (`getEffectiveRules`) — техника по умолчанию в зоне */
   rules: MethodRules | null;
+  /** Подложка нового нанесения по цвету позиции (`textileOfItem`, обход H-2) */
+  textile?: 'white' | 'color';
 }
 
 export interface AddArtworkOpts extends PlaceArtworkOpts {
@@ -150,7 +152,7 @@ function placeOnItem(path: string, asset: AssetMeta, t: ArtworkTarget, opts: Add
   const written = ds.commit('Логотип', (item) => {
     const res = placeArtwork(item.prints, asset, path, area.id, {
       flat: t.flat, zonesCatalog: t.zonesCatalog, category: t.category, view: t.view,
-      itemKind: item.kind, method: defaultMethod(area, t.rules),
+      itemKind: item.kind, method: defaultMethod(area, t.rules), textile: t.textile,
     }, opts);
     if (!res) return null;
     placed.key = res.key;
