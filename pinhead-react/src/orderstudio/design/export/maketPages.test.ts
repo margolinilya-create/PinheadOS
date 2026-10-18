@@ -67,12 +67,12 @@ describe('maketCaption — строка легенды листа', () => {
   const entryOf = (p: SalesPrint) => maketPages(item([p]), flat())[0].entries[0];
 
   it('зона, техника, Ш×В и отступ от шва горловины', () => {
-    expect(maketCaption(entryOf(print()))).toBe('Грудь (перед) — DTF, 120×80 мм, 80 мм ниже шва горловины');
+    expect(maketCaption(entryOf(print()))).toBe('Грудь (перед) — DTF, 120×80 мм, 80 мм от шва горловины');
   });
 
   it('отступ выше опоры, от верхнего края; без направления — «от»', () => {
     expect(maketCaption(entryOf(print({ offset_dir: 'up', offset_mm: 5 })))).toContain('5 мм выше шва горловины');
-    expect(maketCaption(entryOf(print({ offset_from: 'top_edge', offset_mm: 12 })))).toContain('12 мм ниже верхнего края');
+    expect(maketCaption(entryOf(print({ offset_from: 'top_edge', offset_mm: 12 })))).toContain('12 мм от верхнего края');
     expect(maketCaption(entryOf(print({ offset_dir: '', offset_mm: 30 })))).toContain('30 мм от шва горловины');
   });
 
