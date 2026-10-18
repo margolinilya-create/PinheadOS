@@ -183,7 +183,9 @@ function printUnitPrice(
     case 'silkscreen': {
       const sf = screenFormat(print.width_mm, print.height_mm);
       const unit = core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode);
-      return { unit, issue: sf.issue ?? (qty < SCREEN_MIN_QTY ? 'screen_low_qty' : undefined) };
+      // Пометка «тираж от 50 шт» — в `priceItem` по тиражу нанесения: здесь `qty`
+      // у пустой позиции подменён единицей, а строка держит одну пометку
+      return { unit, issue: sf.issue };
     }
     case 'heat_transfer':
       return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };
@@ -312,6 +314,11 @@ export function priceItem(
       : sewn && pr.on === 'cut' ? 'cut' : 'garment';
     const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode, cat.zonesCatalog);
     if (issue && !issues.includes(issue)) issues.push(issue);
+    // Как в экспрессе: только при тираже > 0 (у пустой позиции хватает «no_qty»)
+    // и вместе с пометкой формата («нет размеров» и меньший тираж — обе)
+    if (pr.method === 'silkscreen' && pq > 0 && pq < SCREEN_MIN_QTY && !issues.includes('screen_low_qty')) {
+      issues.push('screen_low_qty');
+    }
     const u = unit ?? 0;
     prints.push({ key: pr.key, method: pr.method, qty: pq, unit: u });
     printsTotal += u * pq;

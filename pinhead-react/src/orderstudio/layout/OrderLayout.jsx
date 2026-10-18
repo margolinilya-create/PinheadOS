@@ -10,9 +10,17 @@ import { canUseSales } from './orderNav';
 import { OrderSidebar } from './OrderSidebar';
 import styles from './OrderLayout.module.css';
 
-/** Подпись роли в шапке: в разделе важна роль продаж; код роли человек не читает (обход, M-2) */
+/** Роли руководства: их подпись главнее отметок продаж (`is_sales`/`is_ms`) */
+const LEAD_ROLES = ['admin', 'director', 'rop'];
+
+/**
+ * Подпись роли в шапке: в разделе важна роль продаж; код роли человек не читает (обход, M-2).
+ * Руководство с отметкой «Ведёт заказы» остаётся «РОП»/«Админ»/«Директор» — отметка
+ * добавляет ему работу, а не меняет должность (раунд 1).
+ */
 function roleCaption(user) {
   if (!user) return '';
+  if (LEAD_ROLES.includes(user.role)) return ROLE_LABELS[user.role];
   if (user.is_ms) return 'Менеджер сопровождения';
   if (user.is_sales) return 'Менеджер продаж';
   return ROLE_LABELS[user.role] ?? user.role ?? '';

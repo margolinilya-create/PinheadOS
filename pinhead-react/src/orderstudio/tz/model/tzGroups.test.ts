@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../../model/factory';
 import { duplicateInColor } from '../../model/itemOps';
 import { fnv1a8, tzGroupKey, tzGroups } from './tzGroups';
+import type { TextileCatalogs } from '../../model/garmentTextile';
+
+/** Без палитр: подложка — по слову «белый» в подписи цвета */
+const NO_CAT: TextileCatalogs = { suppliers: [], fabricsCatalog: [] };
 
 const tee = () => newSalesItem({
   sku_code: 'tee-freefit',
@@ -19,7 +23,7 @@ const tee = () => newSalesItem({
 describe('tzGroupKey', () => {
   it('копия в другом цвете и другой комментарий — тот же ключ', () => {
     const a = tee();
-    const b = { ...duplicateInColor(a, 'Белый'), tz_comment: 'другой' };
+    const b = { ...duplicateInColor(a, 'Белый', NO_CAT), tz_comment: 'другой' };
     expect(tzGroupKey(b)).toBe(tzGroupKey(a));
   });
 
@@ -54,7 +58,7 @@ describe('tzGroups', () => {
   it('порядок позиций, номер ТЗ с единицы, hash8 — 8 hex', () => {
     const a = tee();
     const b = { ...tee(), fabric_code: 'futer-350' };
-    const c = duplicateInColor(a, 'Белый');
+    const c = duplicateInColor(a, 'Белый', NO_CAT);
     const groups = tzGroups(newSalesOrder({ items: [a, b, c] }));
     expect(groups.map((g) => g.items.map((i) => i.key))).toEqual([[a.key, c.key], [b.key]]);
     expect(groups.map((g) => [g.index, g.total])).toEqual([[1, 2], [2, 2]]);

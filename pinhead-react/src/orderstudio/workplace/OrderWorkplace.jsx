@@ -49,6 +49,16 @@ const TABS = [
 const TAB_KEYS = TABS.map((t) => t.key);
 
 /**
+ * Палитры и ткани на момент действия — подложка нанесений у копии в другом
+ * цвете и у разнесения по цветам (обход H-2, раунд 1). Читаются в обработчике,
+ * а не подпиской: экрану перерисовка по справочникам не нужна.
+ */
+const textileCatalogs = () => {
+  const { suppliers, fabricsCatalog } = useStore.getState();
+  return { suppliers: suppliers ?? [], fabricsCatalog: fabricsCatalog ?? [] };
+};
+
+/**
  * Рабочее место заказа v4 `/sales/:id` (веха 3): список изделий и вкладки —
  * «Изделие», «Дизайн» (веха 5а: холст, ленивый чанк), «Клиент», «ТЗ и цена».
  * Вкладка и позиция — в адресе (`?tab=item|design|client|summary&item=<key>`).
@@ -153,7 +163,7 @@ export default function OrderWorkplace() {
   const copyColor = (key, color) => {
     const src = items.find((it) => it.key === key);
     if (!src) return;
-    const copy = duplicateInColor(src, color);
+    const copy = duplicateInColor(src, color, textileCatalogs());
     edit((o) => {
       const i = o.items.findIndex((it) => it.key === key);
       return { ...o, items: [...o.items.slice(0, i + 1), copy, ...o.items.slice(i + 1)] };
@@ -162,7 +172,7 @@ export default function OrderWorkplace() {
   };
   const split = (key) => edit((o) => ({
     ...o,
-    items: o.items.flatMap((it) => (it.key === key ? splitByColor(it) : [it])),
+    items: o.items.flatMap((it) => (it.key === key ? splitByColor(it, textileCatalogs()) : [it])),
   }));
   const remove = (key) => {
     const i = items.findIndex((it) => it.key === key);

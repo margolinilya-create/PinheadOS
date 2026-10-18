@@ -10,6 +10,7 @@
  * операции дают позиции ровно с одной строкой сетки.
  */
 import { gridQty } from './factory';
+import { retextilePrints, textileOfColor, textileOfItem, type TextileCatalogs } from './garmentTextile';
 import type { SalesItem, SalesLabel, SalesOrder, SalesPrint } from './types';
 import type { SizeGridRow } from '../../erp/types';
 
@@ -41,13 +42,23 @@ function recolorSupplier(colorSupplier: string, color: string): string {
   return parts.length > 1 ? [color, ...parts.slice(1)].join(' / ') : color;
 }
 
-/** Позиция с одной строкой сетки `row`: новые ключи всего, что ей принадлежит */
-function cloneWithRow(item: SalesItem, row: SizeGridRow, key: string): SalesItem {
+/**
+ * Позиция с одной строкой сетки `row`: новые ключи всего, что ей принадлежит.
+ * Подложка нанесений — вслед за цветом (обход H-2, раунд 1): умолчание цвета
+ * исходной позиции меняется на умолчание нового, выбранное руками остаётся,
+ * как при смене цвета в буфере (`garmentPatch`).
+ */
+function cloneWithRow(item: SalesItem, row: SizeGridRow, key: string, cat: TextileCatalogs): SalesItem {
+  const prints = retextilePrints(
+    item.prints,
+    textileOfItem(item, cat),
+    textileOfColor(row.color, cat, item.fabric_code),
+  );
   return {
     ...item,
     key,
     size_grid: { sizes: [...item.size_grid.sizes], rows: [{ color: row.color, sizes: { ...row.sizes } }] },
-    prints: item.prints.map(clonePrint),
+    prints: prints.map(clonePrint),
     labels: item.labels.map(cloneLabel),
     extras: [...item.extras],
     part_colors: { ...item.part_colors },
@@ -61,11 +72,12 @@ function cloneWithRow(item: SalesItem, row: SizeGridRow, key: string): SalesItem
  * Копия позиции в другом цвете: та же модель, ткань, нанесения и бирки;
  * сетка — одна строка нового цвета с теми же размерами и нулём штук.
  * Ручная цена сбрасывается: тираж другой, цена считается заново.
+ * `cat` — палитры поставщиков и ткани: по ним подложка нанесений копии.
  */
-export function duplicateInColor(item: SalesItem, color: string): SalesItem {
+export function duplicateInColor(item: SalesItem, color: string, cat: TextileCatalogs): SalesItem {
   const zero = Object.fromEntries(item.size_grid.sizes.map((s) => [s, 0]));
   return {
-    ...cloneWithRow(item, { color, sizes: zero }, newKey()),
+    ...cloneWithRow(item, { color, sizes: zero }, newKey(), cat),
     manual_unit_price: null,
   };
 }
@@ -73,9 +85,9 @@ export function duplicateInColor(item: SalesItem, color: string): SalesItem {
 /**
  * Разнесение многоцветной позиции: одна позиция на строку сетки.
  * Первая сохраняет ключ (и свои нанесения, бирки, PDF ТЗ), остальные — копии
- * с новыми ключами. Сумма штук не меняется.
+ * с новыми ключами (подложка — по цвету своей строки). Сумма штук не меняется.
  */
-export function splitByColor(item: SalesItem): SalesItem[] {
+export function splitByColor(item: SalesItem, cat: TextileCatalogs): SalesItem[] {
   const rows = item.size_grid.rows;
   if (rows.length <= 1) return [item];
   const [first, ...rest] = rows;
@@ -85,7 +97,7 @@ export function splitByColor(item: SalesItem): SalesItem[] {
       size_grid: { sizes: [...item.size_grid.sizes], rows: [{ color: first.color, sizes: { ...first.sizes } }] },
       color_supplier: recolorSupplier(item.color_supplier, first.color),
     },
-    ...rest.map((row) => cloneWithRow(item, row, newKey())),
+    ...rest.map((row) => cloneWithRow(item, row, newKey(), cat)),
   ];
 }
 

@@ -57,6 +57,8 @@ describe('OrderLayout', () => {
     [{ ...SELLER, is_sales: false, is_ms: true }, 'Менеджер сопровождения'],
     [{ ...SELLER, role: 'rop', is_sales: false }, 'РОП'],
     [ADMIN, 'Админ'],
+    [{ ...SELLER, role: 'rop', is_sales: true }, 'РОП'],
+    [{ ...ADMIN, is_sales: true, is_ms: true }, 'Админ'],
   ])('роль в шапке — русской подписью, не кодом (обход, M-2): %#', (user, caption) => {
     renderLayout(user);
     expect(screen.getByText(caption)).toBeTruthy();

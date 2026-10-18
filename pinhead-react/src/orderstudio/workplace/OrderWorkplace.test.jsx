@@ -192,9 +192,10 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     expect(screen.getAllByRole('button', { name: /^Разнести по цветам/ }).length).toBeGreaterThan(0);
   });
 
-  it('разнесение с плашки спрашивает и делает две позиции', async () => {
+  it('разнесение с плашки спрашивает и делает две позиции; подложка — по цвету строки (обход H-2)', async () => {
     const multi = itemA({
       size_grid: { sizes: ['S'], rows: [{ color: 'Белый', sizes: { S: 1 } }, { color: 'Чёрный', sizes: { S: 2 } }] },
+      prints: [newSalesPrint({ method: 'silkscreen', textile: 'white' })],
     });
     renderWp(newSalesOrder({ id: 'o-1', items: [multi] }));
     const ask = vi.spyOn(confirmStore, 'confirm').mockResolvedValue(true);
@@ -202,6 +203,7 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Разнести по цветам' }));
     await waitFor(() => expect(current().items).toHaveLength(2));
     expect(ask).toHaveBeenCalled();
+    expect(current().items.map((it) => it.prints[0].textile)).toEqual(['white', 'color']);
   });
 
   it('пустой заказ — «Добавить изделие», и только кнопка создаёт позицию', () => {

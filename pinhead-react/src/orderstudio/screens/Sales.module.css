@@ -401,8 +401,17 @@
 /* Тач-цель ≥44 px: кнопки «Новый заказ» на планшете и телефоне */
 @media (pointer: coarse) {
   .touch { min-height: 44px; }
-  /* Раскрывашки «Доп. поля ТЗ», «Упаковка позиции» — палец, а не строка текста (обход, M-7) */
-  .details summary { min-height: 44px; line-height: 44px; margin-block: var(--space-xs); }
+  /*
+   * Раскрывашки «Доп. поля ТЗ», «Упаковка позиции» — палец, а не строка текста (обход, M-7).
+   * Высота — полями, а не line-height: перенесённая подпись не растягивает каждую строку
+   * до 44 px; display не меняем — у summary остаётся треугольник раскрытия.
+   */
+  .details summary {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding-block: max(0px, calc((44px - 1lh) / 2));
+    margin-block: var(--space-xs);
+  }
 }
 
 /* Узкая ступень: поиск и фильтры — в столбик, на всю ширину */
