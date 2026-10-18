@@ -1502,26 +1502,9 @@ describe('Data references in items', () => {
   it('findColorEntry returns null for invalid', () => { expect(findColorEntry('INVALID')).toBeNull(); });
 });
 
-describe('Store: reorderSku', () => {
-  it('reorders SKU catalog', () => {
-    const first = useStore.getState().skuCatalog[0].code;
-    const second = useStore.getState().skuCatalog[1].code;
-    useStore.getState().reorderSku(second, first);
-    expect(useStore.getState().skuCatalog[0].code).toBe(second);
-    expect(useStore.getState().skuCatalog[1].code).toBe(first);
-  });
-
-  it('reorder with same code does nothing', () => {
-    const before = [...useStore.getState().skuCatalog];
-    useStore.getState().reorderSku('T-001', 'T-001');
-    expect(useStore.getState().skuCatalog.map(s => s.code)).toEqual(before.map(s => s.code));
-  });
-
-  it('reorder with invalid code does nothing', () => {
-    const before = useStore.getState().skuCatalog.length;
-    useStore.getState().reorderSku('INVALID', 'T-001');
-    expect(useStore.getState().skuCatalog).toHaveLength(before);
-  });
+// `reorderSku` удалён (веха 8, задача 3): перетаскивания в списке моделей нет с вехи 4
+it('стор без reorderSku — мёртвое действие удалено', () => {
+  expect(useStore.getState().reorderSku).toBeUndefined();
 });
 
 describe('Store: setOneSizeQty edge cases', () => {
