@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { fetchCatalogKey } from '../../../lib/catalogs';
 /*
  * Только то, что вход уже отдаёт другим чанкам (`ErpStates`): новый импорт из
@@ -7,17 +8,30 @@ import { fetchCatalogKey } from '../../../lib/catalogs';
  */
 import { isChunkLoadError, UPDATE_MESSAGE, UPDATE_TITLE } from '../../../lib/appUpdate';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { confirm } from '../../../store/useConfirmStore';
 import { toast } from '../../../store/useToastStore';
 import { networkFailureMessage, pluralize } from '../../../utils/i18n';
 import { parseFlatsCatalog } from '../../design/catalog/flatsSchema';
 import { SEED_FLATS_COUNT } from '../../design/seed/seedInfo';
+import { catalogHasUnsaved, CATALOG_LEAVE_TEXT } from '../../leaveGuard';
 import CatalogNotice from '../CatalogNotice';
-import { FLAT_WRITER_ROLES, flatRow, SEED_CONFLICT_TEXT, seedStatusText, spokenProgress, zonesCount } from './flatsView';
+import FlatsList from '../flats/FlatsList';
+import ZonesCatalogEditor from '../flats/ZonesCatalogEditor';
+import { EMPTY_LIST_TEXT } from '../flats/flatsListView';
+import { FLAT_WRITER_ROLES, flatRow, SEED_CONFLICT_TEXT, seedStatusText, spokenProgress } from './flatsView';
 import base from '../../screens/Sales.module.css';
 import notices from '../OrderSettings.module.css';
 import styles from './FlatsTab.module.css';
 
+/**
+ * Редактор флэта (холст konva) и превью для телефона — только `import()`:
+ * konva не в графе списка флэтов и телефона (страж `bundle-budget`, задача 0)
+ */
+const FlatEditor = lazy(() => import('../flats/FlatEditor'));
+const FlatPreview = lazy(() => import('../flats/FlatPreview'));
+
 const NAME = 'Флэты и зоны';
+const PARTS = [['flats', 'Флэты'], ['zones', 'Зоны нанесения']];
 const LOADING = { state: 'loading', flats: [], issues: [], dropped: 0 };
 
 /** Справочник из ответа: битые флэты отброшены, замечания — по-русски */
@@ -33,8 +47,20 @@ function issuesTitle(dropped) {
   return `${dropped} ${pluralize(dropped, 'запись', 'записи', 'записей')} справочника с ошибками не ${pluralize(dropped, 'показана', 'показаны', 'показаны')}`;
 }
 
+/** Уйти с несохранённым — переспросить (правило вехи 4) */
+async function mayLeave() {
+  if (!catalogHasUnsaved()) return true;
+  return confirm({
+    title: 'Правки справочника не сохранены',
+    message: CATALOG_LEAVE_TEXT,
+    confirmLabel: 'Перейти без сохранения',
+    cancelLabel: 'Остаться',
+    variant: 'danger',
+  });
+}
+
 function emptyText(canSeed, isWriter) {
-  if (canSeed) return `Типовых силуэтов пока нет. Загрузите ${SEED_FLATS_COUNT} моделей одной кнопкой`;
+  if (canSeed) return EMPTY_LIST_TEXT;
   if (isWriter) return 'Типовых силуэтов пока нет. Загрузить их можно с компьютера';
   return 'Типовых силуэтов пока нет. Их загружает администратор или директор';
 }
@@ -44,7 +70,14 @@ function emptyText(canSeed, isWriter) {
  * `app_config.garmentFlats` для вкладки «Дизайн» — название, тип, подбор,
  * виды и печатные зоны.
  *
- * Правка флэтов — веха 5б. Здесь — только кнопка «Загрузить типовые флэты»
+ * Веха 5б, задача 6б — режимы по адресу: над содержимым переключатель
+ * «Флэты | Зоны нанесения» (`part`); `flat=<id>` — редактор флэта (лениво,
+ * с холстом konva), на ≤ 760 px — превью картинкой; `flat=new` — новый флэт;
+ * `part=zones` — справочник зон (`ZonesCatalogEditor`). Уход с несохранённым
+ * переспрашивает (`CATALOG_LEAVE_TEXT`); «← Все флэты» возвращает фокус на
+ * строку флэта. В списке — колонка «Версия» и «Новый флэт»; вся строка — ссылка.
+ *
+ * Сид — кнопка «Загрузить типовые флэты»
  * (admin и director, не на телефоне): сид дизайн-мейкера грузится `import()`
  * по нажатию, дописывает недостающие флэты, справочник пишет последним
  * (`design/seed/seedFlats.ts`). Конфликт записи — плашка вида вкладок вехи 4
@@ -66,6 +99,11 @@ export default function FlatsTab({ readOnly }) {
   const [progress, setProgress] = useState(null);
   const [spoken, setSpoken] = useState(null);
   const [conflict, setConflict] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const flatId = params.get('flat');
+  const part = params.get('part') === 'zones' ? 'zones' : 'flats';
+  const [copyFrom, setCopyFrom] = useState(null);
+  const [returnTo, setReturnTo] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -114,11 +152,65 @@ export default function FlatsTab({ readOnly }) {
     }
   };
 
+  const nav = useCallback((patch) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) next.delete(k);
+        else next.set(k, v);
+      }
+      return next;
+    }, { replace: true });
+  }, [setParams]);
+
+  const switchPart = async (p) => {
+    if (p === part && !flatId) return;
+    if (!(await mayLeave())) return;
+    nav({ part: p === 'zones' ? 'zones' : null, flat: null, view: null });
+  };
+
+  const back = async () => {
+    if (!(await mayLeave())) return;
+    setReturnTo(flatId);
+    reload();
+    nav({ flat: null, view: null });
+  };
+
+  const openNew = (source) => {
+    setCopyFrom(source);
+    nav({ flat: 'new', view: null });
+  };
+
+  const makeExact = async (source) => {
+    if (await mayLeave()) openNew(source);
+  };
+
+  const focused = useCallback(() => setReturnTo(null), []);
   const rows = data.flats.map(flatRow);
 
-  return (
-    <section className={base.panel} aria-labelledby="flats-head" data-readonly={readOnly ? 'true' : undefined}>
-      <h2 id="flats-head" className={base.panelTitle}>{NAME}</h2>
+  const previewOf = () => {
+    if (data.state === 'loading') return <CatalogNotice editor={{ state: 'loading', reload }} name={NAME} />;
+    return <FlatPreview flat={data.flats.find((f) => f.id === flatId) ?? null} flatId={flatId} onBack={back} />;
+  };
+
+  const flatPane = (
+    <Suspense fallback={<p className={styles.hint} role="status">Загрузка редактора флэта…</p>}>
+      {readOnly ? previewOf() : (
+        <FlatEditor
+          flatId={flatId}
+          view={params.get('view')}
+          onView={(k) => nav({ view: k })}
+          onBack={back}
+          readOnly={!isWriter}
+          copyFrom={flatId === 'new' ? copyFrom : null}
+          onMakeExact={makeExact}
+        />
+      )}
+    </Suspense>
+  );
+
+  const list = (
+    <>
       <p className={styles.intro}>
         Силуэты изделий для вкладки «Дизайн»: виды, печатные зоны и подбор по модели.
         Типовой силуэт подходит многим моделям одной категории, это не лекало модели.
@@ -152,54 +244,18 @@ export default function FlatsTab({ readOnly }) {
         </div>
       )}
 
-      {rows.length > 0 && (
-        // Таблица шире телефона прокручивается сама: область в порядке Tab и с именем,
-        // иначе её не прокрутить с клавиатуры — в строках нет фокусируемого (axe, как PaletteEditor)
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- axe scrollable-region-focusable
-        <div className={styles.scroll} role="region" aria-labelledby="flats-caption" tabIndex={0}>
-          <table className={styles.table}>
-            <caption id="flats-caption" className={styles.caption}>{`Флэтов в справочнике: ${rows.length}`}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Название</th>
-                <th scope="col">Тип</th>
-                <th scope="col">Подбор</th>
-                <th scope="col">Виды</th>
-                <th scope="col">Зоны</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className={r.active ? undefined : styles.off}>
-                  <th scope="row">
-                    {r.name}
-                    <span className={styles.code}>{r.id}</span>
-                    {!r.active && <span className={styles.badge}>Снят</span>}
-                  </th>
-                  <td>{r.type}</td>
-                  <td>
-                    {r.kind}
-                    {r.models && <span className={styles.code}>{`Модели: ${r.models}`}</span>}
-                  </td>
-                  <td>{r.views}</td>
-                  <td>
-                    {zonesCount(r.zoneCount)}
-                    <span className={styles.code}>{r.zones.join(', ')}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {rows.length > 0 && <FlatsList rows={rows} compact={readOnly} focusId={returnTo} onFocused={focused} />}
 
       {!isWriter && <p className={styles.hint}>Флэты меняет администратор или директор</p>}
 
       {canSeed && (
         <div className={styles.seed}>
+          <button type="button" className="btn btn-primary" onClick={() => openNew(null)} disabled={data.state !== 'ready'}>
+            Новый флэт
+          </button>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn"
             onClick={runSeed}
             disabled={data.state !== 'ready' || conflict}
             aria-disabled={busy || undefined}
@@ -217,6 +273,25 @@ export default function FlatsTab({ readOnly }) {
         </div>
       )}
       <p className={styles.srOnly} role="status" aria-live="polite">{seedStatusText(spoken, busy)}</p>
+    </>
+  );
+
+  let content = list;
+  if (part === 'zones') content = <ZonesCatalogEditor readOnly={readOnly} />;
+  else if (flatId) content = flatPane;
+
+  return (
+    <section className={base.panel} aria-labelledby="flats-head" data-readonly={readOnly ? 'true' : undefined}>
+      <h2 id="flats-head" className={base.panelTitle}>{NAME}</h2>
+      <div className={styles.parts} role="tablist" aria-label="Флэты или зоны нанесения">
+        {PARTS.map(([id, label]) => (
+          <button key={id} type="button" role="tab" id={`flats-part-${id}`} className={styles.part}
+            aria-selected={part === id} onClick={() => switchPart(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" aria-labelledby={`flats-part-${part}`}>{content}</div>
     </section>
   );
 }

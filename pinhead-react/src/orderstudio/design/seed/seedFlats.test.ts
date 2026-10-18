@@ -184,6 +184,24 @@ describe('seedFlats — справочник уже есть', () => {
     expect(out.version).toBe(1);
   });
 
+  it('флэт 5б (история v1, рукав, tz_row) сид не трогает: та же запись, история на месте (К16)', async () => {
+    const id = SEED_FLATS[0].id;
+    const view = (kind: string, v: number) => ({
+      kind, svg_path: `flats/${id}/v${v}/${kind}.svg`, scale_mm_per_unit: 1,
+      anchors: kind === 'sleeve_left' ? { sleeve_bottom_y: 500, sleeve_center_x: 120 } : { center_axis_x: 300 },
+      print_areas: [{ id: 'z', name: 'Зона', zone_id: kind === 'sleeve_left' ? 'sleeve-l' : 'front', tz_row: kind === 'front' ? 'front_l' : 'sleeve_l', polygon_mm: [[0, 0], [10, 0], [10, 10], [0, 10]], safe_inset_mm: 0 }],
+    });
+    const own = { id, name: 'Правленый', version: 2, views: [view('front', 2), view('sleeve_left', 2)], history: [{ version: 1, views: [view('front', 1)] }] };
+    const snapshot = JSON.stringify(own);
+    const base = { version: 1, flats: [own] };
+    fetchMock.mockResolvedValue({ exists: true, value: base });
+    await seedFlats();
+    expect(uploadMock.mock.calls.some((c) => c[0].startsWith(`flats/${id}/`))).toBe(false);
+    const out = putMock.mock.calls[0][2] as { flats: unknown[] };
+    expect(out.flats[0]).toBe(own);
+    expect(JSON.stringify(out.flats[0])).toBe(snapshot);
+  });
+
   it('все типовые уже есть — ничего не грузит и не пишет', async () => {
     fetchMock.mockResolvedValue({ exists: true, value: seed });
     const res = await seedFlats();

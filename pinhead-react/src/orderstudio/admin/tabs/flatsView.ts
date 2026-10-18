@@ -3,7 +3,8 @@
  * подписи типов и видов, строки списка, текст прогресса сида. Чистые функции —
  * вкладка только рисует.
  */
-import type { FlatViewKind, GarmentFlat, GarmentType } from '../../design/types';
+import type { GarmentFlat } from '../../design/types';
+import { GARMENT_TYPE_LABELS, VIEW_LABELS } from '../../design/catalog/flatLabels';
 import { pluralize } from '../../../utils/i18n';
 
 /**
@@ -12,26 +13,8 @@ import { pluralize } from '../../../utils/i18n';
  */
 export const FLAT_WRITER_ROLES = ['admin', 'director'];
 
-export const GARMENT_TYPE_LABELS: Record<GarmentType, string> = {
-  tshirt: 'Футболка',
-  polo: 'Поло',
-  longsleeve: 'Лонгслив',
-  sweatshirt: 'Свитшот',
-  hoodie: 'Худи',
-  zip_hoodie: 'Зип-худи',
-  half_zip: 'Халф-зип',
-  bomber: 'Бомбер',
-  olympic: 'Олимпийка',
-  pants: 'Штаны',
-  shopper: 'Шоппер',
-};
-
-export const VIEW_LABELS: Record<FlatViewKind, string> = {
-  front: 'Перед',
-  back: 'Спина',
-  sleeve_left: 'Левый рукав',
-  sleeve_right: 'Правый рукав',
-};
+/** Подписи типов и видов — в `design/catalog/flatLabels.ts` (веха 5б); здесь реэкспорт для прежних читателей */
+export { GARMENT_TYPE_LABELS, VIEW_LABELS };
 
 export interface FlatRow {
   id: string;
@@ -41,6 +24,8 @@ export interface FlatRow {
   kind: string;
   models: string;
   active: boolean;
+  /** Текущая версия геометрии (веха 5б: колонка «Версия») */
+  version: number;
   views: string;
   /** Печатных зон во всех видах */
   zoneCount: number;
@@ -58,6 +43,7 @@ export function flatRow(f: GarmentFlat): FlatRow {
     kind: f.typical ? 'Типовой' : 'Лекало модели',
     models: f.sku_codes.join(', '),
     active: f.active,
+    version: f.version,
     views: f.views.map((v) => VIEW_LABELS[v.kind] ?? v.kind).join(', '),
     zoneCount: areas.length,
     zones,

@@ -50,7 +50,8 @@ export const SKU_CATALOGS: CatalogDef[] = [
   { field: 'extrasCatalog', table: 'app_config', key: 'extrasCatalog', name: 'Обработки', ls: 'ph_extras' },
   { field: 'hardwareCatalog', table: 'app_config', key: 'hardwareCatalog', name: 'Фурнитура', ls: 'ph_hardware' },
   { field: 'categoryRules', table: 'app_config', key: 'categoryRules', name: 'Правила категорий', ls: 'ph_category_rules' },
-  { field: 'zonesCatalog', table: 'app_config', key: 'zonesCatalog', name: 'Зоны нанесения', ls: 'ph_zones' },
+  // Зоны нанесения здесь больше не пишутся (веха 5б, К8): справочник зон
+  // правится только во «Флэтах и зонах» (сторож `zonesWrites.test.ts`)
 ];
 
 /** Внутренний курс — ключ прайса `usdRate` */
@@ -61,7 +62,7 @@ const FIELDS = [...SKU_CATALOGS.map((c) => c.field), RATE.field];
 export interface SkuSaveFailure {
   field: string;
   name: string;
-  kind: 'conflict' | 'forbidden' | 'other';
+  kind: 'conflict' | 'forbidden' | 'invalid' | 'other';
 }
 
 type StoreRecord = Record<string, unknown>;

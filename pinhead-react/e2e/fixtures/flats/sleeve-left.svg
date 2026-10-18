@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 520" width="300mm" height="520mm">
+  <g id="garment">
+    <path d="M70 10 L230 10 L290 510 L10 510 Z" fill="#ffffff" stroke="#1a1a1a" stroke-width="2"/>
+    <path d="M30 470 L270 470" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="6 4"/>
+  </g>
+</svg>

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { installSupabaseMock, FX_CREATED, type MockExtras } from './support/mockSupabase';
 import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 import { orderCatalogs, staffFx } from './support/orderCatalogFx';
+import { TEE, adminExtras, teeObjects, teeV2WithHistory } from './support/flatsAdminFx';
 
 /**
  * Visual-регрешн ключевых экранов.
@@ -369,4 +370,59 @@ test('visual: studio-settings-flats', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
   await expect(page.getByText('Флэтов в справочнике: 3')).toBeVisible();
   await shoot(page, 'studio-settings-flats', page.locator('#main-content'));
+});
+
+/**
+ * Редактор флэта (веха 5б, задача 7): флэт сида на версии 2 с историей, вкладка
+ * «Зоны» с выбранной зоной. Холст konva под маской — его сцену сторожит юнит
+ * `sceneText` (T6а) и e2e `order-flats-admin.spec.ts`, а не пиксели; снимок ждёт
+ * `data-ready`. Ширины — 1280 и 900 px (761–1100: одна колонка панели), темы —
+ * светлая и тёмная (системная, `prefers-color-scheme`). На телефоне редактора
+ * нет — эталон `FlatPreview`: картинка `<img>` и список зон, без холста.
+ */
+async function shootFlatEditor(page: Page, name: string, opts: { width?: number; dark?: boolean } = {}) {
+  skipUntilBaseline(name);
+  if (opts.dark) await page.emulateMedia({ colorScheme: 'dark' });
+  const compact = (page.viewportSize()?.width ?? 1280) <= 760;
+  await page.setViewportSize({ width: opts.width ?? page.viewportSize()!.width, height: compact ? 1400 : 1600 });
+  await installSupabaseMock(page, adminExtras([], teeV2WithHistory(), teeObjects(1, 2)));
+  await page.goto(`/order-settings?tab=flats&flat=${TEE}&studio=1`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
+  if (compact) {
+    await expect(page.getByRole('img', { name: /^Силуэт «.+», вид Перед, зон: 1$/ })).toBeVisible();
+    await shoot(page, name, page.locator('#main-content'));
+    return;
+  }
+  await expect(page.getByRole('application', { name: /^Холст флэта/ })).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#flat-version-badge')).toHaveText('Версия 2');
+  await shoot(page, name, page.locator('#main-content'), [page.locator('canvas')]);
+}
+
+test('visual: studio-settings-flat-editor', async ({ page }) => {
+  await shootFlatEditor(page, 'studio-settings-flat-editor');
+});
+
+test('visual: studio-settings-flat-editor-dark', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Тёмная тема — на десктопе; телефон снимается в светлой');
+  await shootFlatEditor(page, 'studio-settings-flat-editor-dark', { dark: true });
+});
+
+test('visual: studio-settings-flat-editor-900', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', '900 px задаётся в тесте — один прогон');
+  await shootFlatEditor(page, 'studio-settings-flat-editor-900', { width: 900 });
+});
+
+test('visual: studio-settings-flat-editor-900-dark', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', '900 px задаётся в тесте — один прогон');
+  await shootFlatEditor(page, 'studio-settings-flat-editor-900-dark', { width: 900, dark: true });
+});
+
+/** «Флэты и зоны» → «Зоны нанесения»: таблица справочника зон (на телефоне — карточки) */
+test('visual: studio-settings-zones', async ({ page }) => {
+  skipUntilBaseline('studio-settings-zones');
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 1600 });
+  await installSupabaseMock(page, adminExtras([], teeV2WithHistory(), teeObjects(1, 2)));
+  await page.goto('/order-settings?tab=flats&part=zones&studio=1');
+  await expect(page.getByRole('heading', { name: 'Капюшон' }).or(page.getByLabel('Название зоны «Капюшон»'))).toBeVisible();
+  await shoot(page, 'studio-settings-zones', page.locator('#main-content'));
 });

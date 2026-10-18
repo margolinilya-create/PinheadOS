@@ -28,18 +28,24 @@ import { handlePossibleUpdate } from '../../../lib/appUpdate';
 import { toast } from '../../../store/useToastStore';
 import type { ZoneDefinition } from '../../../types/catalog';
 import type { AssetMeta, DesignView, GarmentFlat, PrintArea } from '../types';
-import { defaultAreaId, placeArtwork, type PlaceArtworkOpts } from '../model/placeArtwork';
+import { placeArtwork, type PlaceArtworkOpts } from '../model/placeArtwork';
 import type { OrderArtwork } from '../model/orderArtworks';
 import { useDesignStore } from '../store/useDesignStore';
 import { loadAsset } from './loadAsset';
 import { primeArtworkImage } from './artworkImages';
 
-/** Куда ставится логотип: заказ и позиция (как привязан стор дизайна), флэт и вид холста */
+/**
+ * Куда ставится логотип: заказ и позиция (как привязан стор дизайна), флэт и вид холста.
+ * `flat` — флэт ВЕРСИИ ПОЗИЦИИ (`ui/useItemFlat`, К15): новое размещение на позиции
+ * v1 пишет `flat_version: 1`; `view` — любой вид флэта, рукава тоже (5б)
+ */
 export interface ArtworkTarget {
   orderId: string;
   itemKey: string;
   flat: GarmentFlat;
   view: DesignView;
+  /** Зоны модели (`zonesForSku`; служебные — всегда); `null` — без фильтра (5б, К15) */
+  areaAllowed?: ((area: PrintArea) => boolean) | null;
   /** Справочник зон — имя зоны нанесения по `zone_id` (его читает цена) */
   zonesCatalog: ZoneDefinition[];
   /** Категория модели (`SkuItem.category`) — отступ штанов от пояса */
@@ -56,7 +62,7 @@ export interface AddArtworkOpts extends PlaceArtworkOpts {
 export const MSG_READ_ONLY = 'Заказ открыт только для чтения — логотип не добавлен';
 export const MSG_OTHER_ITEM = 'Холст открыт на другой позиции — логотип не добавлен, повторите';
 export const MSG_TARGET_CHANGED = 'Позиция сменилась, пока файл загружался, — логотип на изделие не поставлен';
-export const MSG_NO_AREA = 'На этом виде нет зоны нанесения — выберите другой вид';
+export const MSG_NO_AREA = 'На этом виде нет зоны нанесения для этой модели — выберите другой вид';
 export const MSG_NOT_PLACED = 'Логотип не поставлен на изделие — попробуйте ещё раз';
 export const MSG_PDF_UNAVAILABLE = 'Обработка PDF не загрузилась — обновите страницу или загрузите логотип в PNG либо SVG';
 
@@ -71,13 +77,16 @@ function blockReason(t: ArtworkTarget, moved: string): string | null {
   return ds.canEdit() ? null : MSG_READ_ONLY;
 }
 
-/** Зона флэта для логотипа: заданная (если она на этом виде) либо по умолчанию; нет — `null` */
+/**
+ * Зона флэта для логотипа: заданная (если она на этом виде и допустима для
+ * модели) либо по умолчанию — первая допустимая со связью со справочником зон,
+ * служебная — если других нет (как `defaultAreaId`); нет — `null`
+ */
 function resolveArea(t: ArtworkTarget, opts: AddArtworkOpts): PrintArea | null {
-  const areas = t.flat.views.find((v) => v.kind === t.view)?.print_areas ?? [];
+  const all = t.flat.views.find((v) => v.kind === t.view)?.print_areas ?? [];
+  const areas = t.areaAllowed ? all.filter(t.areaAllowed) : all;
   const wanted = opts.areaId ? areas.find((a) => a.id === opts.areaId) : undefined;
-  if (wanted) return wanted;
-  const fallback = defaultAreaId(t.flat, t.view);
-  return areas.find((a) => a.id === fallback) ?? null;
+  return wanted ?? areas.find((a) => a.zone_id) ?? areas[0] ?? null;
 }
 
 /** Размер растра для уменьшения показа; у SVG и превью PDF — `null` */

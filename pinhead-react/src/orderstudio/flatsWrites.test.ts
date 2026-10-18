@@ -15,6 +15,8 @@ import { SRC_DIR, sourceFiles, readSource } from '../testutil/sourceFiles';
  * (сторож `catalogWrites.test.ts`).
  */
 const WRITER = 'orderstudio/api/garmentFlats.ts';
+/** Константы бакета и чтение (веха 5б, задача 7: холст берёт только чтение) — имя бакета строкой живёт здесь */
+const BUCKET_HOME = 'orderstudio/api/garmentFlatsRead.ts';
 
 /** `.from('garment-flats')` или `.from(FLATS_BUCKET)` и цепочка до `;` */
 const FROM = /\.from\(\s*(?:(['"`])garment-flats\1|FLATS_BUCKET)\s*\)/g;
@@ -43,9 +45,16 @@ describe('запись в garment-flats — только api/garmentFlats.ts', (
     expect(bad).toEqual([]);
   });
 
-  it('имя бакета строкой — только в писателе (остальные берут FLATS_BUCKET)', () => {
-    const bad = files.filter((f) => f.name !== WRITER && /['"`]garment-flats['"`]/.test(f.text)).map((f) => f.name);
+  it('имя бакета строкой — только в модулях бакета (писатель и чтение; остальные берут FLATS_BUCKET)', () => {
+    const bad = files.filter((f) => ![WRITER, BUCKET_HOME].includes(f.name) && /['"`]garment-flats['"`]/.test(f.text)).map((f) => f.name);
     expect(bad).toEqual([]);
+  });
+
+  it('модуль чтения не пишет в бакет', () => {
+    const r = files.find((f) => f.name === BUCKET_HOME);
+    expect(r).toBeDefined();
+    expect(bucketWrites(r!.text)).toEqual([]);
+    expect(r!.text).toMatch(/\.download\(/);
   });
 
   it('писатель на месте: upload с upsert: false, ни remove, ни upsert: true', () => {

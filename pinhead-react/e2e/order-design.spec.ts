@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { installSupabaseMock, FX_CREATED, type MockCall, type MockExtras } from './support/mockSupabase';
 import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 import { axeSerious } from './support/orderCatalogFx';
+import {
+  ITEM_ID as V_ITEM, ORDER_ID as V_ORDER, TEE, V2_CHEST_SHIFT, chestPrint, logoObject, teeObjects, teeOrder, teeV2WithHistory,
+} from './support/flatsAdminFx';
 
 /**
  * Вкладка «Дизайн» рабочего места `/sales/:id?tab=design` (веха 5а, задача 8):
@@ -126,6 +129,9 @@ function designMock(calls: MockCall[], status = 'draft', prints: unknown[] = [])
 }
 
 const canvas = (page: Page) => page.getByRole('application', { name: /^Холст/ });
+/** Вкладка вида над холстом (веха 5б: `tablist` «Вид изделия», подпись — вид и число нанесений) */
+const viewTab = (page: Page, label: string) => page.getByRole('tablist', { name: 'Вид изделия' })
+  .getByRole('tab', { name: new RegExp(`^${label}( · \\d+)?$`) });
 const layers = (page: Page) => page.getByRole('list', { name: 'Нанесения на виде' }).getByRole('listitem');
 const pricePerUnit = (page: Page) => page.getByRole('heading', { name: /^Цена за штуку:/ });
 
@@ -170,7 +176,7 @@ test.describe('вкладка «Дизайн»: холст пишет в зак�
     const silhouette = page.getByRole('combobox', { name: 'Силуэт' });
     await expect(silhouette).toHaveValue(FLAT);
     await expect(silhouette.locator('option:checked')).toHaveText(/FreeFit.*— типовой$/);
-    await expect(page.getByRole('group', { name: 'Вид изделия' }).getByRole('button', { name: 'Перед' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(viewTab(page, 'Перед')).toHaveAttribute('aria-selected', 'true');
     await expect(canvas(page)).toHaveAccessibleName(/вид перед$/);
     await expect(page.getByText('На этом виде нанесений нет.')).toBeVisible();
 
@@ -237,6 +243,72 @@ test.describe('вкладка «Дизайн»: холст пишет в зак�
   });
 });
 
+/**
+ * Старый заказ рисуется по своей версии силуэта (веха 5б, задача 7; Review Focus 1).
+ * Справочник: флэт на версии 2 (рамка груди ниже на `V2_CHEST_SHIFT` мм) с историей
+ * `[v1]`; позиция стоит на v1. Открытие ничего не пишет, SVG — по пути v1;
+ * перетаскивание и новое размещение пишут `flat_version: 1`; перенос — только кнопкой.
+ */
+test.describe('вкладка «Дизайн»: позиция на прежней версии силуэта', () => {
+  test.skip(({ viewport }) => (viewport?.width ?? 1280) <= 760, 'На телефоне холст только для просмотра');
+
+  test('3. плашка «Силуэт обновлён», SVG v1, правки на v1 пишут flat_version 1, «Перенести на версию 2» → flat_version 2', async ({ page }) => {
+    const calls: MockCall[] = [];
+    const flatGets: string[] = [];
+    page.on('request', (r) => {
+      const m = /\/storage\/v1\/object\/(?:authenticated\/|sign\/)?garment-flats\/(.+?)(?:\?|$)/.exec(r.url());
+      if (m && r.method() === 'GET') flatGets.push(decodeURIComponent(m[1]));
+    });
+    await installSupabaseMock(page, {
+      calls,
+      salesOrders: [teeOrder([chestPrint(1)])],
+      catalogs: { app_config: { garmentFlats: teeV2WithHistory() } },
+      storageObjects: { ...teeObjects(1, 2), ...logoObject() },
+    });
+    await page.goto(`/sales/${V_ORDER}?tab=design&item=${V_ITEM}&studio=1`);
+    await expect(canvas(page)).toHaveAttribute('data-ready', 'true');
+    await expect(layers(page)).toHaveCount(1);
+    await expect(page.getByText('Силуэт обновлён до версии 2. Нанесения стоят по версии 1.')).toBeVisible();
+    const transfer = page.getByRole('button', { name: 'Перенести на версию 2' });
+    await expect(transfer).toBeVisible();
+
+    await page.waitForTimeout(1500);
+    expect(saves(calls)).toEqual([]);
+    expect(calls.filter((c) => c.kind === 'storage')).toEqual([]);
+    expect(calls.filter((c) => c.kind === 'rpc' && c.name === 'catalog_put')).toEqual([]);
+    expect(flatGets).toContain(`flats/${TEE}/v1/front.svg`);
+    expect(flatGets.filter((g) => g.includes('/v2/'))).toEqual([]);
+
+    // Перетаскивание (стрелки на холсте) на v1: раскладка остаётся на версии 1
+    await layers(page).first().getByRole('button').first().click();
+    const offset = page.getByLabel('От горловины, мм', { exact: true });
+    const before = Number(await offset.inputValue());
+    await canvas(page).focus();
+    for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+    await expect(offset).toHaveValue(String(before + 2));
+    await settled(page);
+    const moved = saves(calls).at(-1)!.items[0].prints[0];
+    expect(moved.layout).toMatchObject({ flat_id: TEE, flat_version: 1, area_id: 'chest' });
+
+    // Новое размещение на позиции v1 — тоже версия 1 (координаты v1, а не v2)
+    await uploadLogo(page, 'logo-300dpi.png', 'image/png');
+    await expect(layers(page)).toHaveCount(2);
+    await settled(page);
+    const both = saves(calls).at(-1)!.items[0].prints;
+    expect(both.map((p) => (p.layout as { flat_version: number }).flat_version)).toEqual([1, 1]);
+    // Верх груди v1 — 198,8 мм, v2 — ниже на V2_CHEST_SHIFT: логотип встал в рамку v1
+    const placedY = (both[1].layout as { y_mm: number }).y_mm;
+    expect(placedY).toBeLessThan(198.8 + V2_CHEST_SHIFT);
+    expect(flatGets.filter((g) => g.includes('/v2/'))).toEqual([]);
+
+    await transfer.click();
+    await settled(page);
+    await expect(page.getByText(/^Силуэт обновлён до версии 2/)).toHaveCount(0);
+    const moved2 = saves(calls).at(-1)!.items[0].prints;
+    expect(moved2.map((p) => (p.layout as { flat_version: number }).flat_version)).toEqual([2, 2]);
+  });
+});
+
 /** Байты PDF → текст всех страниц (pdfjs-dist в Node, legacy-сборка — без воркера и DOM) */
 async function pdfText(bytes: Buffer): Promise<string> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -294,7 +366,7 @@ test.describe('вкладка «Дизайн»: чужие файлы, PDF, то
     await openDesign(page);
     const title = await page.title();
 
-    await page.getByRole('group', { name: 'Вид изделия' }).getByRole('button', { name: 'Спина' }).click();
+    await viewTab(page, 'Спина').click();
     await expect(canvas(page)).toHaveAccessibleName(/вид спина$/);
     await uploadLogo(page, 'logo-evil.svg', 'image/svg+xml');
     await expect(layers(page)).toHaveCount(1);

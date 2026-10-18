@@ -124,7 +124,86 @@
   white-space: nowrap;
 }
 
+/* Переключатель «Флэты | Зоны нанесения» (веха 5б) */
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.part {
+  font: inherit;
+  font-size: var(--type-body);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.part[aria-selected='true'] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  font-weight: 600;
+}
+
+.part:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Вся строка — ссылка на флэт: ссылка в названии растянута на строку */
+.row { position: relative; }
+.row:hover { background: var(--bg2); }
+
+.rowLink {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.rowLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.rowLink:hover { text-decoration: underline; }
+.rowLink:focus-visible { outline: none; }
+.rowLink:focus-visible::after { box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+/* Телефон: карточки вместо таблицы */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.card {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.cardLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.cardLink:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-md); }
+
+.cardName { font-weight: 600; }
+
 /* Тач-цель ≥ 44 px */
 @media (pointer: coarse) {
-  .seed :global(.btn) { min-height: 44px; }
+  .seed :global(.btn),
+  .part { min-height: 44px; }
 }

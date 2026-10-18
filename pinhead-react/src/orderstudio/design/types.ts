@@ -12,6 +12,7 @@
  * Все длины — в миллиметрах флэта.
  */
 import type { SalesPrintMethod } from '../model/types';
+import type { TzRow } from '../catalog/tzRows';
 
 // ── Справочник флэтов ─────────────────────────────────────────────────────
 
@@ -29,8 +30,8 @@ export type GarmentType = (typeof GARMENT_TYPES)[number];
 export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
 export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
 
-/** Виды холста вехи 5а — только перед и спина (решение владельца 3) */
-export const DESIGN_VIEWS = ['front', 'back'] as const;
+/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → левый → правый рукав */
+export const DESIGN_VIEWS = FLAT_VIEW_KINDS;
 export type DesignView = (typeof DESIGN_VIEWS)[number];
 
 /** Именованная вертикальная ось изделия (выточка, рельеф, шов) */
@@ -71,8 +72,11 @@ export interface PrintArea {
   name: string;
   /** Зона нанесения `zonesCatalog` (её имя уходит в `SalesPrint.zone`); `null` — служебная */
   zone_id: string | null;
-  /** Строка ТЗ, куда ложится нанесение (под ТЗ-PDF) */
-  tz_row?: string;
+  /**
+   * Строка матрицы ТЗ, куда ложится нанесение — переопределение строки зоны
+   * справочника (веха 5б, К8: код из перечня `catalog/tzRows`, не свободный текст)
+   */
+  tz_row?: TzRow;
   polygon_mm: [number, number][];
   safe_inset_mm: number;
   default_method?: SalesPrintMethod;
@@ -113,6 +117,18 @@ export interface GarmentFlat {
   fits: string[];
   base_size: string;
   sizes: string[];
+  views: FlatView[];
+  /**
+   * Геометрия прежних версий (веха 5б, К1): виды версии как есть, со своими
+   * путями. Записи только дописываются при выпуске версии и не меняются —
+   * их читает `flatAtVersion`, держат клиент (`historyPreserved`) и страж миграции I
+   */
+  history?: FlatHistoryEntry[];
+}
+
+/** Запись истории флэта: виды версии `version` (её пути — `flats/<id>/v<version>/…`) */
+export interface FlatHistoryEntry {
+  version: number;
   views: FlatView[];
 }
 

@@ -55,7 +55,7 @@ pinhead-react/src/
 │   ├── steps/               # Шаги визарда v3 убраны в вехе 3 (17.10); остались панели:
 │   │   └── garment/         # SkuList, FabricGrid, ColorPicker, SizeTable, ExtrasAccordion — вкладка «Изделие» рабочего места (readOnly, reorderable, showPrice)
 │   ├── editors/             # SkuEditor (8 табов), ExpressCalc
-│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
+│   │   └── sku/             # SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab (просмотр, веха 5б), AddSkuModal, ZonesModal, SkuDetailModal
 │   └── shared/              # ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
 ├── store/                   # Все файлы — TypeScript (.ts)
 │   ├── useStore.ts          # Zustand store визарда — с вехи 3 БУФЕР ОДНОЙ позиции рабочего места (resetItemFields)
@@ -116,7 +116,14 @@ pinhead-react/src/
                              # panel/, DesignPreview, свои иконки designIcons), export/ (PDF макета, сцена, шрифты),
                              # seed/ (35 флэтов, 67 SVG, seedFlats — только по кнопке); api/garmentFlats (бакет
                              # garment-flats), model/printMethods (профили 8 техник, DPI, TECH_TO_METHOD),
-                             # admin/tabs/FlatsTab (/order-settings?tab=flats)
+                             # admin/tabs/FlatsTab (/order-settings?tab=flats);
+                             # веха 5б: design/edit/ — чистое ядро правки флэта без React и сети (flatEdit, flatSizes,
+                             # flatAreas, flatIds, newFlat, mirrorSleeve, calibrate, validateFlat); design/catalog/
+                             # flatVersion (history[], flatAtVersion, geometryOf, releaseFlat, mergeFlatIntoRaw) и
+                             # flatLabels; catalog/tzRows (строки матрицы ТЗ, ZONE_ID_RE); admin/flats/ — редактор
+                             # флэта (ленивые FlatEditor с холстом canvas/ и FlatPreview без konva для телефона,
+                             # saveFlat + useFlatEditor — файлы → версия → справочник, ZonesCatalogEditor + zonesEdit,
+                             # свои иконки flatIcons); api/garmentFlatsRead (чтение бакета для холста)
 ```
 
 ```
@@ -159,13 +166,13 @@ sales_is_lead() or sales_is_ms()`; МС без `is_sales` видит «Зака�
 | `/` | → redirect `/sales` (визард v3 как экран убран в вехе 3) | С продажами |
 | `/express` | ExpressCalc | С продажами |
 | `/prices` | → redirect `/sku?tab=pricing` | admin, director |
-| `/sku` | SkuEditor (8 табов) | admin, director |
+| `/sku` | SkuEditor (8 табов; «Зоны нанесения» с вехи 5б — только просмотр со ссылкой на `/order-settings?tab=flats&part=zones`) | admin, director |
 | `/admin` | AdminScreen (единая админка ERP) | admin, director |
 | `/orders`, `/print`, `/analytics`, `*` | → redirect `/sales` (`legacyRedirect`; старый `/sales/:id/item/:key` — тоже) | С продажами |
 | `/sales` | SalesList — «Мои заказы» (продавец) / «Заказы отдела» (rop) / «Все заказы» (admin, director) с фильтром «Мои / Все», поиск и статус в адресе | С продажами |
 | `/sales/:id` | OrderWorkplace — рабочее место: список изделий + вкладки «Изделие» / «Дизайн» / «Клиент» / «ТЗ и цена»; вкладка и позиция в адресе `?tab=item\|design\|client\|summary&item=<key>`. «Дизайн» (веха 5а) — холст konva с флэтом позиции, логотипы, «Скачать PDF макета»; на ≤ 760 px — превью `<img>` | С продажами |
 | `/sales-staff` | SalesStaff — «Сотрудники продаж»: «Ведёт заказы» (`is_sales`) и «Запускает в производство (МС)» (`is_ms`), `sales_set_staff(id, kind, on)` | admin, director, rop |
-| `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz\|flats` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ, «Флэты и зоны» — веха 5а: список силуэтов и кнопка «Загрузить типовые флэты» для admin/director); на ≤ 760 px — только просмотр | admin, director, rop |
+| `/order-settings` | OrderSettings — «Справочники заказа»: вкладки `?tab=suppliers\|labels\|packaging\|pricing\|tz\|flats` (поставщики и палитры, бирки и схемы, упаковка, правила цены, подвал ТЗ, «Флэты и зоны» — веха 5а: список силуэтов и кнопка «Загрузить типовые флэты» для admin/director; веха 5б — редактор флэта `?tab=flats&flat=<id>&view=<вид>` (`flat=new` — новый из SVG), режим «Зоны нанесения» `?tab=flats&part=zones`; правят admin/director, rop — просмотр); на ≤ 760 px — только просмотр (флэт — `FlatPreview` картинкой) | admin, director, rop |
 
 ## Роли
 
@@ -188,7 +195,8 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 - Стейт: Zustand слайсы, useShallow обязателен для объектных селекторов
 - Тесты рядом с файлами: `Component.test.jsx`, `util.test.ts`
 - Lazy loading: ExpressCalc, AdminPanel, SkuEditor, SalesList, OrderWorkplace, SalesStaff, OrderSettings;
-  веха 5а — DesignTab (холст), DesignSide, DesignPreview, exportPdf, loadPdf, seedFlats, FlatsTab, схема флэтов
+  веха 5а — DesignTab (холст), DesignSide, DesignPreview, exportPdf, loadPdf, seedFlats, FlatsTab, схема флэтов;
+  веха 5б — FlatEditor (редактор флэта с холстом konva), FlatPreview (телефон, без konva)
 - Ошибки: toast уведомления через useToastStore
 - Коммиты: на русском или английском, формат conventional commits
 - **После каждого плана — проверка скиллами до одобрения** (решение владельца, 17.10):
@@ -209,7 +217,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 | `profiles` | id, name, email, role, approved, active, `is_sales` (веха 3, миграция E `20261017093841`: «Менеджер продаж»; меняет только RPC `sales_set_staff` admin/director (с вехи 4 — и rop), страж `profiles_sales_guard`; список — `sales_staff_list()`; `sales_is_seller()` = active + approved + `is_sales`). Веха 4, миграция F `20261017142210`: `is_ms` — МС (менеджер сопровождения) на стороне ТЗ; `sales_is_ms()` = active + approved + `is_ms` (должность ERP больше не читает); `sales_set_staff(uuid, text, boolean)` — вид `'sales'`/`'ms'`, отмечают admin/director/rop (перегрузки `(uuid, boolean)` с вехи 5а, миграция H, нет — двухаргументный вызов отвечает 42883); `sales_staff_list()` — роль, `is_sales`, `is_ms`; страж — исключения `is_sales` и `is_ms` |
 | `order_comments` | Комментарии к заказам |
 | `order_audit` | Лог изменений статусов |
-| `app_config` | SKU (sku_catalog), цены (prices; с вехи 4 в нём и правила цены `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog; с вехи 5а — `pants-front`/`pants-back`, миграция H дописывает их в живой справочник); веха 4 — бирки `labelLibrary` (виды, варианты, материалы, схемы притачивания) и подвал ТЗ `tzSettings`; веха 5а — флэты изделий `garmentFlats` (`{ version: 1, flats: [{ id, version, active, name, typical, categories, fits, sku_codes, views: [{ kind, svg_path, scale_mm_per_unit, print_areas: [{ id, name, zone_id, polygon_mm, methods, default_method }] }] }] }`; `svg_path` = `flats/<id>/v<version>/<kind>.svg`; в общую загрузку каталогов не входит) |
+| `app_config` | SKU (sku_catalog), цены (prices; с вехи 4 в нём и правила цены `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), обработки (extrasCatalog), фурнитура (hardwareCatalog), правила (categoryRules), зоны (zonesCatalog; с вехи 5а — `pants-front`/`pants-back`, миграция H дописывает их в живой справочник; с вехи 5б — `tz_row?` (код строки матрицы ТЗ из `catalog/tzRows.ts`) и `active?` (`false` — снята: не предлагается новым позициям, в старых заказах остаётся); правит ТОЛЬКО режим «Зоны нанесения» вкладки «Флэты и зоны», название зоны после сохранения неизменно); веха 4 — бирки `labelLibrary` (виды, варианты, материалы, схемы притачивания) и подвал ТЗ `tzSettings`; веха 5а — флэты изделий `garmentFlats` (`{ version: 1, flats: [{ id, version, active, name, typical, categories, fits, sku_codes, views: [{ kind, svg_path, scale_mm_per_unit, print_areas: [{ id, name, zone_id, polygon_mm, methods, default_method }] }] }] }`; `svg_path` = `flats/<id>/v<version>/<kind>.svg`; в общую загрузку каталогов не входит; веха 5б — виды `sleeve_left`/`sleeve_right`, у флэта `garment_type`, `history: [{ version, views }]` — геометрия прежних версий (неизменяема, читатели — `flatAtVersion`), у зоны `tz_row`, `safe_inset_mm`, якоря вида) |
 | `catalog_config` | Ткани (fabricsCatalog), отделка (trimCatalog); веха 4 — поставщики с палитрами `suppliers` (`isDefault`, `fabricSupplierNames`, `palette: { groups, colors }`) |
 
 **Справочники заказа (веха 4, миграция G `20261017150000`)** — подробно
@@ -217,7 +225,7 @@ silkscreen, embroidery, designer, pending. Совпадение имени `desi
 (сторож `catalog/catalogKeys.test.ts`). Запись новых экранов — только `security definer` RPC
 `catalog_put(p_table, p_key, p_value, p_base)` (справочник целиком; белый список статическими
 ветками: `suppliers`/`labelLibrary`/`tzSettings` — admin, director, rop; каталог моделей и тканей —
-admin, director; с вехи 5а — `app_config.garmentFlats`, только admin, director) и `prices_patch(p_patch, p_base)` (верхние ключи прайса; rop — только три ключа
+admin, director; с вехи 5а — `app_config.garmentFlats`, только admin, director; с вехи 5б, миграция I `20261018090000` — форма `garmentFlats` с историей и `zonesCatalog` в `catalog_value_check`, триггер-страж `app_config_order_catalog_guard`: история и версии неизменяемы, флэт и зона не исчезают, название зоны неизменно, DELETE строк этих ключей — только `service_role`; подробно `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`) и `prices_patch(p_patch, p_base)` (верхние ключи прайса; rop — только три ключа
 правил). Защита от затирания — на сервере `where value = p_base` (смысловое равенство jsonb), иначе
 `P0001`; форма записи (тип, 1 МБ, hex, уникальность id) — `22023`. Прямая запись в таблицы —
 admin/director с `active and approved` (`catalog_writer()`). Чтение — только активным и одобренным
@@ -237,7 +245,7 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read |
 | `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md` |
-| `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема). Пишет только `orderstudio/api/garmentFlats.ts`; наполняет кнопка «Загрузить типовые флэты». Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
+| `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема; L1 плана 5а «delete неупомянутых версий» отменён решением К5 вехи 5б). Пишет только `orderstudio/api/garmentFlats.ts` (`uploadFlatSvgOnce`: «уже есть» сверяется содержимым), читает холст через `api/garmentFlatsRead.ts`; наполняет кнопка «Загрузить типовые флэты», новые версии — редактор флэта (стартовая версия — и по занятым `v<N>` в бакете). Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
 | `storage-backup` | Ночная копия бакетов выше (с вехи 5а — четырёх, `garment-flats` в `SOURCES`) (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
@@ -343,6 +351,17 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   (сторож `designGuards.test.ts`). Флэты неизменяемы по версии; сид — кнопкой, справочник последним.
   Холст ≤ 100 000 Б gzip, маркер `data-design-canvas` не во входе и не в оболочках (`bundle:budget`).
   Подробно — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md`
+- **Флэты и зоны (веха 5б): правка геометрии — новая версия, метаданные — нет.** Геометрия (`GEOMETRY_KEYS`
+  в `design/catalog/flatVersion.ts`: виды, SVG, масштаб, якоря, зоны и их `polygon_mm`/`safe_inset_mm`/
+  `zone_id`) выпускает версию N+1, прежние виды уходят в `history[]` записи; метаданные (`META_KEYS`) правятся
+  без версии и накладываются на старые версии по `area.id`. Новое поле схемы — классифицировать (сторож).
+  Читатели старой раскладки — `flatAtVersion(flat, V)` (версия результата = V). Сохранение — только
+  `admin/flats/saveFlat.ts`: файлы ВСЕХ видов новой версии (`uploadFlatSvgOnce`: `'same'`/`'differs'`) →
+  потом `putCatalog` одного флэта, прочие записи сырыми, проверка склеенного справочника до запроса;
+  сбой файлов — справочник не тронут. `zonesCatalog` пишет только `ZonesCatalogEditor` (сторож
+  `zonesWrites.test.ts`), зоны снимаются `active: false`, не удаляются. `design/edit/**` — без `api/`,
+  стора и тостов; в `admin/flats/**` нет `/erp/`, konva — только в ленивом `FlatEditor`. Подробно —
+  `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`
 - Цена материала — `priceRub` за единицу `unit` (метр / штука); `priceUSD` у тканей был ценой ЗА КГ
   и в формулу не идёт (13.10). Формула цены одна — `costRules`/`printRules`; своих копий в экранах не заводить
 - Материальный гейт — из данных (`gate_material_kinds`), пусто = fail-open
@@ -441,7 +460,7 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (95 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (96 файлов, перенос 24.09) |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |
 | `docs/erp/2026-09-27-order-v4-structure.md` | **Order v4** — целевая структура блока продаж, срезы 0–5; спека среза 0 и сверка с кодом 28.09 — рядом |

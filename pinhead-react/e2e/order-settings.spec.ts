@@ -248,7 +248,8 @@ test.describe('флэты и зоны: типовые флэты кнопкой'
     await page.goto('/order-settings?tab=flats&studio=1');
     await expect(page.getByRole('tab', { name: 'Флэты и зоны' })).toHaveAttribute('aria-selected', 'true');
     const { flats, files } = seedCounts();
-    await expect(page.getByText(`Типовых силуэтов пока нет. Загрузите ${flats} моделей одной кнопкой`)).toBeVisible();
+    // Веха 5б: пустой список зовёт и к типовым, и к своему флэту из SVG (`EMPTY_LIST_TEXT`)
+    await expect(page.getByText('Флэтов пока нет — загрузите типовые или создайте свой из SVG')).toBeVisible();
 
     await page.getByRole('button', { name: 'Загрузить типовые флэты' }).click();
     await expect(page.getByText(`Типовые флэты загружены: ${flats} моделей`)).toBeVisible({ timeout: 30_000 });
@@ -305,7 +306,8 @@ test.describe('доступность', () => {
     for (const tab of ['suppliers', 'labels', 'packaging', 'pricing', 'tz', 'flats']) {
       await page.goto(`/order-settings?tab=${tab}&studio=1`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
-      await expect(page.getByRole('tabpanel')).toBeVisible();
+      // Панель вкладки справочника; у «Флэтов и зон» внутри своя панель «Флэты | Зоны нанесения»
+      await expect(page.locator('#order-settings-tabpanel')).toBeVisible();
       await expect(page.getByText('Загрузка справочника…')).toHaveCount(0);
       const report = await axeSerious(page);
       expect(report, `вкладка ${tab} — нарушения:\n${report.join('\n')}`).toEqual([]);

@@ -93,6 +93,14 @@ realtime.
 и замеры бюджета — `pinhead-react/src/orderstudio/design/README.md`. Правила (что можно
 и чего нельзя) — этажом выше, `../pravila-dizain-meikera-veha-5a-18-10.md`.
 
+## Order v4: админка «Флэты и зоны» (веха 5б)
+
+Ядро правки флэта — `orderstudio/design/edit/` (виды, зоны, якоря, размеры, id, новый флэт,
+зеркальный рукав, калибровка, `validateFlat`), версии — `design/catalog/flatVersion.ts`, строки ТЗ —
+`orderstudio/catalog/tzRows.ts`; экран — `orderstudio/admin/flats/` (`FlatEditor` с холстом `canvas/`,
+`FlatPreview`, `saveFlat` + `useFlatEditor`, `ZonesCatalogEditor` + `zonesEdit`); замеры — раздел
+«Итог 5б» в `design/README.md`. Правила — `../pravila-flety-i-zony-veha-5b-18-10.md`.
+
 ## Прочее
 
 - `pravila-erp-audit-po-skilam.md`

@@ -26,6 +26,7 @@ import { gzipSync } from 'node:zlib';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { createBaseline, checkFlatsAdmin } from './bundle-budget-5b.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -342,6 +343,12 @@ check('Вход, JS', entryJs.total, BUDGETS.entryJs);
 check('Оболочка ERP, JS', shellJs.total, BUDGETS.shellJs);
 check('Оболочка ERP, CSS', shellCss.total, BUDGETS.shellCss);
 
+// Веха 5б: вход и оболочка ERP — против базы, побайтно без сжатия (scripts/bundle-budget-5b.mjs)
+const baseline = createBaseline({ root: ROOT, dist: DIST, fail, write: process.argv.includes('--write-baseline') });
+baseline.strict('entryJs', 'Вход, JS', entry.js);
+baseline.strict('shellJs', 'Оболочка ERP, JS', shell.js);
+baseline.strict('shellCss', 'Оболочка ERP, CSS', shell.css);
+
 for (const { f, size } of [...shellJs.rows, ...shellCss.rows]) {
   if (size > BUDGETS.singleChunk) {
     fail(`чанк ${f} — ${size} Б gzip при пороге ${BUDGETS.singleChunk} на один чанк`);
@@ -486,7 +493,8 @@ if (withMarker.length) {
 
 const canvasKey = designKey('DesignTab', 'src/orderstudio/design/ui/DesignTab.jsx');
 const canvasJs = canvasKey ? minus(staticGraph(manifest, [canvasKey]).js, order.js) : [];
-if (canvasKey) check('Холст «Дизайн», JS', report('Холст — JS (DesignTab минус оболочка Order)', canvasJs).total, BUDGETS.designCanvas);
+const canvasTotal = canvasKey ? report('Холст — JS (DesignTab минус оболочка Order)', canvasJs).total : null;
+if (canvasKey) check('Холст «Дизайн», JS', canvasTotal, BUDGETS.designCanvas);
 
 /*
  * Кэши картинок: PDF макета доступен только с флэтом и размещениями — к этому
@@ -498,28 +506,49 @@ const flatImagesKey = designKey('flatImages', 'src/orderstudio/design/assets/fla
 const artworkImagesKey = designKey('artworkImages', 'src/orderstudio/design/assets/artworkImages.ts', 'src/orderstudio/design/assets/imageLayer.ts');
 const imageKeys = [flatImagesKey, artworkImagesKey].filter(Boolean);
 const imagesJs = imageKeys.length ? minus(staticGraph(manifest, imageKeys).js, order.js, canvasJs) : [];
-if (imageKeys.length) check('Кэши картинок холста, JS', report('Кэши картинок — JS (flatImages + artworkImages минус холст и оболочка Order)', imagesJs).total, BUDGETS.designImages);
+const imagesTotal = imageKeys.length ? report('Кэши картинок — JS (flatImages + artworkImages минус холст и оболочка Order)', imagesJs).total : null;
+if (imageKeys.length) check('Кэши картинок холста, JS', imagesTotal, BUDGETS.designImages);
 
 const panelKey = designKey('DesignSide', 'src/orderstudio/design/ui/panel/DesignSide.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
 const panelJs = panelKey ? minus(staticGraph(manifest, [panelKey]).js, order.js, canvasJs, imagesJs) : [];
-if (panelKey) check('Панель «Дизайн», JS', report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total, BUDGETS.designPanel);
+const panelTotal = panelKey ? report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total : null;
+if (panelKey) check('Панель «Дизайн», JS', panelTotal, BUDGETS.designPanel);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);
 }
 
 const pdfKey = designKey('exportPdf', 'src/orderstudio/design/export/exportPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
+let pdfTotal = null;
 if (pdfKey) {
   const files = minus(staticGraph(manifest, [pdfKey]).js, order.js, canvasJs, imagesJs);
-  check('PDF макета, JS', report('PDF макета — JS (exportPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdf);
+  pdfTotal = report('PDF макета — JS (exportPdf минус холст, картинки и оболочка Order)', files).total;
+  check('PDF макета, JS', pdfTotal, BUDGETS.designPdf);
 }
 
 const pdfjsKey = designKey('loadPdf', 'src/orderstudio/design/assets/loadPdf.ts', 'src/orderstudio/design/ui/DesignTab.jsx');
+let pdfjsTotal = null;
 if (pdfjsKey) {
   const files = minus(staticGraph(manifest, [pdfjsKey]).js, order.js, canvasJs, imagesJs);
-  check('pdfjs, JS', report('pdfjs — JS (loadPdf минус холст, картинки и оболочка Order)', files).total, BUDGETS.designPdfjs);
+  pdfjsTotal = report('pdfjs — JS (loadPdf минус холст, картинки и оболочка Order)', files).total;
+  check('pdfjs, JS', pdfjsTotal, BUDGETS.designPdfjs);
 }
 console.log(`  оболочка Order: ${orderJs.total} Б gzip (справочно, без потолка)`);
+
+// ── Веха 5б: konva вне списка флэтов, редактор флэта, разница с базой ───────
+const flats = checkFlatsAdmin({ manifest, root: ROOT, findKey, staticGraph, report, check, fail, minus, orderJs: order.js, canvasJs });
+const konvaFile = Object.values(manifest).find((v) => v.name === 'vendor-konva')?.file;
+console.log('\nРазница с базой (справочно, потолки — выше)');
+baseline.reference('orderShell', 'Оболочка Order', orderJs.total);
+baseline.reference('designCanvas', 'Холст «Дизайн»', canvasTotal);
+baseline.reference('vendorKonva', 'vendor-konva', konvaFile ? gzipSize(konvaFile) : null);
+baseline.reference('designImages', 'Кэши картинок', imagesTotal);
+baseline.reference('designPanel', 'Панель «Дизайн»', panelTotal);
+baseline.reference('designPdf', 'PDF макета', pdfTotal);
+baseline.reference('designPdfjs', 'pdfjs', pdfjsTotal);
+baseline.reference('flatsTab', 'Вкладка «Флэты и зоны»', flats.flatsTabTotal);
+baseline.reference('flatEditor', 'Редактор флэта', flats.editorTotal);
+baseline.done();
 
 console.log(
   process.exitCode

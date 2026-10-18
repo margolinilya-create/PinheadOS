@@ -13,7 +13,9 @@
  *   · `conflict` (P0001) — справочник уже изменили (другая вкладка, другой
  *     администратор, ERP); кэш каталогов сброшен, правки остаются на экране;
  *   · `forbidden` (42501) — нет права;
- *   · `other` — форма записи (22023), сеть и прочее.
+ *   · `invalid` (22023) — форма записи; `message` — текст сервера дословно
+ *     («Флэты: неверная запись — …»), а не общее «Ошибка сохранения» (веха 5б);
+ *   · `other` — сеть и прочее.
  * Каждая ошибка — `toast.error` с текстом сервера (он русский), правило проекта.
  */
 import { supabase } from '../../lib/supabase';
@@ -39,9 +41,15 @@ export const PRICE_RULE_KEYS = ['packOptions', 'prepFees', 'minMarginPct'] as co
 export type CatalogTable = keyof typeof CATALOG_PUT_KEYS;
 export type CatalogKey<T extends CatalogTable> = (typeof CATALOG_PUT_KEYS)[T][number];
 
+/** Вид отказа записи справочника: по нему редактор решает, что показать */
+export type CatalogFailureKind = 'conflict' | 'forbidden' | 'invalid' | 'other';
+
+/** Код отказа RPC → вид: P0001 — конфликт базы, 42501 — нет права, 22023 — форма записи */
+const KIND_BY_CODE: Record<string, CatalogFailureKind> = { P0001: 'conflict', 42501: 'forbidden', 22023: 'invalid' };
+
 export type CatalogWriteResult =
   | { ok: true }
-  | { ok: false; kind: 'conflict' | 'forbidden' | 'other'; message: string };
+  | { ok: false; kind: CatalogFailureKind; message: string };
 
 export const CONFLICT_MESSAGE = 'Справочник изменён — загрузите свежую версию';
 
@@ -52,7 +60,7 @@ interface RpcError {
 
 function failure(fn: string, error: RpcError, fallback: string): CatalogWriteResult {
   console.error(fn, error);
-  const kind = error.code === 'P0001' ? 'conflict' : error.code === '42501' ? 'forbidden' : 'other';
+  const kind: CatalogFailureKind = (error.code && KIND_BY_CODE[error.code]) || 'other';
   const server = error.message ? translateSupabaseError(error.message) : '';
   const message = server || (kind === 'conflict' ? CONFLICT_MESSAGE : fallback);
   // Справочник ушёл вперёд — кэш каталогов устарел вместе с ним

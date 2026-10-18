@@ -67,12 +67,16 @@ create function pg_temp.as_user(p_uid text) returns void language sql as $f$
     case when p_uid is null then '' else json_build_object('sub', p_uid, 'role', 'authenticated')::text end, true);
 $f$;
 
--- Правильный справочник флэтов: один флэт, один вид, одна зона
+-- Правильный справочник флэтов: один флэт, один вид, одна зона. Флэт полный
+-- (тип, typical, якоря, отступ, размеры), чтобы пробы проходили и после
+-- миграции I (веха 5б: форма строже, supabase/probes/flats_admin.sql)
 create function pg_temp.fv() returns jsonb language sql immutable as $f$
   select $j${"version": 1, "flats": [{"id": "probe-tee", "version": 1, "active": true, "name": "Проба",
+    "garment_type": "tshirt", "typical": true, "base_size": "M", "sizes": ["M"],
     "categories": ["tshirts"], "fits": ["regular"], "sku_codes": [],
     "views": [{"kind": "front", "svg_path": "flats/probe-tee/v1/front.svg", "scale_mm_per_unit": 1,
-      "print_areas": [{"id": "chest", "name": "Грудь", "zone_id": "front",
+      "anchors": {"neckline_point": {"x": 50, "y": 10}, "center_axis_x": 50},
+      "print_areas": [{"id": "chest", "name": "Грудь", "zone_id": "front", "safe_inset_mm": 5,
         "polygon_mm": [[0, 0], [100, 0], [100, 100]], "methods": ["dtf", "silkscreen"], "default_method": "dtf"}]}]}]}$j$::jsonb;
 $f$;
 
@@ -150,6 +154,11 @@ select pg_temp.p('sku_pants_no_front_back', 'OK 0',
 select pg_temp.p('old_set_staff_gone', 'OK true', $q$select (to_regprocedure('public.sales_set_staff(uuid, boolean)') is null)::text$q$);
 select pg_temp.p('set_staff3_kept', 'OK true', $q$select (to_regprocedure('public.sales_set_staff(uuid, text, boolean)') is not null)::text$q$);
 select pg_temp.p('flats_key_absent', 'OK 0', $q$select count(*)::text from public.app_config where key = 'garmentFlats'$q$);
+-- Регресс после сида (веха 5б, 1b-dryrun-I-regress): пробы ниже ждут, что строки
+-- garmentFlats нет. Служебное удаление владельцем (суперпользователь без JWT;
+-- страж I пускает только его и service_role), откат вернёт. На засеянной базе
+-- flats_key_absent выше покажет FAIL «OK 1» — это ожидаемо, не регресс
+delete from public.app_config where key = 'garmentFlats';
 
 -- ── ADMIN ────────────────────────────────────────────────────────────────
 select pg_temp.as_user('b9c3e42e-9e07-44c2-8b15-839ce327c40c');
@@ -265,7 +274,7 @@ select pg_temp.p('cp_area_bad_id', '22023 Флэты: неверная запи�
 select pg_temp.p('admin_put_update', 'OK 2',
   $q$select public.catalog_put('app_config', 'garmentFlats',
        jsonb_set(jsonb_set(pg_temp.fv(), '{flats,0,views,0,print_areas,0,zone_id}', 'null'), '{flats,0,views}',
-         (pg_temp.fv()#>'{flats,0,views}') || '[{"kind": "back", "svg_path": "flats/probe-tee/v1/back.svg", "scale_mm_per_unit": 0.5, "print_areas": [{"id": "back", "name": "Спина", "polygon_mm": [[0, 0], [10, 0], [10, 10], [0, 10]]}]}]'::jsonb),
+         (pg_temp.fv()#>'{flats,0,views}') || '[{"kind": "back", "svg_path": "flats/probe-tee/v1/back.svg", "scale_mm_per_unit": 0.5, "anchors": {"neckline_point": {"x": 5, "y": 1}, "center_axis_x": 5}, "print_areas": [{"id": "back", "name": "Спина", "safe_inset_mm": 1, "polygon_mm": [[0, 0], [10, 0], [10, 10], [0, 10]]}]}]'::jsonb),
        pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
 -- регресс белого списка G: прежние пары как раньше
 select pg_temp.p('admin_put_sku_catalog', 'OK 2',
