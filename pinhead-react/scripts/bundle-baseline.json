@@ -1,0 +1,113 @@
+{
+  "comment": "База bundle-budget (веха 5б, задача 0). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md («Замеры 5б»)",
+  "strict": {
+    "entryJs": {
+      "raw": 498594,
+      "gzip": 151563,
+      "sha256": "cb03fcf3960554ecf329bbaa05bc1452b804fe1ac1304babb85055034f9fdf89",
+      "files": {
+        "assets/index-HASH.js": {
+          "raw": 39776,
+          "gzip": 13702
+        },
+        "assets/vendor-react-HASH.js": {
+          "raw": 287180,
+          "gzip": 92215
+        },
+        "assets/vendor-supabase-HASH.js": {
+          "raw": 171638,
+          "gzip": 45646
+        }
+      }
+    },
+    "shellJs": {
+      "raw": 615662,
+      "gzip": 192908,
+      "sha256": "c036d4918059f9e144fa35e48ff7b8895bb1b929977be1b339f5fc46c6d61137",
+      "files": {
+        "assets/date-HASH.js": {
+          "raw": 1375,
+          "gzip": 664
+        },
+        "assets/ErpApp-HASH.js": {
+          "raw": 22787,
+          "gzip": 7715
+        },
+        "assets/ErpSkeletons-HASH.js": {
+          "raw": 3713,
+          "gzip": 1121
+        },
+        "assets/ErpStates-HASH.js": {
+          "raw": 18827,
+          "gzip": 6657
+        },
+        "assets/index-HASH.js": {
+          "raw": 39776,
+          "gzip": 13702
+        },
+        "assets/Skeleton-HASH.js": {
+          "raw": 479,
+          "gzip": 290
+        },
+        "assets/stageUi-HASH.js": {
+          "raw": 1838,
+          "gzip": 853
+        },
+        "assets/statusUi-HASH.js": {
+          "raw": 47401,
+          "gzip": 16114
+        },
+        "assets/types-HASH.js": {
+          "raw": 10763,
+          "gzip": 3887
+        },
+        "assets/useErpAccess-HASH.js": {
+          "raw": 3045,
+          "gzip": 1006
+        },
+        "assets/useTheme-HASH.js": {
+          "raw": 6840,
+          "gzip": 3038
+        },
+        "assets/vendor-react-HASH.js": {
+          "raw": 287180,
+          "gzip": 92215
+        },
+        "assets/vendor-supabase-HASH.js": {
+          "raw": 171638,
+          "gzip": 45646
+        }
+      }
+    },
+    "shellCss": {
+      "raw": 75587,
+      "gzip": 15905,
+      "sha256": "2131e2c35f2c9dfc6ec60eb8e85697ebf91ea9f93b76feb84267387acffd7427",
+      "files": {
+        "assets/ErpApp-HASH.css": {
+          "raw": 379,
+          "gzip": 251
+        },
+        "assets/ErpStates-HASH.css": {
+          "raw": 52768,
+          "gzip": 10229
+        },
+        "assets/index-HASH.css": {
+          "raw": 22440,
+          "gzip": 5425
+        }
+      }
+    }
+  },
+  "reference": {
+    "orderShell": 269093,
+    "designCanvas": 96627,
+    "vendorKonva": 76258,
+    "designImages": 8545,
+    "designPanel": 5297,
+    "designPdf": 159426,
+    "designPdfjs": 99991,
+    "flatsTab": 12826,
+    "flatEditor": null
+  }
+}
