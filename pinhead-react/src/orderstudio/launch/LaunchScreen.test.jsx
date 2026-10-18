@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { newSalesItem, newSalesOrder } from '../model/factory';
 import { useAuthStore } from '../../store/useAuthStore';
 import { __resetSalesStoreForTests } from '../store/useSalesStore';
+import { useToastStore } from '../../store/useToastStore';
 
 /**
  * «К запуску» (К22): гейты, сводка в `aria-describedby`, `aria-disabled` без
@@ -116,13 +117,13 @@ describe('LaunchScreen', () => {
     bridge.launchToErp.mockResolvedValue({ ok: true, erpOrderId: 'erp-1', alreadyLaunched: false, warnings: ['«Худи»: проверьте маршрут'] });
     renderScreen(MS);
     await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
-    fireEvent.change(screen.getByLabelText('Дата запуска'), { target: { value: '2026-10-27' } });
+    fireEvent.change(screen.getByLabelText('Дата запуска'), { target: { value: '2099-10-27' } });
     fireEvent.click(launchBtn());
     const head = await screen.findByRole('heading', { name: 'Заказ запущен в производство' });
     await waitFor(() => expect(document.activeElement).toBe(head));
     expect(screen.getByText('«Худи»: проверьте маршрут')).toBeInTheDocument();
     expect(bridge.launchToErp).toHaveBeenCalledWith(expect.objectContaining({ id: ORDER_ID }),
-      expect.objectContaining({ launchDate: '2026-10-27', catalogs: CATALOGS, actor: 'u-ms' }));
+      expect.objectContaining({ launchDate: '2099-10-27', catalogs: CATALOGS, actor: 'u-ms' }));
   });
 
   it('отказ запуска — текст ошибки role=alert с фокусом', async () => {
@@ -165,9 +166,65 @@ describe('LaunchScreen', () => {
   it('заказ уже запущен — итог со ссылкой в производство и «Отметить: заказ сдан»', async () => {
     renderScreen(MS, order({ status: 'production', erp_order_id: 'erp-7' }));
     expect(await screen.findByRole('heading', { name: 'Заказ уже запущен' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть заказ в производстве' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть PH-1 в производстве' }));
     expect(nav.switchToProduction).toHaveBeenCalledWith('/orders/erp-7');
     expect(screen.getByRole('button', { name: 'Отметить: заказ сдан' })).toBeInTheDocument();
+  });
+
+  it('«Отметить: заказ сдан» после запуска — итог «Заказ сдан» с фокусом и тост', async () => {
+    bridge.launchToErp.mockResolvedValue({
+      ok: true, erpOrderId: 'erp-1', alreadyLaunched: false, warnings: [],
+      patch: { id: ORDER_ID, status: 'production', erp_order_id: 'erp-1', updated_at: 'v2' },
+    });
+    dlg.confirm.mockResolvedValue(true);
+    rpc.transitionOrder.mockResolvedValue({ id: ORDER_ID, status: 'done', erp_order_id: 'erp-1', updated_at: 'v3', sent_at: null });
+    renderScreen(MS);
+    await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(launchBtn());
+    fireEvent.click(await screen.findByRole('button', { name: 'Отметить: заказ сдан' }));
+    const head = await screen.findByRole('heading', { name: 'Заказ сдан' });
+    await waitFor(() => expect(document.activeElement).toBe(head));
+    expect(screen.queryByRole('button', { name: 'Отметить: заказ сдан' })).toBeNull();
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toContain('Заказ PH-1 отмечен сданным');
+  });
+
+  it('заказ уже перевёл другой запуск — ссылка в производство с номером', async () => {
+    bridge.launchToErp.mockResolvedValue({
+      ok: true, erpOrderId: 'erp-old', alreadyLaunched: true, warnings: [],
+      patch: { id: ORDER_ID, status: 'production', erp_order_id: 'erp-old', updated_at: 'v5' },
+    });
+    renderScreen(MS);
+    await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(launchBtn());
+    fireEvent.click(await screen.findByRole('button', { name: 'Открыть PH-1 в производстве' }));
+    expect(nav.switchToProduction).toHaveBeenCalledWith('/orders/erp-old');
+  });
+
+  it('прошедшая дата, введённая вручную, — запуск закрыт, клик ведёт фокус к дате', async () => {
+    renderScreen(MS);
+    await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
+    const date = screen.getByLabelText('Дата запуска');
+    fireEvent.change(date, { target: { value: '2020-01-10' } });
+    expect(launchBtn()).toHaveAttribute('aria-disabled', 'true');
+    expect(date).toHaveAttribute('aria-invalid', 'true');
+    expect(date).toHaveAccessibleDescription(/Дата запуска уже прошла/);
+    fireEvent.click(launchBtn());
+    expect(bridge.launchToErp).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(date);
+  });
+
+  it('ход запуска — по шагам в aria-live', async () => {
+    let release;
+    bridge.launchToErp.mockImplementation((_o, o) => {
+      o.onStage('files');
+      return new Promise((r) => { release = r; });
+    });
+    renderScreen(MS);
+    await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(launchBtn());
+    expect(await screen.findByText('Копируем ТЗ и макеты в производство…')).toHaveAttribute('aria-live', 'polite');
+    release({ ok: false, stage: 'files', reason: 'x' });
+    await screen.findByRole('alert');
   });
 
   it('после запуска «Следующий к запуску» открывает форму следующего, а не итог прежнего', async () => {

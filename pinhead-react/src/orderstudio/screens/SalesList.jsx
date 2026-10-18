@@ -114,10 +114,12 @@ export default function SalesList() {
         <EmptyState
           icon="orders"
           title={queue ? queueEmpty : canCreate ? 'Заказов пока нет' : 'Заказов в работе пока нет'}
-          text={canCreate
-            ? 'Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране.'
-            : 'Здесь появятся заказы, отправленные в работу.'}
-          action={createButton || undefined}
+          text={queue
+            ? 'Отправленные заказы появятся здесь по сроку сдачи.'
+            : canCreate
+              ? 'Начните с нового заказа: изделие, клиент и доставка, ТЗ и цена — на одном экране.'
+              : 'Здесь появятся заказы, отправленные в работу.'}
+          action={(!queue && createButton) || undefined}
         />
       ) : (
         <>

@@ -5,6 +5,7 @@ import { transitionOrder } from '../api/salesTransitions';
 import { useSalesStore } from '../store/useSalesStore';
 import { canFinish } from '../layout/orderNav';
 import { confirm } from '../../store/useConfirmStore';
+import { toast } from '../../store/useToastStore';
 import { switchToProduction } from '../switchToProduction';
 import { nextInQueue } from './launchView';
 import styles from './Launch.module.css';
@@ -49,7 +50,9 @@ export default function LaunchOutcome({ order, user, kind, warnings = [] }) {
     setBusy(true);
     const res = await transitionOrder(order.id, 'done');
     setBusy(false);
-    if (res) useSalesStore.getState().applyServer({ ...res, id: order.id });
+    if (!res) return;
+    useSalesStore.getState().applyServer({ ...res, id: order.id });
+    toast.success(`Заказ ${order.number} отмечен сданным`);
   };
 
   return (
@@ -63,7 +66,7 @@ export default function LaunchOutcome({ order, user, kind, warnings = [] }) {
       <div className={styles.outcomeActions}>
         {erpId && (order.status === 'production' || order.status === 'done') && (
           <button type="button" className="btn btn-ghost" onClick={() => switchToProduction(`/orders/${erpId}`)}>
-            Открыть заказ в производстве
+            {order.number ? `Открыть ${order.number} в производстве` : 'Открыть заказ в производстве'}
           </button>
         )}
         {canFinish(user, order) && (

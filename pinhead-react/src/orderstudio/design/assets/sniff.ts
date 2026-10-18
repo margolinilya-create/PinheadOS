@@ -36,7 +36,8 @@ const u16be = (b: Uint8Array, at: number) => (b[at] << 8) | b[at + 1];
 const u32be = (b: Uint8Array, at: number) => ((b[at] << 24) >>> 0) + (b[at + 1] << 16) + (b[at + 2] << 8) + b[at + 3];
 const u24le = (b: Uint8Array, at: number) => b[at] | (b[at + 1] << 8) | (b[at + 2] << 16);
 
-function contentKind(b: Uint8Array): ArtworkKind | null {
+/** Вид содержимого по сигнатуре байт (без сверки с расширением) — общий для холста и запуска (К12) */
+export function contentKind(b: Uint8Array): ArtworkKind | null {
   if (startsWith(b, PNG_SIG)) return 'png';
   if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
   if (ascii(b, 0, 4) === 'RIFF' && ascii(b, 8, 4) === 'WEBP') return 'webp';

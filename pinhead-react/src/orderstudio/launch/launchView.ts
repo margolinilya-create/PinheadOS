@@ -14,6 +14,7 @@ import { gridQty } from '../model/factory';
 import { parseDateLocal } from '../../utils/date';
 import { pluralize } from '../../utils/i18n';
 import { tzToErpDraft } from '../bridge/tzToErpDraft';
+import type { LaunchStage } from '../bridge/launch';
 import { sortSalesList } from '../screens/salesListFilter';
 
 const WEEKDAY_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -36,6 +37,27 @@ const PRODUCTION_LABELS: Record<ProductionType, string> = {
 function launchItems(order: SalesOrder) {
   return order.items.filter((it) => it.product_type.trim() && gridQty(it.size_grid) > 0);
 }
+
+/**
+ * Блокирующая ошибка даты: пусто или раньше сегодняшнего (`min` поля — только
+ * подсказка браузеру, ручной ввод его обходит). `today` — `YYYY-MM-DD` по месту.
+ */
+export function launchDateError(date: string, today: string): string {
+  if (!parseDateLocal(date)) return 'Укажите дату запуска';
+  return date < today ? 'Дата запуска уже прошла — выберите сегодня или позже' : '';
+}
+
+/** Ход запуска для `aria-live` — по шагу `launchToErp` */
+export const STAGE_TEXT: Record<LaunchStage, string> = {
+  check: 'Проверяем готовность к запуску…',
+  bootstrap: 'Загружаем справочники производства…',
+  payload: 'Собираем заказ для производства…',
+  tzcheck: 'Сверяем ТЗ с данными заказа…',
+  files: 'Копируем ТЗ и макеты в производство…',
+  recheck: 'Повторно проверяем заказ…',
+  create: 'Создаём заказ в производстве…',
+  transition: 'Обновляем статус заказа…',
+};
 
 /** Неблокирующие предупреждения даты запуска */
 export function launchDateWarnings(date: string, dueDate: string | null | undefined): string[] {

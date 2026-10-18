@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 import type { SalesOrderListRow } from '../api/salesOrders';
-import { launchDateWarnings, launchSummary, marginLine, nextInQueue, routeRows } from './launchView';
+import { launchDateWarnings, launchSummary, marginLine, nextInQueue, routeRows, launchDateError } from './launchView';
 
 const grid = (qty: number) => ({ sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: qty } }] });
 
@@ -70,5 +70,14 @@ describe('nextInQueue', () => {
     const list = [row('a', '2026-10-30'), row('cur', '2026-10-19'), row('b', '2026-10-21'), row('c', null), row('d', '2026-10-20', 'draft')];
     expect(nextInQueue(list, 'cur')).toEqual({ next: list[2], left: 3 });
     expect(nextInQueue([row('cur', null)], 'cur')).toEqual({ next: null, left: 0 });
+  });
+});
+
+describe('launchDateError', () => {
+  it('пусто или раньше сегодня — ошибка; сегодня и позже — нет', () => {
+    expect(launchDateError('', '2026-10-18')).toBe('Укажите дату запуска');
+    expect(launchDateError('2026-10-17', '2026-10-18')).toMatch(/уже прошла/);
+    expect(launchDateError('2026-10-18', '2026-10-18')).toBe('');
+    expect(launchDateError('2026-11-02', '2026-10-18')).toBe('');
   });
 });

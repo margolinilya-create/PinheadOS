@@ -61,6 +61,10 @@ describe('sniffBytes / declaredOf', () => {
     expect(sniffBytes(enc.encode('%!PS-Adobe-3.0'))).toBe('ps');
     expect(sniffBytes(SVG_SCRIPT)).toBe('svg');
     expect(sniffBytes(HTML)).toBeNull();
+    expect(sniffBytes(SVG_DOCTYPE)).toBe('svg');
+    // WEBP холст принимает, производство — нет; XML без корня <svg> — не SVG
+    expect(sniffBytes(enc.encode('RIFF\0\0\0\0WEBPVP8 '))).toBeNull();
+    expect(sniffBytes(enc.encode('<?xml version="1.0"?><html/>'))).toBeNull();
     expect(declaredOf('a/b.AI')).toBe('pdf');
     expect(declaredOf('a/b.jpeg')).toBe('raster');
     expect(declaredOf('a/b.psd')).toBe('other');

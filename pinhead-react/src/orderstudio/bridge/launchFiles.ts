@@ -23,6 +23,7 @@ import type { DraftItem } from '../../erp/utils/orderForm';
 import { artworkPreviewPath, downloadArtwork } from '../api/artworks';
 import { ERP_FILE_MAX_BYTES, uploadErpFile, type ErpFileType, type ErpUploadResult } from '../api/erpFiles';
 import { sanitizeSvg } from '../design/assets/sanitizeSvg';
+import { contentKind } from '../design/assets/sniff';
 import { pluralize } from '../../utils/i18n';
 import { erpAttachmentKey, erpFileName, erpTzKey, type ErpAttachmentKind } from './erpKeys';
 
@@ -78,15 +79,15 @@ export function declaredOf(path: string): Declared {
   return EXT_DECLARED[ext] ?? 'other';
 }
 
-/** Вид файла по первым байтам; не узнали — `null` */
+/**
+ * Вид файла по первым байтам; не узнали — `null`. Распознавание сигнатур —
+ * одно на проект (`contentKind` холста, К12); здесь только PostScript,
+ * которого холст не знает, и отсев WEBP (производство его не принимает).
+ */
 export function sniffBytes(b: Uint8Array): Sniffed | null {
-  const ascii = (n: number) => String.fromCharCode(...b.subarray(0, n));
-  if (ascii(5) === '%PDF-') return 'pdf';
-  if (ascii(4) === '%!PS') return 'ps';
-  if (b[0] === 0x89 && ascii(4).slice(1) === 'PNG' && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return 'png';
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
-  const head = new TextDecoder('utf-8', { fatal: false }).decode(b.subarray(0, 1024)).replace(/^\uFEFF/, '').trimStart();
-  return head.startsWith('<svg') || head.startsWith('<?xml') ? 'svg' : null;
+  if (String.fromCharCode(...b.subarray(0, 4)) === '%!PS') return 'ps';
+  const kind = contentKind(b);
+  return kind === 'webp' ? null : kind;
 }
 
 const itemTitle = (it: SalesItem | undefined, i: number) => it?.product_type.trim() || `Позиция ${i + 1}`;

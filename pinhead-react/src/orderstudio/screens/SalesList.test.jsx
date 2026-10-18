@@ -203,6 +203,14 @@ describe('SalesList — пресет «К запуску» (веха 6+7, К22)'
     expect(await screen.findByText('Заказов к запуску нет — менеджеры ещё не отправили')).toBeInTheDocument();
   });
 
+  it('пустая очередь у МС с продажами — без «Начните с нового заказа» и без кнопки', async () => {
+    vi.mocked(fetchSalesOrders).mockResolvedValue([]);
+    renderList({ ...MS, is_sales: true }, '/sales?status=ready_to_launch&sort=due');
+    expect(await screen.findByText('Заказов к запуску нет — менеджеры ещё не отправили')).toBeInTheDocument();
+    expect(screen.getByText('Отправленные заказы появятся здесь по сроку сдачи.')).toBeInTheDocument();
+    expect(screen.queryByText(/Начните с нового заказа/)).not.toBeInTheDocument();
+  });
+
   it('порядок «По сроку сдачи» пишется в адрес', async () => {
     renderList(ADMIN);
     await screen.findByText('PH-0101');

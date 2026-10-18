@@ -111,6 +111,12 @@ describe('launchToErp', () => {
     });
   });
 
+  it('ход запуска (onStage) — по шагам, в порядке выполнения', async () => {
+    const stages: string[] = [];
+    await launchToErp(order(), opts({ onStage: (s: string) => stages.push(s) }));
+    expect(stages).toEqual(['check', 'bootstrap', 'payload', 'tzcheck', 'files', 'recheck', 'create', 'transition']);
+  });
+
   it('связь и секции: tz_order_id, tz_number; tz.documents и attachments непусты', async () => {
     await launchToErp(order(), opts({ launchDate: '2026-10-20' }));
     const input = erp.createOrder.mock.calls[0][0];
@@ -134,7 +140,7 @@ describe('launchToErp', () => {
     const r = await launchToErp(order({ status: 'production', erp_order_id: 'erp-old' }), opts());
     expect(log).toEqual(['check']);
     expect(files.upload).not.toHaveBeenCalled();
-    expect(r).toEqual({ ok: true, erpOrderId: 'erp-old', alreadyLaunched: true, warnings: [], patch: { id: ORDER_ID, updated_at: 'v5', erp_order_id: 'erp-old' } });
+    expect(r).toEqual({ ok: true, erpOrderId: 'erp-old', alreadyLaunched: true, warnings: [], patch: { id: ORDER_ID, updated_at: 'v5', status: 'production', erp_order_id: 'erp-old' } });
   });
 
   it('сирота (already, launched: false; подлинность проверил сервер) — только переход с p_erp_order_id, без копий', async () => {

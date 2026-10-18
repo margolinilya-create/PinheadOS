@@ -22,7 +22,7 @@ import { useTzCatalogs } from '../tz/tzCatalogs';
 import { rulesFromPrices, useOrderPrice } from '../screens/useOrderPrice';
 import PaymentPanel from '../payment/PaymentPanel';
 import { isoLocal, nextWorkingDay } from './nextWorkingDay';
-import { launchDateWarnings, launchSummary, marginLine } from './launchView';
+import { STAGE_TEXT, launchDateError, launchDateWarnings, launchSummary, marginLine } from './launchView';
 import LaunchOutcome from './LaunchOutcome';
 import LaunchSide from './LaunchSide';
 import ReturnDialog from './ReturnDialog';
@@ -51,6 +51,7 @@ export default function LaunchScreen() {
   const [today] = useState(() => isoLocal(new Date()));
   const [tz, setTz] = useState({ key: '', ok: null, reason: '' });
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState('');
   const [error, setError] = useState('');
   const [outcome, setOutcome] = useState(null);
   const [returning, setReturning] = useState(false);
@@ -58,6 +59,7 @@ export default function LaunchScreen() {
   const tzRef = useRef(null);
   const errRef = useRef(null);
   const returnRef = useRef(null);
+  const dateRef = useRef(null);
 
   /** Какой заказ уже открыт этим экраном: до ответа — «Загрузка», а не «не найден» */
   const [opened, setOpened] = useState('');
@@ -96,26 +98,29 @@ export default function LaunchScreen() {
   );
   // Итог — только своего заказа: «Следующий к запуску» меняет id, а экран тот же
   const mine = outcome?.id === order.id ? outcome : null;
-  const kind = mine?.kind ?? (order.status === 'ready_to_launch' ? null : order.status);
+  // «Сдан» перекрывает итог запуска: после «Отметить: заказ сдан» заголовок — «Заказ сдан»
+  const kind = order.status === 'done' ? 'done' : mine?.kind ?? (order.status === 'ready_to_launch' ? null : order.status);
   if (kind) {
     return <div className={styles.page}>{head}<LaunchOutcome order={order} user={user} kind={kind} warnings={mine?.warnings} /></div>;
   }
 
   const tzState = tz.key === tzKey ? tz : { ok: null, reason: '' };
   const unpaid = !order.paid_at && !order.paid_override_reason;
-  const blocked = unpaid ? NO_PAYMENT : tzState.ok === false ? tzState.reason : tzState.ok === null ? (failed ? 'Справочники ТЗ не загрузились — обновите страницу' : CHECKING) : '';
+  const dateError = launchDateError(date, today);
+  const blocked = unpaid ? NO_PAYMENT : dateError || (tzState.ok === false ? tzState.reason : tzState.ok === null ? (failed ? 'Справочники ТЗ не загрузились — обновите страницу' : CHECKING) : '');
   const margin = price ? marginLine(price.margin_pct, rulesFromPrices(prices ?? {}).minMarginPct) : null;
   const dateWarnings = launchDateWarnings(date, order.due_date);
 
   const launch = async () => {
     if (blocked) {
-      (unpaid ? payRef.current?.querySelector('h2') : tzRef.current)?.focus();
+      (unpaid ? payRef.current?.querySelector('h2') : dateError ? dateRef.current : tzRef.current)?.focus();
       return;
     }
     setBusy(true);
     setError('');
-    const r = await launchToErp(order, { launchDate: date, catalogs, actor: user?.id ?? '' });
+    const r = await launchToErp(order, { launchDate: date, catalogs, actor: user?.id ?? '', onStage: setStage });
     setBusy(false);
+    setStage('');
     if (!r.ok) {
       setError(r.reason);
       return;
@@ -147,9 +152,11 @@ export default function LaunchScreen() {
           <div ref={payRef}><PaymentPanel order={order} user={user} /></div>
           <div className={styles.block}>
             <label htmlFor={`${uid}-date`} className={styles.label}>Дата запуска</label>
-            <input id={`${uid}-date`} type="date" className={styles.date} min={today} value={date}
-              aria-describedby={`${uid}-date-hint`} onChange={(e) => setDate(e.target.value)} />
+            <input ref={dateRef} id={`${uid}-date`} type="date" className={styles.date} min={today} value={date}
+              aria-invalid={dateError ? 'true' : undefined}
+              aria-describedby={`${uid}-date-hint${dateError ? ` ${uid}-date-err` : ''}`} onChange={(e) => setDate(e.target.value)} />
             <p id={`${uid}-date-hint`} className={styles.hint}>По умолчанию — следующий рабочий день</p>
+            {dateError && <p id={`${uid}-date-err`} className={styles.error}>{dateError}</p>}
             {dateWarnings.map((w) => <p key={w} className={styles.warn}>{w}</p>)}
           </div>
           <div className={styles.actions}>
@@ -166,7 +173,7 @@ export default function LaunchScreen() {
             )}
           </div>
           {blocked && <p id={`${uid}-why`} className={styles.hint}>{blocked}</p>}
-          <p className={styles.srOnly} aria-live="polite">{busy ? 'Запуск: проверка, копии ТЗ и макетов, создание заказа в производстве…' : ''}</p>
+          <p className={styles.srOnly} aria-live="polite">{busy ? (STAGE_TEXT[stage] ?? 'Запускаем…') : ''}</p>
           {error && <p ref={errRef} tabIndex={-1} role="alert" className={styles.error}>Запуск не выполнен: {error}</p>}
           <LaunchSide order={order} catalogs={catalogs} warnings={warnings} />
         </div>

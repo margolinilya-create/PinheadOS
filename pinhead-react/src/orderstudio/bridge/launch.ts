@@ -65,6 +65,8 @@ export interface LaunchOptions {
   randomId?: () => string;
   /** Сеть шага `files` — для тестов */
   files?: CopyDeps;
+  /** Ход запуска для `aria-live` экрана: зовётся в начале каждого шага */
+  onStage?: (stage: LaunchStage) => void;
 }
 
 export const REASON = {
@@ -127,7 +129,10 @@ function afterAlready(order: SalesOrder, check: CheckOk, alreadyLaunched: boolea
   const erpOrderId = check.erp_order_id ?? (check.launched ? order.erp_order_id : null);
   if (!erpOrderId) return { ok: false, stage: 'check', reason: REASON.check };
   if (check.launched) {
-    return { ok: true, erpOrderId, alreadyLaunched: true, warnings: [], patch: patchOf(order.id, { ...check, erp_order_id: erpOrderId }) };
+    // Заказ перевёл другой запуск: статус в сторе — `production`, иначе экран
+    // так и показывал бы «ждёт запуска» без ссылки на заказ производства
+    const patch = patchOf(order.id, { ...check, status: 'production', erp_order_id: erpOrderId });
+    return { ok: true, erpOrderId, alreadyLaunched: true, warnings: [], patch };
   }
   return finish(order, erpOrderId, alreadyLaunched, warnings);
 }
@@ -192,9 +197,12 @@ Promise<{ done: Promise<LaunchResult> | LaunchResult } | null> {
 }
 
 async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult> {
+  const stage = (s: LaunchStage) => opts.onStage?.(s);
+  stage('check');
   const first = await checkStep(order, 'check', []);
   if (first) return first.done;
 
+  stage('bootstrap');
   let erp;
   try {
     erp = await loadErp();
@@ -205,6 +213,7 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
   }
   if (erp.store.getState().departments.length === 0) return { ok: false, stage: 'bootstrap', reason: REASON.bootstrap };
 
+  stage('payload');
   let built;
   try {
     built = buildDraft(order, opts, erp.payload);
@@ -214,18 +223,22 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
   }
   if ('fail' in built) return { ok: false, stage: 'payload', reason: built.fail };
 
+  stage('tzcheck');
   if (!opts.catalogs) return { ok: false, stage: 'tzcheck', reason: REASON.noCatalogs };
   const tz = await checkTzHashes(order, opts.catalogs, opts.digest === undefined ? defaultDigest() : opts.digest);
   if (!tz.ok) return { ok: false, stage: 'tzcheck', reason: tz.reason };
 
+  stage('files');
   // Новый uuid попытки на каждый запуск: повтор не наступает на ключи прошлого (409)
   const plan = planLaunchFiles(order, built.valid, opts.randomId ?? (() => crypto.randomUUID()));
   const files = await copyLaunchFiles(order, plan, opts.actor ?? '', opts.files);
   if (!files.ok) return { ok: false, stage: 'files', reason: files.reason };
 
+  stage('recheck');
   const again = await checkStep(order, 'recheck', built.warnings);
   if (again) return again.done;
 
+  stage('create');
   // Бросок — как `null`: он мог случиться уже ПОСЛЕ того, как RPC создал заказ
   let created = null;
   try {
@@ -234,6 +247,7 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
     console.error('[launchToErp] createOrder', e);
   }
   if (created) {
+    stage('transition');
     const lost = checkAttachedCount(files.attachments, created.attachments ?? []);
     return finish(order, created.id, false, lost ? [...built.warnings, lost] : built.warnings);
   }

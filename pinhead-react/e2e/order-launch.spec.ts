@@ -160,6 +160,26 @@ test('файл макета больше 20 МБ — отказ шага files, 
   expect(rpcs(calls).map((c) => c.name)).not.toContain('erp_create_order');
 });
 
+test('Storage отказал копии 413 — отказ шага files с причиной, заказ ERP не создан', async ({ page }) => {
+  const calls: MockCall[] = [];
+  const extra = { calls, storageObjects: {} as Objects };
+  await start(page, extra, { items: 1, withArtwork: true });
+  // Писатель шлёт POST в erp-attachments; ответ сервера — «слишком большой» (лимит бакета)
+  await page.route('**/storage/v1/object/erp-attachments/**', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({
+      status: 413, contentType: 'application/json',
+      body: JSON.stringify({ statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }),
+    });
+  });
+
+  const r = await launch(page);
+  expect(r).toMatchObject({ ok: false, stage: 'files' });
+  expect((r as { reason: string }).reason).toMatch(/^Файл не скопирован в производство/);
+  expect(rpcs(calls).map((c) => c.name)).not.toContain('erp_create_order');
+  expect(v4State(extra).erpCreates).toHaveLength(0);
+});
+
 test('createOrder прошёл, переход упал → повтор: проверка отвечает «уже» — только переход, без копий и без второго заказа ERP', async ({ page }) => {
   const calls: MockCall[] = [];
   const extra = { calls, storageObjects: {} as Objects };
