@@ -75,11 +75,7 @@ test('@walk продавец: от входа до отправки в рабо�
   const calls: MockCall[] = [];
   const shot = await sellerBuildsOrder(page, calls);
 
-  // Находка смены W1 (в отчёт задачи 9, исправление — задача 11): у НОВОГО заказа
-  // автор в памяти не записан (`created_by` null до перечитывания), и продавцу
-  // не видны «Отметить предоплату» и «Отправить в работу» — до F5. Смена идёт
-  // через F5; тест находки ниже (`fixme`) снимается вместе с исправлением
-  await page.reload();
+  // Без F5: у нового заказа автор известен сразу (находка обхода W1, задача 11)
   await page.getByRole('tab', { name: /^ТЗ и цена/ }).click();
   await expect(page.getByRole('button', { name: 'Отметить предоплату' })).toBeVisible();
 
@@ -113,9 +109,13 @@ test('@walk продавец: от входа до отправки в рабо�
   await shot('vyhod');
 });
 
-test.fixme('@walk продавец W1: автор нового заказа отмечает оплату и отправляет без F5', async ({ page }) => {
+test('@walk продавец W1: автор нового заказа отмечает оплату и отправляет без F5', async ({ page }) => {
   test.setTimeout(180_000);
-  await sellerBuildsOrder(page, []);
+  const calls: MockCall[] = [];
+  await sellerBuildsOrder(page, calls);
   await page.getByRole('tab', { name: /^ТЗ и цена/ }).click();
   await expect(page.getByRole('button', { name: 'Отметить предоплату' })).toBeVisible();
+  await markPrepaid(page);
+  await sendToWork(page);
+  expect(rpcCalls(calls, 'order_v4_transition').map((c) => (c.body as { p_to: string }).p_to)).toEqual(['ready_to_launch']);
 });
