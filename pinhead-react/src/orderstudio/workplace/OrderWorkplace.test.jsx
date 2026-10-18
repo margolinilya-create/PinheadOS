@@ -106,7 +106,7 @@ function renderFetched(order) {
 }
 
 const current = () => useSalesStore.getState().current;
-const swatches = (root = document) => [...root.querySelectorAll('.swatch')];
+const swatches = (root = document) => [...root.querySelectorAll('[data-swatch-circle]')].map((c) => c.closest('button'));
 /** Образец цвета, которого нет у позиции: код из подписи «Имя (код)» */
 function otherSwatch() {
   const el = swatches().find((s) => s.getAttribute('aria-pressed') === 'false');
@@ -200,10 +200,10 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
 
   it('ткань клиента: флажок пишет позицию и прячет выбор ткани', () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    expect(document.querySelector('.fabric-section')).not.toBeNull();
+    expect(document.getElementById('garment-fabric-title')).not.toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ткань клиента (в цену не входит)' }));
     expect(current().items[0].client_fabric).toBe(true);
-    expect(document.querySelector('.fabric-section')).toBeNull();
+    expect(document.getElementById('garment-fabric-title')).toBeNull();
   });
 
   it('кнопки «−» и «+» размеров названы по размеру, цены в таблице размеров нет', () => {
@@ -416,7 +416,7 @@ describe('OrderWorkplace — сохранение и только чтение',
 
   it('рабочее место не пишет в app_config (перетаскивание моделей выключено)', async () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    const rows = [...document.querySelectorAll('.garment-row')];
+    const rows = [...document.querySelectorAll('[role="button"][aria-expanded]')];
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.every((r) => r.getAttribute('draggable') !== 'true')).toBe(true);
     fireEvent.drop(rows[1], { dataTransfer: { dropEffect: 'move' } });

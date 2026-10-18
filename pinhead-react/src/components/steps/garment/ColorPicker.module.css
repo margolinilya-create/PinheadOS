@@ -1,0 +1,172 @@
+/* Цвет базы — палитра поставщика ткани (веха 8, задача 6; было в `garment.css`).
+   Образец: рамка `--border-control` (≥ 3:1 к фону панели в обеих темах),
+   галочка выбранного — одна, SVG в чёрном кружке с белой обводкой: видна
+   и на белой, и на тёмной ткани (контраст сторожит `garmentCss.test.ts`). */
+
+.searchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+.searchRow > input { width: 240px; }
+
+.selectedInfo {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.current { display: flex; align-items: center; gap: var(--space-sm); margin: 0 0 var(--space-md); }
+
+/* Палитра: на компьютере — своя прокрутка (палитры по 150+ цветов),
+   на телефоне — без неё, иначе вложенная прокрутка «ловит» палец */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-xs);
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.groupLabel {
+  grid-column: 1 / -1;
+  margin-top: var(--space-xs);
+  padding: var(--space-sm) 0 var(--space-xs);
+  border-top: 1px solid var(--border-light);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-sm) var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.swatch:hover { border-color: var(--border-light); background: var(--surface); }
+.swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.swatch[aria-disabled='true'] { cursor: default; }
+.swatch[aria-disabled='true']:hover { border-color: transparent; background: none; }
+.selected,
+.selected:hover,
+.selected[aria-disabled='true']:hover { border-color: var(--accent); background: var(--accent-light); }
+
+/* Цвет образца — вычисляемым `--swatch-color` из разметки (hex через sanitizeHex) */
+.circle {
+  --swatch-color: transparent;
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-control);
+  border-radius: 50%;
+  background: var(--swatch-color);
+  box-shadow: var(--shadow-card);
+}
+.selected .circle { border-color: var(--accent); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+
+.check {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--black);
+  color: var(--white);
+  transform: translate(-50%, -50%);
+}
+
+.code {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 500;
+  letter-spacing: .3px;
+  color: var(--text-dim);
+  text-align: center;
+}
+.selected .code { color: var(--accent); }
+
+/* Имя цвета — в две строки, а не обрезкой в одну («Тёмно-…») */
+.label {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  line-height: 1.25;
+  color: var(--text-dim);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.empty { grid-column: 1 / -1; }
+
+/* Свой цвет текстом — когда цвета нет в палитре поставщика (веха 4) */
+.own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 360px;
+  margin-bottom: var(--space-xl);
+}
+.ownLabel {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-mid);
+}
+
+/* Мини-образец выбранного цвета вне палитры */
+.mini {
+  --swatch-color: transparent;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-control);
+  border-radius: 50%;
+  background: var(--swatch-color);
+}
+
+@media (max-width: 760px) {
+  .searchRow > input { width: 100%; }
+  .swatches {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    max-height: none;
+    overflow: visible;
+  }
+  .circle { width: 36px; height: 36px; }
+}
+
+@media (pointer: coarse) {
+  .swatch { min-width: var(--control-h-md); min-height: var(--control-h-md); }
+}

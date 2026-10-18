@@ -8,6 +8,9 @@ import { searchFabrics } from '../../../utils/materialSearch';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { colorSupplierOf } from '../../../utils/colorSupplier';
 import { offeredColors, supplierForFabric } from '../../../orderstudio/catalog/suppliers';
+import { Icon } from '../../../erp/components/Icon';
+import panel from './panel.module.css';
+import styles from './FabricGrid.module.css';
 
 const SEARCH_FROM = 6;
 
@@ -73,20 +76,20 @@ export default function FabricGrid({ readOnly = false }) {
   const colorCount = offeredColors(fabricEntry ? supplierForFabric(fabricEntry, suppliers) : null).length;
 
   return (
-    <div className="fabric-section">
-      <div className="section-label">Ткань</div>
+    <section className={panel.section} aria-labelledby="garment-fabric-title">
+      <div className={panel.sectionLabel} id="garment-fabric-title">Ткань</div>
       {(fabrics.length >= SEARCH_FROM || query) && (
-        <input className="page-search" value={query} onChange={e => setQuery(e.target.value)}
+        <input className={`${panel.search} ${styles.search}`} value={query} onChange={e => setQuery(e.target.value)}
           placeholder="Поставщик, ткань, плотность: «тонитекс футер 380»" aria-label="Поиск ткани" />
       )}
       {query.trim() && fabrics.length === 0 && (
-        <div className="fabric-not-found" role="alert">Ткань не найдена — уточните запрос. Без ткани цена не считается.</div>
+        <div className={styles.notFound} role="alert">Ткань не найдена — уточните запрос. Без ткани цена не считается.</div>
       )}
-      <div className="fit-selector">
+      <div className={styles.grid}>
         {fabrics.map(f => (
           <div
             key={f.key}
-            className={`fit-option${fabric === f.key ? ' selected' : ''}`}
+            className={`${styles.option}${fabric === f.key ? ` ${styles.selected}` : ''}`}
             role="button"
             tabIndex={0}
             aria-pressed={fabric === f.key}
@@ -94,15 +97,15 @@ export default function FabricGrid({ readOnly = false }) {
             onClick={() => handleSelectFabric(f)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectFabric(f); } }}
           >
-            <div className="fit-check">{fabric === f.key ? '✓' : ''}</div>
-            <div className="fit-info">
-              <div className="fit-name">{f.name}</div>
-              <div className="fit-desc">{f.meta} · {f.sub}</div>
+            <div className={styles.check}>{fabric === f.key && <Icon name="check" size={14} />}</div>
+            <div className={styles.info}>
+              <div className={styles.name}>{f.name}</div>
+              <div className={styles.desc}>{f.meta} · {f.sub}</div>
             </div>
           </div>
         ))}
       </div>
-      {fabric && fabricEntry && <div className="fabric-color-count">Доступные цвета: {colorCount}</div>}
-    </div>
+      {fabric && fabricEntry && <div className={styles.colorCount}>Доступные цвета: {colorCount}</div>}
+    </section>
   );
 }

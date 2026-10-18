@@ -7,6 +7,10 @@ import { sanitizeHex } from '../../../utils/sanitizeHex';
 import {
   codeOwner, defaultSupplier, findPaletteColor, offeredColors, supplierForFabric,
 } from '../../../orderstudio/catalog/suppliers';
+import { allowedFor } from '../../../orderstudio/catalog/allowedColors';
+import { Icon } from '../../../erp/components/Icon';
+import panel from './panel.module.css';
+import styles from './ColorPicker.module.css';
 
 /** Подсказка у поля «Свой цвет», когда палитры у поставщика ткани нет */
 export const OWN_COLOR_HINT = 'У поставщика нет палитры — впишите цвет, как в накладной';
@@ -31,6 +35,9 @@ function grouped(supplier, colors) {
   return out;
 }
 
+/** Цвет образца — вычисляемым `--swatch-color`; hex только через sanitizeHex */
+const swatchColor = (hex) => ({ '--swatch-color': sanitizeHex(hex) });
+
 /** Свой цвет текстом: в буфер — по Enter или уходу с поля, без записи на каждую букву */
 function OwnColorField({ initial, readOnly, onCommit, hint }) {
   const [text, setText] = useState(initial);
@@ -46,12 +53,12 @@ function OwnColorField({ initial, readOnly, onCommit, hint }) {
     if (v && v !== initial) onCommit(v);
   };
   return (
-    <div className="color-own">
-      <label className="color-own-label" htmlFor="color-own-input">Свой цвет</label>
+    <div className={styles.own}>
+      <label className={styles.ownLabel} htmlFor="color-own-input">Свой цвет</label>
       <input
         id="color-own-input"
         type="text"
-        className="color-search-input"
+        className={panel.search}
         value={text}
         disabled={readOnly}
         placeholder="Как в накладной"
@@ -60,7 +67,7 @@ function OwnColorField({ initial, readOnly, onCommit, hint }) {
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
       />
-      {hint && <p id="color-own-hint" className="color-filter-hint">{hint}</p>}
+      {hint && <p id="color-own-hint" className={panel.hint}>{hint}</p>}
     </div>
   );
 }
@@ -68,11 +75,40 @@ function OwnColorField({ initial, readOnly, onCommit, hint }) {
 /** Выбранный цвет, которого нет среди предлагаемых: снятый, из другой палитры */
 function CurrentColor({ entry, note }) {
   return (
-    <p className="color-selected-info" data-testid="color-current">
-      <span className="swatch-mini" style={{ backgroundColor: sanitizeHex(entry.hex) }} aria-hidden="true" />
-      {' '}Выбран: {entry.name} ({entry.code}) — {note}
+    <p className={`${styles.selectedInfo} ${styles.current}`} data-testid="color-current">
+      <span className={styles.mini} style={swatchColor(entry.hex)} aria-hidden="true" />
+      Выбран: {entry.name} ({entry.code}) — {note}
     </p>
   );
+}
+
+/** Образец палитры: кнопка с `aria-pressed`, галочка выбранного — одна, в кружке */
+function Swatch({ color, selected, readOnly, onPick }) {
+  return (
+    <button
+      type="button"
+      className={`${styles.swatch}${selected ? ` ${styles.selected}` : ''}`}
+      title={`${color.name} (${color.code})`}
+      aria-pressed={selected}
+      aria-label={`${color.name} (${color.code})`}
+      aria-disabled={readOnly || undefined}
+      onClick={() => onPick(color.code)}
+    >
+      <span className={styles.circle} style={swatchColor(color.hex)} data-swatch-circle="" aria-hidden="true">
+        {selected && <span className={styles.check}><Icon name="check" size={12} /></span>}
+      </span>
+      <span className={styles.code}>{color.code}</span>
+      <span className={styles.label}>{color.name}</span>
+    </button>
+  );
+}
+
+/** Пометка у выбранного цвета, которого среди предлагаемых нет */
+function offNote(entry, suppliers, supplier) {
+  const owner = codeOwner(suppliers, entry.code);
+  if (!entry.active) return 'снят с продажи';
+  if (owner && owner.id !== supplier?.id) return `из палитры «${owner.name}»`;
+  return 'не входит в цвета этой модели';
 }
 
 /**
@@ -80,6 +116,8 @@ function CurrentColor({ entry, note }) {
  * (веха 4): привязка по имени поставщика ткани, иначе палитра по умолчанию.
  * Предлагаются только активные цвета; выбранный снятый или чужой показан
  * с пометкой и не стирается. Своего цвета нет в палитре — «Свой цвет» текстом.
+ * Ограничение цветов модели (`allowedColors`) пересекается с палитрой ткани:
+ * пустое пересечение — палитра целиком (К10 вехи 8).
  *
  * `readOnly` — образцы видны, но цвет не меняется (`aria-disabled`).
  */
@@ -96,8 +134,8 @@ export default function ColorPicker({ readOnly = false }) {
 
   const supplier = paletteSupplier(fabric, fabricsCatalog, suppliers, colorSupplier);
   const allColors = offeredColors(supplier);
-  const allowedSet = rules?.allowedColors ? new Set(rules.allowedColors) : null;
-  const colors = allowedSet ? allColors.filter((c) => allowedSet.has(c.code)) : allColors;
+  const allowed = allowedFor(rules, allColors);
+  const colors = allowed ?? allColors;
 
   const q = colorSearch.trim().toLowerCase();
   const shown = q
@@ -107,64 +145,41 @@ export default function ColorPicker({ readOnly = false }) {
   const entry = color ? findPaletteColor(color, suppliers, supplier) : null;
   const offered = !!entry && colors.some((c) => c.code === entry.code);
   const ownText = color && !entry ? color : '';
-  let note = '';
-  if (entry && !offered) {
-    const owner = codeOwner(suppliers, entry.code);
-    if (!entry.active) note = 'снят с продажи';
-    else if (owner && owner.id !== supplier?.id) note = `из палитры «${owner.name}»`;
-    else note = 'не входит в цвета этой модели';
-  }
   const pick = (code) => { if (!readOnly) selectColor(code); };
 
   return (
-    <div className="color-section">
-      <div className="section-label">Цвет базы{supplier ? ` · ${supplier.name}` : ''}</div>
+    <section className={panel.section} aria-labelledby="garment-color-title">
+      <div className={panel.sectionLabel} id="garment-color-title">Цвет базы{supplier ? ` · ${supplier.name}` : ''}</div>
       {allColors.length > 0 && (
-        <div className="color-search-wrap">
+        <div className={styles.searchRow}>
           <input
             type="text"
-            className="color-search-input"
+            className={panel.search}
             placeholder="Поиск цвета..."
             aria-label="Поиск цвета"
             value={colorSearch}
             onChange={(e) => setColorSearch(e.target.value)}
           />
-          {offered && <div className="color-selected-info">Выбран: {entry.name}</div>}
-          {allowedSet && <div className="color-filter-hint">Показаны {colors.length} из {allColors.length} цветов для этой категории</div>}
+          {offered && <p className={styles.selectedInfo}>Выбран: {entry.name}</p>}
+          {allowed && (
+            <p className={panel.hint}>
+              Для этой модели доступно {colors.length} из {allColors.length} цветов «{supplier.name}»
+            </p>
+          )}
         </div>
       )}
-      {entry && !offered && <CurrentColor entry={entry} note={note} />}
+      {entry && !offered && <CurrentColor entry={entry} note={offNote(entry, suppliers, supplier)} />}
       {colors.length > 0 && (
-        <div className="swatches" role="group" aria-label={`Палитра ${supplier?.name ?? ''}`}>
+        <div className={styles.swatches} role="group" aria-label={`Палитра ${supplier?.name ?? ''}`}>
           {grouped(supplier, shown).map((g) => [
-            !q && <div key={`gl-${g.id || 'none'}`} className="swatch-group-label">{g.label}</div>,
-            ...g.colors.map((c) => {
-              const selected = color === c.code;
-              return (
-                <button
-                  key={c.code}
-                  type="button"
-                  className={`swatch${selected ? ' selected' : ''}`}
-                  title={`${c.name} (${c.code})`}
-                  aria-pressed={selected}
-                  aria-label={`${c.name} (${c.code})`}
-                  aria-disabled={readOnly || undefined}
-                  onClick={() => pick(c.code)}
-                >
-                  <span className="swatch-circle" style={{ backgroundColor: sanitizeHex(c.hex) }} aria-hidden="true">
-                    {selected && (
-                      <svg className="swatch-check" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="swatch-code">{c.code}</span>
-                  <span className="swatch-label">{c.name}</span>
-                </button>
-              );
-            }),
+            !q && <div key={`gl-${g.id || 'none'}`} className={styles.groupLabel}>{g.label}</div>,
+            ...g.colors.map((c) => (
+              <Swatch key={c.code} color={c} selected={color === c.code} readOnly={readOnly} onPick={pick} />
+            )),
           ])}
-          {q && shown.length === 0 && <p className="color-filter-hint">Такого цвета в палитре нет — впишите свой ниже</p>}
+          {q && shown.length === 0 && (
+            <p className={`${panel.hint} ${styles.empty}`}>Такого цвета в палитре нет — впишите свой ниже</p>
+          )}
         </div>
       )}
       <OwnColorField
@@ -173,6 +188,6 @@ export default function ColorPicker({ readOnly = false }) {
         onCommit={selectColor}
         hint={allColors.length === 0 ? OWN_COLOR_HINT : ''}
       />
-    </div>
+    </section>
   );
 }

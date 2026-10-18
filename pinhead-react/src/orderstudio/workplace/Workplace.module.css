@@ -415,33 +415,13 @@
   }
 }
 
-/* Тач: цель нажатия не меньше 44 px — и у панелей визарда внутри рабочего места */
+/* Тач: цель нажатия не меньше 44 px. Панели визарда держат её сами — своими
+   CSS-модулями на токене `--control-h-md` (веха 8, задача 6) */
 @media (pointer: coarse) {
   .tab,
   .saveReload,
   .itemPicker,
   .checkRow { min-height: 44px; }
-
-  .garment :global(.qty-btn),
-  .garment :global(.sku-search-clear),
-  .garment :global(.size-rm-btn) { min-width: 44px; min-height: 44px; }
-
-  .garment :global(.qty-input),
-  .garment :global(.sku-cat-pill),
-  .garment :global(.sku-fit-pill),
-  .garment :global(.supplier-tab),
-  .garment :global(.fit-option),
-  .garment :global(.garment-row),
-  .garment :global(.garment-expand-select),
-  .garment :global(.extras-accordion-toggle),
-  .garment :global(.extras-list-item),
-  .garment :global(.add-size-btn),
-  .garment :global(.btn-add-size),
-  .garment :global(.btn-cancel-size),
-  .garment :global(.sku-search-input),
-  .garment :global(.color-search-input) { min-height: 44px; }
-
-  .garment :global(.swatch) { min-width: 44px; min-height: 44px; }
 }
 
 /* Вкладка «Дизайн» (веха 5а): позиции — выпадающим списком над холстом */
