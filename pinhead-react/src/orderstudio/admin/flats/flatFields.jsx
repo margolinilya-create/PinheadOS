@@ -4,7 +4,11 @@ import { parseMm } from './flatParse';
 import base from '../../screens/Sales.module.css';
 import styles from './FlatEditor.module.css';
 
-const formatMm = (v) => (v == null || Number.isNaN(v) ? '' : String(v).replace('.', ','));
+/**
+ * Показ мм: до сотых, без хвоста плавающей точки (рамка зоны — разность углов:
+ * 598,8 − 238,8 = 359,99999999999994). Данные не трогаются — округлён только показ
+ */
+const formatMm = (v) => (v == null || Number.isNaN(v) ? '' : String(Math.round(v * 100) / 100).replace('.', ','));
 
 /** Текст ошибок поля — по нему `aria-describedby` */
 export function FieldErrors({ id, errors }) {

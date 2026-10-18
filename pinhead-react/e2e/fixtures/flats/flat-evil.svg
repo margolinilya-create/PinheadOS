@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 600 700" width="600mm" height="700mm" onload="window.__flatEvil = 'onload'">
+  <script>window.__flatEvil = 'script';</script>
+  <g id="garment">
+    <path d="M150 20 L450 20 L590 200 L520 260 L480 220 L480 690 L120 690 L120 220 L80 260 L10 200 Z" fill="#ffffff" stroke="#1a1a1a" stroke-width="2" onclick="window.__flatEvil = 'onclick'"/>
+    <image href="https://evil.example/track.png" x="0" y="0" width="10" height="10"/>
+    <use xlink:href="https://evil.example/sprite.svg#x"/>
+  </g>
+</svg>

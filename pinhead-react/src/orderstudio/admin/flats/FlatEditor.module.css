@@ -463,7 +463,8 @@
   .goBtn,
   .iconBtn,
   .checkLabel,
-  .details summary { min-height: 44px; }
+  .details summary,
+  .editor input[type='file'] { min-height: 44px; }
 
   .iconBtn,
   .chipX { min-width: 44px; }

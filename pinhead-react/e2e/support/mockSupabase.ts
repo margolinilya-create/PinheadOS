@@ -691,6 +691,14 @@ export type MockExtras = {
    * детерминированы.
    */
   storageObjects?: Record<string, { type: string; body: Buffer }>;
+  /**
+   * Ключи `storageObjects` (`<bucket>/<path>`), которых `list` НЕ показывает
+   * (веха 5б, задача 7): объект в бакете есть — загрузка по его пути получает
+   * 409 Duplicate, чтение отдаёт тело, — а список папки его не видит. Так
+   * воспроизводится гонка двух администраторов: номер версии заняли между
+   * `list` и загрузкой.
+   */
+  storageListHidden?: string[];
 };
 
 const MOCK_LAUNCH_STARTED = '2026-10-17T10:00:00Z';
@@ -1007,6 +1015,40 @@ function storageWrite(name: string, contentType: string, buf: Buffer, upsert: st
   }
   objects[name] = uploadedFile(contentType, buf);
   return { status: 200 };
+}
+
+/** Строка ответа `list` как у Storage: у «папки» `id: null` и нет метаданных */
+type StorageListRow = { name: string; id: string | null; metadata: Record<string, unknown> | null };
+
+/**
+ * `POST object/list/<bucket>` (`{ prefix, limit, offset }`): имена непосредственно
+ * под `prefix` из карты `storageObjects` — «папки» (`id: null`) и файлы, по
+ * алфавиту, страницей `offset…offset+limit`. Ключи `storageListHidden` не
+ * видны; папка, все объекты которой скрыты, не видна тоже. Без карты — `[]`
+ * (прежнее поведение).
+ */
+function storageList(bucket: string, body: Record<string, unknown>, extra: MockExtras): StorageListRow[] {
+  const objects = extra.storageObjects;
+  if (!objects) return [];
+  const prefix = String(body.prefix ?? '').replace(/\/+$/, '');
+  const base = `${bucket}/${prefix ? `${prefix}/` : ''}`;
+  const hidden = new Set(extra.storageListHidden ?? []);
+  const found = new Map<string, boolean>();
+  for (const key of Object.keys(objects)) {
+    if (hidden.has(key) || !key.startsWith(base)) continue;
+    const rest = key.slice(base.length);
+    const slash = rest.indexOf('/');
+    const name = slash < 0 ? rest : rest.slice(0, slash);
+    if (name) found.set(name, (found.get(name) ?? false) || slash >= 0);
+  }
+  const rows = [...found.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([name, folder]): StorageListRow => (folder
+      ? { name, id: null, metadata: null }
+      : { name, id: `mock-${name}`, metadata: { size: objects[`${base}${name}`].body.length, mimetype: objects[`${base}${name}`].type } }));
+  const offset = Number(body.offset ?? 0) || 0;
+  const limit = Number(body.limit ?? 100) || 100;
+  return rows.slice(offset, offset + limit);
 }
 
 /** Чтение `GET object/[authenticated/|sign/|public/]<bucket>/<path>`: тело из карты или 404 */
@@ -1444,6 +1486,7 @@ export const mockAnswersForTest = {
   },
   storageRead,
   storageWrite,
+  storageList,
 };
 
 export async function installSupabaseMock(page: Page, extra: MockExtras = {}): Promise<void> {
@@ -1556,7 +1599,7 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
       }
       if (op === 'list') {
         extra.calls?.push({ kind: 'storage-list', name: `${segs[1]}/${String(body.prefix ?? '')}`, body });
-        return json([]);
+        return json(storageList(segs[1], body, extra));
       }
       if (op === 'move' || op === 'copy') {
         const bucket = String(body.bucketId ?? '');
