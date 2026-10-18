@@ -136,6 +136,11 @@
 .spacer { flex: 1; }
 
 .sectionTitle {
+  /* Сжимается многоточием, а не выталкивает кнопки за край (481–560 px) */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--type-h3);
@@ -144,6 +149,7 @@
 }
 
 .iconBtn {
+  flex-shrink: 0;
   position: relative;
   width: 38px;
   height: 38px;
@@ -158,6 +164,32 @@
   font-size: var(--type-title);
 }
 .iconBtn:hover { background: var(--surface); }
+
+/* «в Производство»: иконка и подпись; на ≤ 480 px — только иконка 44 px (подпись — читалке) */
+.prodBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 38px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text-mid);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.prodBtn:hover { background: var(--surface); color: var(--text); }
+.prodBtn:focus-visible,
+.iconBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 
 .userChip {
   display: flex;
@@ -316,12 +348,22 @@
 @media (max-width: 480px) {
   .orderMain { padding: var(--space-md) 10px 40px; }
   .navLink { padding: 0 10px; gap: 6px; }
+  /* Заголовок раздела не помещается рядом с кнопками (бургер 44 + заголовок ≈ 180
+     + кнопки > 343 px): контекст дают h1 страницы и пункт меню */
+  .sectionTitle { display: none; }
+  .prodBtn { width: 44px; height: 44px; padding: 0; justify-content: center; }
+  /* Та же форма, что `.srOnly` в `orderstudio/ui/a11y.module.css`, — но только до 480 px */
+  .prodLabel {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 }
 
 /* Тач: цель нажатия не меньше 44 px */
 @media (pointer: coarse) {
   .navLink { min-height: 44px; height: auto; }
-  .iconBtn { min-width: 44px; min-height: 44px; }
+  .iconBtn,
+  .prodBtn { min-width: 44px; min-height: 44px; }
   .sidebarBrand { min-height: 44px; }
 }
 
@@ -335,9 +377,9 @@
     left: 0;
     transform: translateX(-100%);
     transition: transform var(--dur-base) var(--ease-out);
-    box-shadow: var(--shadow-modal);
   }
-  .sidebarOpen { transform: translateX(0); }
+  /* Тень — только у открытого: у закрытого она ложилась полосой на край контента */
+  .sidebarOpen { transform: translateX(0); box-shadow: var(--shadow-modal); }
   .sidebarScrim {
     position: fixed;
     inset: 0;

@@ -10,14 +10,15 @@ import { mergePrices } from '../../../store/slices/catalogSlice';
 import { patchPrices, PRICE_RULE_KEYS } from '../../../orderstudio/api/catalogAdmin';
 import { sameJson } from '../../../utils/sameJson';
 import { EmbroideryTab, DtfTab, DtgTab, MarkupGroupsTab } from './PricingRulesTabs';
+import { ScreenTab, FlexTab, ExtrasTab, HistoryTab } from './PricingMatrixTabs';
+import { Tabs, TabPanel } from '../../../erp/components/Tabs';
+import { Button } from '../../../erp/components/Button';
+import { ReadOnlyContext } from './readOnlyContext';
+import p from './Pricing.module.css';
 import { setIn, getIn } from '../../../utils/pathSet';
 
 const STORAGE_KEY = 'ph_prices';
 const HISTORY_KEY = 'ph_price_history';
-
-const FLEX_TIERS = [1, 20, 35, 50];
-const FLEX_FORMATS = ['A6', 'A5', 'A4', 'A3'];
-const FLEX_MAX_COLORS = 3;
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -45,21 +46,22 @@ function loadHistory() {
 }
 
 const TABS = [
-  { id: 'screen', name: 'Шелкография' },
-  { id: 'embroidery', name: 'Вышивка' },
-  { id: 'dtf', name: 'DTF' },
-  { id: 'dtg', name: 'DTG' },
-  { id: 'flex', name: 'Флекс' },
-  { id: 'markup', name: 'Наценки и накладные' },
-  { id: 'extras', name: 'Доп' },
-  { id: 'history', name: 'История' },
+  { id: 'screen', label: 'Шелкография' },
+  { id: 'embroidery', label: 'Вышивка' },
+  { id: 'dtf', label: 'DTF' },
+  { id: 'dtg', label: 'DTG' },
+  { id: 'flex', label: 'Флекс' },
+  { id: 'markup', label: 'Наценки и накладные' },
+  { id: 'extras', label: 'Доп' },
+  { id: 'history', label: 'История' },
 ];
 
 /**
  * PricingTabContent — pricing editor UI, designed to be embedded as a tab
  * inside SkuEditor. Accepts onDirtyChange callback to report dirty state.
+ * `readOnly` (телефон, ≤ 760 px) — просмотр: поля закрыты, сохранения и загрузки нет.
  */
-export default function PricingTabContent({ onDirtyChange }) {
+export default function PricingTabContent({ onDirtyChange, readOnly = false }) {
   const [tab, setTab] = useState('screen');
   // До ответа базы — прайс стора; сохранять можно только поверх прочитанного
   const [prices, setPrices] = useState(() => useStore.getState().prices);
@@ -231,215 +233,57 @@ export default function PricingTabContent({ onDirtyChange }) {
     setChanged(c => c + 1);
   };
 
-  /* ── Render helpers ── */
-
-  const renderScreenTab = () => (
-    <div className="pe-section">
-      <h3>Матрица шелкографии</h3>
-      <p className="pe-hint">Пороги тиража: {(prices.screenTiers || []).join(', ')}</p>
-      {(prices.screenFormats || ['A4', 'A3', 'A3+', 'Max']).map(fmt => (
-        <div key={fmt} className="pe-matrix-block">
-          <div className="pe-matrix-title">{fmt}</div>
-          <table className="pe-matrix-table">
-            <thead>
-              <tr>
-                <th>Цвета</th>
-                {(prices.screenTiers || []).map((t, i) => <th key={i}>{t}+</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: prices.screenMaxColors || 8 }, (_, c) => c + 1).map(c => (
-                <tr key={c}>
-                  <td className="pe-matrix-label">{c}</td>
-                  {(prices.screenMatrix?.[fmt]?.[c] || []).map((val, ti) => {
-                    const tier = (prices.screenTiers || [])[ti];
-                    return (
-                    <td key={ti}>
-                      <input
-                        type="number"
-                        className="pe-matrix-input"
-                        value={val}
-                        aria-label={`Шелкография ${fmt}, ${c} цв., тираж ${tier}+`}
-                        onChange={e => updateMatrix('screenMatrix', fmt, String(c), ti, e.target.value)}
-                      />
-                    </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-
-      <h3>Наценки шелкографии</h3>
-      <div className="pe-grid pe-grid-surcharges">
-        <p className="pe-hint">Надбавки «цветной» и «футер» не складываются — берётся большая, затем коэффициент эффекта.</p>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Цветной текстиль</span>
-          <input type="number" step="0.1" value={prices.screenColoredMult ?? 1.3} onChange={e => updateScalar('screenColoredMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Футер</span>
-          <input type="number" step="0.1" value={prices.screenFutherMult ?? 1.5} onChange={e => updateScalar('screenFutherMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">К. база</span>
-          <input type="number" step="0.1" value={prices.screenFxStoneMult ?? 2.0} onChange={e => updateScalar('screenFxStoneMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">PUFF</span>
-          <input type="number" step="0.1" value={prices.screenFxPuffMult ?? 1.5} onChange={e => updateScalar('screenFxPuffMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Металлик</span>
-          <input type="number" step="0.1" value={prices.screenFxMetallicMult ?? 1.2} onChange={e => updateScalar('screenFxMetallicMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Флюр</span>
-          <input type="number" step="0.1" value={prices.screenFxFluorMult ?? 1.2} onChange={e => updateScalar('screenFxFluorMult', e.target.value)} />
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Вытравка</span>
-          <input type="number" step="0.05" value={prices.screenFxDischargeMult ?? 1.35} onChange={e => updateScalar('screenFxDischargeMult', e.target.value)} />
-        </label>
-      </div>
-    </div>
-  );
-
-  const renderFlexTab = () => {
-    const matrix = prices.flexMatrix || DEFAULT_FLEX_MATRIX;
-    return (
-      <div className="pe-section">
-        <h3>Матрица флекс-печати</h3>
-        <p className="pe-hint">Пороги тиража: {FLEX_TIERS.join(', ')}</p>
-        {FLEX_FORMATS.map(fmt => (
-          <div key={fmt} className="pe-matrix-block">
-            <div className="pe-matrix-title">{fmt}</div>
-            <table className="pe-matrix-table">
-              <thead>
-                <tr>
-                  <th>Цвета</th>
-                  {FLEX_TIERS.map((t, i) => <th key={i}>{t}+</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: FLEX_MAX_COLORS }, (_, c) => c + 1).map(c => (
-                  <tr key={c}>
-                    <td className="pe-matrix-label">{c}</td>
-                    {(matrix[fmt]?.[c] || []).map((val, ti) => (
-                      <td key={ti}>
-                        <input
-                          type="number"
-                          className="pe-matrix-input"
-                          value={val}
-                          aria-label={`Флекс ${fmt}, ${c} цв., тираж ${FLEX_TIERS[ti]}+`}
-                          onChange={e => updateMatrix('flexMatrix', fmt, String(c), ti, e.target.value)}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-    );
+  const tabBody = {
+    screen: () => <ScreenTab prices={prices} onMatrix={updateMatrix} onScalar={updateScalar} />,
+    embroidery: () => <EmbroideryTab prices={prices} setAt={setAt} />,
+    dtf: () => <DtfTab prices={prices} setAt={setAt} />,
+    dtg: () => <DtgTab prices={prices} setAt={setAt} />,
+    flex: () => <FlexTab prices={prices} onMatrix={updateMatrix} />,
+    markup: () => <MarkupGroupsTab prices={prices} setAt={setAt} />,
+    extras: () => <ExtrasTab prices={prices} onScalar={updateScalar} />,
+    history: () => <HistoryTab history={history} onUndo={undoItem} readOnly={readOnly} />,
   };
 
-  const renderExtrasTab = () => (
-    <div className="pe-section">
-      <h3>Дополнительные услуги</h3>
-      <div className="pe-grid">
-        <label className="pe-input-row">
-          <span className="pe-input-label">Бирка</span>
-          <input type="number" value={prices.label ?? 30} onChange={e => updateScalar('label', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
-        </label>
-        <label className="pe-input-row">
-          <span className="pe-input-label">Упаковка</span>
-          <input type="number" value={prices.pack ?? 15} onChange={e => updateScalar('pack', e.target.value)} />
-          <span className="pe-input-unit">&#8381;</span>
-        </label>
-      </div>
-      <h3>Минимальный тираж по технике</h3>
-      <p className="pe-hint">Настраивается через конфигурацию заказа</p>
-    </div>
-  );
-
-  const renderHistoryTab = () => (
-    <div className="pe-section">
-      <h3>История изменений</h3>
-      {history.length === 0 ? (
-        <div className="pe-empty">Нет изменений</div>
-      ) : (
-        <div className="pe-history-list">
-          {history.map((h, i) => (
-            <div key={i} className="pe-history-item">
-              <div className="pe-history-field">{h.field}</div>
-              <div className="pe-history-change">
-                <span className="pe-history-was">{h.was}</span>
-                <span className="pe-history-arrow">&rarr;</span>
-                <span className="pe-history-now">{h.now}</span>
-              </div>
-              <div className="pe-history-time">{h.date} {h.time}</div>
-              <button className="pe-history-undo" onClick={() => undoItem(h)}>Отменить</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
-    <div className="pricing-tab-content">
+    <div className={p.root}>
       {loaded.state === 'conflict' && (
-        <div className="sku-ed-save-failed" role="alert">
+        <div className={p.notice} role="alert">
           <p>Прайс уже изменили — в другой вкладке, другой администратор или ERP. Ваши правки не сохранены. Загрузите свежую версию и внесите их снова.</p>
-          <button type="button" className="pe-btn" onClick={reload}>Загрузить свежую версию</button>
+          <Button onClick={reload}>Загрузить свежую версию</Button>
         </div>
       )}
       {loaded.state === 'fallback' && (
-        <div className="sku-ed-save-failed" role="status">
+        <div className={p.notice} role="status">
           <p>Прайс не загрузился — сохранение недоступно, чтобы не записать встроенные значения поверх базы.</p>
-          <button type="button" className="pe-btn" onClick={reload}>Загрузить снова</button>
+          <Button onClick={reload}>Загрузить снова</Button>
         </div>
       )}
 
-      {/* ── Actions ── */}
-      <div className="pricing-tab-actions">
-        <span className="pricing-tab-status">
-          {changed > 0 && <span className="pe-changed">{changed} изм.</span>}
-        </span>
-        <div className="pricing-tab-actions-right">
-          <button className="pe-btn" onClick={reset}>Сбросить к умолчаниям</button>
-          <button className="pe-btn" onClick={importJSON}>Импорт</button>
-          <button className="pe-btn" onClick={exportJSON}>Экспорт</button>
-          <button className="pe-btn pe-btn-primary" onClick={save} disabled={saving || loaded.state !== 'ready'}>{saving ? 'Сохраняю...' : 'Сохранить цены'}</button>
+      <div className={p.actions}>
+        <span aria-live="polite">{changed > 0 && <span className={p.changed}>{changed} изм.</span>}</span>
+        <div className={p.actionsRight}>
+          <Button icon="download" onClick={exportJSON}>Выгрузить JSON</Button>
+          {!readOnly && (
+            <>
+              <Button icon="undo" onClick={reset}>Сбросить к умолчаниям</Button>
+              <Button icon="arrowUpToLine" onClick={importJSON}>Загрузить JSON</Button>
+              <Button variant="primary" onClick={save} loading={saving} disabled={loaded.state !== 'ready'}>
+                {saving ? 'Сохраняю…' : 'Сохранить цены'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── Sub-tabs ── */}
-      <div className="pricing-sub-tabs">
-        {TABS.map(t => (
-          <button key={t.id} className={`pricing-sub-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.name}
-          </button>
-        ))}
+      <div className={p.subTabs}>
+        <Tabs idPrefix="sku-pricing" label="Разделы прайса" tabs={TABS} active={tab} onSelect={setTab} />
       </div>
 
-      {/* ── Body ── */}
-      <div className="pe-body">
-        {tab === 'screen' && renderScreenTab()}
-        {tab === 'embroidery' && <EmbroideryTab prices={prices} setAt={setAt} />}
-        {tab === 'dtf' && <DtfTab prices={prices} setAt={setAt} />}
-        {tab === 'dtg' && <DtgTab prices={prices} setAt={setAt} />}
-        {tab === 'flex' && renderFlexTab()}
-        {tab === 'markup' && <MarkupGroupsTab prices={prices} setAt={setAt} />}
-        {tab === 'extras' && renderExtrasTab()}
-        {tab === 'history' && renderHistoryTab()}
-      </div>
+      <TabPanel idPrefix="sku-pricing" active={tab} className={p.body}>
+        <ReadOnlyContext.Provider value={readOnly}>
+          {tabBody[tab]?.()}
+        </ReadOnlyContext.Provider>
+      </TabPanel>
     </div>
   );
 }

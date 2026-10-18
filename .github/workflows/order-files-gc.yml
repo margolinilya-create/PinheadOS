@@ -1,0 +1,68 @@
+# Еженедельный ОТЧЁТ о ничьих файлах заказа (`order-artworks`) и недописанных
+# версиях флэтов (`garment-flats`) — веха 8, задача 7, решение К8.
+#
+# Только отчёт: скрипт `pinhead-react/scripts/order-files-gc.mjs` кода удаления
+# не содержит. Удаляет лишь edge-функция `order-files-gc` по ручному вызову
+# администратора (`apply: true`) и только при секрете функции
+# `ORDER_FILES_GC_DELETE=1` — его ставит владелец после месяца отчётов.
+#
+# В summary — ТОЛЬКО ЧИСЛА. Пути `orders/<uuid>/<имя>` — транслит клиентских
+# файлов, часто бренд клиента: в лог Actions им нельзя. И в артефакт тоже:
+# репозиторий ПУБЛИЧНЫЙ, артефакт скачивает любой вошедший в GitHub (урок
+# storage-backup.yml, сессия 68). Поэтому `--paths-out` здесь не передаётся и
+# артефакта нет; пути — только в ответе edge-функции `order-files-gc`
+# администратору (запасной вариант К8) или при ручном локальном запуске скрипта.
+#
+# ТРЕБУЕТ СЕКРЕТОВ (как storage-backup.yml):
+#   SUPABASE_URL          — https://<ref>.supabase.co
+#   SUPABASE_SERVICE_KEY  — service_role ключ
+# Ключ service_role обходит RLS, поэтому workflow только читает.
+
+name: Order files GC report
+
+on:
+  schedule:
+    # Понедельник 03:10 UTC — ночь по Москве, после ночной копии Storage (02:30)
+    - cron: '10 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pinhead-react
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: pinhead-react/package-lock.json
+
+      - name: Проверить секреты
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::Не заданы SUPABASE_URL и/или SUPABASE_SERVICE_KEY — отчёт невозможен."
+            exit 1
+          fi
+
+      # Зависимости ставятся ДО шага с ключом: в окружении установки секретов нет
+      - run: npm ci --ignore-scripts
+
+      - name: Отчёт (только числа в summary)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          node scripts/order-files-gc.mjs

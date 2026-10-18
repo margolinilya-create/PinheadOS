@@ -3,7 +3,7 @@ import { useStore } from './store/useStore';
 import { ITEM_FIELDS, snapshotItem, restoreItem, defaultItemFields } from './store/useStore';
 import {
   calcTotal, getUnitPrice, getTotalQty, getSkuEstPrice, getTotalSurcharge,
-  getLabelConfigPrice, isAccessory, hasNoPrint,
+  isAccessory, hasNoPrint,
   calcItemTotal, getItemUnitPrice, getItemTotalQty,
   screenLookup, flexLookup, getZoneSurcharge,
 } from './utils/pricing';
@@ -542,7 +542,8 @@ describe('calcItemTotal', () => {
     expect(calcItemTotal(item, catalogs)).toBeGreaterThan(calcItemTotal(itemNo, catalogs));
   });
 
-  it('labels cost adds to price', () => {
+  // Бирки визарда v3 в цене не участвуют (веха 8, задача 4): цена бирок v4 — по библиотеке
+  it('labelConfig does not change item price', () => {
     const base = makeItemState();
     const withLabels = makeItemState({
       labelConfig: {
@@ -551,7 +552,7 @@ describe('calcItemTotal', () => {
         hangTag: { option: 'standard' },
       },
     });
-    expect(calcItemTotal(withLabels, catalogs)).toBeGreaterThan(calcItemTotal(base, catalogs));
+    expect(calcItemTotal(withLabels, catalogs)).toBe(calcItemTotal(base, catalogs));
   });
 });
 
@@ -1284,7 +1285,7 @@ describe('calcTotal — various scenarios', () => {
     expect(calcTotal(multi)).toBeGreaterThan(calcTotal(none));
   });
 
-  it('labels add cost', () => {
+  it('labelConfig does not add cost (v3 label pricing removed)', () => {
     const none = makeFullState();
     const labels = makeFullState({
       labelConfig: {
@@ -1293,7 +1294,7 @@ describe('calcTotal — various scenarios', () => {
         hangTag: { option: 'custom' },
       },
     });
-    expect(calcTotal(labels)).toBeGreaterThan(calcTotal(none));
+    expect(calcTotal(labels)).toBe(calcTotal(none));
   });
 
   it('4 zone prints more expensive than 1', () => {
@@ -1341,41 +1342,6 @@ describe('isAccessory / hasNoPrint — extended', () => {
   it('hasNoPrint: tee', () => { expect(hasNoPrint('tee')).toBe(false); });
   it('hasNoPrint: hoodie', () => { expect(hasNoPrint('hoodie')).toBe(false); });
   it('hasNoPrint: shopper', () => { expect(hasNoPrint('shopper')).toBe(false); });
-});
-
-describe('getLabelConfigPrice — extended', () => {
-  it('care only no-logo', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: true, logoOption: 'no-logo' },
-      mainLabel: { option: 'none' }, hangTag: { option: 'none' },
-    })).toBe(10);
-  });
-  it('care only send-own (no delta match)', () => {
-    // send-own is not in the delta list, so delta = 0, total = 10
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: true, logoOption: 'send-own' },
-      mainLabel: { option: 'none' }, hangTag: { option: 'none' },
-    })).toBe(10);
-  });
-  it('main only standard woven', () => {
-    // standard = 30, woven delta = 0
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: false },
-      mainLabel: { option: 'standard', material: 'woven' },
-      hangTag: { option: 'none' },
-    })).toBe(30);
-  });
-  it('hang only standard', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: false },
-      mainLabel: { option: 'none' },
-      hangTag: { option: 'standard' },
-    })).toBe(15);
-  });
-  it('null/undefined config returns 0', () => {
-    expect(getLabelConfigPrice(null)).toBe(0);
-    expect(getLabelConfigPrice(undefined)).toBe(0);
-  });
 });
 
 describe('getTotalSurcharge — multi-zone', () => {
@@ -1502,26 +1468,9 @@ describe('Data references in items', () => {
   it('findColorEntry returns null for invalid', () => { expect(findColorEntry('INVALID')).toBeNull(); });
 });
 
-describe('Store: reorderSku', () => {
-  it('reorders SKU catalog', () => {
-    const first = useStore.getState().skuCatalog[0].code;
-    const second = useStore.getState().skuCatalog[1].code;
-    useStore.getState().reorderSku(second, first);
-    expect(useStore.getState().skuCatalog[0].code).toBe(second);
-    expect(useStore.getState().skuCatalog[1].code).toBe(first);
-  });
-
-  it('reorder with same code does nothing', () => {
-    const before = [...useStore.getState().skuCatalog];
-    useStore.getState().reorderSku('T-001', 'T-001');
-    expect(useStore.getState().skuCatalog.map(s => s.code)).toEqual(before.map(s => s.code));
-  });
-
-  it('reorder with invalid code does nothing', () => {
-    const before = useStore.getState().skuCatalog.length;
-    useStore.getState().reorderSku('INVALID', 'T-001');
-    expect(useStore.getState().skuCatalog).toHaveLength(before);
-  });
+// `reorderSku` удалён (веха 8, задача 3): перетаскивания в списке моделей нет с вехи 4
+it('стор без reorderSku — мёртвое действие удалено', () => {
+  expect(useStore.getState().reorderSku).toBeUndefined();
 });
 
 describe('Store: setOneSizeQty edge cases', () => {

@@ -25,6 +25,8 @@ import type {
 } from '../model/types';
 import type { OrderPrice } from '../pricing/priceOrder';
 import { orderUrgentDays } from '../pricing/priceOrder';
+import { ZONE_ID_RE } from '../catalog/tzRows';
+import { markServerZoneNotes, rowKnowsZoneNotes } from './serverZoneNotes';
 
 
 /**
@@ -91,6 +93,11 @@ function partColors(v: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, c]) => [k, str(c)]));
 }
 
+/** Код зоны по формату справочника (`ZONE_ID_RE`); иное — null (сервер K отказал бы всему сохранению) */
+export function zoneIdOf(v: unknown): string | null {
+  return typeof v === 'string' && ZONE_ID_RE.test(v) ? v : null;
+}
+
 function layoutFromRow(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : null;
 }
@@ -110,6 +117,7 @@ function printFromRow(r: Row): SalesPrint {
     key: r.id,
     method: r.method,
     zone: str(r.zone),
+    zone_id: zoneIdOf(r.zone_id),
     sizes: r.sizes ?? [],
     width_mm: num(r.width_mm),
     height_mm: num(r.height_mm),
@@ -240,6 +248,7 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     erp_order_id: r.erp_order_id ?? null,
     sticker_preview_path: str(r.sticker_preview_path),
     notes_cards: [...(r.order_notes_cards ?? [])].sort(bySort).map(noteCardFromRow),
+    notes: str(r.notes),
     // Неизвестная отметка оплаты — «нет отметки», а не выдуманная предоплата
     paid_kind: PAID_KINDS.includes(r.paid_kind) ? (r.paid_kind as PaidKind) : null,
     paid_override_reason: r.paid_override_reason ?? null,
@@ -257,8 +266,21 @@ export function rowToSalesOrder(r: Row): SalesOrder {
  * Ревизия клиента: сервер (миграция D) отказывает сохранению с меньшей —
  * вкладка, открытая до выкладки, не сотрёт поля, о которых не знает.
  * Поднимать, когда payload получает поле, которое старый клиент затёр бы.
+ * 4 — веха 8 (миграция K): `zone_id` нанесения и `notes` заказа. Пара
+ * «клиент + миграция»: порог K в `order_v4_save_full` равен ей (сторож orderV4M8).
  */
-export const SALES_CLIENT_REV = 3;
+export const SALES_CLIENT_REV = 4;
+
+export interface PayloadOpts {
+  /** Сервер знает `zone_id` и `notes` (миграция K) — поля уходят в сохранение */
+  zoneNotes?: boolean;
+}
+
+/** Нанесение в payload: без `zone_id`, пока сервер его не знает; код не по формату — null */
+function printPayload(pr: SalesPrint, zoneNotes: boolean): Row {
+  const { zone_id, ...rest } = pr;
+  return zoneNotes ? { ...rest, zone_id: zoneIdOf(zone_id) } : rest;
+}
 
 /**
  * Заказ → аргумент `order_v4_save`. Цена — снимок расчёта на момент
@@ -271,8 +293,9 @@ export const SALES_CLIENT_REV = 3;
  * её со строкой и отказывает, если заказ успели сохранить из другой вкладки.
  * У нового заказа (и у строки без версии) ключа нет — сверять не с чем.
  */
-export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null): Row {
+export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null, opts: PayloadOpts = {}): Row {
   const byKey = new Map((price?.items ?? []).map((p) => [p.key, p]));
+  const zoneNotes = opts.zoneNotes === true;
   return {
     client_rev: SALES_CLIENT_REV,
     ...(order.id && order.updated_at ? { expected_updated_at: order.updated_at } : {}),
@@ -298,13 +321,15 @@ export function salesOrderToPayload(order: SalesOrder, price?: OrderPrice | null
     urgent: order.urgent,
     urgent_days: orderUrgentDays(order),
     discount: order.discount,
+    // Нет ключа — сервер K комментарий не трогает (`p_order ? 'notes'`)
+    ...(zoneNotes ? { notes: order.notes } : {}),
     price_total: price ? price.total : null,
     price_margin_pct: price ? price.margin_pct : null,
     items: order.items.map((it) => {
       const p = byKey.get(it.key);
       return {
         ...it,
-        prints: it.prints.map((pr) => ({ ...pr })),
+        prints: it.prints.map((pr) => printPayload(pr, zoneNotes)),
         labels: it.labels.map((l) => ({ ...l })),
         price_unit: p ? p.unit : null,
         price_total: p ? p.total : null,
@@ -385,6 +410,7 @@ export async function fetchSalesOrder(id: string): Promise<SalesOrder | null> {
     toast.error('Заказ не найден или недоступен');
     return null;
   }
+  if (rowKnowsZoneNotes(data as Row)) markServerZoneNotes();
   return rowToSalesOrder(data as Row);
 }
 
@@ -392,6 +418,8 @@ export interface SaveResult {
   id: string;
   order_number: string;
   updated_at: string;
+  /** Комментарий для цехов — ответ сервера после миграции K; нет ключа — сервер старше K */
+  notes?: string;
 }
 
 /** Почему сохранение не прошло — от этого зависит, что делать карточке */

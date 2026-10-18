@@ -31,7 +31,7 @@ vi.mock('./supabase', () => ({
   },
 }));
 
-const { loadAllCatalogs, clearCatalogsCache, fetchCatalogKey } = await import('./catalogs');
+const { loadAllCatalogs, clearCatalogsCache, fetchCatalogKey, LEGACY_CATALOG_CONFIG_KEYS } = await import('./catalogs');
 const { sessionGet, sessionRemove } = await import('./storage');
 const { toast } = await import('../store/useToastStore');
 
@@ -65,6 +65,25 @@ describe('loadAllCatalogs', () => {
     const result = await loadAllCatalogs();
     expect(result.fabricsCatalog).toEqual([{ id: 'f1' }]);
     expect(result.skuCatalog).toEqual([{ code: 'T1' }]);
+  });
+
+  it('старые ключи catalog_config (prices, labels, extras, fabrics) не грузятся — К7 вехи 8', async () => {
+    mockCatalogSelect.mockResolvedValue({
+      data: [
+        { key: 'prices', value: { old: true } },
+        { key: 'labels', value: [1] },
+        { key: 'extras', value: [2] },
+        { key: 'fabrics', value: [3] },
+        { key: 'trimCatalog', value: [{ id: 't1' }] },
+      ],
+      error: null,
+    });
+    mockAppSelect.mockResolvedValue({ data: [], error: null });
+
+    const result = await loadAllCatalogs();
+    expect(LEGACY_CATALOG_CONFIG_KEYS).toEqual(['prices', 'labels', 'extras', 'fabrics']);
+    for (const k of LEGACY_CATALOG_CONFIG_KEYS) expect(result, k).not.toHaveProperty(k);
+    expect(result.trimCatalog).toEqual([{ id: 't1' }]);
   });
 
   it('флэты (garmentFlats) в общую загрузку не входят — дизайн читает их сам', async () => {

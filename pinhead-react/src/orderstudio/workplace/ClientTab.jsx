@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { orderUrgentDays } from '../pricing/priceOrder';
 import { URGENT_DAY_OPTIONS, URGENT_BY_DAYS } from '../../utils/costRules';
 import { usePackagingOptions } from '../screens/labels';
+import { useSalesStore } from '../store/useSalesStore';
 import DiscountField from './DiscountField';
+import OrderNotesField from './OrderNotesField';
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
 
@@ -10,10 +12,15 @@ import styles from './Workplace.module.css';
  * Вкладка «Клиент и доставка»: шапка заказа, доставка и упаковка заказа,
  * срочность, скидка. Менеджер — только для чтения: это автор заказа,
  * имя приходит из его профиля при создании, а не набирается руками.
+ *
+ * «Комментарий для цехов» (веха 8) — только когда сервер знает поле
+ * (`serverHasNotes`, миграция K): старый сервер молча его пропустил бы,
+ * и после F5 текст пропал бы.
  */
 export default function ClientTab({ order, readOnly, onChange, focusFirst = false, onFocused }) {
   const firstRef = useRef(null);
   const packOptions = usePackagingOptions();
+  const serverHasNotes = useSalesStore((s) => s.serverHasNotes);
   // Первое поле получает фокус, только когда сюда пришли кнопкой «Далее»;
   // стрелки и клик по вкладке фокус с tablist не уводят (WAI-ARIA Tabs).
   useEffect(() => {
@@ -59,6 +66,9 @@ export default function ClientTab({ order, readOnly, onChange, focusFirst = fals
           </label>
           <DiscountField discount={order.discount} onChange={(discount) => onChange({ discount })} />
         </div>
+        {serverHasNotes && (
+          <OrderNotesField value={order.notes ?? ''} onChange={(notes) => onChange({ notes })} />
+        )}
       </section>
 
       <section className={sales.panel} aria-labelledby="wp-delivery-head">

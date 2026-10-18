@@ -6,6 +6,10 @@ import { FIXTURE_OPTS, fixtureCatalogs } from '../../fixtures/loadFixture.testut
 import { tzGroups } from './tzGroups';
 import { SPECIAL_LABELS, byColor, fmtDate, tzDocument } from './tzDocument';
 import { tzGrid } from './tzGrid';
+import type { TextileCatalogs } from '../../model/garmentTextile';
+
+/** Без палитр: подложка — по слову «белый» в подписи цвета */
+const NO_CAT: TextileCatalogs = { suppliers: [], fabricsCatalog: [] };
 
 const cat = fixtureCatalogs();
 
@@ -38,11 +42,11 @@ describe('tzDocument — граничные случаи', () => {
 
   it('разный tz_comment печатается по цветам, одинаковый — один раз', () => {
     const a = item({ tz_comment: 'Вышивка в цвет' });
-    const b = { ...duplicateInColor(a, 'Белый'), tz_comment: 'Вышивка тёмно-синяя' };
+    const b = { ...duplicateInColor(a, 'Белый', NO_CAT), tz_comment: 'Вышивка тёмно-синяя' };
     expect(docOf([a, b]).header.comments).toEqual([
       { label: 'Чёрный', text: 'Вышивка в цвет' }, { label: 'Белый', text: 'Вышивка тёмно-синяя' },
     ]);
-    const c = { ...duplicateInColor(a, 'Белый'), tz_comment: ' Вышивка в цвет ' };
+    const c = { ...duplicateInColor(a, 'Белый', NO_CAT), tz_comment: ' Вышивка в цвет ' };
     expect(docOf([a, c]).header.comments).toEqual([{ label: null, text: 'Вышивка в цвет' }]);
     expect(byColor([{ item: a, text: '' }])).toEqual([]);
   });
@@ -71,7 +75,7 @@ describe('tzDocument — граничные случаи', () => {
 
   it('неактивный размер и пустая позиция в сетку не идут', () => {
     const a = item({ size_grid: { sizes: ['S'], rows: [{ color: 'Чёрный', sizes: { S: 1, M: 9 } }] } });
-    const empty = { ...duplicateInColor(a, 'Белый') };
+    const empty = { ...duplicateInColor(a, 'Белый', NO_CAT) };
     const g = tzGrid([a, empty]);
     expect(g.rows).toEqual([{ color: 'Чёрный', cells: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0], total: 1 }]);
   });
@@ -84,7 +88,7 @@ describe('tzDocument — граничные случаи', () => {
       { ...back, pantone: ['Red 032 C'], comment: 'спина чёрной' },
     ] });
     const white = {
-      ...duplicateInColor(black, 'Белый'),
+      ...duplicateInColor(black, 'Белый', NO_CAT),
       size_grid: { sizes: ['S', 'M'], rows: [{ color: 'Белый', sizes: { S: 1, M: 1 } }] },
       prints: [
         { ...back, key: 'wb', pantone: ['Navy 289 C'], comment: 'спина белой' },
@@ -101,7 +105,7 @@ describe('tzDocument — граничные случаи', () => {
 
   it('две позиции одного цвета в группе — одна строка сетки, штуки сложены', () => {
     const a = item();
-    const b = { ...duplicateInColor(a, 'Чёрный'), size_grid: { sizes: ['S', 'M'], rows: [{ color: ' Чёрный ', sizes: { S: 4, M: 0 } }] } };
+    const b = { ...duplicateInColor(a, 'Чёрный', NO_CAT), size_grid: { sizes: ['S', 'M'], rows: [{ color: ' Чёрный ', sizes: { S: 4, M: 0 } }] } };
     const g = tzGrid([a, b]);
     expect(g.rows).toEqual([{ color: 'Чёрный', cells: [0, 0, 5, 2, 0, 0, 0, 0, 0, 0], total: 7 }]);
     expect(g.total).toBe(7);

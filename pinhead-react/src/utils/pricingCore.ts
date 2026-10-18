@@ -17,7 +17,6 @@
 import { FLEX_MATRIX } from '../data/prices';
 import type { Prices, PriceBreakdown } from '../types/pricing';
 import type { SkuItem, Fabric, Trim } from '../types/catalog';
-import type { LabelConfig } from '../types/order';
 import * as cost from './costRules';
 import * as prints from './printRules';
 
@@ -318,9 +317,11 @@ export function skuCostOf(sku: SkuItem, state: PricingState): cost.SkuCost {
 }
 
 /**
- * Бирки, ₽ за штуку — ставки визарда. Одни и те же функции считают визард
- * (`getLabelConfigPrice`) и Order v4 (`priceOrder`), чтобы при переносе
- * заказа цена не расходилась (правка 16.10: v4 бирок не считал вовсе).
+ * Бирки, ₽ за штуку — прежние ставки визарда. Читают их Order v4 (`priceOrder`,
+ * запасной путь `legacyLabelPrice` для бирки вне библиотеки) и сид библиотеки
+ * бирок (`catalog/seeds.ts`). Расчёт бирок визарда v3 по `labelConfig`
+ * (`getLabelConfigPrice`) удалён в вехе 8 (задача 4): UI бирок визарда убран
+ * в вехе 3, и мёртвое поле буфера не должно менять цену.
  */
 const CARE_LABEL_BASE = 10;
 const CARE_LOGO_DELTA: Record<string, number> = { 'my-logo': 20, 'no-logo': 0, standard: 0 };
@@ -340,17 +341,6 @@ export function mainLabelPrice(option?: string, material?: string): number {
 
 export function hangTagPrice(option?: string): number {
   return HANG_TAG_PRICE[option ?? ''] || 0;
-}
-
-export function getLabelConfigPrice(labelConfig: LabelConfig | null | undefined): number {
-  if (!labelConfig) return 0;
-  let total = 0;
-  if (labelConfig.careLabel?.enabled) total += careLabelPrice(labelConfig.careLabel.logoOption);
-  if (labelConfig.mainLabel?.option !== 'none') {
-    total += mainLabelPrice(labelConfig.mainLabel?.option, labelConfig.mainLabel?.material);
-  }
-  if (labelConfig.hangTag?.option !== 'none') total += hangTagPrice(labelConfig.hangTag?.option);
-  return total;
 }
 
 /** Упаковка, ₽ за штуку, по виду (`packOptions`: none/bopp/zip); `other` — по договорённости, 0 */
@@ -387,14 +377,15 @@ export function calcTotal(P: PricesExt, state: PricingState, debug = false): num
  *
  * Изделие с моделью: (ткань + отделка + пошив + доп. материалы + обработки)
  *   × (1 + накладные) × (1 + наценка) × (1 + срочность пошива).
- * Нанесения, бирки и упаковка — сверху, без накладных, наценки и срочности.
+ * Нанесения и упаковка — сверху, без накладных, наценки и срочности
+ * (бирки визарда v3 в цене не участвуют с вехи 8; бирки v4 считает `priceOrder`).
  * Без модели (старый путь по типу) — прежняя база без накладных.
  */
 export function calcTotalBreakdown(P: PricesExt, state: PricingState): PriceBreakdown {
   const qty = getTotalQty(state);
   const urgentPct = cost.urgentRate(P, state.urgentDays, !!state.urgentOption);
   const empty: PriceBreakdown = {
-    cost: 0, markup: 0, markupPct: 0, markedBase: 0, base: 0, extras: 0, labels: 0, print: 0, pack: 0,
+    cost: 0, markup: 0, markupPct: 0, markedBase: 0, base: 0, extras: 0, print: 0, pack: 0,
     discount: 0, urgent: 0, unitPrice: 0, total: 0, qty: 0,
     fabric: 0, trim: 0, sewing: 0, extraMaterials: 0, overhead: 0, overheadPct: 0, urgentPct, fabricMissing: false,
   };
@@ -430,18 +421,17 @@ export function calcTotalBreakdown(P: PricesExt, state: PricingState): PriceBrea
   const urgent = cost.round2(garment * urgentPct);
   const garmentFinal = Math.round(garment + urgent);
 
-  const labels = getLabelConfigPrice(state.labelConfig);
   const print = getTotalSurcharge(P, state);
   const packType = state.packType || (state.packOption ? 'bopp' : 'none');
   const hasOpt = (P.packOptions || []).some((o: { key: string }) => o.key === packType);
   const pack = hasOpt ? packPrice(P, packType) : (state.packOption ? (P.pack || 0) : 0);
 
-  const unitPrice = garmentFinal + labels + print + pack;
+  const unitPrice = garmentFinal + print + pack;
   return {
     cost: costPrice, base: costPrice,
     markup: markupAmount, discount: markupAmount, markupPct,
     markedBase: Math.round(garment),
-    extras, labels, print, pack,
+    extras, print, pack,
     urgent: Math.round(urgent), urgentPct,
     unitPrice, total: Math.round(qty * unitPrice), qty,
     fabric: parts.fabric, trim: parts.trim, sewing: parts.sewing, extraMaterials: parts.extraMaterials,

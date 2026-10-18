@@ -197,9 +197,9 @@ describe('salesOrderToPayload', () => {
   });
 
   it('ревизия клиента — в каждом сохранении (сервер отказывает устаревшей вкладке)', () => {
-    expect(SALES_CLIENT_REV).toBe(3);
-    expect(salesOrderToPayload(newSalesOrder()).client_rev).toBe(3);
-    expect(salesOrderToPayload(fullOrder()).client_rev).toBe(3);
+    expect(SALES_CLIENT_REV).toBe(4);
+    expect(salesOrderToPayload(newSalesOrder()).client_rev).toBe(4);
+    expect(salesOrderToPayload(fullOrder()).client_rev).toBe(4);
   });
 
   it('версия заказа уходит как expected_updated_at; у нового и у строки без версии ключа нет', () => {

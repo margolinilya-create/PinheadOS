@@ -11,6 +11,13 @@ on:
         description: 'Update visual snapshots (baseline)'
         type: boolean
         default: false
+      # Какие эталоны переснимать (`--grep`). По умолчанию — только раздел
+      # «Оформление заказа» (`studio-`): эталоны `erp-*` пересъёмкой не узакониваются
+      # (веха 8, задача 9, К13), и шаг-сторож ниже валит коммит, тронувший не-`studio-`
+      snapshots_grep:
+        description: 'Which visual snapshots to update (--grep), default studio-'
+        type: string
+        default: 'studio-'
 
 # Новый пуш в ту же ветку отменяет прогон предыдущего: результат по
 # устаревшему коммиту никому не нужен, а минуты раннера — общие
@@ -113,7 +120,12 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
       - run: npx playwright install-deps chromium
         if: steps.pw-cache.outputs.cache-hit == 'true'
-      - run: npx playwright test --grep-invert "visual:"
+      # Смены обхода `@walk` (e2e/walk, веха 8) — своим шагом ниже, только desktop
+      - run: npx playwright test --grep-invert "visual:|@walk"
+      # «Смены» живых сотрудников (продавец, МС, rop, дизайнер): каждый шаг —
+      # утверждение следующего действия по роли. 375 px гоняет агент локально
+      - name: Смены обхода (@walk, desktop)
+        run: npx playwright test --grep @walk --project desktop
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -189,9 +201,14 @@ jobs:
             echo "::error::Эталонов нет. Запустите workflow_dispatch с update_snapshots=true на своей ветке — снимки закоммитятся туда и пройдут ревью в PR."
             exit 1
           fi
-      - run: |
+      # Пересъёмка — только эталоны по `snapshots_grep` (по умолчанию `studio-`):
+      # прежняя `--update-snapshots` без фильтра переписывала ВСЕ эталоны, и любой
+      # сдвиг ERP молча узаконивался бы вместе с правками раздела заказа
+      - env:
+          GREP: ${{ inputs.snapshots_grep || 'studio-' }}
+        run: |
           if [ "${{ inputs.update_snapshots }}" = "true" ]; then
-            npx playwright test e2e/visual.spec.ts --update-snapshots
+            npx playwright test e2e/visual.spec.ts --update-snapshots --grep "$GREP"
           else
             npx playwright test e2e/visual.spec.ts
           fi
@@ -206,6 +223,14 @@ jobs:
           git add e2e/visual.spec.ts-snapshots
           git diff --cached --quiet && echo "Эталоны не изменились" && exit 0
           git commit -m "test(visual): обновление эталонных скриншотов"
+          # Сторож (веха 8, задача 9): коммит пересъёмки не трогает ни один
+          # эталон вне `studio-` — иначе это узаконенный сдвиг ERP. До push:
+          # красный шаг не отправляет коммит в ветку
+          changed=$(git diff --name-only HEAD~1 HEAD -- e2e/visual.spec.ts-snapshots | grep -v '/studio-' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::Пересъёмка тронула эталоны вне studio-: $changed"
+            exit 1
+          fi
           git push origin HEAD:${{ github.ref_name }}
       - uses: actions/upload-artifact@v4
         if: failure()

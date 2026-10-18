@@ -106,7 +106,7 @@ function renderFetched(order) {
 }
 
 const current = () => useSalesStore.getState().current;
-const swatches = (root = document) => [...root.querySelectorAll('.swatch')];
+const swatches = (root = document) => [...root.querySelectorAll('[data-swatch-circle]')].map((c) => c.closest('button'));
 /** Образец цвета, которого нет у позиции: код из подписи «Имя (код)» */
 function otherSwatch() {
   const el = swatches().find((s) => s.getAttribute('aria-pressed') === 'false');
@@ -158,6 +158,20 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     expect(current().items[1].size_grid.rows[0].color).toContain(code);
   });
 
+  it('«+ Нанесение» на цветном изделии — с подложкой «цветное», на белом — «белое» (обход, H-2)', () => {
+    const dark = itemA({ size_grid: { sizes: ['S'], rows: [{ color: 'Сиреневый (14-02)', sizes: { S: 30 } }] } });
+    renderWp(newSalesOrder({ id: 'o-1', items: [dark, itemA()] }), `?tab=item&item=${dark.key}`);
+    fireEvent.click(screen.getByRole('button', { name: '+ Нанесение' }));
+    expect(current().items[0].prints.map((p) => p.textile)).toEqual(['color']);
+  });
+
+  it('«+ Нанесение» на белом изделии — «белое»', () => {
+    const a = itemA();
+    renderWp(newSalesOrder({ id: 'o-1', items: [a] }), `?tab=item&item=${a.key}`);
+    fireEvent.click(screen.getByRole('button', { name: '+ Нанесение' }));
+    expect(current().items[0].prints.map((p) => p.textile)).toEqual(['white']);
+  });
+
   it('правка на «Изделии» сохраняется с ценой заказа', async () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
     fireEvent.click(otherSwatch().el);
@@ -178,9 +192,10 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     expect(screen.getAllByRole('button', { name: /^Разнести по цветам/ }).length).toBeGreaterThan(0);
   });
 
-  it('разнесение с плашки спрашивает и делает две позиции', async () => {
+  it('разнесение с плашки спрашивает и делает две позиции; подложка — по цвету строки (обход H-2)', async () => {
     const multi = itemA({
       size_grid: { sizes: ['S'], rows: [{ color: 'Белый', sizes: { S: 1 } }, { color: 'Чёрный', sizes: { S: 2 } }] },
+      prints: [newSalesPrint({ method: 'silkscreen', textile: 'white' })],
     });
     renderWp(newSalesOrder({ id: 'o-1', items: [multi] }));
     const ask = vi.spyOn(confirmStore, 'confirm').mockResolvedValue(true);
@@ -188,6 +203,7 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Разнести по цветам' }));
     await waitFor(() => expect(current().items).toHaveLength(2));
     expect(ask).toHaveBeenCalled();
+    expect(current().items.map((it) => it.prints[0].textile)).toEqual(['white', 'color']);
   });
 
   it('пустой заказ — «Добавить изделие», и только кнопка создаёт позицию', () => {
@@ -200,10 +216,10 @@ describe('OrderWorkplace — вкладка «Изделие»', () => {
 
   it('ткань клиента: флажок пишет позицию и прячет выбор ткани', () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    expect(document.querySelector('.fabric-section')).not.toBeNull();
+    expect(document.getElementById('garment-fabric-title')).not.toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Ткань клиента (в цену не входит)' }));
     expect(current().items[0].client_fabric).toBe(true);
-    expect(document.querySelector('.fabric-section')).toBeNull();
+    expect(document.getElementById('garment-fabric-title')).toBeNull();
   });
 
   it('кнопки «−» и «+» размеров названы по размеру, цены в таблице размеров нет', () => {
@@ -280,8 +296,24 @@ describe('OrderWorkplace — вкладки', () => {
 
   it('маркеры готовности: изделие готово, клиент не заполнен', () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    expect(screen.getByRole('tab', { name: 'Изделие ✓' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Изделие — готово' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Клиент — не заполнено' })).toBeInTheDocument();
+  });
+
+  /**
+   * 375 px (веха 8, задача 5): у каждого маркера есть точка-значок для глаза
+   * (`aria-hidden`, видна на ≤ 480 px), текст остаётся в имени вкладки;
+   * «готово» — иконкой, без глифа ✓
+   */
+  it('маркеры: точка-значок aria-hidden, текст в имени, «готово» — иконкой', () => {
+    renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
+    const dot = screen.getByTestId('tab-mark-client');
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(dot.textContent).toBe('');
+    const item = screen.getByRole('tab', { name: 'Изделие — готово' });
+    expect(item.textContent).not.toContain('✓');
+    expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByTestId('tab-mark-item')).toBeNull();
   });
 
   it('менеджер на вкладке клиента — только чтение', () => {
@@ -312,13 +344,17 @@ describe('OrderWorkplace — вкладка «Дизайн» (веха 5а)', ()
   it('маркер вкладки: «— не размещено N», когда строки без холста', () => {
     const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout }), newSalesPrint({ zone: 'Рукав' })] });
     renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
-    expect(screen.getByRole('tab', { name: 'Дизайн — не размещено 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Дизайн — не размещено: 1' })).toBeInTheDocument();
+    // На ≤ 480 px глазу — бейдж с числом, без слов (aria-hidden)
+    const badge = screen.getByTestId('tab-mark-design');
+    expect(badge.textContent).toBe('1');
+    expect(badge).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('все нанесения на холсте — ✓; нанесений нет — без маркера', () => {
+  it('все нанесения на холсте — «готово»; нанесений нет — без маркера', () => {
     const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout })] });
     const { unmount } = renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
-    expect(screen.getByRole('tab', { name: 'Дизайн ✓' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Дизайн — готово' })).toBeInTheDocument();
     unmount();
     renderWp(newSalesOrder({ id: 'o-2', items: [itemA()] }));
     expect(screen.getByRole('tab', { name: 'Дизайн' })).toBeInTheDocument();
@@ -416,7 +452,7 @@ describe('OrderWorkplace — сохранение и только чтение',
 
   it('рабочее место не пишет в app_config (перетаскивание моделей выключено)', async () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    const rows = [...document.querySelectorAll('.garment-row')];
+    const rows = [...document.querySelectorAll('[role="button"][aria-expanded]')];
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.every((r) => r.getAttribute('draggable') !== 'true')).toBe(true);
     fireEvent.drop(rows[1], { dataTransfer: { dropEffect: 'move' } });

@@ -4,9 +4,27 @@ import appStyles from '../../App.module.css';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { useTheme } from '../../hooks/useTheme';
-import { setFeature } from '../../config/features';
+import { switchToProduction } from '../switchToProduction';
+import { ROLE_LABELS } from '../../data/roles';
+import { canUseSales } from './orderNav';
 import { OrderSidebar } from './OrderSidebar';
 import styles from './OrderLayout.module.css';
+
+/** Роли руководства: их подпись главнее отметок продаж (`is_sales`/`is_ms`) */
+const LEAD_ROLES = ['admin', 'director', 'rop'];
+
+/**
+ * Подпись роли в шапке: в разделе важна роль продаж; код роли человек не читает (обход, M-2).
+ * Руководство с отметкой «Ведёт заказы» остаётся «РОП»/«Админ»/«Директор» — отметка
+ * добавляет ему работу, а не меняет должность (раунд 1).
+ */
+function roleCaption(user) {
+  if (!user) return '';
+  if (LEAD_ROLES.includes(user.role)) return ROLE_LABELS[user.role];
+  if (user.is_ms) return 'Менеджер сопровождения';
+  if (user.is_sales) return 'Менеджер продаж';
+  return ROLE_LABELS[user.role] ?? user.role ?? '';
+}
 
 /**
  * Оболочка раздела «ТЗ» в стиле ERP (стили — снимок ERP, см. шапку OrderLayout.module.css): сайдбар, шапка, область прокрутки.
@@ -20,7 +38,9 @@ import styles from './OrderLayout.module.css';
  */
 
 export default function OrderLayout({ user, children }) {
-  const isAdmin = ['admin', 'director'].includes(user?.role);
+  // «в Производство» — всем с доступом к разделу (веха 8, К1). Помнит ли выбор,
+  // решает `switchToProduction`: admin/director — да, продавец/МС/rop — один заход
+  const canLeave = canUseSales(user);
   const { theme, toggleTheme } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
 
@@ -52,18 +72,17 @@ export default function OrderLayout({ user, children }) {
           <span className={styles.sectionTitle}>Оформление заказа</span>
           <div className={styles.spacer} />
 
-          {isAdmin && (
+          {canLeave && (
             <button
               type="button"
-              className={styles.iconBtn}
-              title="Перейти в Производство"
-              aria-label="Перейти в Производство"
-              onClick={() => {
-                setFeature('orderStudio', false);
-                window.location.href = '/';
-              }}
+              className={styles.prodBtn}
+              title="Перейти в раздел Производство"
+              aria-label="Перейти в раздел Производство"
+              onClick={() => switchToProduction('/', user)}
             >
               <Icon name="board" size={19} />
+              {/* На ≤ 480 px подпись только для читалки — кнопка иконкой 44 px */}
+              <span className={styles.prodLabel}>Производство</span>
             </button>
           )}
 
@@ -79,7 +98,7 @@ export default function OrderLayout({ user, children }) {
 
           <div className={styles.userChip}>
             {user?.name || user?.email}
-            <div className={styles.userRole}>{user?.role}</div>
+            <div className={styles.userRole}>{roleCaption(user)}</div>
           </div>
 
           {/* Выход переспрашивает: промах пальцем стоил бы сессии и набранного в формах */}

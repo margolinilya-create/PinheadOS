@@ -427,3 +427,24 @@ ISO-времени даёт другой gzip входа (±20 Б), поэтом
 `FlatPreview` с `<img>`) и `studio-settings-zones` добавлены в `e2e/visual.spec.ts` с
 `skipUntilBaseline`: снимает владелец (`update_snapshots`). Холст под маской, снимок ждёт
 `data-ready`; сцену холста сторожит юнит `sceneText` (T6а).
+
+## Замеры 8 (веха 8, финальное ревью, 18.10): перезапись базы `strict`
+
+**Решение вслух: `npm run bundle:budget -- --write-baseline`.** Вход вырос на 1 245 Б без сжатия
+(gzip +482, `index-HASH.js` 39 776 → 41 021), оболочка ERP JS — на 1 015 Б (gzip +390). Рост — цена
+самого решения К1 вехи 8, а не утечка ERP или чужого модуля в критический путь. Разбор по минифицированному
+входу (сумма сходится):
+- `config/shellChoice.ts` + `orderstudio/layout/salesAccess.ts` (`chooseShell`, `canUseSales`) — ≈ 870 Б;
+- `ShellGate` в `App.jsx` (`useState(() => chooseShell(…))`) вместо выбора `FEATURES.orderStudio` — ≈ +165 Б;
+- `config/features.ts`: `FEATURE_NAMES`, `FEATURE_STORAGE_KEYS`, `readStoredFeature`, `featureEnv`
+  (минус снятый геттер `orderStudio`) — ≈ +160 Б;
+- подпись формы входа «Производство и оформление заказов» вместо «Order Studio» (обход, M-1) — +51 Б.
+
+Вынести из входа нельзя без вреда: оболочку надо выбрать ДО загрузки ленивого `ErpApp`/`OrderStudioApp`,
+и динамический импорт `chooseShell` добавил бы каждому пользователю ещё один круг сети перед первой
+отрисовкой — дороже 482 Б gzip. Импорт из `orderNav` вместо `salesAccess` стоил бы +3 428 Б (замер T5).
+Оболочка ERP сверх входа: `ErpApp-HASH.js` +41 Б (переименованные минификатором импорты из входа,
+исходник ERP не менялся — сторож `erpFrozen`), `Skeleton-HASH.js` −271 Б (общий чанк похудел после
+удаления `PageHeader.jsx`). CSS оболочки ERP — побайтно как в базе. Потолки не поднимались: вход 152 285
+из 155 000, оболочка ERP JS 194 808 из 195 000 (запас 192 Б). Раздел `reference` базы не перезаписан —
+справочная разница по-прежнему против замера 5б.

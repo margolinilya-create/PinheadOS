@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react'
+import React, { Suspense, useState } from 'react'
 import './styles/index.css'
 import styles from './App.module.css'
 import { useShallow } from 'zustand/react/shallow'
@@ -9,10 +9,11 @@ import ToastContainer from './components/shared/Toast'
 import ConfirmDialogHost from './components/shared/ConfirmDialogHost'
 import DevAnnotations from './components/shared/DevAnnotations'
 import UpdateBanner from './components/shared/UpdateBanner'
-import { FEATURES } from './config/features'
+import { featureEnv, readStoredFeature } from './config/features'
+import { chooseShell } from './config/shellChoice'
 import { JOIN_PATH } from './erp/utils/invite'
 
-// Order Studio (визард/цены) — заархивирован за feature-flag, грузится только при включении.
+// Раздел «Оформление заказа» (заказы v4) — ленивый, грузится, только если его выбрал `ShellGate`.
 const OrderStudioApp = React.lazy(() => import('./orderstudio/OrderStudioApp'))
 // Внутреннее ERP — новый корень приложения.
 const ErpApp = React.lazy(() => import('./erp/ErpApp'))
@@ -77,6 +78,35 @@ function AccessWall({ icon, title, children, email, actions }) {
   );
 }
 
+/**
+ * Выбор оболочки — ОДИН раз за загрузку страницы для данного `user.id`
+ * (веха 8, К1; правила — `config/shellChoice.ts`).
+ *
+ * App перерисовывается при смене `user`/`profileStatus`/`checkingProfile`
+ * (`refreshProfile`, `TOKEN_REFRESHED`). Пересчёт по текущему `pathname`
+ * на ходу размонтировал бы раздел посреди работы: admin пришёл по `/sales`,
+ * ушёл на `/admin` — правило пути уже не срабатывает, и автосохранение,
+ * буфер позиции и состояния сохранения терялись бы. Поэтому решение
+ * держит `useState`, а ключ `user.id` у вызывающего пересчитывает его только
+ * при смене человека (выход и вход в той же вкладке). Снятый признак
+ * продавца оболочку тихо не меняет: раздел сам уводит через `LeaveToProduction`.
+ */
+function ShellGate({ user }) {
+  const [shell] = useState(() => chooseShell({
+    search: window.location.search,
+    path: window.location.pathname,
+    stored: readStoredFeature('orderStudio'),
+    env: featureEnv('orderStudio'),
+    profile: user,
+  }));
+  const Shell = shell === 'order' ? OrderStudioApp : ErpApp;
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <Shell user={user} />
+    </Suspense>
+  );
+}
+
 function App() {
   const { user, initializing, profileStatus, checkingProfile, passwordRecovery } = useAuthStore(useShallow(s => ({
     user: s.user,
@@ -89,12 +119,12 @@ function App() {
   /**
    * Путь читается НАПРЯМУЮ, а не через `useLocation()`.
    *
-   * `useLocation()` подписывает App на каждый переход — и этого достаточно,
-   * чтобы сломать выбор оболочки. `FEATURES.orderStudio` — геттер, читающий
-   * `?studio=` из адреса; внутренние ссылки параметр не несут. Пока App
-   * не перерисовывался на переходах, режим вычислялся один раз за загрузку;
-   * с подпиской первый же переход внутри производства открывал Order Studio.
-   * Поймали e2e: 8 сценариев навигации, очереди, плана и вкладок.
+   * `useLocation()` подписывает App на каждый переход. Прежде выбор оболочки
+   * читал `?studio=` из адреса на каждом рендере, и подписка ломала его:
+   * первый же переход внутри производства открывал Order Studio (поймали e2e:
+   * 8 сценариев навигации, очереди, плана и вкладок). С вехи 8 оболочку
+   * выбирает `ShellGate` один раз за загрузку на `user.id` — но и путь
+   * приглашению подписка не нужна.
    *
    * Подписка приглашению и не нужна: на `/join` приходят по ссылке извне,
    * то есть новой загрузкой страницы, а внутри приложения на этот адрес
@@ -220,13 +250,9 @@ function App() {
     );
   }
 
-  const Shell = FEATURES.orderStudio ? OrderStudioApp : ErpApp;
-
   return (
     <>
-      <Suspense fallback={<LoadingScreen />}>
-        <Shell user={user} />
-      </Suspense>
+      <ShellGate key={user.id ?? 'anon'} user={user} />
       <GlobalHosts />
     </>
   );

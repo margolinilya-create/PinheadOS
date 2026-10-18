@@ -13,12 +13,11 @@ import styles from '../App.module.css'
    специфичностью — порядок внутри чанка держит это как раньше */
 import '../styles/forms-buttons.css'
 import '../styles/wizard.css'
-import '../styles/garment.css'
 import '../styles/extras-zones.css'
-/* kanban.css — остаток канбана v3: `.kanban-page` нужен ExpressCalc */
+/* kanban.css — остаток канбана v3 (`.kanban-page`, `.kb-search` у AdminPanel).
+   ExpressCalc на нём больше не живёт: express.css снят в вехе 8 (задача 4),
+   у экспресса свой CSS-модуль */
 import '../styles/kanban.css'
-import '../styles/express.css'
-import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'

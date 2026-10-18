@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
+import { sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
 
 /**
  * ТЕНЬ И КОЛЬЦО ФОКУСА — ТОКЕНЫ, А НЕ ЗНАЧЕНИЯ ПО МЕСТУ.
@@ -22,12 +23,18 @@ import { join } from 'node:path';
  * является тенью слоя: бывает оттиск краски и кольцо-индикатор.
  */
 
+const RESTYLE_DIRS = ['components/editors', 'components/steps/garment'];
+
 const CSS = [
   'src/erp/erp.module.css',
   'src/erp/screens.module.css',
   'src/erp/components/Button.module.css',
   'src/erp/components/Field.module.css',
   'src/erp/components/States.module.css',
+  // Веха 8 (К4): модули рестайла редакторов и панелей визарда — под тем же сторожем,
+  // по мере появления (переезд с глобальных editors/express/garment.css)
+  ...RESTYLE_DIRS.flatMap((dir) => sourceFiles(join(SRC_DIR, dir), { ext: /\.module\.css$/ }))
+    .map((abs) => relative(process.cwd(), abs).split(sep).join('/')),
 ];
 
 /**
@@ -40,6 +47,8 @@ const ALLOWED: Record<string, string> = {
   '0 0 0 4px var(--bg-warning)': 'кольцо-индикатор у текущего шага маршрута, а не тень',
   'inset 0 3px 0 0 var(--accent)': 'метка места вставки при перетаскивании',
   'inset 0 -3px 0 0 var(--accent)': 'она же снизу',
+  'inset 0 0 0 2px var(--accent)': 'кольцо фокуса ВНУТРИ строки списка (панели изделия, веха 8): внешнее обрезал бы скролл-контейнер',
+  'inset 3px 0 0 var(--accent)': 'полоса выбранной строки слева (панели изделия, веха 8) — метка выбора, а не тень слоя',
   none: 'снятие тени',
 };
 

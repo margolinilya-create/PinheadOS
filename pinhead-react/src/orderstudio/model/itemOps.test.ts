@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint, gridQty } from './factory';
 import { artworkInUse, duplicateInColor, itemTitle, splitByColor } from './itemOps';
 import type { SalesItem, SalesOrder } from './types';
+import type { TextileCatalogs } from './garmentTextile';
+
+/** Без палитр: подложка — по слову «белый» в подписи цвета */
+const NO_CAT: TextileCatalogs = { suppliers: [], fabricsCatalog: [] };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -33,14 +37,14 @@ function allKeys(items: SalesItem[]): string[] {
 describe('duplicateInColor — копия позиции в другом цвете', () => {
   it('новые uuid-ключи у позиции, нанесений и бирок; ключи по заказу уникальны', () => {
     const src = multiColor();
-    const copy = duplicateInColor(src, 'Красный');
+    const copy = duplicateInColor(src, 'Красный', NO_CAT);
     const keys = allKeys([src, copy]);
     for (const k of allKeys([copy])) expect(k).toMatch(UUID);
     expect(new Set(keys).size).toBe(keys.length);
   });
 
   it('одна строка сетки нового цвета, размеры те же, штук 0', () => {
-    const copy = duplicateInColor(multiColor(), 'Красный');
+    const copy = duplicateInColor(multiColor(), 'Красный', NO_CAT);
     expect(copy.size_grid.sizes).toEqual(['S', 'M', 'L']);
     expect(copy.size_grid.rows).toEqual([{ color: 'Красный', sizes: { S: 0, M: 0, L: 0 } }]);
     expect(gridQty(copy.size_grid)).toBe(0);
@@ -48,7 +52,7 @@ describe('duplicateInColor — копия позиции в другом цве�
 
   it('PDF ТЗ и ручная цена сбрасываются, макет нанесения копируется', () => {
     const src = multiColor();
-    const copy = duplicateInColor(src, 'Красный');
+    const copy = duplicateInColor(src, 'Красный', NO_CAT);
     expect(copy.tz_pdf_path).toBe('');
     expect(copy.manual_unit_price).toBeNull();
     expect(copy.prints.map((p) => p.artwork_path)).toEqual(['o-1/logo.png', '']);
@@ -57,7 +61,7 @@ describe('duplicateInColor — копия позиции в другом цве�
   });
 
   it('модель и ткань сохраняются, цвет в «цвет / поставщик» меняется', () => {
-    const copy = duplicateInColor(multiColor(), 'Красный');
+    const copy = duplicateInColor(multiColor(), 'Красный', NO_CAT);
     expect(copy.sku_code).toBe('HD-01');
     expect(copy.color_supplier).toBe('Красный / Медас');
   });
@@ -65,7 +69,7 @@ describe('duplicateInColor — копия позиции в другом цве�
   it('исходная позиция не меняется', () => {
     const src = multiColor();
     const snapshot = JSON.parse(JSON.stringify(src));
-    const copy = duplicateInColor(src, 'Красный');
+    const copy = duplicateInColor(src, 'Красный', NO_CAT);
     copy.prints[0].zone = 'Рукав';
     copy.size_grid.sizes.push('XL');
     expect(src).toEqual(snapshot);
@@ -75,7 +79,7 @@ describe('duplicateInColor — копия позиции в другом цве�
 describe('splitByColor — разнесение позиции по цветам', () => {
   it('одна позиция на строку сетки, первая сохраняет ключ', () => {
     const src = multiColor();
-    const parts = splitByColor(src);
+    const parts = splitByColor(src, NO_CAT);
     expect(parts).toHaveLength(3);
     expect(parts[0].key).toBe(src.key);
     expect(parts.map((p) => p.size_grid.rows.map((r) => r.color))).toEqual([['Чёрный'], ['Белый'], ['Серый']]);
@@ -84,7 +88,7 @@ describe('splitByColor — разнесение позиции по цветам
 
   it('сумма штук сохраняется', () => {
     const src = multiColor();
-    const parts = splitByColor(src);
+    const parts = splitByColor(src, NO_CAT);
     expect(parts.reduce((s, p) => s + gridQty(p.size_grid), 0)).toBe(gridQty(src.size_grid));
     expect(gridQty(parts[1].size_grid)).toBe(10);
   });
@@ -92,7 +96,7 @@ describe('splitByColor — разнесение позиции по цветам
   it('нанесения и бирки копируются в каждую; ключи — uuid и уникальны по заказу', () => {
     const src = multiColor();
     const other = newSalesItem({ prints: [newSalesPrint()] });
-    const parts = splitByColor(src);
+    const parts = splitByColor(src, NO_CAT);
     for (const p of parts) {
       expect(p.prints.map((x) => x.zone)).toEqual(['Грудь', 'Спина']);
       expect(p.prints[0].artwork_path).toBe('o-1/logo.png');
@@ -104,14 +108,57 @@ describe('splitByColor — разнесение позиции по цветам
   });
 
   it('у новых позиций свой «цвет / поставщик» и нет PDF ТЗ', () => {
-    const parts = splitByColor(multiColor());
+    const parts = splitByColor(multiColor(), NO_CAT);
     expect(parts.map((p) => p.color_supplier)).toEqual(['Чёрный / Медас', 'Белый / Медас', 'Серый / Медас']);
     expect(parts.slice(1).every((p) => p.tz_pdf_path === '')).toBe(true);
   });
 
   it('позиция с одной строкой возвращается как есть', () => {
     const one = newSalesItem({ size_grid: { sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: 3 } }] } });
-    expect(splitByColor(one)).toEqual([one]);
+    expect(splitByColor(one, NO_CAT)).toEqual([one]);
+  });
+});
+
+const PALETTE: TextileCatalogs = {
+  suppliers: [{
+    id: 'cotton', name: 'cotton', active: true, isDefault: true, fabricSupplierNames: [],
+    palette: { groups: [], colors: [
+      { code: '01-01', name: 'Белый', hex: '#FFFFFF', group: '', active: true },
+      { code: '40-01', name: 'Чёрный', hex: '#1A1A1A', group: '', active: true },
+    ] },
+  } as unknown as TextileCatalogs['suppliers'][number]],
+  fabricsCatalog: [],
+};
+
+describe('подложка нанесений у копий — вслед за цветом (обход H-2, раунд 1)', () => {
+  const white = () => newSalesItem({
+    size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 30 } }] },
+    prints: [
+      newSalesPrint({ method: 'silkscreen', textile: 'white' }),
+      newSalesPrint({ method: 'dtg', textile: 'white' }),
+      newSalesPrint({ method: 'embroidery', textile: 'white' }),
+    ],
+  });
+
+  it('белая позиция → «Копия в другом цвете» чёрного: шелкография и DTG — цветное', () => {
+    const copy = duplicateInColor(white(), 'Чёрный (40-01)', PALETTE);
+    expect(copy.prints.map((p) => p.textile)).toEqual(['color', 'color', 'white']);
+  });
+
+  it('подложка, выбранная руками, остаётся; исходная позиция не меняется', () => {
+    const src = white();
+    src.prints[0].textile = 'color';
+    const copy = duplicateInColor(src, 'Чёрный (40-01)', PALETTE);
+    expect(copy.prints[0].textile).toBe('color');
+    expect(src.prints.map((p) => p.textile)).toEqual(['color', 'white', 'white']);
+  });
+
+  it('разнесение по цветам: строка чёрного получает цветное, первая белая — белое', () => {
+    const src = white();
+    src.size_grid.rows.push({ color: 'Чёрный (40-01)', sizes: { M: 10 } });
+    const [first, second] = splitByColor(src, PALETTE);
+    expect(first.prints.map((p) => p.textile)).toEqual(['white', 'white', 'white']);
+    expect(second.prints.map((p) => p.textile)).toEqual(['color', 'color', 'white']);
   });
 });
 

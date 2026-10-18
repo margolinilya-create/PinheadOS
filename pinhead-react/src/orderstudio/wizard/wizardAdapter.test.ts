@@ -201,6 +201,26 @@ describe('буфер позиции → позиция (garmentPatch)', () => {
     expect(out.color_supplier).toBe('Белый / ТД Коттон');
   });
 
+  it('смена цвета на цветной переводит подложку нанесений, выбранную руками — нет (обход, H-2)', () => {
+    const b = base({ prints: [
+      newSalesPrint({ method: 'silkscreen', textile: 'white' }),
+      newSalesPrint({ method: 'dtg', textile: 'white' }),
+      newSalesPrint({ method: 'embroidery', textile: 'white' }),
+    ] });
+    const out = garmentPatch(g(), g({ color: '14-02' }), b, CAT)!;
+    expect(out.size_grid.rows[0].color).toBe('Сиреневый (14-02)');
+    expect(out.prints.map((p) => p.textile)).toEqual(['color', 'color', 'white']);
+    // Обратно на белый — снова «белое»
+    const back = garmentPatch(g({ color: '14-02' }), g(), out, CAT)!;
+    expect(back.prints.map((p) => p.textile)).toEqual(['white', 'white', 'white']);
+  });
+
+  it('правка размеров подложку не трогает', () => {
+    const b = base({ prints: [newSalesPrint({ method: 'silkscreen', textile: 'color' })] });
+    const out = garmentPatch(g(), g({ sizes: moreSizes }), b, CAT)!;
+    expect(out.prints).toBe(b.prints);
+  });
+
   it('client_fabric — ткань не пишется', () => {
     const b = base({ client_fabric: true, fabric_code: '', main_fabric: 'Ткань клиента', color_supplier: 'клиент' });
     expect(garmentPatch(g({ fabric: '' }), g({ fabric: 'cotton-kulirnaya-100-180' }), b, CAT)).toBeNull();

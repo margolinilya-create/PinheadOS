@@ -16,7 +16,7 @@ import type { Fabric, Trim, ExtraItem, SkuItem } from '../types/catalog';
 
 export {
   isAccessory, hasNoPrint, SCREEN_FX, FLEX_FORMATS, FLEX_MAX_COLORS, TECH_TABS,
-  getTotalQty, getSkuEstPrice, getLabelConfigPrice, calcExtrasCost,
+  getTotalQty, getSkuEstPrice, calcExtrasCost,
 } from './pricingCore';
 
 // ── Catalogs object for multi-item helpers ──

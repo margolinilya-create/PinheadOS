@@ -47,11 +47,11 @@ describe('CategoryRulesTab', () => {
   it('expands a category on click', () => {
     renderTab();
     fireEvent.click(screen.getByText('Футболки'));
-    expect(screen.getByText('ТЕХНИКИ НАНЕСЕНИЯ')).toBeInTheDocument();
-    expect(screen.getByText('МИНИМАЛЬНЫЙ ТИРАЖ (MOQ)')).toBeInTheDocument();
-    expect(screen.getByText('ДОСТУПНЫЕ РАЗМЕРЫ')).toBeInTheDocument();
-    expect(screen.getByText('ОБРАБОТКИ ПО УМОЛЧАНИЮ')).toBeInTheDocument();
-    expect(screen.getByText('ТЕХНИКИ ПО ЗОНАМ')).toBeInTheDocument();
+    expect(screen.getByText('Техники нанесения')).toBeInTheDocument();
+    expect(screen.getByText('Минимальный тираж (MOQ)')).toBeInTheDocument();
+    expect(screen.getByText('Доступные размеры')).toBeInTheDocument();
+    expect(screen.getByText('Обработки по умолчанию')).toBeInTheDocument();
+    expect(screen.getByText('Техники по зонам')).toBeInTheDocument();
   });
 
   it('shows tech chips inside expanded category', () => {

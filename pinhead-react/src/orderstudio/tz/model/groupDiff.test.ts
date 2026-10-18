@@ -3,6 +3,10 @@ import { newSalesItem, newSalesLabel, newSalesPrint } from '../../model/factory'
 import { duplicateInColor } from '../../model/itemOps';
 import { alignPrints } from './tzGroups';
 import { groupDivergence } from './groupDiff';
+import type { TextileCatalogs } from '../../model/garmentTextile';
+
+/** Без палитр: подложка — по слову «белый» в подписи цвета */
+const NO_CAT: TextileCatalogs = { suppliers: [], fabricsCatalog: [] };
 
 const base = () => newSalesItem({
   product_type: 'Футболка',
@@ -34,13 +38,13 @@ describe('alignPrints — сопоставление нанесений по к�
 describe('groupDivergence', () => {
   it('копия в другом цвете без правок — расхождений нет; одна позиция — пусто', () => {
     const a = base();
-    expect(groupDivergence([a, duplicateInColor(a, 'Белый')])).toEqual([]);
+    expect(groupDivergence([a, duplicateInColor(a, 'Белый', NO_CAT)])).toEqual([]);
     expect(groupDivergence([a])).toEqual([]);
   });
 
   it('бирка, упаковка, подрядчик, эффект, отступ — названы в постоянном порядке', () => {
     const a = base();
-    const b = duplicateInColor(a, 'Белый');
+    const b = duplicateInColor(a, 'Белый', NO_CAT);
     const changed = {
       ...b,
       labels: [{ ...b.labels[0], place: 'Бок' }],
@@ -55,7 +59,7 @@ describe('groupDivergence', () => {
 
   it('упаковка «как у заказа» — свои размеры позиции не считаются', () => {
     const a = base();
-    const b = { ...duplicateInColor(a, 'Белый'), packaging_width_mm: 200 };
+    const b = { ...duplicateInColor(a, 'Белый', NO_CAT), packaging_width_mm: 200 };
     expect(groupDivergence([a, b])).toEqual([]);
   });
 });

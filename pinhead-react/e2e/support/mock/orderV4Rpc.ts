@@ -1,5 +1,7 @@
 /**
- * Мок RPC заказа v4 под контракт миграции J (веха 6+7):
+ * Мок RPC заказа v4 под контракт миграции J (веха 6+7) и сохранения K (веха 8,
+ * `kSaveCheck`/`kSavedRow`: ревизия 4, `zone_id`, `notes`; журнал признаков L —
+ * таблица `sales_staff_events`):
  * `order_v4_transition`, `order_v4_launch_check`, `order_v4_set_payment`,
  * `erp_create_order` (запись тела и вложений), `sales_set_staff`, таблицы
  * `order_events` и `erp_order_attachments`.
@@ -77,6 +79,50 @@ export const J_TEXTS = {
   staffRopMs: 'Признак МС руководителю продаж ставит администратор или директор',
 } as const;
 
+/** Тексты отказов `order_v4_save_full` после миграции K — побуквенно (сторож mockContract) */
+export const K_TEXTS = {
+  outdated: 'Вышло обновление — обновите страницу, правка не сохранена',
+  conflict: 'Заказ изменён в другой вкладке — обновите страницу',
+  notesLong: 'Комментарий для цехов — не длиннее 2000 знаков',
+  badZone: 'Неверный код зоны нанесения',
+} as const;
+/** Порог ревизии клиента в K и предел комментария (сторож сверяет с файлом K и клиентом) */
+export const K_CLIENT_REV = 4;
+export const K_NOTES_MAX = 2000;
+/** Формат кода зоны в K — исходник `ZONE_ID_RE` (сторож сверяет) */
+export const K_ZONE_ID_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+
+type KPayload = { client_rev?: unknown; notes?: unknown; items?: { prints?: { zone_id?: unknown }[] }[] };
+
+/** Проверки K до записи: ревизия, длина комментария, формат кода зоны; `null` — можно писать */
+export function kSaveCheck(order: KPayload): RpcFailure | null {
+  if (!(Number(order.client_rev) >= K_CLIENT_REV)) return new RpcFailure('P0001', K_TEXTS.outdated);
+  if ('notes' in order && order.notes !== null
+    && (typeof order.notes !== 'string' || order.notes.length > K_NOTES_MAX)) {
+    return new RpcFailure('22023', K_TEXTS.notesLong);
+  }
+  const bad = (order.items ?? []).some((it) => (it.prints ?? []).some((pr) => 'zone_id' in pr && pr.zone_id !== null
+    && (typeof pr.zone_id !== 'string' || !K_ZONE_ID_RE.test(pr.zone_id))));
+  return bad ? new RpcFailure('22023', K_TEXTS.badZone) : null;
+}
+
+/**
+ * Строка после записи K: нет ключа `notes` — прежний комментарий; '' → null;
+ * у каждого нанесения есть колонка `zone_id` (по ней клиент узнаёт сервер после K)
+ */
+export function kSavedRow(order: Record<string, unknown>, row: Row, prev: Row | undefined): Row {
+  const notes = 'notes' in order ? (order.notes || null) : (prev?.notes ?? null);
+  const items = (row.order_items as Row[] | undefined) ?? [];
+  return {
+    ...row,
+    notes,
+    order_items: items.map((it) => ({
+      ...it,
+      order_item_prints: ((it.order_item_prints as Row[] | undefined) ?? []).map((pr) => ({ ...pr, zone_id: pr.zone_id || null })),
+    })),
+  };
+}
+
 /** Виды оплаты, которые J разрешает МС (`p_kind in ('prepaid', 'full')`) */
 export const MS_PAYMENT_KINDS = ['prepaid', 'full'] as const;
 /** Условия отправки J: PDF позиции в `orders/<id>/tz/`, тип, предел; макет у всех, кроме `other` */
@@ -122,14 +168,18 @@ const SERVER_COLUMNS = ['status', 'paid_kind', 'paid_at', 'paid_override_reason'
 /** Колонки строки заказа, которые пишут только RPC J: `order_v4_save_full` их сохраняет как были */
 export const v4ServerColumns = (prev: Row | undefined): Row =>
   Object.fromEntries(SERVER_COLUMNS.map((k) => [k, prev?.[k] ?? (k === 'status' ? 'draft' : null)]));
-type V4State = { orders: Map<string, OrderSt>; checks: number; erpCreates: Row[]; attachments: Row[]; events: Row[] };
+type V4State = {
+  orders: Map<string, OrderSt>; checks: number; erpCreates: Row[]; attachments: Row[]; events: Row[];
+  /** Журнал смены признаков (миграция L пишет триггером на profiles) */
+  staffEvents: Row[];
+};
 
 const states = new WeakMap<object, V4State>();
 /** Состояние мока v4 набора `MockExtras` — спеки читают записанные тела и события */
 export function v4State(extra: object): V4State {
   let st = states.get(extra);
   if (!st) {
-    st = { orders: new Map(), checks: 0, erpCreates: [], attachments: [], events: [] };
+    st = { orders: new Map(), checks: 0, erpCreates: [], attachments: [], events: [], staffEvents: [] };
     states.set(extra, st);
   }
   return st;
@@ -363,7 +413,16 @@ function setStaff(body: Row, extra: Extras & { salesStaff?: Row[] }): unknown {
   const row = (extra.salesStaff ?? []).find((r) => r.id === body.p_profile);
   if (kind === 'ms' && body.p_on && row?.role === 'rop' && !isBoss(c)) return fail(J_TEXTS.staffRopMs, '42501');
   if (!row) return extra.salesStaff ? fail(J_TEXTS.staffNotFound, 'P0002') : null;
-  row[kind === 'ms' ? 'is_ms' : 'is_sales'] = Boolean(body.p_on);
+  const field = kind === 'ms' ? 'is_ms' : 'is_sales';
+  // Триггер L пишет событие только при смене значения
+  if (Boolean(row[field]) !== Boolean(body.p_on)) {
+    const st = v4State(extra);
+    st.staffEvents.push({
+      id: st.staffEvents.length + 1, profile_id: row.id, kind, on_value: Boolean(body.p_on),
+      actor: c.id, source: 'rpc', at: new Date().toISOString(),
+    });
+  }
+  row[field] = Boolean(body.p_on);
   return null;
 }
 
@@ -379,7 +438,7 @@ export function v4Rpc(fn: string, body: Row, extra: Extras & { salesStaff?: Row[
   return setStaff(body, extra);
 }
 
-/** Таблицы журнала v4 (`order_events`, `erp_order_attachments`) либо `undefined` */
+/** Таблицы журнала v4 (`order_events`, `erp_order_attachments`, `sales_staff_events`) либо `undefined` */
 export function v4Table(table: string, params: URLSearchParams, extra: object): unknown[] | undefined {
   const st = v4State(extra);
   const eq = (k: string) => params.get(k)?.replace(/^eq\./, '');
@@ -391,6 +450,7 @@ export function v4Table(table: string, params: URLSearchParams, extra: object): 
         && (params.get('reason') !== 'not.is.null' || e.reason !== null))
       .reverse();
   }
+  if (table === 'sales_staff_events') return [...st.staffEvents].reverse();
   if (table === 'erp_order_attachments') {
     const id = eq('order_id');
     const kinds = /^in\.\((.*)\)$/.exec(params.get('kind') ?? '')?.[1]?.split(',');

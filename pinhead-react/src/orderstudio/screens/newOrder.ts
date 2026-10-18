@@ -20,8 +20,13 @@ async function run(uid: string | null | undefined, managerName: string): Promise
     if (!found.ok) return null;
     if (found.id) return found.id;
   }
-  // Менеджер заказа — автор: имя из его профиля, на рабочем месте только для чтения
-  return useSalesStore.getState().createNew(managerName ? { manager: managerName } : undefined);
+  // Менеджер заказа — автор: имя из его профиля, на рабочем месте только для чтения.
+  // Автор (`created_by`) — сразу, как его поставит сервер (`auth.uid()`): иначе гейты
+  // «свой заказ» до перечитывания прячут от автора оплату и «Отправить в работу» (обход, W1)
+  return useSalesStore.getState().createNew({
+    ...(managerName ? { manager: managerName } : {}),
+    ...(uid ? { created_by: uid } : {}),
+  });
 }
 
 /** id заказа, который открыть; `null` — не вышло (тост уже показан) */

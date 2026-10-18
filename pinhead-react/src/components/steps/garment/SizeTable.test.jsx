@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import SizeTable from './SizeTable';
 import { useStore } from '../../../store/useStore';
 
@@ -10,7 +10,7 @@ beforeEach(() => {
 
 /** Число ячеек в каждой строке настольной таблицы (шапка, размеры, итог) */
 function cellCounts(container) {
-  const table = container.querySelector('.size-table-desktop');
+  const table = within(container).getByRole('table');
   return [...table.querySelectorAll('tr')].map((tr) => tr.children.length);
 }
 

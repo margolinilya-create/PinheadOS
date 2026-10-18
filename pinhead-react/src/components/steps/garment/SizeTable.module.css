@@ -1,0 +1,238 @@
+/* Размеры и тираж позиции (веха 8, задача 6; было `.size-*`, `.qty-*`,
+   `.add-size-*` в `garment.css` и `responsive.css`). Высоты кнопок и полей —
+   токенами `--control-h-*`: 32 px на компьютере, 44 px на тач-экране. */
+
+.table {
+  width: 100%;
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-collapse: collapse;
+}
+.table th {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+.table td {
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+}
+.table tbody tr:nth-child(even) { background: var(--surface); }
+.num { text-align: right; white-space: nowrap; }
+.price { color: var(--text-dim); }
+.sum { font-weight: 600; }
+
+.unavailable td { opacity: .4; }
+
+.totalRow td {
+  padding-top: var(--space-md);
+  border-top: 2px solid var(--accent);
+  border-bottom: none;
+  background: var(--card);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.qty { display: flex; align-items: center; gap: var(--space-sm); }
+
+.qtyBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-title);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.qtyBtn:hover:not(:disabled) { border-color: var(--btn-primary-bg); background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+.qtyBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.qtyBtn:disabled { cursor: not-allowed; opacity: .5; }
+
+.qtyInput {
+  width: 56px;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+.qtyInput:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.qtyInput:disabled { cursor: not-allowed; }
+
+.unit { font-family: var(--font-body); font-size: var(--type-body-sm); color: var(--text-dim); }
+
+.labelInput {
+  width: 72px;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+}
+.labelInput:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  margin-left: var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-error-ink);
+  cursor: pointer;
+}
+.removeBtn:hover { background: var(--bg-error); }
+.removeBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Телефон: список вместо таблицы */
+.mobile { display: none; }
+.mobileRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.mobileRow.unavailable { opacity: .4; }
+.mobileLabel {
+  min-width: 48px;
+  font-family: var(--font-body);
+  font-size: var(--type-title);
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+.mobileTotal {
+  padding: var(--space-md) 0;
+  margin-bottom: var(--space-lg);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--accent);
+}
+
+/* Свой размер */
+.addBtn {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-lg);
+  border: 1px dashed var(--border-control);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-mid);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.addBtn:hover { border-style: solid; border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.addBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.addForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-family: var(--font-body);
+}
+.addLabel {
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+.addInput {
+  width: 100px;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+}
+.addQty { width: 72px; text-align: center; }
+.addInput:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+.formBtn {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-xl);
+  border: 1px solid var(--btn-primary-bg);
+  border-radius: var(--radius-sm);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.formBtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.formBtnGhost { border-color: var(--border-control); background: var(--card); color: var(--text-mid); }
+
+@media (max-width: 760px) {
+  .desktop { display: none; }
+  .mobile { display: block; }
+  .addForm { flex-direction: column; align-items: stretch; }
+  .addInput,
+  .addQty { width: 100%; }
+}
+
+@media (pointer: coarse) {
+  .qtyBtn,
+  .removeBtn { width: var(--control-h-md); height: var(--control-h-md); }
+  .qtyInput,
+  .labelInput { height: var(--control-h-md); }
+  .addBtn,
+  .addInput,
+  .formBtn { min-height: var(--control-h-md); }
+}

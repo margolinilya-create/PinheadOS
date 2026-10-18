@@ -16,6 +16,7 @@ import { dtgFitSize } from '../../utils/printRules';
 import { embroideryExtras, fitFormat, screenFormat } from '../pricing/priceOrder';
 import { METHOD_TO_TECH, type WizardTech } from '../model/printMethods';
 import type { SalesItem } from '../model/types';
+import { retextilePrints, textileOfColor } from '../model/garmentTextile';
 import type { Fabric, SkuItem, ZoneDefinition } from '../../types/catalog';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- снимок визарда нетипизирован (см. types/order.ts: типы техник устарели) */
@@ -209,7 +210,9 @@ function sameQty(a: Record<string, number>, b: Record<string, number>): boolean 
  * загрузка позиции и перезагрузка каталогов ничего не пишут.
  *
  * Позиция с несколькими строками сетки буфером не правится (один цвет —
- * одна позиция): `null`. Нанесения и бирки — из `base` по ссылке.
+ * одна позиция): `null`. Нанесения и бирки — из `base` по ссылке; при смене
+ * цвета нанесения с подложкой прежнего умолчания переходят на новое
+ * (`retextilePrints`, обход H-2), прочие поля нанесений не трогаются.
  */
 export function garmentPatch(prev: GarmentSnap, next: GarmentSnap, base: SalesItem, cat: WizardCatalogs): SalesItem | null {
   const rows = base.size_grid.rows;
@@ -248,6 +251,12 @@ export function garmentPatch(prev: GarmentSnap, next: GarmentSnap, base: SalesIt
     patch.size_grid = { sizes, rows: [{ color: rowColor, sizes: rowSizes }] };
   }
   if (!same(prev.extras, next.extras)) patch.extras = [...next.extras];
+  // Сменился цвет — подложка нанесений вслед за ним, кроме выбранной руками (обход, H-2)
+  const prevColor = rows[0]?.color ?? '';
+  if (rowColor !== prevColor) {
+    const fabricCode = patch.fabric_code ?? base.fabric_code;
+    patch.prints = retextilePrints(base.prints, textileOfColor(prevColor, cat, fabricCode), textileOfColor(rowColor, cat, fabricCode));
+  }
 
   const changed = (Object.keys(patch) as (keyof SalesItem)[]).filter((k) => !same(patch[k], base[k]));
   if (changed.length === 0) return null;

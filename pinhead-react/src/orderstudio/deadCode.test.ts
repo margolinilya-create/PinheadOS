@@ -36,6 +36,13 @@ const REMOVED = [
   'orderstudio/screens/GridEditor.jsx',
   // Веха 5а, задача 1: действия зон визарда v3 — читателей нет (зоны правит строка нанесения)
   'store/slices/designSlice.ts',
+  // Веха 8: шапка страниц и комментарии v3 — потребителей не осталось (задача 8);
+  // глобальные CSS редакторов и панелей изделия уехали в модули (задачи 3, 4, 6)
+  'components/shared/PageHeader.jsx',
+  'store/useCommentsStore.ts',
+  'styles/editors.css',
+  'styles/express.css',
+  'styles/garment.css',
 ];
 
 const moduleName = (path: string) => path.split('/').pop()!.replace(/\.(jsx?|tsx?)$/, '');

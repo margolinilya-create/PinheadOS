@@ -128,6 +128,11 @@ export interface TzDoc {
     noChestnyZnak: boolean;
     /** `tz_comment` позиций: одинаковый — один раз без подписи, разный — по цветам */
     comments: { label: string | null; text: string }[];
+    /**
+     * «Комментарий для цехов» заказа (`orders.notes`, веха 8) — блок «Общее».
+     * Пусто — ключа нет: хэш прежних ТЗ не меняется
+     */
+    orderNotes?: string;
   };
   fabric: {
     main: string;
