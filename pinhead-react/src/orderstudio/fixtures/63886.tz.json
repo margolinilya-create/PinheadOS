@@ -1,0 +1,95 @@
+{
+  "header": {
+    "orderNumber": "PH-6388",
+    "bitrixId": "63886",
+    "title": "Эквилент Олд Мани",
+    "manager": "Анна Смирнова",
+    "issuedOn": "18.10.2026",
+    "dueDate": "20.11.2026",
+    "productTitle": "Футболка Old Money",
+    "qty": 125,
+    "packaging": "БОПП пакет",
+    "packagingNote": "",
+    "stickers": "Другое",
+    "stickersNote": "Стикер с артикулом и размером на каждый пакет",
+    "stickerImage": "orders/6e3a8860-0000-4000-8000-000000063886/sticker/a1b2c3d4-sticker.png",
+    "noChestnyZnak": true,
+    "comments": [{ "label": null, "text": "Футболки оверсайз с вышивкой логотипа на груди" }]
+  },
+  "fabric": {
+    "main": "Кулирная гладь 100% хлопок, 240 г/м²",
+    "trim": "Рибана 1×1, в цвет",
+    "supplier": "Медас",
+    "colors": [{ "color": "Чёрный", "parts": [] }, { "color": "Молочный", "parts": [] }],
+    "matrix": [
+      { "row": "front", "rowLabel": "Полочка", "cols": ["В"] },
+      { "row": "front_l", "rowLabel": "Полочка Л", "cols": [] },
+      { "row": "front_r", "rowLabel": "Полочка П", "cols": [] },
+      { "row": "back", "rowLabel": "Спинка", "cols": [] },
+      { "row": "sleeve_l", "rowLabel": "Рукав Л", "cols": [] },
+      { "row": "sleeve_r", "rowLabel": "Рукав П", "cols": [] },
+      { "row": "hood_l", "rowLabel": "Капюшон Л", "cols": [] },
+      { "row": "hood_r", "rowLabel": "Капюшон П", "cols": [] },
+      { "row": "pocket", "rowLabel": "Карман", "cols": [] }
+    ],
+    "grid": {
+      "sizes": ["2XS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "ONE"],
+      "rows": [
+        { "color": "Чёрный", "cells": [0, 5, 15, 25, 25, 10, 0, 0, 0, 0], "total": 80 },
+        { "color": "Молочный", "cells": [0, 0, 10, 20, 15, 0, 0, 0, 0, 0], "total": 45 }
+      ],
+      "totals": [0, 5, 25, 45, 40, 10, 0, 0, 0, 0],
+      "total": 125
+    },
+    "modelDescription": "Оверсайз, спущенное плечо, горловина рибаной 2 см",
+    "extraProcessing": ["Тесьма по горловине"]
+  },
+  "labels": {
+    "none": false,
+    "sizeBlank": true,
+    "compositionBlank": true,
+    "items": [
+      {
+        "kind": "Брендовая бирка", "variant": "Своя (дизайн клиента), Тканая", "blank": false,
+        "comment": "Бирка клиента, тканая",
+        "previews": ["orders/6e3a8860-0000-4000-8000-000000063886/label/22222222-brand.jpg"],
+        "scheme": "На воротнике (спина)",
+        "schemeImage": "orders/6e3a8860-0000-4000-8000-000000063886/label/33333333-scheme.jpg"
+      },
+      { "kind": "Размерник", "blank": true, "previews": [], "scheme": "", "schemeImage": null },
+      { "kind": "Составник", "variant": "Стандартный", "blank": true, "scheme": "Левый внутренний боковой шов", "schemeImage": null }
+    ]
+  },
+  "prints": [
+    {
+      "n": 1,
+      "method": "embroidery",
+      "methodLabel": "Вышивка",
+      "column": "В",
+      "effects": "",
+      "fabric": "Кулирная гладь 100% хлопок, 240 г/м²",
+      "sizeText": "В 40 × Ш 90 мм",
+      "zone": "Грудь (перед)",
+      "row": "front",
+      "rowLabel": "Полочка",
+      "offset": "70 мм от шва горловины",
+      "on": "на готовом",
+      "pantone": "Бежевый",
+      "comment": "Нить в цвет образца клиента",
+      "contractor": "",
+      "artworkPath": "orders/6e3a8860-0000-4000-8000-000000063886/logo/11111111-logo.png",
+      "mockup": { "view": "front", "flatId": "tee-typical", "flatVersion": 1, "printKeys": ["63886-p1"], "highlight": "63886-p1" },
+      "grid": { "total": 125 }
+    }
+  ],
+  "notes": [
+    { "group": "Упаковка", "caption": "Дизайн стикера на пакет", "link": "", "linkSafe": false,
+      "image": "orders/6e3a8860-0000-4000-8000-000000063886/note/44444444-pack.jpg" }
+  ],
+  "footer": {
+    "text": "Возможно расхождение в расположении нанесения до 2 см. Претензии по качеству принимаются до использования изделий.",
+    "group": "PH-6388 · ТЗ 1 из 1",
+    "link": "https://pinhead-os.vercel.app/sales/6e3a8860-0000-4000-8000-000000063886"
+  },
+  "typicalFlat": true
+}

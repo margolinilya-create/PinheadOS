@@ -16,11 +16,14 @@ import { readSource, sourceFiles, SRC_DIR } from '../testutil/sourceFiles';
  * Исключения — места, где связь с ERP и есть назначение модуля:
  * мост в ERP (`bridge/tzToErpDraft.ts`) и оболочка раздела с единой админкой.
  *
- * Запуск в производство (`bridge/launch.ts`, веха 2) зовёт `createOrder` стора
- * ERP, но пускается УЖЕ: ровно три модуля и только динамическим `import()`.
- * Статический импорт стора утянул бы слой данных ERP в чанк Order (и через
- * общий чанк — в оболочку ERP), а лишний модуль — ещё одну зависимость
- * от замороженного ERP, о которой никто не договаривался.
+ * Запуск в производство зовёт `createOrder` стора ERP, но пускается УЖЕ:
+ * стор ERP берёт ровно один модуль Order — шлюз `bridge/erpGateway.ts`, ровно
+ * пять модулей ERP списком (`GATEWAY_MODULES`), а сам шлюз грузится только
+ * динамическим `import('./erpGateway')` из `bridge/launch.ts`. Статический
+ * импорт шлюза или стора утянул бы слой данных ERP в чанк Order, лишний модуль —
+ * ещё одну зависимость от замороженного ERP. Почему шлюз, а не три `import()`
+ * модулей ERP прямо в `launch.ts` (так было до задачи 7 вехи 6+7): три новые
+ * точки входа резали общий чанк оболочки ERP (+707 Б gzip) — шапка шлюза.
  *
  * Примитивы и стили ERP разрешены ЛЮБОМУ модулю Order: это общая вёрстка, а не
  * логика ERP. Примитивы — явный белый список, а не маска `erp/components/*`:
@@ -33,14 +36,17 @@ const ORDER_DIR = join(SRC_DIR, 'orderstudio');
 const COMPONENTS_DIR = join(SRC_DIR, 'erp', 'components');
 const ALLOWED_FILES = new Set(['bridge/tzToErpDraft.ts', 'OrderStudioApp.jsx']);
 
-/** Модули ERP, которые файл может взять ТОЛЬКО динамическим `import()` — и только эти */
-const DYNAMIC_ONLY: Record<string, ReadonlySet<string>> = {
-  'bridge/launch.ts': new Set([
-    '../../erp/lazyScreen',
-    '../../erp/store/useErpStore',
-    '../../erp/screens/orders/create/orderPayload',
-  ]),
-};
+/** Шлюз запуска: единственный модуль Order со стором ERP — и только эти модули ERP */
+const GATEWAY = 'bridge/erpGateway.ts';
+const GATEWAY_MODULES: ReadonlySet<string> = new Set([
+  '../../erp/lazyScreen',
+  '../../erp/store/useErpStore',
+  '../../erp/screens/orders/create/orderPayload',
+  '../../erp/utils/garmentSource',
+  '../../erp/utils/statusUi',
+]);
+/** Кто и как грузит шлюз: только `launch.ts`, только `import()` */
+const GATEWAY_IMPORTERS: Record<string, string> = { 'bridge/launch.ts': './erpGateway' };
 
 /** Верхний уровень erp/components, которым разрешено импортироваться из Order (проверено: сами не тянут стор/supabase/api) */
 const ERP_PRIMITIVES = new Set([
@@ -77,19 +83,20 @@ function isAllowed(rel: string, target: string): boolean {
   return primitive !== null && ERP_PRIMITIVES.has(primitive[1]);
 }
 
-/**
- * Недопустимые рантайм-импорты ERP модуля `rel`. Статические и реэкспорт —
- * по общим правилам; динамические — ещё и из личного списка `DYNAMIC_ONLY`.
- */
+/** Недопустимые рантайм-импорты ERP модуля `rel`; шлюзу — ровно его список */
 function violations(rel: string, text: string): string[] {
-  const dynamicAllowed = DYNAMIC_ONLY[rel];
-  if (!dynamicAllowed) return runtimeErpImports(text).filter((target) => !isAllowed(rel, target));
-  const staticOnes = [STATIC_IMPORT, REEXPORT].flatMap((re) => [...text.matchAll(re)].map((m) => m[2]));
-  const dynamicOnes = [...text.matchAll(DYNAMIC_IMPORT)].map((m) => m[2]);
-  return [
-    ...staticOnes.filter((target) => !isAllowed(rel, target)),
-    ...dynamicOnes.filter((target) => !dynamicAllowed.has(target) && !isAllowed(rel, target)),
-  ];
+  if (rel === GATEWAY) return runtimeErpImports(text).filter((target) => !GATEWAY_MODULES.has(target) && !isAllowed(rel, target));
+  return runtimeErpImports(text).filter((target) => !isAllowed(rel, target));
+}
+
+/** Импорты шлюза модулем `rel`: статические (запрещены всем) и динамические */
+const GATEWAY_STATIC = /^(?:import|export)\s+(?!type\b)[^;]*?from\s+(['"])([^'"]*erpGateway)\1/gm;
+const GATEWAY_DYNAMIC = /\bimport\(\s*(['"])([^'"]*erpGateway)\1\s*\)/g;
+function gatewayImports(text: string): { static: string[]; dynamic: string[] } {
+  return {
+    static: [...text.matchAll(GATEWAY_STATIC)].map((m) => m[2]),
+    dynamic: [...text.matchAll(GATEWAY_DYNAMIC)].map((m) => m[2]),
+  };
 }
 
 describe('Order v4 не импортирует рантайм ERP', () => {
@@ -130,29 +137,43 @@ describe('Order v4 не импортирует рантайм ERP', () => {
     }
   });
 
-  it('запуск в производство: три модуля ERP и только динамическим import()', () => {
-    const launch = 'bridge/launch.ts';
-    const dyn = (target: string) => `const m = await import('${target}');`;
-    expect(violations(launch, dyn('../../erp/store/useErpStore'))).toEqual([]);
-    expect(violations(launch, dyn('../../erp/lazyScreen'))).toEqual([]);
-    expect(violations(launch, dyn('../../erp/screens/orders/create/orderPayload'))).toEqual([]);
-    // статический импорт того же стора — нарушение
-    expect(violations(launch, "import { useErpStore } from '../../erp/store/useErpStore';"))
-      .toEqual(['../../erp/store/useErpStore']);
-    expect(violations(launch, "export { createOrderPayload } from '../../erp/screens/orders/create/orderPayload';"))
-      .toEqual(['../../erp/screens/orders/create/orderPayload']);
-    // четвёртый модуль ERP — нарушение даже динамически
-    expect(violations(launch, dyn('../../erp/store/domainSlices'))).toEqual(['../../erp/store/domainSlices']);
+  it('запуск в производство: стор ERP — только шлюз, ровно его пять модулей', () => {
+    const imp = (target: string) => `import { x } from '${target}';`;
+    for (const m of GATEWAY_MODULES) expect(violations(GATEWAY, imp(m))).toEqual([]);
+    // шестой модуль ERP — нарушение и для шлюза
+    expect(violations(GATEWAY, imp('../../erp/store/domainSlices'))).toEqual(['../../erp/store/domainSlices']);
     // типы стираются при сборке и разрешены
-    expect(violations(launch, "import type { NewOrderInput } from '../../erp/store/types';")).toEqual([]);
-    // разрешение личное: другому модулю те же три модуля запрещены
-    expect(violations('screens/SalesCard.jsx', dyn('../../erp/store/useErpStore'))).toEqual(['../../erp/store/useErpStore']);
+    expect(violations(GATEWAY, "import type { NewOrderInput } from '../../erp/store/types';")).toEqual([]);
+    // разрешение личное: launch.ts и прочим стор ERP запрещён, и динамически тоже
+    expect(violations('bridge/launch.ts', "const m = await import('../../erp/store/useErpStore');"))
+      .toEqual(['../../erp/store/useErpStore']);
+    expect(violations('screens/SalesCard.jsx', imp('../../erp/store/useErpStore'))).toEqual(['../../erp/store/useErpStore']);
   });
 
-  it('список модулей запуска не устарел: launch.ts берёт ровно их', () => {
-    const text = readSource(join(ORDER_DIR, 'bridge', 'launch.ts'));
-    const dynamicOnes = [...text.matchAll(DYNAMIC_IMPORT)].map((m) => m[2]).sort();
-    expect(dynamicOnes).toEqual([...DYNAMIC_ONLY['bridge/launch.ts']].sort());
+  it('список модулей шлюза не устарел: erpGateway.ts берёт ровно их', () => {
+    const got = runtimeErpImports(readSource(join(ORDER_DIR, 'bridge', 'erpGateway.ts'))).sort();
+    expect(got).toEqual([...GATEWAY_MODULES].sort());
+  });
+
+  it('шлюз грузит только launch.ts и только import(): статических импортёров нет', () => {
+    expect(gatewayImports("import { loadErpForLaunch } from './erpGateway';").static).toEqual(['./erpGateway']);
+    expect(gatewayImports("export * from './erpGateway';").static).toEqual(['./erpGateway']);
+    expect(gatewayImports("import type { ErpLaunchModules } from './erpGateway';").static).toEqual([]);
+    expect(gatewayImports("const g = await import('./erpGateway');").dynamic).toEqual(['./erpGateway']);
+
+    const found: Record<string, string> = {};
+    const bad: string[] = [];
+    for (const f of sourceFiles(ORDER_DIR)) {
+      const rel = relative(ORDER_DIR, f).split(sep).join('/');
+      const g = gatewayImports(readSource(f));
+      bad.push(...g.static.map((t) => `${rel}: статический ${t}`));
+      for (const t of g.dynamic) {
+        if (GATEWAY_IMPORTERS[rel] === t) found[rel] = t;
+        else bad.push(`${rel}: import(${t})`);
+      }
+    }
+    expect(bad).toEqual([]);
+    expect(found).toEqual(GATEWAY_IMPORTERS);
   });
 
   it('ни один модуль, кроме моста и оболочки', () => {

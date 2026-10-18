@@ -9,6 +9,14 @@
  * Ошибка Supabase → `toast.error` с текстом сервера (он русский) и `null`
  * (правило проекта). `launchCheck` невыполненное условие отдаёт ОТВЕТОМ
  * `{ ok: false, reason }`, а не ошибкой: показ причины — дело экрана.
+ *
+ * Миграция J (веха 6+7, К18–К19): ответы дополнены `updated_at` (и `status`,
+ * `sent_at`) — экран кладёт их в стор `applyServer`, иначе следующее
+ * сохранение ушло бы со старой версией и получило ложный «изменён в другой
+ * вкладке». `transition` принимает `p_expected_updated_at` (отправка) и
+ * `p_erp_order_id` (запуск); оба уходят, только если заданы — старая
+ * сигнатура B их не знает. Ответ PostgREST «функции нет» (`PGRST202`/404:
+ * вкладка новее сервера или J откатили) — понятный текст, а не английский.
  */
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
@@ -23,10 +31,14 @@ export interface TransitionResult {
   id: string;
   status: SalesOrderStatus;
   erp_order_id: string | null;
+  /** J: версия строки после перехода; нет — сервер старше J (стор перечитает заказ) */
+  updated_at?: string;
+  sent_at?: string | null;
 }
 
+/** J: `launched` — у заказа уже стоит `erp_order_id` (заказ ERP привязан) */
 export type LaunchCheckResult =
-  | { ok: true; already: boolean; erp_order_id?: string; launch_started_at?: string }
+  | { ok: true; already: boolean; launched: boolean; erp_order_id?: string; launch_started_at?: string; updated_at?: string }
   | { ok: false; reason: string };
 
 export interface PaymentResult {
@@ -34,40 +46,107 @@ export interface PaymentResult {
   paid_at: string | null;
   paid_kind: PaidKind | null;
   paid_override_reason: string | null;
+  updated_at?: string;
+  status?: SalesOrderStatus;
 }
 
+/** Функции с такими аргументами на сервере нет — вкладка новее базы */
+export const SERVER_OUTDATED_TEXT = 'Вышло обновление сервера — обновите страницу';
+
 interface RpcError {
+  code?: string | null;
   message?: string | null;
+}
+
+/** PostgREST не нашёл функцию: `PGRST202` или HTTP 404 */
+function isMissingFunction(error: RpcError, status: number | undefined): boolean {
+  return error.code === 'PGRST202' || error.code === '404' || status === 404;
+}
+
+/**
+ * Текст отказа перехода → вид: «изменён в другой вкладке» — `conflict` (та же
+ * классификация, что у сохранения: текст J = текст `order_v4_save_full`)
+ */
+export function transitionFailureKind(message: string | null | undefined): 'conflict' | 'other' {
+  return (message ?? '').includes('изменён в другой вкладке') ? 'conflict' : 'other';
+}
+
+/** Ответ RPC с текстом отказа (тот же, что ушёл в тост; успех — пустая строка) */
+export interface RpcOutcome<T> {
+  data: T | null;
+  message: string;
+}
+
+/** Вызов RPC: ошибка или отказ сети — тост, `data = null` и текст отказа */
+async function callDetailed<T>(fn: string, args: Record<string, unknown>, fallback: string): Promise<RpcOutcome<T>> {
+  try {
+    const { data, error, status } = await supabase.rpc(fn, args) as {
+      data: unknown; error: RpcError | null; status?: number;
+    };
+    if (error) {
+      console.error(fn, error);
+      const message = isMissingFunction(error, status)
+        ? SERVER_OUTDATED_TEXT
+        : translateSupabaseError(error.message) || fallback;
+      toast.error(message);
+      return { data: null, message };
+    }
+    return { data: data as T, message: '' };
+  } catch (e) {
+    console.error(fn, e);
+    const message = `${fallback}: ${networkFailureMessage(e)}`;
+    toast.error(message);
+    return { data: null, message };
+  }
 }
 
 /** Вызов RPC: ошибка или отказ сети — тост и `null` */
 async function call<T>(fn: string, args: Record<string, unknown>, fallback: string): Promise<T | null> {
-  try {
-    const { data, error } = await supabase.rpc(fn, args);
-    if (error) {
-      console.error(fn, error);
-      toast.error(translateSupabaseError((error as RpcError).message) || fallback);
-      return null;
-    }
-    return data as T;
-  } catch (e) {
-    console.error(fn, e);
-    toast.error(`${fallback}: ${networkFailureMessage(e)}`);
-    return null;
-  }
+  return (await callDetailed<T>(fn, args, fallback)).data;
 }
 
-/** Переход статуса заказа v4. Причина обязательна для «Вернуть менеджеру» */
+/**
+ * Переход статуса заказа v4. Причина обязательна для «Вернуть менеджеру».
+ * `expectedUpdatedAt` — версия, которую видел клиент (отправка: сервер
+ * отказывает «изменён в другой вкладке»); `erpOrderId` — id, который вернул
+ * `createOrder` этого запуска (переход в `production`). Пустые не уходят.
+ */
+function transitionArgs(
+  id: string, to: TransitionTarget, reason?: string, expectedUpdatedAt?: string | null, erpOrderId?: string,
+): Record<string, unknown> {
+  return {
+    p_id: id,
+    p_to: to,
+    p_reason: reason ?? null,
+    ...(expectedUpdatedAt ? { p_expected_updated_at: expectedUpdatedAt } : {}),
+    ...(erpOrderId ? { p_erp_order_id: erpOrderId } : {}),
+  };
+}
+
+const TRANSITION_FAIL = 'Не удалось сменить статус заказа';
+
 export function transitionOrder(
   id: string,
   to: TransitionTarget,
   reason?: string,
+  expectedUpdatedAt?: string | null,
+  erpOrderId?: string,
 ): Promise<TransitionResult | null> {
-  return call<TransitionResult>(
-    'order_v4_transition',
-    { p_id: id, p_to: to, p_reason: reason ?? null },
-    'Не удалось сменить статус заказа',
-  );
+  return call<TransitionResult>('order_v4_transition', transitionArgs(id, to, reason, expectedUpdatedAt, erpOrderId), TRANSITION_FAIL);
+}
+
+/**
+ * Тот же переход, но отказ возвращается и текстом (`message`): «Отправить
+ * в работу» отличает «изменён в другой вкладке» (`transitionFailureKind`)
+ * от прочих отказов сервера и показывает текст на экране, а не только тостом.
+ */
+export function transitionOrderDetailed(
+  id: string,
+  to: TransitionTarget,
+  reason?: string,
+  expectedUpdatedAt?: string | null,
+): Promise<RpcOutcome<TransitionResult>> {
+  return callDetailed<TransitionResult>('order_v4_transition', transitionArgs(id, to, reason, expectedUpdatedAt), TRANSITION_FAIL);
 }
 
 /** Проверка перед созданием заказа ERP: ставит метку начала запуска */

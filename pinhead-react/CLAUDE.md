@@ -153,6 +153,24 @@ URL: https://pinhead-os.vercel.app
   Холст рабочего места — рукава и геометрия по версии позиции (`design/ui/useItemFlat`,
   `FlatNotices`). Миграция I `20261018090000_flats_admin` — форма и триггер-страж справочников;
   правила — `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`.
+  Веха 6+7 (18.10): ТЗ в PDF, отправка, оплата, «К запуску», запуск в ERP. `tz/model/` — чистая модель
+  (группы `tzGroups` по модели, ткани, цветам деталей и набору нанесений; документ `tzDocument`; раскладка
+  `layoutTz`/`layoutTzPrints`/`layoutPager`/`layoutGrid`, `fitText`; глифы шрифта `pdfGlyphs`/`sendGlyphs`;
+  `tzHash` (sha-256 зависимостью `digest`, без `issuedOn`/`footer.link`), `tzFileName`, `sendChecklist`
+  (+ `SERVER_SEND_RULES`), `groupDiff`, `safeUrl`); `tz/pdf/` — движок (`tzPdf`, `drawBoxes`, `tzImages`,
+  `tzPdfError`) на `design/export/pdfCore.ts`, грузится только `tz/ui/tzExport.ts`; `tz/sendToWork.ts` —
+  цепочка «Отправить в работу»; `tz/ui/` — ленивый `TzSummary` на «ТЗ и цена» (оплата, группы ТЗ
+  с предпросмотром ссылкой, `SendPanel` + `ChecklistView`), `ReturnBanner`; `tz/tzCatalogs.ts` — одна сборка
+  справочников для хэша; `tz/appOrigin.ts` (`VITE_APP_ORIGIN`). `payment/PaymentPanel` — оплата кнопками,
+  «без оплаты» с причиной (lead). Стор: `applyServer`, `beginSend`/`endSend`/`editDuringSend`.
+  Запуск: `bridge/launch.ts` (шаги `check → bootstrap → payload → tzcheck → files → recheck → create →
+  transition`, `onStage`), `launchFiles` (копия ТЗ на каждую позицию ERP, макеты к нанесениям и биркам, тип
+  по байтам), `erpKeys`, `tzCheck`, шлюз `erpGateway` (стор ERP — единственный путь); `api/erpFiles.ts` —
+  писатель `erp-attachments`; `api/salesEvents.ts` — последний возврат и «без оплаты». Экран «К запуску» —
+  `launch/` (`/sales/:id/launch`, ленивый `LaunchScreen`, `LaunchSide`, `LaunchOutcome`, `ReturnDialog`,
+  `TzFrame`, `RouteView`), пресет списка `LAUNCH_QUEUE_PATH`. Миграция J `20261018120000_order_v4_launch`.
+  Сверка имён и замеры — `src/orderstudio/tz/README.md`; правила —
+  `docs/rules/pravila-tz-i-zapuska-veha-6-7-18-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -222,9 +240,10 @@ URL: https://pinhead-os.vercel.app
   срочность, DTF/DTG/вышивка); контрольные примеры документа — costRules.test.ts, printRules.test.ts
 - orderstudio/ — priceOrder (16), tzToErpDraft (22, сторож контракта с формой ERP),
   salesOrders (7, туда-обратно с RPC), useSalesStore (очередь автосохранения),
-  erpImports (сторож: без рантайм-импорта ERP; `bridge/launch.ts` — ровно три модуля ERP
-  динамически), salesTransitions (переходы v4, проверка запуска, оплата — только RPC),
-  bridge/launch (прототип запуска: launch_check → createOrder → transition), api/artworks
+  erpImports (сторож: без рантайм-импорта ERP; стор ERP — только шлюз `bridge/erpGateway.ts`, ровно
+  пять модулей ERP, сам шлюз — только `import()` из `bridge/launch.ts`), salesTransitions (переходы v4, проверка запуска, оплата — только RPC),
+  bridge/launch (запуск: launch_check → tzcheck → копии файлов → recheck → createOrder → transition
+  с `p_erp_order_id`; 6+7), api/artworks
   (бакет order-artworks), сторожа orderV4Rights (стражи и RPC вехи 2), orderArtworksBucket,
   probesFiles (пробы `supabase/probes/`), wizardAdapter (`garmentPatch` — запись по разнице),
   leaveGuard, веха 3: workplace/itemBuffer (буфер позиции: быстрый переход, загрузка
@@ -245,7 +264,12 @@ URL: https://pinhead-os.vercel.app
   designGuards (`edit/` без api/стора/тостов), admin/flats/saveFlat (файлы до справочника, «v2…v6 заняты →
   v7», сбой переноса), zonesWrites (один писатель зон), flatsAdminGuards и canvas/canvasGuards (нет ERP,
   HTML-строк, иконок без aria-label), catalogKeys (паритет FLATS_CASES ↔ пробы I, ZONE_ID_RE в SQL),
-  bundleBudget5b (konva не в OrderSettings/FlatsTab/FlatPreview)
+  bundleBudget5b (konva не в OrderSettings/FlatsTab/FlatPreview);
+  веха 6+7: orderV4Launch (J — тела B/F + блоки правок, md5, гейты экрана = J, эталон 960 сочетаний,
+  `SERVER_SEND_RULES`), mockContract (мок e2e = тексты J), tz/model (5 фикстур образцов, хэш, глифы, цены
+  не в ТЗ — tzModelGuards), design/export/pdfGuards (jsPDF только в pdfCore, tzPdf только `import()`, ссылки
+  только после `isSafeHttpUrl`), sceneGolden (лист макета 5а побайтно), bridge/launchFiles + erpKeys (ключи,
+  тип по байтам, 409), tzCheck, erpFilesWrites и artworkWrites (единственные писатели), tz/bundleBudgetM67
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

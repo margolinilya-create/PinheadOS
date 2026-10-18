@@ -2,6 +2,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useStore } from '../../store/useStore';
+import { factoryDate } from '../../utils/date';
 import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import { EmptyState } from '../../erp/components/ErpStates';
 /*
@@ -14,9 +17,13 @@ import { useSalesStore, isTerminalSaveState } from '../store/useSalesStore';
 import { isEditable } from '../model/editable';
 import { gridQty, newSalesItem } from '../model/factory';
 import { duplicateInColor, splitByColor } from '../model/itemOps';
-import { useOrderPrice } from '../screens/useOrderPrice';
+import { rulesFromPrices, useOrderPrice } from '../screens/useOrderPrice';
 import { STATUS_LABELS } from '../screens/labels';
 import { unplacedCount } from '../design/model/layoutMark';
+import { useTzCatalogs } from '../tz/tzCatalogs';
+import { useSendChecklist } from '../tz/useSendChecklist';
+import ReturnBanner from '../tz/ui/ReturnBanner';
+import HeadActions from './HeadActions';
 import ItemList from './ItemList';
 import ItemTab from './ItemTab';
 import ClientTab from './ClientTab';
@@ -65,21 +72,39 @@ function tabMarker(key, order) {
  *
  * Открытие заказа ничего не пишет: новая позиция — только по кнопке.
  * Уход с экрана сохраняет несохранённое сразу (`flush`).
+ *
+ * Веха 6+7 (задача 5): в шапке — бейдж оплаты, «Отправить в работу» (навигация
+ * к разделу отправки «ТЗ и цена» с числом блокирующих пунктов) и «Отметить:
+ * заказ сдан»; над вкладками — плашки «отправлен» и «вернули». Пока идёт
+ * отправка, содержимое вкладок — в `fieldset disabled` (вкладки для просмотра
+ * остаются), уход спрашивает `leaveGuard`.
  */
 export default function OrderWorkplace() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const compact = useMediaQuery('(max-width: 760px)');
-  const { order, loading, saveState, open, flush, edit } = useSalesStore(useShallow((s) => ({
+  const { order, loading, saveState, sending, open, flush, edit } = useSalesStore(useShallow((s) => ({
     order: s.current,
     loading: s.currentLoading,
     saveState: s.saveState,
+    sending: s.sending,
     open: s.open,
     flush: s.flush,
     edit: s.edit,
   })));
+  const user = useAuthStore((s) => s.user);
+  const prices = useStore((s) => s.prices);
   const price = useOrderPrice(order);
+  const { catalogs, failed: catalogsFailed } = useTzCatalogs();
+  const minMarginPct = rulesFromPrices(prices ?? {}).minMarginPct;
+  const marginPct = price?.margin_pct ?? null;
+  /** Чек-лист отправки (T2, модель — ленивым чанком) — один на шапку и раздел «Отправить в работу» */
+  const checklist = useSendChecklist(order, catalogs, { marginPct, minMarginPct: minMarginPct ?? null });
+  const blocking = (checklist ?? []).filter((i) => i.blocking && !i.ok).length;
+  /** Фокус на заголовок раздела отправки — после кнопки шапки */
+  const [focusSend, setFocusSend] = useState(false);
+  const onSendFocused = useCallback(() => setFocusSend(false), []);
   const tabRefs = useRef(new Map());
   /*
    * Фокус в первое поле «Клиента» — только после «Далее: клиент и доставка».
@@ -108,6 +133,14 @@ export default function OrderWorkplace() {
       return p;
     }, { replace: true });
   }, [setParams]);
+
+  /** Кнопка шапки: только навигация к разделу отправки (`?tab=summary#send`) */
+  const goSend = () => {
+    const p = new URLSearchParams(params);
+    p.set('tab', 'summary');
+    navigate({ search: `?${p}`, hash: '#send' }, { replace: true });
+    setFocusSend(true);
+  };
 
   if (loading) return <div className={sales.page}><ScreenSkeleton /></div>;
   if (!order && id) {
@@ -180,8 +213,11 @@ export default function OrderWorkplace() {
         <div className={styles.headRow}>
           <span className={sales.badge}>{STATUS_LABELS[order.status]}</span>
           <SaveIndicator order={order} saveState={saveState} />
+          <HeadActions order={order} user={user} blocking={blocking} onGoSend={goSend} />
         </div>
       </header>
+
+      <ReturnBanner order={order} />
 
       <div role="tablist" aria-label="Разделы заказа" className={styles.tabs}>
         {TABS.map((t, i) => {
@@ -207,101 +243,111 @@ export default function OrderWorkplace() {
       </div>
 
       <div role="tabpanel" id={`wp-panel-${tab}`} aria-labelledby={`wp-tab-${tab}`} className={styles.panel}>
-        {(tab === 'item' || tab === 'design') && items.length === 0 && (
-          <EmptyState
-            icon="inbox"
-            title="В заказе пока нет изделий"
-            text={readOnly ? undefined : 'Добавьте первое изделие — модель, ткань, цвет и размеры.'}
-            action={!readOnly && (
-              <button type="button" className="btn btn-primary" onClick={addItem}>Добавить изделие</button>
-            )}
-          />
-        )}
-        {tab === 'design' && selected && (
-          <div className={styles.designLayout}>
-            <ItemList
-              order={order}
-              selectedKey={selected.key}
-              onSelect={(key) => go({ item: key })}
-              onAdd={addItem}
-              onCopyColor={copyColor}
-              onRemove={remove}
-              onSplit={split}
-              readOnly={readOnly}
-              compact
+        {/* Отправка в работу: правка закрыта и в интерфейсе, вкладки выше — для просмотра */}
+        <fieldset className={styles.fieldset} disabled={sending} aria-busy={sending || undefined}>
+          {(tab === 'item' || tab === 'design') && items.length === 0 && (
+            <EmptyState
+              icon="inbox"
+              title="В заказе пока нет изделий"
+              text={readOnly ? undefined : 'Добавьте первое изделие — модель, ткань, цвет и размеры.'}
+              action={!readOnly && (
+                <button type="button" className="btn btn-primary" onClick={addItem}>Добавить изделие</button>
+              )}
             />
-            <ErrorBoundary
-              key={selected.key}
-              fallback={<p className={sales.empty}>Холст не открылся — обновите страницу. Нанесения можно править на вкладке «Изделие».</p>}
-            >
-              <Suspense fallback={<p className={sales.empty} role="status">Загружаю холст…</p>}>
-                <DesignTab
-                  order={order}
-                  item={selected}
-                  price={itemPrice}
-                  readOnly={readOnly}
-                  compact={compact}
-                  onOpenItem={() => go({ tab: 'item' })}
-                />
-              </Suspense>
-            </ErrorBoundary>
-            <div className={styles.next}>
-              <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
-                Далее: клиент и доставка
-              </button>
-            </div>
-          </div>
-        )}
-        {tab === 'item' && selected && (
-          <div className={styles.itemLayout}>
-            <ItemList
-              order={order}
-              selectedKey={selected?.key}
-              onSelect={(key) => go({ item: key })}
-              onAdd={addItem}
-              onCopyColor={copyColor}
-              onRemove={remove}
-              onSplit={split}
-              readOnly={readOnly}
-              compact={compact}
-            />
-            <div className={styles.itemMain}>
-              <ItemTab
-                key={selected.key}
-                item={selected}
-                price={itemPrice}
+          )}
+          {tab === 'design' && selected && (
+            <div className={styles.designLayout}>
+              <ItemList
+                order={order}
+                selectedKey={selected.key}
+                onSelect={(key) => go({ item: key })}
+                onAdd={addItem}
+                onCopyColor={copyColor}
+                onRemove={remove}
+                onSplit={split}
                 readOnly={readOnly}
-                compact={compact}
-                onChange={(patch) => setItem(selected.key, patch)}
-                onSplit={splitFromNotice}
-                onOpenDesign={() => go({ tab: 'design' })}
+                compact
               />
+              <ErrorBoundary
+                key={selected.key}
+                fallback={<p className={sales.empty}>Холст не открылся — обновите страницу. Нанесения можно править на вкладке «Изделие».</p>}
+              >
+                <Suspense fallback={<p className={sales.empty} role="status">Загружаю холст…</p>}>
+                  <DesignTab
+                    order={order}
+                    item={selected}
+                    price={itemPrice}
+                    readOnly={readOnly}
+                    compact={compact}
+                    onOpenItem={() => go({ tab: 'item' })}
+                  />
+                </Suspense>
+              </ErrorBoundary>
               <div className={styles.next}>
                 <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
                   Далее: клиент и доставка
                 </button>
               </div>
             </div>
-          </div>
-        )}
-        {tab === 'client' && (
-          <ClientTab
-            order={order}
-            readOnly={readOnly}
-            onChange={set}
-            focusFirst={focusClient}
-            onFocused={() => setFocusClient(false)}
-          />
-        )}
-        {tab === 'summary' && (
-          <SummaryTab
-            order={order}
-            price={price}
-            readOnly={readOnly}
-            itemHref={itemHref}
-            onDiscount={(discount) => set({ discount })}
-          />
-        )}
+          )}
+          {tab === 'item' && selected && (
+            <div className={styles.itemLayout}>
+              <ItemList
+                order={order}
+                selectedKey={selected?.key}
+                onSelect={(key) => go({ item: key })}
+                onAdd={addItem}
+                onCopyColor={copyColor}
+                onRemove={remove}
+                onSplit={split}
+                readOnly={readOnly}
+                compact={compact}
+              />
+              <div className={styles.itemMain}>
+                <ItemTab
+                  key={selected.key}
+                  item={selected}
+                  price={itemPrice}
+                  readOnly={readOnly}
+                  compact={compact}
+                  onChange={(patch) => setItem(selected.key, patch)}
+                  onSplit={splitFromNotice}
+                  onOpenDesign={() => go({ tab: 'design' })}
+                />
+                <div className={styles.next}>
+                  <button type="button" className="btn btn-primary" onClick={() => { setFocusClient(true); go({ tab: 'client' }); }}>
+                    Далее: клиент и доставка
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {tab === 'client' && (
+            <ClientTab
+              order={order}
+              readOnly={readOnly}
+              onChange={set}
+              focusFirst={focusClient}
+              onFocused={() => setFocusClient(false)}
+            />
+          )}
+          {tab === 'summary' && (
+            <SummaryTab
+              order={order}
+              price={price}
+              readOnly={readOnly}
+              itemHref={itemHref}
+              onDiscount={(discount) => set({ discount })}
+              user={user}
+              catalogs={catalogs}
+              catalogsFailed={catalogsFailed}
+              checklist={checklist}
+              today={factoryDate(new Date())}
+              focusSend={focusSend}
+              onSendFocused={onSendFocused}
+            />
+          )}
+        </fieldset>
       </div>
     </div>
   );

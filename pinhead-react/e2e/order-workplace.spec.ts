@@ -360,6 +360,8 @@ test.describe('рабочее место заказа', () => {
   });
 
   test('рабочее место: нет нарушений axe уровня serious/critical', async ({ page }) => {
+    // Четыре вкладки и четыре прогона axe — под нагрузкой CI 30 с не хватало (финальное ревью 6+7)
+    test.slow();
     const id = '6f1c2d3e-0000-4000-8000-0000000000dd';
     const item = { ...DRAFT_ITEM, size_grid: { sizes: ['M', 'L'], rows: [DRAFT_ITEM.size_grid.rows[0]] } };
     await installSupabaseMock(page, { salesOrders: [salesRow(id, 'draft', [item])] });

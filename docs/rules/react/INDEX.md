@@ -101,6 +101,17 @@ realtime.
 `FlatPreview`, `saveFlat` + `useFlatEditor`, `ZonesCatalogEditor` + `zonesEdit`); замеры — раздел
 «Итог 5б» в `design/README.md`. Правила — `../pravila-flety-i-zony-veha-5b-18-10.md`.
 
+## Order v4: ТЗ в PDF, отправка и запуск (веха 6+7)
+
+Модель ТЗ — `orderstudio/tz/model/` (группы `tzGroups`, документ `tzDocument`, раскладка `layoutTz`/
+`layoutTzPrints`/`layoutPager`/`layoutGrid`, `fitText`, глифы `pdfGlyphs`/`sendGlyphs`, хэш `tzHash`, имя
+`tzFileName`, чек-лист `sendChecklist`, `groupDiff`, `safeUrl`), движок — `tz/pdf/` (`tzPdf`, `drawBoxes`,
+`tzImages`) на общем `design/export/pdfCore.ts`, отправка — `tz/sendToWork.ts`, экран «ТЗ и цена» —
+`tz/ui/` (`TzSummary`, `SendPanel`, `ChecklistView`, `TzGroupsPanel`, `TzPreviewButton`, `ReturnBanner`),
+оплата — `orderstudio/payment/`; запуск — `bridge/` (`launch`, `launchFiles`, `erpKeys`, `tzCheck`,
+`erpGateway`), экран «К запуску» — `orderstudio/launch/`; фикстуры образцов — `orderstudio/fixtures/`.
+Сверка имён и замеры — `orderstudio/tz/README.md`. Правила — `../pravila-tz-i-zapuska-veha-6-7-18-10.md`.
+
 ## Прочее
 
 - `pravila-erp-audit-po-skilam.md`

@@ -7,6 +7,7 @@ import {
 } from './tzToErpDraft';
 import { newSalesItem, newSalesLabel, newSalesOrder, newSalesPrint } from '../model/factory';
 import type { SalesItem } from '../model/types';
+import { itemNeedsPurchase } from '../../erp/utils/garmentSource';
 
 /**
  * СТОРОЖ КОНТРАКТА МОСТА. Поля формы ERP читаются из САМОГО ИСХОДНИКА
@@ -85,7 +86,7 @@ describe('tzToErpDraft — шапка и связь', () => {
 
 describe('tzToErpDraft — позиции', () => {
   it('пошив по SKU: sewing, закупка нужна, поля ТЗ как есть', () => {
-    const d = tzToErpDraft(order([sku()]));
+    const d = tzToErpDraft(order([sku()]), undefined, itemNeedsPurchase);
     expect(d.items[0]).toMatchObject({
       production_type: 'sewing', product_type: 'Футболка', fit: 'regular',
       main_fabric: 'Кулирка 180', color_supplier: 'Чёрный / Медас', qty: 30,
@@ -113,8 +114,18 @@ describe('tzToErpDraft — позиции', () => {
   });
 
   it('только давальческое и склад — закупка не нужна', () => {
-    const d = tzToErpDraft(order([sku({ kind: 'customer' }), sku({ kind: 'blank', blank_source: 'stock' })]));
+    const d = tzToErpDraft(order([sku({ kind: 'customer' }), sku({ kind: 'blank', blank_source: 'stock' })]), undefined, itemNeedsPurchase);
     expect(d.form.purchase_required).toBe(false);
+  });
+
+  it('без правила ERP (превью «К запуску») закупка не считается — правило приезжает со шлюзом запуска', () => {
+    expect(tzToErpDraft(order([sku()])).form.purchase_required).toBe(false);
+    expect(tzToErpDraft(order([sku()]), undefined, () => true).form.purchase_required).toBe(true);
+  });
+
+  it('мост не импортирует garmentSource: правило — аргументом (граф экрана «К запуску», бюджет оболочки ERP)', () => {
+    const src = readFileSync(join(__dirname, 'tzToErpDraft.ts'), 'utf8');
+    expect(src).not.toMatch(/from '[./]*\/erp\/utils\/garmentSource'/);
   });
 
   it('заказ-образец — позиции уходят образцами', () => {
@@ -123,7 +134,7 @@ describe('tzToErpDraft — позиции', () => {
   });
 
   it('без нанесений — has_branding false, нанесений нет', () => {
-    const d = tzToErpDraft(order([sku()]));
+    const d = tzToErpDraft(order([sku()]), undefined, itemNeedsPurchase);
     expect(d.items[0]).toMatchObject({ has_branding: false, prints: [] });
   });
 

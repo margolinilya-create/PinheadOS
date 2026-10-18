@@ -1,19 +1,35 @@
+import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { gridQty } from '../model/factory';
 import { itemTitle } from '../model/itemOps';
 import PricePanel from '../screens/PricePanel';
 import { ISSUE_LABELS, rub, usePackagingOptions, packagingLabel } from '../screens/labels';
 import { itemPackaging } from '../pricing/priceOrder';
+import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import DiscountField from './DiscountField';
+import { loadTzEngineOrNull } from '../tz/ui/tzExport';
+import { APP_ORIGIN } from '../tz/appOrigin';
+
+/** Оплата, ТЗ и отправка — ленивый чанк (бюджет «Рабочего места») */
+const TzSummary = lazy(() => import('../tz/ui/TzSummary'));
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
 
 /**
  * Вкладка «ТЗ и цена»: позиции таблицей (название, упаковка — подписью
  * из справочника, штук, цена за штуку, сумма), пометки расчёта ссылкой на позицию, живая цена заказа и скидка.
- * PDF ТЗ — следующие вехи.
+ *
+ * Веха 6+7 (задача 5), сверху вниз под ценой: «Оплата» (`PaymentPanel`, общий
+ * с «К запуску»), «ТЗ» (группы, предпросмотр в память, черновик всех ТЗ) и
+ * «Отправить в работу» (чек-лист и единственная точка отправки, якорь `#send`).
+ * Эти три раздела — ленивый чанк `TzSummary`; движок PDF ТЗ — только
+ * `import()` через `tzExport` (бюджет «ТЗ PDF»).
+ * Дата сборки — сегодня по фабрике; передаёт рабочее место (`today`).
  */
-export default function SummaryTab({ order, price, readOnly, itemHref, onDiscount }) {
+export default function SummaryTab({
+  order, price, readOnly, itemHref, onDiscount,
+  user, catalogs, catalogsFailed, checklist, today, focusSend, onSendFocused,
+}) {
   const packOptions = usePackagingOptions();
   const byKey = new Map((price?.items ?? []).map((p) => [p.key, p]));
   return (
@@ -65,6 +81,22 @@ export default function SummaryTab({ order, price, readOnly, itemHref, onDiscoun
             <DiscountField discount={order.discount} onChange={onDiscount} />
           </fieldset>
         </section>
+        <ErrorBoundary fallback={<p className={sales.empty} role="alert">Оплата и ТЗ не загрузились — обновите страницу</p>}>
+          <Suspense fallback={<p className={sales.muted} role="status">Загружаем оплату и ТЗ…</p>}>
+            <TzSummary
+              order={order}
+              user={user}
+              catalogs={catalogs}
+              catalogsFailed={catalogsFailed}
+              checklist={checklist}
+              today={today}
+              appOrigin={APP_ORIGIN}
+              loadEngine={loadTzEngineOrNull}
+              focusSend={focusSend}
+              onSendFocused={onSendFocused}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </div>
       <PricePanel order={order} price={price} />
     </div>

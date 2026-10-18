@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react'
-import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
+import { Routes, Route, Navigate, useBlocker, useParams } from 'react-router-dom'
 import styles from '../App.module.css'
 /**
  * Стили раздела. Лежат ЗДЕСЬ, а не в глобальном `styles/index.css`: раздел
@@ -25,11 +25,11 @@ import { useStore } from '../store/useStore'
 import { storageRemove } from '../lib/storage'
 import { lazyScreen } from '../erp/lazyScreen';
 import {
-  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText,
+  shouldBlockSalesLeave, salesHasUnsaved, salesLeaveDialogText, salesLeaveDialogTitle,
   shouldBlockCatalogLeave, catalogHasUnsaved, CATALOG_LEAVE_TEXT,
 } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
-import { canManageOrderCatalogs, canManageSalesStaff, canUseSales, legacyRedirect } from './layout/orderNav'
+import { canManageOrderCatalogs, canManageSalesStaff, canSeeLaunchQueue, canUseSales, legacyRedirect } from './layout/orderNav'
 import { switchToProduction } from './switchToProduction'
 import OrderLayout from './layout/OrderLayout'
 
@@ -48,6 +48,8 @@ const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 const SalesList = React.lazy(() => import('./screens/SalesList'));
 // Рабочее место заказа (веха 3): изделия, клиент, ТЗ и цена — ленивый чанк
 const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
+// «К запуску» (веха 6+7): экран МС — PDF ТЗ, оплата, маршрут, запуск в ERP; стор ERP — только по кнопке
+const LaunchScreen = React.lazy(() => import('./launch/LaunchScreen'));
 // Сотрудники продаж (вехи 3, 4): признаки is_sales и is_ms ставят admin, director, rop
 const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 // Справочники заказа (веха 4): поставщики, бирки, упаковка, правила цены, подвал ТЗ — admin, director, rop
@@ -91,6 +93,14 @@ function RoleGuard({ allowed, children }) {
   return children;
 }
 
+/** «К запуску» — только МС и руководству производства; прочим — карточка заказа */
+function LaunchGuard({ allowed, children }) {
+  const { id } = useParams();
+  if (!allowed) return <Navigate to={`/sales/${id}`} replace />;
+  // Ключ — id заказа: «Следующий к запуску» открывает экран заново, без итога и ошибки прежнего
+  return <React.Fragment key={id}>{children}</React.Fragment>;
+}
+
 function LoadingScreen() {
   return (
     <div className={styles.loadingScreen}>
@@ -119,6 +129,7 @@ function OrderStudioShell({ user }) {
   // справочником (`/order-settings`; смена `?tab=` — не уход, путь тот же)
   const blocker = useBlocker(({ currentLocation, nextLocation }) => shouldBlockSalesLeave({
     saveState: useSalesStore.getState().saveState,
+    sending: useSalesStore.getState().sending,
     from: currentLocation.pathname,
     to: nextLocation.pathname,
   }) || shouldBlockCatalogLeave({ from: currentLocation.pathname, to: nextLocation.pathname }));
@@ -129,7 +140,8 @@ function OrderStudioShell({ user }) {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (salesHasUnsaved(useSalesStore.getState().saveState) || catalogHasUnsaved()) {
+      const { saveState, sending } = useSalesStore.getState();
+      if (salesHasUnsaved(saveState, sending) || catalogHasUnsaved()) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -159,6 +171,7 @@ function OrderStudioShell({ user }) {
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
         <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
         <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
+        <Route path="/sales/:id/launch" element={<LaunchGuard allowed={canSeeLaunchQueue(user)}><Suspense fallback={Fallback}><LaunchScreen /></Suspense></LaunchGuard>} />
         <Route path="/sales-staff" element={<RoleGuard allowed={canManageSalesStaff(user)}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
         <Route path="/order-settings" element={<RoleGuard allowed={canManageOrderCatalogs(user)}><Suspense fallback={Fallback}><OrderSettings /></Suspense></RoleGuard>} />
         {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}
@@ -180,12 +193,13 @@ function OrderStudioShell({ user }) {
  */
 function SalesLeaveDialog({ blocker }) {
   const saveState = useSalesStore((s) => s.saveState);
+  const sending = useSalesStore((s) => s.sending);
   return (
     <div className={styles.blockerOverlay} role="dialog" aria-modal="true" aria-labelledby="blocker-title" aria-describedby="blocker-text">
       <div className={styles.blockerCard}>
-        <div id="blocker-title" className={styles.blockerTitle}>Правки заказа не сохранены</div>
+        <div id="blocker-title" className={styles.blockerTitle}>{salesLeaveDialogTitle(sending)}</div>
         <div id="blocker-text" className={styles.blockerText}>
-          {salesLeaveDialogText(saveState)}
+          {salesLeaveDialogText(saveState, sending)}
         </div>
         <div className={styles.blockerActions}>
           <button className="btn btn-primary" onClick={() => blocker.reset()}>

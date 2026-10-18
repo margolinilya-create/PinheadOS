@@ -18,7 +18,6 @@
  */
 import { emptyOrderForm, newDraftItem, normalizeBrandingOn } from '../../erp/utils/orderForm';
 import type { DraftForm, DraftItem, DraftLabel, DraftPrint } from '../../erp/utils/orderForm';
-import { itemNeedsPurchase } from '../../erp/utils/garmentSource';
 import type { BrandingMethod, GarmentSource, ProductionType } from '../../erp/types';
 import { gridQty } from '../model/factory';
 import { EFFECT_TO_ERP, EMBROIDERY_EFFECT_NOTE, LABEL_TYPE_TO_ERP } from './erpNames';
@@ -88,7 +87,7 @@ export const FORM_FIELD_SOURCES: Record<keyof DraftForm, FieldSource> = {
   stickers: o('как есть'),
   stickers_note: o('как есть'),
   no_chestny_znak: o('как есть'),
-  purchase_required: o('есть позиция, которой нужна закупка (`itemNeedsPurchase` ERP)'),
+  purchase_required: o('есть позиция, которой нужна закупка (`itemNeedsPurchase` ERP — аргументом, см. `tzToErpDraft`)'),
 };
 
 export const PRINT_FIELD_SOURCES: Record<keyof DraftPrint, FieldSource> = {
@@ -266,7 +265,18 @@ function mapItem(item: SalesItem, order: SalesOrder, warnings: BridgeWarning[]):
   });
 }
 
-export function tzToErpDraft(order: SalesOrder, launchDate?: string): ErpDraft {
+/** Правило ERP «нужна ли позиции закупка» (`erp/utils/garmentSource.itemNeedsPurchase`) */
+export type NeedsPurchase = (item: DraftItem) => boolean;
+
+/**
+ * `needsPurchase` — правило ERP аргументом, а не импортом: мост читают и экран
+ * «К запуску» (предупреждения, маршрут), и запуск. Статический импорт
+ * `garmentSource` из экрана делал его отдельной точкой входа для этого модуля
+ * ERP, и Rollup выносил его из общего чанка оболочки ERP (+571 Б gzip, задача 7
+ * вехи 6+7). Правило приезжает со шлюзом запуска (`erpGateway.ts`); без него
+ * (превью экрана) `purchase_required` = false — в ERP такой черновик не уходит.
+ */
+export function tzToErpDraft(order: SalesOrder, launchDate?: string, needsPurchase?: NeedsPurchase): ErpDraft {
   const warnings: BridgeWarning[] = [];
   const items = order.items.map((it) => mapItem(it, order, warnings));
   const base = emptyOrderForm(launchDate);
@@ -284,7 +294,7 @@ export function tzToErpDraft(order: SalesOrder, launchDate?: string): ErpDraft {
     stickers: order.stickers,
     stickers_note: order.stickers_note,
     no_chestny_znak: order.no_chestny_znak,
-    purchase_required: items.some((it) => itemNeedsPurchase(it)),
+    purchase_required: needsPurchase ? items.some((it) => needsPurchase(it)) : false,
   };
   return {
     form,

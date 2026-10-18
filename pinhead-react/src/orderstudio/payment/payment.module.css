@@ -1,0 +1,81 @@
+/* Оплата заказа v4 (веха 6+7, К16) — «ТЗ и цена» и «К запуску». Только токены из :root. */
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.title {
+  font-size: var(--type-title);
+  font-weight: 700;
+  margin: 0 0 var(--space-sm);
+}
+
+.title:focus-visible,
+.error:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.status {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--type-body);
+}
+
+.override {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--type-body-sm);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+/* Тач-цели ≥ 44 px (экран «К запуску» на планшете) */
+.actions :global(.btn) { min-height: 44px; }
+
+.reasonForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.label {
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.reason {
+  width: 100%;
+  min-height: 72px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.reason:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.count {
+  align-self: flex-end;
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+
+.error {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-error);
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}

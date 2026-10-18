@@ -1,0 +1,49 @@
+{
+  "header": {
+    "orderNumber": "PH-6818",
+    "bitrixId": "68180",
+    "title": "АО НАВИС",
+    "manager": "Мария Ким",
+    "dueDate": "05.12.2026",
+    "productTitle": "Футболка FREE FIT",
+    "qty": 140,
+    "packaging": "ЗИП пакет",
+    "stickers": "Бланк",
+    "noChestnyZnak": false,
+    "comments": [{ "label": null, "text": "Футболки FREE FIT с вышивкой логотипа на груди" }]
+  },
+  "fabric": {
+    "main": "Кулирная гладь 100% хлопок, 180 г/м²",
+    "supplier": "Медас",
+    "colors": [{ "color": "Чёрный", "parts": [] }, { "color": "Белый", "parts": [] }],
+    "grid": {
+      "sizes": ["2XS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "ONE", "5XL"],
+      "rows": [
+        { "color": "Чёрный", "cells": [0, 0, 10, 30, 30, 20, 8, 0, 0, 0, 2], "total": 100 },
+        { "color": "Белый", "cells": [0, 0, 5, 15, 15, 5, 0, 0, 0, 0, 0], "total": 40 }
+      ],
+      "totals": [0, 0, 15, 45, 45, 25, 8, 0, 0, 0, 2],
+      "total": 140
+    }
+  },
+  "labels": {
+    "none": false,
+    "sizeBlank": false,
+    "compositionBlank": false,
+    "items": [
+      { "kind": "Составник", "variant": "С логотипом", "blank": false, "scheme": "Левый внутренний боковой шов",
+        "previews": ["orders/68180000-0000-4000-8000-000000068180/label/c0000001-sostav.png"] }
+    ]
+  },
+  "prints": [
+    { "n": 1, "methodLabel": "Вышивка", "column": "В", "sizeText": "В 30 × Ш 80 мм", "row": "front",
+      "offset": "100 мм от шва горловины", "on": "на крое",
+      "pantone": "Чёрный: Белый; Белый: Тёмно-синий",
+      "fabric": "Кулирная гладь 100% хлопок, 180 г/м²",
+      "grid": { "total": 140 },
+      "mockup": { "view": "front", "flatId": "tee-typical", "printKeys": ["68180-tee-p1"], "highlight": "68180-tee-p1" } }
+  ],
+  "notes": [],
+  "footer": { "group": "PH-6818 · ТЗ 1 из 3" },
+  "typicalFlat": true
+}

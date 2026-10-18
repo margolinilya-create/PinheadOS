@@ -7,6 +7,7 @@
  * Номер нанесения — его место в позиции (номер в ТЗ), а не на виде.
  */
 import type { SalesPrint } from '../../../model/types';
+import { offsetText } from '../../../model/printOffset';
 import type { DesignView } from '../../types';
 
 /** Вид в тексте («вид перед», «вид левый рукав»); рукава — с вехи 5б */
@@ -29,18 +30,6 @@ export function canvasHint(readOnly: boolean): string {
   return 'Стрелки — сдвиг на 1 мм, с Shift — на 10 мм. Delete — снять с изделия. '
     + 'Ctrl+Z — отменить, Ctrl+Shift+Z — вернуть. Esc — снять выбор. '
     + 'Нанесение выбирается в списке нанесений; логотип можно перетащить на холст или вставить через Ctrl+V.';
-}
-
-const OFFSET_FROM: Partial<Record<SalesPrint['offset_from'], string>> = {
-  neck_seam: 'шва горловины',
-  top_edge: 'верхнего края',
-  part_seam: 'шва',
-};
-
-function offsetText(p: SalesPrint): string {
-  const from = OFFSET_FROM[p.offset_from];
-  if (p.offset_mm === null || !from) return '';
-  return p.offset_dir === 'up' ? `${p.offset_mm} мм выше ${from}` : `${p.offset_mm} мм от ${from}`;
 }
 
 /** Пересказ нанесения: номер, Ш × В, отступ, выход за зону */

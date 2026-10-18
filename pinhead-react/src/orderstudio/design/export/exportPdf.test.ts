@@ -121,7 +121,7 @@ describe('exportMaketPdf — настоящий PDF (jsPDF + svg2pdf, шрифт
     expect(sceneInPage).toBe(false);
     const { pages, text } = await pdfText(blob);
     expect(pages).toBe(2);
-    for (const s of ['PH-1234', 'ООО «Ромашка»', 'Футболка Regular', 'Грудь (перед)', '75 мм ниже шва горловины', 'Спина', 'Силуэт типовой', 'масштаб 1:1']) {
+    for (const s of ['PH-1234', 'ООО «Ромашка»', 'Футболка Regular', 'Грудь (перед)', '75 мм от шва горловины', 'Спина', 'Силуэт типовой', 'масштаб 1:1']) {
       expect(text).toContain(s);
     }
   }, 30_000);

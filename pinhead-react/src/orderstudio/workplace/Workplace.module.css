@@ -446,3 +446,7 @@
 
 /* Вкладка «Дизайн» (веха 5а): позиции — выпадающим списком над холстом */
 .designLayout { display: flex; flex-direction: column; gap: var(--space-md); min-width: 0; }
+
+/* ── Шапка: действия заказа (веха 6+7, задача 5), тач-цели ≥ 44 px ── */
+
+.headBtn { min-height: 44px; }

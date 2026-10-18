@@ -1,74 +1,91 @@
 /**
- * Запуск заказа v4 в производство — ПРОТОТИП (веха 2, план п. 8;
- * «Проверка безопасности» п. 1 имеет приоритет). Экран — веха 7.
+ * Запуск заказа v4 в производство (веха 2 — прототип; веха 6+7 — с ТЗ и макетами).
  *
  * Заказ ERP создаёт ТОТ ЖЕ писатель, что и форма ERP, — `createOrder` стора
- * (RPC `erp_create_order`): маршрут, этапы и зависимости считает ERP, а не
- * копия расчёта в Order. ERP при этом не меняется (заморожен с вехи 1):
- * связь `tz_order_id`/`tz_number` RPC принимает с 18.08 и кладёт в заказ ERP.
+ * (RPC `erp_create_order`): маршрут, этапы и зависимости считает ERP. ERP не
+ * меняется (заморожен с вехи 1): связь `tz_order_id`/`tz_number`, секции
+ * `tz.documents` и `attachments` RPC принимает давно.
  *
- * Последовательность и почему она такая:
- * 1. `order_v4_launch_check` — все условия перехода в `production` (оплата,
- *    статус, права) проверяются ДО создания заказа ERP, иначе отказ перехода
- *    оставил бы в цехах сироту. Он же ставит `launch_started_at`: переход
- *    примет только заказ ERP, созданный после этой метки и с `tz_number =
- *    order_number`, — так захват `tz_order_id` чужим заказом ERP ловится.
- * 2–3. Стор ERP и его доменные слайсы — ЛЕНИВО (`import()`): статический
- *    импорт утянул бы слой данных ERP в чанк Order и в бюджет оболочки
- *    (сторож `erpImports.test.ts` пускает сюда ровно три модуля и только так).
- * 4. Черновик моста → payload формы ERP (`createOrderPayload`) + связь.
- * 5. `createOrder` глотает код ошибки (23505 клиенту не виден) и отвечает
- *    `null` и тогда, когда заказ создан, но `loadOne` его не прочитал. Поэтому
- *    при `null` спрашиваем сервер ещё раз: «уже есть» — это наш же запуск
- *    (сирота повтора), отказ — `recheck` с причиной сервера (обычно конфликт
- *    связи), иначе — не создан. Ошибку при этом уже показал тостом стор ERP.
- * 6. `order_v4_transition(production)` — `orders.erp_order_id` ставит RPC.
- *    Отказ здесь — заказ ERP уже есть: повтор запуска идемпотентен (шаг 1
- *    ответит «уже», см. `afterAlready` — у «уже» два смысла).
+ * Шаги (`LaunchStage`) и почему они такие:
+ * 1. `check` — `order_v4_launch_check`: все условия перехода (оплата, статус,
+ *    права МС в ERP, разделение обязанностей) ДО создания заказа ERP; ставит
+ *    метку запуска. Ответ обязан нести `launched` (миграция J) — нет его,
+ *    сервер старше фронта: отказ, а не догадка по форме ответа.
+ * 2. `bootstrap` — стор ERP и его доменные слайсы ЛЕНИВО: `import()` шлюза
+ *    `erpGateway.ts` — единственного модуля Order со стором ERP (почему шлюз,
+ *    а не прямые `import()` модулей ERP, — в его шапке; сторож `erpImports`).
+ * 3. `payload` — черновик моста → позиции payload формы ERP.
+ * 4. `tzcheck` — модель ТЗ по данным заказа против хэша в `tz_pdf_path`
+ *    (решения 42, 45): расхождение — запуск закрыт.
+ * 5. `files` — копии PDF ТЗ (по копии на позицию ERP) и макетов в
+ *    `erp-attachments` с ключами новой попытки (`launchFiles.ts`). Отказ —
+ *    заказ ERP не создаётся (решение 24).
+ * 6. `recheck` — повторный `launch_check` продлевает метку (окно 10 минут
+ *    считается от последнего продления). Заказ вернули менеджеру или метку
+ *    взял другой МС, пока шли копии, — запуск отменяется ДО `createOrder`.
+ * 7. `create` — `createOrder` c `tz.documents` и `attachments` — одна
+ *    транзакция: заказа ERP без ТЗ не бывает. Ответ `null` (23505 стор глотает,
+ *    либо `loadOne` не прочитал созданный) — спрашиваем сервер ещё раз.
+ * 8. `transition` — `order_v4_transition(production, p_erp_order_id)`: id
+ *    заказа ERP ЭТОГО запуска; сервер сверяет его и подлинность (документы ТЗ
+ *    из объектов, загруженных тем, кто ставил метку). Пост-проверка вложений
+ *    (стор ERP молча выбрасывает неизвестный ключ) — предупреждение в итоге.
  *
- * Ошибки Supabase показывают тостом сами писатели (`salesTransitions`, стор
- * ERP); здесь — только итог для экрана с понятной причиной и шагом.
+ * Ошибки Supabase показывают тостом сами писатели (`salesTransitions`,
+ * `erpFiles`, стор ERP); здесь — итог для экрана с причиной и шагом. Экран
+ * обязан показать итог явно, перекрывая тост стора ERP: запуск после
+ * повторной проверки может закончиться успехом.
  */
-import { launchCheck, transitionOrder } from '../api/salesTransitions';
+import { launchCheck, transitionOrder, type LaunchCheckResult, type TransitionResult } from '../api/salesTransitions';
 import type { NewOrderInput } from '../../erp/store/types';
+import type { ErpLaunchModules } from './erpGateway';
+import type { DraftItem } from '../../erp/utils/orderForm';
 import type { SalesOrder } from '../model/types';
+import type { ServerPatch } from '../store/useSalesStore';
+import type { TzCatalogs } from '../tz/model/tzDocTypes';
+import { defaultDigest, type Digest } from '../tz/model/tzHash';
 import { METHOD_LABEL, tzToErpDraft, type BridgeWarning } from './tzToErpDraft';
+import { checkAttachedCount, copyLaunchFiles, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
+import { checkTzHashes } from './tzCheck';
 
-/**
- * `recheck` — отказ ПОВТОРНОЙ проверки после неудачного `createOrder`: чаще
- * всего конфликт связи (заказ ERP создан не этим запуском), но бывает и
- * другое условие, изменившееся параллельно (сняли оплату). Причину называет
- * сервер — её и показывать.
- */
-export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'create' | 'transition' | 'recheck';
+export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'tzcheck' | 'files' | 'recheck' | 'create' | 'transition';
 
 export type LaunchResult =
-  | { ok: true; erpOrderId: string; alreadyLaunched: boolean; warnings: string[] }
+  | { ok: true; erpOrderId: string; alreadyLaunched: boolean; warnings: string[]; patch?: ServerPatch }
   | { ok: false; reason: string; stage: LaunchStage; erpOrderId?: string };
 
 export interface LaunchOptions {
   /** Дата запуска для заказа ERP; без неё — умолчание формы ERP (сегодня) */
   launchDate?: string;
+  /** Справочники, по которым МС пересобирает модель ТЗ (`tzcheck`) */
+  catalogs?: TzCatalogs | null;
+  /** Кто запускает (`uploaded_by` документов ТЗ) */
+  actor?: string;
+  /** sha-256; по умолчанию — `crypto.subtle` браузера */
+  digest?: Digest | null;
+  /** uuid попытки и файлов; по умолчанию — `crypto.randomUUID` */
+  randomId?: () => string;
+  /** Сеть шага `files` — для тестов */
+  files?: CopyDeps;
+  /** Ход запуска для `aria-live` экрана: зовётся в начале каждого шага */
+  onStage?: (stage: LaunchStage) => void;
 }
 
-const REASON = {
+export const REASON = {
   check: 'Не удалось проверить готовность к запуску',
+  oldServer: 'Сервер старой версии — обновите страницу',
   module: 'Модуль производства не загрузился — обновите страницу и повторите',
   bootstrap: 'Справочники производства не загрузились — обновите страницу и повторите',
   payload: 'В заказе нет позиций с количеством',
   payloadBuild: 'Не удалось собрать заказ для производства',
   noLink: 'У заказа нет номера — обновите карточку',
+  noCatalogs: 'Справочники ТЗ не загрузились — обновите страницу и повторите',
   create: 'Не удалось создать заказ в производстве',
   transition: 'Заказ создан в производстве, но статус не обновился — повторите запуск',
   noErpId: 'Статус обновлён, но сервер не вернул заказ производства — обновите карточку',
 } as const;
 
-/**
- * Предупреждения моста — человеческим текстом. Подписей для кодов в Order
- * ещё нет (экран запуска — веха 7), поэтому словарь живёт здесь, рядом
- * с единственным потребителем. Позиция называется видом изделия: ключ
- * позиции человеку ничего не скажет.
- */
+/** Предупреждения моста — человеческим текстом; позиция называется видом изделия */
 const WARNING_TEXT: { [K in BridgeWarning['kind']]: (w: Extract<BridgeWarning, { kind: K }>) => string } = {
   branding_on_mixed: () => 'нанесения идут и по крою, и по готовому изделию — производство получило «по крою», проверьте маршрут',
   dtg_no_stage: () => 'этапа для DTG в производстве нет — договоритесь с цехом отдельно',
@@ -76,181 +93,164 @@ const WARNING_TEXT: { [K in BridgeWarning['kind']]: (w: Extract<BridgeWarning, {
   empty_grid: () => 'размерная сетка пуста — позиция не ушла в производство',
 };
 
-function warningText(w: BridgeWarning, names: Map<string, string>): string {
-  const text = (WARNING_TEXT[w.kind] as (x: BridgeWarning) => string)(w);
-  return `«${names.get(w.item) ?? 'Позиция'}»: ${text}`;
+/** Предупреждения моста по заказу — общие с экраном «К запуску» */
+export function bridgeWarningTexts(order: SalesOrder, warnings: readonly BridgeWarning[]): string[] {
+  const names = new Map(order.items.map((it, i) => [it.key, it.product_type.trim() || `Позиция ${i + 1}`]));
+  return warnings.map((w) => `«${names.get(w.item) ?? 'Позиция'}»: ${(WARNING_TEXT[w.kind] as (x: BridgeWarning) => string)(w)}`);
 }
 
-function itemNames(order: SalesOrder): Map<string, string> {
-  return new Map(order.items.map((it, i) => [it.key, it.product_type.trim() || `Позиция ${i + 1}`]));
+const patchOf = (id: string, r: { updated_at?: string; status?: SalesOrder['status']; erp_order_id?: string | null; sent_at?: string | null }): ServerPatch => ({
+  id,
+  ...(r.updated_at ? { updated_at: r.updated_at } : {}),
+  ...(r.status ? { status: r.status } : {}),
+  ...(r.erp_order_id ? { erp_order_id: r.erp_order_id } : {}),
+  ...(r.sent_at !== undefined ? { sent_at: r.sent_at } : {}),
+});
+
+/** Шаг `transition`: перевод в `production` с id заказа ERP этого запуска */
+async function finish(order: SalesOrder, erpOrderId: string, alreadyLaunched: boolean, warnings: string[]): Promise<LaunchResult> {
+  const tr: TransitionResult | null = await transitionOrder(order.id, 'production', undefined, undefined, erpOrderId);
+  if (!tr) return { ok: false, stage: 'transition', reason: REASON.transition, erpOrderId };
+  // id из ответа — он записан в `orders.erp_order_id`; нет его — связь не подтверждена
+  if (!tr.erp_order_id) return { ok: false, stage: 'transition', reason: REASON.noErpId, erpOrderId };
+  return { ok: true, erpOrderId: tr.erp_order_id, alreadyLaunched, warnings, patch: patchOf(order.id, tr) };
 }
 
-/** Шаг 6: перевод заказа v4 в `production` (связь с ERP ставит RPC) */
-async function finish(
-  order: SalesOrder,
-  erpOrderId: string | null,
-  alreadyLaunched: boolean,
-  warnings: string[],
-): Promise<LaunchResult> {
-  const tr = await transitionOrder(order.id, 'production');
-  if (!tr) {
-    return { ok: false, stage: 'transition', reason: REASON.transition, ...(erpOrderId ? { erpOrderId } : {}) };
-  }
-  // id из ответа перехода — он записан в `orders.erp_order_id`, это и есть истина.
-  // Нет его — связь не подтверждена, пустую строку за id не выдаём
-  if (!tr.erp_order_id) {
-    return { ok: false, stage: 'transition', reason: REASON.noErpId, ...(erpOrderId ? { erpOrderId } : {}) };
-  }
-  return { ok: true, erpOrderId: tr.erp_order_id, alreadyLaunched, warnings };
-}
+type CheckOk = Extract<LaunchCheckResult, { ok: true }>;
+
+/** Ответ проверки без `launched` — сервер старше J */
+const isOldServer = (c: CheckOk) => typeof (c as { launched?: unknown }).launched !== 'boolean';
 
 /**
- * Ответ «уже запущен» (`already: true`) у `order_v4_launch_check` означает
- * ДВА разных состояния, и различаются они только ФОРМОЙ ответа (миграция
- * `20261017062110_order_v4_rights.sql`):
- * - строка 734: `orders.erp_order_id` уже стоит — заказ уже переведён
- *   в `production`/`done`. `launch_started_at` в ответе НЕТ. Переход здесь
- *   получил бы отказ «Такой переход статуса недоступен», и повтор ничего
- *   не исправил бы — запуск уже состоялся, это успех без перехода;
- * - строки 755–760: сирота прошлой попытки — заказ ERP этого запуска есть,
- *   а переход не прошёл. `launch_started_at` ЕСТЬ — доводим переходом.
- * Без метки `alreadyLaunched` всегда true, а `warnings` не передаются:
- * заказ ERP создал другой запуск, наших предупреждений к нему нет.
- * Сменит сервер форму ответа — эта развилка сломается; её сторожат
- * `launch.test.ts` и e2e `order-launch.spec.ts` (мок повторяет форму).
+ * «Уже» (`already: true`): `launched === true` — заказ уже переведён, успех
+ * без перехода (заказ ERP создал другой запуск — наших предупреждений к нему
+ * нет); `launched === false` — сирота прошлой попытки, подлинность которой
+ * сервер уже проверил: только переход с id из ответа, без копий.
  */
-function afterAlready(
-  order: SalesOrder,
-  check: { erp_order_id?: string; launch_started_at?: string },
-  alreadyLaunched: boolean,
-  warnings: string[],
-): Promise<LaunchResult> | LaunchResult {
-  const erpOrderId = check.erp_order_id ?? order.erp_order_id;
-  if (!check.launch_started_at) {
-    if (!erpOrderId) return { ok: false, stage: 'check', reason: REASON.check };
-    return { ok: true, erpOrderId, alreadyLaunched: true, warnings: [] };
+function afterAlready(order: SalesOrder, check: CheckOk, alreadyLaunched: boolean, warnings: string[]): Promise<LaunchResult> | LaunchResult {
+  const erpOrderId = check.erp_order_id ?? (check.launched ? order.erp_order_id : null);
+  if (!erpOrderId) return { ok: false, stage: 'check', reason: REASON.check };
+  if (check.launched) {
+    // Заказ перевёл другой запуск: статус в сторе — `production`, иначе экран
+    // так и показывал бы «ждёт запуска» без ссылки на заказ производства
+    const patch = patchOf(order.id, { ...check, status: 'production', erp_order_id: erpOrderId });
+    return { ok: true, erpOrderId, alreadyLaunched: true, warnings: [], patch };
   }
   return finish(order, erpOrderId, alreadyLaunched, warnings);
 }
 
+type PayloadModule = ErpLaunchModules['payload'];
+type ErpInput = NewOrderInput & { tz_order_id: string; tz_number: string };
+type Built = { draft: ReturnType<typeof tzToErpDraft>; valid: DraftItem[]; warnings: string[] };
+
+/** Шаг `payload`: черновик моста и позиции payload, либо причина отказа */
+function buildDraft(
+  order: SalesOrder, opts: LaunchOptions, payload: PayloadModule, needsPurchase: ErpLaunchModules['itemNeedsPurchase'],
+): Built | { fail: string } {
+  const draft = tzToErpDraft(order, opts.launchDate, needsPurchase);
+  const valid = payload.payloadItems(draft.items);
+  if (valid.length === 0) return { fail: REASON.payload };
+  // Без связи заказ ERP стал бы сиротой, которую ни переход, ни проверка не опознают
+  if (!draft.link.tz_order_id || !draft.link.tz_number) return { fail: REASON.noLink };
+  return { draft, valid, warnings: bridgeWarningTexts(order, draft.warnings) };
+}
+
 /**
- * Модули ERP — загрузчиками, каждый с новой строки `() => import(…)`.
- *
- * Форма не случайна. Сторож ERP `domainSlices.test.ts` считает любой
- * динамический импорт из `erp/screens/` экраном и требует `lazyScreen`,
- * кроме строк-загрузчиков `() => import(…)` (предзагрузка). `orderPayload`
- * лежит в `erp/screens/`, но экраном не является — это чистые функции, а то,
- * ради чего сторож заведён (стор без доменных действий), здесь закрыто явно:
- * `ensureDomainSlices()` до первого обращения к стору. ERP заморожен, править
- * его сторож ради прототипа нельзя.
+ * Вход `createOrder`. Приведение типа, а не новая сборка: `createOrderPayload`
+ * пишет коды строками (его прежний потребитель — нетипизированная форма ERP).
+ * Связи `tz_*` в `NewOrderInput` нет (ERP заморожен), но стор передаёт поля
+ * заказа в RPC как есть; `tz_number` = `order_number`, иначе переход не примет.
  */
-const ERP_MODULES = [
-  () => import('../../erp/lazyScreen'),
-  () => import('../../erp/store/useErpStore'),
-  () => import('../../erp/screens/orders/create/orderPayload'),
-] as const;
+function inputOf(b: Built, payload: PayloadModule, tzDocs: TzDocPayload[], attachments: AttPayload[]): ErpInput {
+  return {
+    ...payload.createOrderPayload({ form: b.draft.form, validItems: b.valid, notesList: [], tzDocuments: tzDocs, attachments }),
+    tz_order_id: b.draft.link.tz_order_id as string,
+    tz_number: b.draft.link.tz_number as string,
+  } as ErpInput;
+}
+
+/** Шлюз — только `import()`: стор ERP не попадает в граф экрана «К запуску» */
+async function loadErp(): Promise<ErpLaunchModules> {
+  const gateway = await import('./erpGateway');
+  return gateway.loadErpForLaunch();
+}
+
+/** Проверка запуска с разбором ответа: `null` — успех без «уже», иначе итог */
+async function checkStep(order: SalesOrder, stage: 'check' | 'recheck', warnings: string[]):
+Promise<{ done: Promise<LaunchResult> | LaunchResult } | null> {
+  const check = await launchCheck(order.id);
+  if (!check) return { done: { ok: false, stage, reason: REASON.check } };
+  if (!check.ok) return { done: { ok: false, stage, reason: check.reason } };
+  if (isOldServer(check)) return { done: { ok: false, stage: 'check', reason: REASON.oldServer } };
+  if (check.already) return { done: afterAlready(order, check, stage === 'check', warnings) };
+  return null;
+}
 
 async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult> {
-  // 1. Проверка до создания заказа ERP
-  const check = await launchCheck(order.id);
-  if (!check) return { ok: false, stage: 'check', reason: REASON.check };
-  if (!check.ok) return { ok: false, stage: 'check', reason: check.reason };
-  if (check.already) return afterAlready(order, check, true, []);
+  const stage = (s: LaunchStage) => opts.onStage?.(s);
+  stage('check');
+  const first = await checkStep(order, 'check', []);
+  if (first) return first.done;
 
-  // 2–3. Стор ERP — лениво; без цехов маршрут выпал бы целиком
+  stage('bootstrap');
   let erp;
   try {
-    const [loadLazyScreen, loadStore, loadPayload] = ERP_MODULES;
-    const [lazyScreen, store, payload] = await Promise.all([loadLazyScreen(), loadStore(), loadPayload()]);
-    await lazyScreen.ensureDomainSlices();
-    await store.useErpStore.getState().loadBootstrap();
-    erp = { store: store.useErpStore, payload };
+    erp = await loadErp();
   } catch (e) {
-    // Устаревшая вкладка: чанк сборки, которой больше нет на сервере
+    // Устаревшая вкладка: чанка сборки больше нет на сервере
     console.error('[launchToErp]', e);
     return { ok: false, stage: 'bootstrap', reason: REASON.module };
   }
-  if (erp.store.getState().departments.length === 0) {
-    return { ok: false, stage: 'bootstrap', reason: REASON.bootstrap };
-  }
+  if (erp.store.getState().departments.length === 0) return { ok: false, stage: 'bootstrap', reason: REASON.bootstrap };
 
-  // 4. Черновик моста → payload формы ERP + связь в обе стороны.
-  // Сборка — чистые функции, но на данных заказа; бросок — итог `payload`,
-  // а не необработанный reject у экрана
+  stage('payload');
   let built;
   try {
-    built = buildInput(order, opts, erp.payload);
+    built = buildDraft(order, opts, erp.payload, erp.itemNeedsPurchase);
   } catch (e) {
     console.error('[launchToErp] payload', e);
     return { ok: false, stage: 'payload', reason: REASON.payloadBuild };
   }
   if ('fail' in built) return { ok: false, stage: 'payload', reason: built.fail };
-  const { input, warnings } = built;
 
-  /**
-   * 5. Создание тем же писателем, что у формы ERP.
-   *
-   * При ошибке (в т.ч. 23505) стор ERP САМ показывает `toast.error`
-   * (`erpError`), а запуск после повторной проверки может закончиться
-   * `ok: true` — заказ ERP оказался нашим. Экран вехи 7 не должен дублировать
-   * ошибку и обязан явно показать итог запуска, перекрывая тост стора.
-   * Бросок трактуется как `null`: он мог случиться уже ПОСЛЕ того, как RPC
-   * создал заказ, — рассудит повторная проверка.
-   */
+  stage('tzcheck');
+  if (!opts.catalogs) return { ok: false, stage: 'tzcheck', reason: REASON.noCatalogs };
+  const tz = await checkTzHashes(order, opts.catalogs, opts.digest === undefined ? defaultDigest() : opts.digest);
+  if (!tz.ok) return { ok: false, stage: 'tzcheck', reason: tz.reason };
+
+  stage('files');
+  // Новый uuid попытки на каждый запуск: повтор не наступает на ключи прошлого (409)
+  const plan = planLaunchFiles(order, built.valid, opts.randomId ?? (() => crypto.randomUUID()));
+  const files = await copyLaunchFiles(order, plan, opts.actor ?? '', opts.files);
+  if (!files.ok) return { ok: false, stage: 'files', reason: files.reason };
+
+  stage('recheck');
+  const again = await checkStep(order, 'recheck', built.warnings);
+  if (again) return again.done;
+
+  stage('create');
+  // Бросок — как `null`: он мог случиться уже ПОСЛЕ того, как RPC создал заказ
   let created = null;
   try {
-    created = await erp.store.getState().createOrder(input);
+    created = await erp.store.getState().createOrder(inputOf(built, erp.payload, files.tzDocs, files.attachments));
   } catch (e) {
     console.error('[launchToErp] createOrder', e);
   }
-  if (created) return finish(order, created.id, false, warnings);
-
-  const recheck = await launchCheck(order.id);
-  if (recheck?.ok && recheck.already) return afterAlready(order, recheck, false, warnings);
-  if (recheck && !recheck.ok) return { ok: false, stage: 'recheck', reason: recheck.reason };
+  if (created) {
+    stage('transition');
+    const lost = checkAttachedCount(files.attachments, created.attachments ?? []);
+    return finish(order, created.id, false, lost ? [...built.warnings, lost] : built.warnings);
+  }
+  const after = await launchCheck(order.id);
+  if (after?.ok && after.already && !isOldServer(after)) return afterAlready(order, after, false, built.warnings);
+  if (after && !after.ok) return { ok: false, stage: 'recheck', reason: after.reason };
   return { ok: false, stage: 'create', reason: REASON.create };
-}
-
-type PayloadModule = Awaited<ReturnType<(typeof ERP_MODULES)[2]>>;
-type ErpInput = NewOrderInput & { tz_order_id: string; tz_number: string };
-
-/** Шаг 4: черновик моста → вход `createOrder`, либо причина отказа */
-function buildInput(
-  order: SalesOrder,
-  opts: LaunchOptions,
-  payload: PayloadModule,
-): { input: ErpInput; warnings: string[] } | { fail: string } {
-  const draft = tzToErpDraft(order, opts.launchDate);
-  const names = itemNames(order);
-  const warnings = draft.warnings.map((w) => warningText(w, names));
-  const validItems = payload.payloadItems(draft.items);
-  if (validItems.length === 0) return { fail: REASON.payload };
-  // Без связи заказ ERP стал бы сиротой, которую ни переход, ни повторная
-  // проверка не опознают (`tz_order_id = id`, `tz_number = order_number`)
-  const { tz_order_id: tzOrderId, tz_number: tzNumber } = draft.link;
-  if (!tzOrderId || !tzNumber) return { fail: REASON.noLink };
-  /**
-   * Приведение типа, а не новая сборка: `createOrderPayload` пишет коды строками
-   * (`production_type: string`) — его единственный прежний потребитель, форма
-   * ERP, нетипизирован (`.jsx`), а сами значения пришли из `DraftItem` формы.
-   * Связи `tz_*` в `NewOrderInput` нет (ERP заморожен), но стор передаёт поля
-   * заказа в RPC как есть, а `erp_create_order` их принимает с 18.08.
-   */
-  const input = {
-    ...payload.createOrderPayload({
-      form: draft.form, validItems, notesList: [], tzDocuments: [], attachments: [],
-    }),
-    // `tz_number` = `order_number`: иначе переход не примет этот заказ ERP
-    tz_order_id: tzOrderId,
-    tz_number: tzNumber,
-  } as ErpInput;
-  return { input, warnings };
 }
 
 /**
  * Повторный клик во время запуска получает ТОТ ЖЕ промис: второй
- * `launch_check` сдвинул бы метку начала, и заказ ERP первого запуска
- * сервер счёл бы чужим (конфликт вместо успеха).
+ * `launch_check` во время копий только продлил бы метку, но второй
+ * `createOrder` наткнулся бы на уникальную связь.
  */
 const inFlight = new Map<string, Promise<LaunchResult>>();
 

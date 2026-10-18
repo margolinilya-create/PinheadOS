@@ -27,6 +27,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createBaseline, checkFlatsAdmin } from './bundle-budget-5b.mjs';
+import { checkTzLaunch } from './bundle-budget-m67.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -218,8 +219,15 @@ const BUDGETS = {
    * подмножеством, растр логотипов). Потолок НЕ поднят: 99,6 % — это и есть страж
    * «PDF не растёт молча»; следующая правка движка обязана либо уложиться, либо
    * объяснить рост здесь. Ни во вход, ни в оболочки PDF не попадает (FORBIDDEN_IN_SHELL).
+   *
+   * ВЕХА 6+7, ЗАДАЧА 3 (18.10) — рост объяснён: ядро (шрифты, svg2pdf в прямоугольник,
+   * вывод) вынесено в `design/export/pdfCore.ts`, общее с движком ТЗ (К5). Пока движок
+   * ТЗ не подключён экраном — 159 515 Б (+183 к замеру задачи 0, 159 332). Когда
+   * подключён (задача 5), Rollup выносит общее ядро отдельным чанком (`pdfCore` ≈ 5,6 кБ
+   * на оба движка) — проба 18.10: 160 059 Б (+727). План 6+7 разрешает выносу
+   * не больше +2 КБ: потолок = замер задачи 0 + 2 048 = 161 380.
    */
-  designPdf: 160_000,
+  designPdf: 161_380,
   /**
    * PDFJS (логотипы PDF/AI): граф `design/assets/loadPdf` минус холст и оболочка Order.
    * Замер спайка 17.10: pdfjs-dist 4.10.38 — 98,8 кБ. Воркер (1,38 МБ сырого)
@@ -537,6 +545,11 @@ console.log(`  оболочка Order: ${orderJs.total} Б gzip (справоч�
 
 // ── Веха 5б: konva вне списка флэтов, редактор флэта, разница с базой ───────
 const flats = checkFlatsAdmin({ manifest, root: ROOT, findKey, staticGraph, report, check, fail, minus, orderJs: order.js, canvasJs });
+// ── Веха 6+7: рабочее место, движок ТЗ по клику, экран запуска без стора ERP ──
+const m67 = checkTzLaunch({
+  manifest, root: ROOT, dist: DIST, findKey, staticGraph, report, check, fail, minus,
+  entryKey, orderAppKey, workplaceKey, orderJs: order.js,
+});
 const konvaFile = Object.values(manifest).find((v) => v.name === 'vendor-konva')?.file;
 console.log('\nРазница с базой (справочно, потолки — выше)');
 baseline.reference('orderShell', 'Оболочка Order', orderJs.total);
@@ -548,6 +561,9 @@ baseline.reference('designPdf', 'PDF макета', pdfTotal);
 baseline.reference('designPdfjs', 'pdfjs', pdfjsTotal);
 baseline.reference('flatsTab', 'Вкладка «Флэты и зоны»', flats.flatsTabTotal);
 baseline.reference('flatEditor', 'Редактор флэта', flats.editorTotal);
+baseline.reference('workplace', 'Рабочее место', m67.workplaceTotal);
+baseline.reference('tzPdf', 'ТЗ PDF', m67.tzPdfTotal);
+baseline.reference('launchScreen', 'Экран запуска', m67.launchTotal);
 baseline.done();
 
 console.log(

@@ -39,6 +39,18 @@ describe('OrderLayout', () => {
     expect(screen.getByRole('link', { name: 'Справочники заказа' }).getAttribute('href')).toBe('/order-settings');
   });
 
+  it.each([
+    ['/sales?status=ready_to_launch&sort=due', 'К запуску'],
+    ['/sales?sort=due&status=ready_to_launch&q=PH', 'К запуску'],
+    ['/sales', 'Все заказы'],
+    ['/sales?status=ready_to_launch', 'Все заказы'],
+    ['/sales/o-1/launch', 'Все заказы'],
+  ])('активен ровно один пункт списка заказов: %s → «%s»', (path, active) => {
+    renderLayout(ADMIN, path);
+    const current = screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page');
+    expect(current.map((a) => a.textContent)).toEqual([active]);
+  });
+
   it('продавец видит «Мои заказы» и не видит настроек', () => {
     renderLayout(SELLER);
     expect(screen.getByRole('link', { name: 'Мои заказы' })).toBeTruthy();

@@ -145,6 +145,19 @@ describe('OrderStudioApp — диалог ухода с карточки v4', ()
     expect(dialog).toHaveTextContent('Последнее сохранение не удалось.');
     expect(dialog).not.toHaveTextContent('скопируйте изменения');
   });
+
+  it('идёт отправка в работу — уход остановлен, текст «дождитесь окончания»', async () => {
+    const router = renderApp(prof('admin'), '/sales/o-1');
+    await waitFor(() => expect(useSalesStore.getState().currentLoading).toBe(false));
+    act(() => useSalesStore.setState({ saveState: 'clean', sending: true }));
+    act(() => { void router.navigate('/sales'); });
+    const dialog = await screen.findByRole('dialog', { name: 'Заказ отправляется в работу' });
+    expect(dialog).toHaveTextContent('Идёт отправка в работу — дождитесь окончания');
+    expect(router.state.location.pathname).toBe('/sales/o-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Остаться' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    act(() => useSalesStore.setState({ sending: false }));
+  });
 });
 
 describe('OrderStudioApp — уход с несохранённым справочником', () => {
@@ -169,5 +182,27 @@ describe('OrderStudioApp — уход с несохранённым справо
     act(() => { void router.navigate('/order-settings?tab=labels'); });
     await waitFor(() => expect(router.state.location.search).toBe('?tab=labels'));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('OrderStudioApp — «К запуску» /sales/:id/launch (веха 6+7)', () => {
+  it('продавцу экран запуска закрыт — карточка заказа', async () => {
+    const router = renderApp(prof('manager', true), '/sales/o-1/launch');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/o-1'));
+  });
+
+  it('rop (не МС) — тоже в карточку: запуск — сторона производства', async () => {
+    const router = renderApp(prof('rop'), '/sales/o-1/launch');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/o-1'));
+  });
+
+  it.each([
+    ['admin', prof('admin')],
+    ['МС', { ...prof('manager'), is_ms: true }],
+  ])('%s открывает ленивый экран запуска', async (_name, user) => {
+    const router = renderApp(user, '/sales/o-1/launch');
+    // Первый ленивый чанк экрана в jsdom грузится дольше секунды по умолчанию
+    expect(await screen.findByText('Заказ не найден или недоступен', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/sales/o-1/launch');
   });
 });

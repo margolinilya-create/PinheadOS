@@ -101,6 +101,35 @@ function fail(context: string, message: string): null {
   return null;
 }
 
+/** Первые байты файла совпадают с сигнатурой */
+async function hasSig(blob: Blob, sig: readonly number[]): Promise<boolean> {
+  const head = new Uint8Array(await blob.slice(0, sig.length).arrayBuffer());
+  return sig.every((v, i) => head[i] === v);
+}
+
+/**
+ * Загрузка проверенного по сигнатуре файла с явным типом, `upsert: false`
+ * (превью макета, PDF ТЗ): не та сигнатура — отказ `notSig`, иначе путь
+ * либо `null` с тостом.
+ */
+async function putChecked(
+  path: string, blob: Blob, sig: readonly number[], type: string, context: string, notSig: string,
+): Promise<string | null> {
+  try {
+    if (!(await hasSig(blob, sig))) return fail(context, notSig);
+    const body = new Blob([blob], { type });
+    const { error } = await supabase.storage.from(ARTWORK_BUCKET).upload(path, body, { upsert: false, contentType: type });
+    if (error) {
+      console.error(context, error);
+      return fail(context, translateSupabaseError(error.message));
+    }
+    return path;
+  } catch (e) {
+    console.error(context, e);
+    return fail(context, networkFailureMessage(e));
+  }
+}
+
 /** Загрузка при выборе файла. Возвращает ключ объекта либо `null` */
 export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: File): Promise<string | null> {
   if (file.size > ARTWORK_MAX_BYTES) {
@@ -126,6 +155,28 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   }
 }
 
+// ── PDF ТЗ группы (веха 6+7, К1) ────────────────────────────────────────
+
+/** Порог сервера при отправке (миграция J: `size <= 8388608`) — больше не уйдёт в работу */
+export const TZ_PDF_MAX_BYTES = 8 * 1024 * 1024;
+
+const PDF_SIG = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
+
+/**
+ * PDF ТЗ группы → `orders/<id>/tz/<uuid>-<имя>`. Имя (`tzFileName`) несёт хэши
+ * группы и содержимого в начале — `asciiFileName` режет только хвост. Тип —
+ * только `application/pdf` и только по сигнатуре `%PDF-`; `upsert: false`:
+ * новая версия получает новый ключ (снимок не меняется задним числом).
+ */
+export async function uploadTzPdf(orderId: string, blob: Blob, fileName: string): Promise<string | null> {
+  const context = 'ТЗ не загружено';
+  const path = artworkPath(orderId, 'tz', fileName);
+  if (!isArtworkPath(orderId, path)) return fail(context, 'неверный заказ');
+  // Пустой файл отсекает проверка сигнатуры
+  if (blob.size > TZ_PDF_MAX_BYTES) return fail(context, 'PDF больше 8 МБ');
+  return putChecked(path, blob, PDF_SIG, 'application/pdf', context, 'файл не PDF');
+}
+
 // ── Превью PDF/AI и чтение для холста (веха 5а) ─────────────────────────
 
 /** Суффикс превью: `<исходник>.preview.png` (решение 3 плана вехи 5а) */
@@ -142,11 +193,6 @@ export function artworkPreviewPath(sourcePath: string): string {
   return !sourcePath || isPreviewPath(sourcePath) ? '' : `${sourcePath}${PREVIEW_SUFFIX}`;
 }
 
-async function isPng(blob: Blob): Promise<boolean> {
-  const head = new Uint8Array(await blob.slice(0, PNG_SIG.length).arrayBuffer());
-  return PNG_SIG.every((v, i) => head[i] === v);
-}
-
 /**
  * Превью PDF/AI рядом с исходником. Путь выводится из исходника (M3): клиент не
  * может положить «превью» по произвольному ключу; только PNG по сигнатуре,
@@ -158,19 +204,7 @@ export async function uploadArtworkPreview(orderId: string, sourcePath: string, 
   if (!path || !isArtworkPath(orderId, sourcePath) || !isArtworkPath(orderId, path)) return fail(context, 'неверный путь');
   if (png.size === 0) return fail(context, 'файл пустой');
   if (png.size > ARTWORK_MAX_BYTES) return fail(context, 'файл больше 25 МБ');
-  try {
-    if (!(await isPng(png))) return fail(context, 'превью не PNG');
-    const body = new Blob([png], { type: 'image/png' });
-    const { error } = await supabase.storage.from(ARTWORK_BUCKET).upload(path, body, { upsert: false, contentType: 'image/png' });
-    if (error) {
-      console.error('uploadArtworkPreview', error);
-      return fail(context, translateSupabaseError(error.message));
-    }
-    return path;
-  } catch (e) {
-    console.error('uploadArtworkPreview', e);
-    return fail(context, networkFailureMessage(e));
-  }
+  return putChecked(path, png, PNG_SIG, 'image/png', context, 'превью не PNG');
 }
 
 /**
