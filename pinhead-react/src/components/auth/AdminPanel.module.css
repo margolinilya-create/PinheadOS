@@ -1,0 +1,62 @@
+/* «Заказы ТЗ» в админке Производства: старые заказы — только просмотр (веха 8, К4).
+   Таблица, поиск, выбор и состояния — примитивы ERP и `erp.module.css`; здесь раскладка вкладки. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.head { min-width: 0; }
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--type-h4);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.sub {
+  margin: var(--space-xs) 0 0;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  max-width: 70ch;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+
+.count {
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.mono { font-family: var(--mono); white-space: nowrap; }
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.date { color: var(--text-dim); white-space: nowrap; }
+
+@media (max-width: 480px) {
+  .filter { width: 100%; }
+  .filter select { flex: 1; min-width: 0; }
+}

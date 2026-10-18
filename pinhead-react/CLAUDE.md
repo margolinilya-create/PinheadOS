@@ -4,7 +4,13 @@
 ERP/CRM для типографии (печать на одежде). React 19 + Vite 7 + Zustand 5 + Supabase.
 URL: https://pinhead-os.vercel.app
 
-## Два раздела (переключение в шапке, admin/director)
+## Два раздела (выбор оболочки по профилю — `config/shellChoice.ts`, веха 8)
+
+Оболочку выбирает `chooseShell` в `ShellGate` (`App.jsx`) один раз за загрузку на `user.id`:
+выключатель `VITE_FEATURE_ORDER_STUDIO=0|false` → ERP всем; `?studio=1|0` на заход; путь раздела
+(`/sales…`, `/sales-staff`, `/order-settings`, `/express`, `/sku`, `/prices`) + `canUseSales` → раздел;
+записанный выбор устройства; продавец/МС/rop по умолчанию — раздел «Оформление заказа»,
+admin/director — Производство. Подробно — корневой `CLAUDE.md`, «Роутинг».
 - **erp/** — 🏭 Производство (по умолчанию): ErpApp (lazy-экраны), layout,
   screens (Dashboard/Orders/OrderCard/ProductionBoard+Kanban/DepartmentQueue/
   ProductionTask/FabricPurchasing/AdminScreen; крупные экраны разбиты на под-компоненты:
@@ -110,7 +116,7 @@ URL: https://pinhead-os.vercel.app
   data/departments, types.ts, erp.module.css (брейкпоинты 760/480,
   pointer:coarse). Touch-DnD канбана: mobile-drag-drop (dynamic import).
   PWA: public/manifest.webmanifest + icon-192/512.
-- **orderstudio/** — ✏️ ТЗ (Order Studio, за флагом orderStudio): визард,
+- **orderstudio/** — ✏️ «Оформление заказа» (ТЗ, Order Studio; по профилю, `shellChoice`): визард,
   SKU, Order v4 (без аналитики продаж и канбана v3 — убраны в вехе 1, 16.10). Оболочка —
   `orderstudio/layout/` (OrderLayout/OrderSidebar/orderNav, стиль оболочки ERP). Компоненты ниже — его состав.
   Веха 2 (17.10): `api/salesTransitions` (статус и оплата v4 — только RPC), `api/artworks`
@@ -121,7 +127,7 @@ URL: https://pinhead-os.vercel.app
   ClientTab, «ТЗ и цена» SummaryTab; SaveIndicator; `itemBuffer` — буфер позиции в `useStore`);
   `screens/SalesList` — «Мои / Отдела / Все заказы»; `admin/SalesStaff` (`/sales-staff`,
   признак `profiles.is_sales`); `model/itemOps` (копия в другом цвете, разнесение);
-  `model/editable`; доступ `canUseSales` в `layout/orderNav.ts`. Визард v3 как экран, перенос
+  `model/editable`; доступ `canUseSales` (с вехи 8 — `layout/salesAccess.ts`, реэкспорт из `layout/orderNav.ts`). Визард v3 как экран, перенос
   «Оформить как заказ v4», мастер позиции и старая карточка SalesCard убраны.
   Правила — `docs/rules/pravila-rabochego-mesta-i-revizii-klienta-veha-3-17-10.md`.
   Веха 4 (17.10): `admin/OrderSettings` — «Справочники заказа» `/order-settings` (admin, director, rop;
@@ -171,6 +177,18 @@ URL: https://pinhead-os.vercel.app
   `TzFrame`, `RouteView`), пресет списка `LAUNCH_QUEUE_PATH`. Миграция J `20261018120000_order_v4_launch`.
   Сверка имён и замеры — `src/orderstudio/tz/README.md`; правила —
   `docs/rules/pravila-tz-i-zapuska-veha-6-7-18-10.md`.
+  Веха 8 (18.10): выбор оболочки `config/shellChoice.ts` + `ShellGate`, `layout/salesAccess.ts`, маркер
+  сборки SHA + флаг (`scripts/build-id.mjs`), кнопка «Производство» всем с доступом; на 375 px шапка без
+  заголовка, маркеры вкладок `workplace/TabMarker.jsx` + `tabState.ts` (точка/бейдж + `.srOnly`), общий
+  `ui/a11y.module.css`. Зона нанесения по id (`zone_id`: холст, `PrintRow`, цена кармана, строка ТЗ),
+  «Комментарий для цехов» `workplace/OrderNotesField.jsx` (только когда сервер знает поле —
+  `api/serverZoneNotes.ts`), ревизия клиента 4; журнал признаков `admin/SalesStaffJournal.jsx`;
+  палитра модели `catalog/allowedColors.ts`; подложка по цвету изделия `model/garmentTextile.ts`.
+  Рестайл: `components/editors/SkuEditor` и `ExpressCalc` (+ `express/`) на примитивах ERP и модулях,
+  панели `steps/garment/*` на модулях, `AdminPanel` — старые заказы только просмотр;
+  удалены `editors.css`, `express.css`, `garment.css`, `PageHeader.jsx`, `useCommentsStore.ts`. Миграции L/K/M — файлы
+  `supabase/rollout/m8/`, отчёт о ничьих файлах — `supabase/functions/order-files-gc/`. Правила —
+  `docs/rules/pravila-vklyucheniya-i-restayla-veha-8-18-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -179,17 +197,19 @@ URL: https://pinhead-os.vercel.app
   - steps/garment/ — панели визарда: SkuList (expandable cards; `readOnly`, `reorderable`), FabricGrid,
     ColorPicker, SizeTable (`readOnly`, `showPrice`), ExtrasAccordion — вкладка «Изделие» рабочего места
     (шаги визарда v3 убраны в вехе 3)
-  - editors/ — SkuEditor (8 табов), ExpressCalc
-  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab (просмотр со ссылкой, веха 5б), AddSkuModal, ZonesModal, SkuDetailModal
-  - auth/ — AuthScreen, AdminPanel
-  - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
+  - editors/ — SkuEditor («Каталог моделей и цен», 8 вкладок; ≤ 760 px — только просмотр), ExpressCalc («Экспресс-расчёт»); CSS-модули (веха 8)
+  - editors/express/ — expressModel (модель цены), OptionGroup, блоки техник, зон, обработок и итога
+  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent (+ PricingMatrixTabs, PricingRulesTabs), CategoryRulesTab, ZonesCatalogTab (просмотр со ссылкой, веха 5б), AddSkuModal, ZonesModal, SkuDetailModal (+ skuDetail/), RateBar, ScrollTable, skuExcel, useSkuSave
+  - auth/ — AuthScreen, AdminPanel (старые заказы v3 — только просмотр, примитивы ERP)
+  - shared/ — ErrorBoundary, Toast, Skeleton, UpdateBanner, ConfirmDialog (PageHeader удалён в вехе 8)
   - шапка и сайдбар Order — orderstudio/layout/
 - store/ — Zustand (все .ts)
   - useStore.ts — store визарда (6 слайсов); с вехи 3 — буфер ОДНОЙ позиции рабочего места
     (`resetItemFields`, сброс при выходе через `appReset.registerAppReset`)
   - slices/ — все .ts: wizardSlice, productSlice, itemsSlice, detailsSlice, catalogSlice, orderSlice (действия зон визарда убраны в вехе 5а)
-  - useAuthStore.ts, useOrdersStore.ts, useCommentsStore.ts, useToastStore.ts, useConfirmStore.ts
-- utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n
+  - useAuthStore.ts (+ devAutologin.ts, devProfiles.ts — подмена профиля только в DEV), useOrdersStore.ts (v3 только чтение), useToastStore.ts, useConfirmStore.ts (useCommentsStore удалён в вехе 8)
+- utils/ — все .ts: pricing, skuRules, validate, mockup, deadline, i18n, quoteRules (округление до 5 ₽, порог шелкографии)
+- config/ — features.ts (флаги, env-тройка, `FEATURE_STORAGE_KEYS`), shellChoice.ts (выбор оболочки)
 - lib/ — все .ts: supabase, api, storage (+ Supabase Storage: sku-photos), catalogs
 - types/ — TypeScript типы: order, catalog, auth, pricing
 - data/ — fallback данные: prices, skuCatalog (с description, sizeChart, photos), extras, fabrics, colors
@@ -269,7 +289,13 @@ URL: https://pinhead-os.vercel.app
   `SERVER_SEND_RULES`), mockContract (мок e2e = тексты J), tz/model (5 фикстур образцов, хэш, глифы, цены
   не в ТЗ — tzModelGuards), design/export/pdfGuards (jsPDF только в pdfCore, tzPdf только `import()`, ссылки
   только после `isSafeHttpUrl`), sceneGolden (лист макета 5а побайтно), bridge/launchFiles + erpKeys (ключи,
-  тип по байтам, 409), tzCheck, erpFilesWrites и artworkWrites (единственные писатели), tz/bundleBudgetM67
+  тип по байтам, 409), tzCheck, erpFilesWrites и artworkWrites (единственные писатели), tz/bundleBudgetM67;
+  веха 8: config/shellChoice (таблица правил и их порядок) + App.test (оболочка не меняется на перерисовке),
+  orderV4M8 (L/K/M: порядок, md5-цепочка, лексика файлов контроллера, CHECK = `ZONE_ID_RE`), orderFilesGc и
+  scripts/lib/orderFileHolders.test.mjs (носители, ворота, удаление только `apply` + секрет), ordersReadOnly
+  (нет записи `orders` в обход RPC), devProfilesGuard, ui/a11yGuards, skuGuards / expressGuards /
+  garmentCss / deadCss (модули на токенах, мёртвый CSS), bundleBudgetM8, ciVisualGuard (пересъёмка только `studio-`),
+  mockContract (тексты и порог K), deadCode (удалённые модули вехи 8)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов

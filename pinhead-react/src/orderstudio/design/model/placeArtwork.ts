@@ -77,6 +77,7 @@ export function placeArtwork(
   const merged: SalesPrint = {
     ...row,
     zone: placed.zone,
+    zone_id: placed.zone_id,
     width_mm: placed.width_mm,
     height_mm: placed.height_mm,
     artwork_path: placed.artwork_path,

@@ -197,7 +197,7 @@ describe('состояние строки между RPC и сохранение
   it('сохранение после оплаты и отправки не стирает колонки, которые пишут только RPC J', () => {
     const e = draft({ v4: { caller: { id: 'dev', name: 'Dev', role: 'admin' } } });
     rpc('order_v4_set_payment', { p_id: ID, p_kind: 'prepaid', p_override_reason: null }, e);
-    const save = rpc('order_v4_save_full', { p_order: { id: ID, client_rev: 3, customer: 'ООО Ромашка', items: [] } }, e);
+    const save = rpc('order_v4_save_full', { p_order: { id: ID, client_rev: 4, customer: 'ООО Ромашка', items: [] } }, e);
     expect(save.error).toBeUndefined();
     const [row] = mock.table('orders', `schema_version=eq.4&id=eq.${ID}`, e) as Record<string, unknown>[];
     expect(row).toMatchObject({ status: 'draft', paid_kind: 'prepaid', paid_override_reason: null });

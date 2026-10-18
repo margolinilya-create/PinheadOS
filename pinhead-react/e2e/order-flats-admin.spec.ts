@@ -263,8 +263,9 @@ test.describe('справочник зон нанесения', () => {
     expect(calls.filter((c) => c.kind === 'storage')).toEqual([]);
 
     await page.goto('/sku?tab=zones&studio=1');
-    await expect(page.locator('.zones-catalog-table')).toBeVisible();
-    await expect(page.locator('.zones-catalog-table input, .zones-catalog-table button')).toHaveCount(0);
+    const zonesTable = page.getByRole('table', { name: 'Справочник зон нанесения' });
+    await expect(zonesTable).toBeVisible();
+    await expect(zonesTable.locator('input, button')).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Флэты и зоны/ })).toHaveAttribute('href', '/order-settings?tab=flats&part=zones');
   });
 });

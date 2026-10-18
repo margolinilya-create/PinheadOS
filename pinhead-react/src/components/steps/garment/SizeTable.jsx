@@ -6,6 +6,9 @@ import { isAccessory, getUnitPrice } from '../../../utils/pricing';
 import { sizeOrder } from '../../../store/slices/helpers';
 import { useEffectiveRules } from '../../../hooks/useEffectiveRules';
 import { isSizeAvailable as checkSizeRule } from '../../../utils/skuRules';
+import { Icon } from '../../../erp/components/Icon';
+import panel from './panel.module.css';
+import styles from './SizeTable.module.css';
 
 function buildSortedRows(stdSizes, sizes, customSizes) {
   const stdRows = stdSizes.map(s => ({ type: 'std', label: s, qty: sizes[s] || 0 }));
@@ -56,13 +59,13 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
   if (isAcc) {
     const qty = sizes['ONE SIZE'] || 1;
     return (
-      <div className="size-section">
-        <div className="section-label">Тираж</div>
-        <div className="one-size-row">
-          <button className="qty-btn" aria-label="Уменьшить тираж" disabled={readOnly} onClick={() => setOneSizeQty(qty - 1)}>−</button>
-          <input type="number" className="qty-input" aria-label="Тираж" value={qty} min={1} max={99999} disabled={readOnly} onChange={e => setOneSizeQty(Math.min(99999, parseInt(e.target.value) || 1))} />
-          <button className="qty-btn" aria-label="Увеличить тираж" disabled={readOnly} onClick={() => setOneSizeQty(qty + 1)}>+</button>
-          <span className="qty-label">шт</span>
+      <div className={panel.section}>
+        <div className={panel.sectionLabel}>Тираж</div>
+        <div className={styles.qty}>
+          <button className={styles.qtyBtn} aria-label="Уменьшить тираж" disabled={readOnly} onClick={() => setOneSizeQty(qty - 1)}>−</button>
+          <input type="number" className={styles.qtyInput} aria-label="Тираж" value={qty} min={1} max={99999} disabled={readOnly} onChange={e => setOneSizeQty(Math.min(99999, parseInt(e.target.value) || 1))} />
+          <button className={styles.qtyBtn} aria-label="Увеличить тираж" disabled={readOnly} onClick={() => setOneSizeQty(qty + 1)}>+</button>
+          <span className={styles.unit}>шт</span>
         </div>
       </div>
     );
@@ -102,17 +105,17 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
   };
 
   return (
-    <div className="size-section">
-      <div className="section-label">Размеры</div>
+    <div className={panel.section}>
+      <div className={panel.sectionLabel}>Размеры</div>
 
       {/* Desktop table */}
-      <table className="size-table size-table-desktop">
+      <table className={`${styles.table} ${styles.desktop}`}>
         <thead>
           <tr>
             <th>Размер</th>
             <th>Количество</th>
-            {showPrice && <th className="size-th-price">Цена/шт</th>}
-            {showPrice && <th className="size-th-sum">Сумма</th>}
+            {showPrice && <th className={styles.num}>Цена/шт</th>}
+            {showPrice && <th className={styles.num}>Сумма</th>}
           </tr>
         </thead>
         <tbody>
@@ -122,18 +125,18 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
             const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
             const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
             const removeBtn = row.type === 'custom' && !readOnly
-              ? <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}>✕</button>
+              ? <button className={styles.removeBtn} onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}><Icon name="x" size={16} /></button>
               : null;
             return row.type === 'std' ? (
-              <tr key={row.label} className={!available ? 'size-row-disabled' : ''} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
+              <tr key={row.label} className={!available ? styles.unavailable : undefined} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
                 <td><b>{row.label}</b></td>
                 <td>
-                  <div className="qty-control">
-                    <button className="qty-btn" aria-label={`Уменьшить ${row.label}`} disabled={!available || readOnly} onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
+                  <div className={styles.qty}>
+                    <button className={styles.qtyBtn} aria-label={`Уменьшить ${row.label}`} disabled={!available || readOnly} onClick={() => setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1))}>−</button>
                     <input
                       ref={el => { sizeRefs.current[inputKey] = el; }}
                       type="number"
-                      className="qty-input"
+                      className={styles.qtyInput}
                       min={0}
                       max={99999}
                       value={sizes[row.label] || ''}
@@ -144,18 +147,18 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                       onChange={e => setSize(row.label, e.target.value)}
                       onKeyDown={e => handleSizeKeyDown(e, inputKey, allInputLabels)}
                     />
-                    <button className="qty-btn" aria-label={`Увеличить ${row.label}`} disabled={!available || readOnly} onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
+                    <button className={styles.qtyBtn} aria-label={`Увеличить ${row.label}`} disabled={!available || readOnly} onClick={() => setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1)}>+</button>
                   </div>
                 </td>
-                {showPrice && <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>}
-                {showPrice && <td className="size-td-sum">{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</td>}
+                {showPrice && <td className={`${styles.num} ${styles.price}`}>{price.toLocaleString('ru-RU')} ₽</td>}
+                {showPrice && <td className={`${styles.num} ${styles.sum}`}>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</td>}
               </tr>
             ) : (
-              <tr key={'cs-' + row.idx} className="custom-size-row">
+              <tr key={'cs-' + row.idx}>
                 <td>
                   <input
                     type="text"
-                    className="custom-size-label-input"
+                    className={styles.labelInput}
                     aria-label="Название размера"
                     disabled={readOnly}
                     value={row.label}
@@ -163,12 +166,12 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                   />
                 </td>
                 <td>
-                  <div className="qty-control">
-                    <button className="qty-btn" aria-label={`Уменьшить ${row.label}`} disabled={readOnly} onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
+                  <div className={styles.qty}>
+                    <button className={styles.qtyBtn} aria-label={`Уменьшить ${row.label}`} disabled={readOnly} onClick={() => setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
                     <input
                       ref={el => { sizeRefs.current[inputKey] = el; }}
                       type="number"
-                      className="qty-input"
+                      className={styles.qtyInput}
                       min={0}
                       value={row.qty || ''}
                       placeholder="0"
@@ -178,14 +181,14 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                       onChange={e => setCustomSizeQty(row.idx, e.target.value)}
                       onKeyDown={e => handleSizeKeyDown(e, inputKey, allInputLabels)}
                     />
-                    <button className="qty-btn" aria-label={`Увеличить ${row.label}`} disabled={readOnly} onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
+                    <button className={styles.qtyBtn} aria-label={`Увеличить ${row.label}`} disabled={readOnly} onClick={() => setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
                   </div>
                   {/* Без цены колонок две, как в шапке: ✕ — рядом с количеством */}
                   {!showPrice && removeBtn}
                 </td>
-                {showPrice && <td className="size-td-price">{price.toLocaleString('ru-RU')} ₽</td>}
+                {showPrice && <td className={`${styles.num} ${styles.price}`}>{price.toLocaleString('ru-RU')} ₽</td>}
                 {showPrice && (
-                  <td className="size-td-sum">
+                  <td className={`${styles.num} ${styles.sum}`}>
                     <span>{q > 0 ? (rowSum.toLocaleString('ru-RU') + ' ₽') : '—'}</span>
                     {removeBtn}
                   </td>
@@ -193,28 +196,28 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
               </tr>
             );
           })}
-          <tr className="size-total-row">
-            <td className="size-total-label">ИТОГО</td>
-            <td className="size-total-qty">{totalQty} шт</td>
+          <tr className={styles.totalRow}>
+            <td>ИТОГО</td>
+            <td>{totalQty} шт</td>
             {showPrice && <td></td>}
-            {showPrice && <td className="size-total-sum">{totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}</td>}
+            {showPrice && <td className={styles.num}>{totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}</td>}
           </tr>
         </tbody>
       </table>
 
       {/* Mobile vertical list */}
-      <div className="size-list-mobile">
+      <div className={styles.mobile}>
         {allRows.map((row) => {
           const available = row.type === 'std' ? isSizeAvailable(row.label) : true;
           const inputKey = row.type === 'std' ? row.label : 'cs-' + row.idx;
           return (
-            <div key={inputKey} className={`size-mobile-row${!available ? ' disabled' : ''}`} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
-              <span className="size-mobile-label">{row.label}</span>
-              <div className="qty-control">
-                <button className="qty-btn" aria-label={`Уменьшить ${row.label}`} disabled={!available || readOnly} onClick={() => row.type === 'std' ? setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1)) : setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
+            <div key={inputKey} className={`${styles.mobileRow}${!available ? ` ${styles.unavailable}` : ''}`} title={!available ? `${row.label} недоступен для этого артикула` : undefined}>
+              <span className={styles.mobileLabel}>{row.label}</span>
+              <div className={styles.qty}>
+                <button className={styles.qtyBtn} aria-label={`Уменьшить ${row.label}`} disabled={!available || readOnly} onClick={() => row.type === 'std' ? setSize(row.label, Math.max(0, (parseInt(sizes[row.label]) || 0) - 1)) : setCustomSizeQty(row.idx, Math.max(0, (parseInt(row.qty) || 0) - 1))}>−</button>
                 <input
                   type="number"
-                  className="qty-input qty-input-mobile"
+                  className={styles.qtyInput}
                   min={0}
                   value={row.type === 'std' ? (sizes[row.label] || '') : (row.qty || '')}
                   placeholder="0"
@@ -223,46 +226,46 @@ export default function SizeTable({ readOnly = false, showPrice = true }) {
                   inputMode="numeric"
                   onChange={e => row.type === 'std' ? setSize(row.label, e.target.value) : setCustomSizeQty(row.idx, e.target.value)}
                 />
-                <button className="qty-btn" aria-label={`Увеличить ${row.label}`} disabled={!available || readOnly} onClick={() => row.type === 'std' ? setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1) : setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
+                <button className={styles.qtyBtn} aria-label={`Увеличить ${row.label}`} disabled={!available || readOnly} onClick={() => row.type === 'std' ? setSize(row.label, (parseInt(sizes[row.label]) || 0) + 1) : setCustomSizeQty(row.idx, (parseInt(row.qty) || 0) + 1)}>+</button>
               </div>
-              <span className="size-mobile-unit">шт</span>
-              {row.type === 'custom' && !readOnly && <button className="size-rm-btn" onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}>✕</button>}
+              <span className={styles.unit}>шт</span>
+              {row.type === 'custom' && !readOnly && <button className={styles.removeBtn} onClick={() => removeCustomSize(row.idx)} aria-label={`Удалить размер ${row.label}`}><Icon name="x" size={16} /></button>}
             </div>
           );
         })}
-        <div className="size-mobile-total">Итого: {totalQty} шт{showPrice ? ` · ${totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}` : ''}</div>
+        <div className={styles.mobileTotal}>Итого: {totalQty} шт{showPrice ? ` · ${totalSum > 0 ? (totalSum.toLocaleString('ru-RU') + ' ₽') : '0 ₽'}` : ''}</div>
       </div>
 
       {/* Add custom size */}
       {readOnly ? null : showAddForm ? (
-        <div className="add-size-form">
-          <label htmlFor="add-size-label" className="add-size-form-label">РАЗМЕР</label>
+        <div className={styles.addForm}>
+          <label htmlFor="add-size-label" className={styles.addLabel}>РАЗМЕР</label>
           <input
             id="add-size-label"
             type="text"
-            className="add-size-form-input"
+            className={styles.addInput}
             placeholder="4XL, 5XL..."
             value={newLabel}
             onChange={e => setNewLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAddSize()}
             autoFocus
           />
-          <label htmlFor="add-size-qty" className="add-size-form-label">КОЛ-ВО</label>
+          <label htmlFor="add-size-qty" className={styles.addLabel}>КОЛ-ВО</label>
           <input
             id="add-size-qty"
             type="number"
-            className="add-size-form-qty"
+            className={`${styles.addInput} ${styles.addQty}`}
             min={0}
             value={newQty || ''}
             placeholder="0"
             onChange={e => setNewQty(parseInt(e.target.value) || 0)}
             onKeyDown={e => e.key === 'Enter' && handleAddSize()}
           />
-          <button className="btn-add-size" onClick={handleAddSize}>ДОБАВИТЬ</button>
-          <button className="btn-cancel-size" onClick={() => { setShowAddForm(false); setNewLabel(''); setNewQty(0); }}>ОТМЕНА</button>
+          <button className={styles.formBtn} onClick={handleAddSize}>ДОБАВИТЬ</button>
+          <button className={`${styles.formBtn} ${styles.formBtnGhost}`} onClick={() => { setShowAddForm(false); setNewLabel(''); setNewQty(0); }}>ОТМЕНА</button>
         </div>
       ) : (
-        <button className="add-size-btn" onClick={() => setShowAddForm(true)}>+ ДОБАВИТЬ РАЗМЕР</button>
+        <button className={styles.addBtn} onClick={() => setShowAddForm(true)}>+ ДОБАВИТЬ РАЗМЕР</button>
       )}
     </div>
   );

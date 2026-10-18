@@ -97,6 +97,12 @@ describe('addArtworkFile — PNG', () => {
     expect(item().prints[0].method).toBe('dtf');
   });
 
+  it('подложка — по цвету позиции (target.textile): на тёмном изделии «цветное» (обход, H-2)', async () => {
+    open();
+    await addArtworkFile(png(), { ...T, textile: 'color' });
+    expect(item().prints[0].textile).toBe('color');
+  });
+
   it('один шаг отмены: undo убирает нанесение и флэт', async () => {
     open();
     await addArtworkFile(png(), T);

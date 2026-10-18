@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { storageGet, storageSet, storageRemove, sessionGet, sessionSet, sessionRemove, deleteSkuPhotoByUrl, storageClearAll, APP_KEYS, KEEP_ON_LOGOUT } from './storage';
+import { FEATURE_NAMES, FEATURE_STORAGE_KEYS } from '../config/features';
 
 // Mock supabase for deleteSkuPhotoByUrl tests
 const mockRemove = vi.fn();
@@ -254,6 +255,21 @@ describe('storageClearAll — полнота списка ключей', () => {
   it('черновики заказов чистятся: в них данные заказчика', () => {
     expect(APP_KEYS).toContain('pinhead_draft');
     expect(APP_KEYS).toContain('erp_order_draft');
+  });
+
+  /**
+   * Ключи флагов собираются динамически (`pinhead_feature_` + имя) — регулярки
+   * выше их не видят. Каждый флаг классифицирован ровно один раз (веха 8, К1):
+   * выбор раздела стирается при выходе, витрина остаётся
+   */
+  it('каждый флаг (FeatureName) классифицирован ровно в один список', () => {
+    for (const name of FEATURE_NAMES) {
+      const key = FEATURE_STORAGE_KEYS[name];
+      const hits = [APP_KEYS.includes(key), KEEP_ON_LOGOUT.includes(key)].filter(Boolean);
+      expect(hits, `${key}: впишите в APP_KEYS или KEEP_ON_LOGOUT`).toHaveLength(1);
+    }
+    expect(APP_KEYS).toContain('pinhead_feature_orderStudio');
+    expect(KEEP_ON_LOGOUT).toContain('pinhead_feature_styleguide');
   });
 
   it('настройки устройства выход не трогает', () => {

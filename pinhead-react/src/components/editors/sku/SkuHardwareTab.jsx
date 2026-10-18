@@ -1,51 +1,64 @@
 import { HARDWARE_GROUPS } from '../../../data/extras';
+import ScrollTable from './ScrollTable';
+import { Button } from '../../../erp/components/Button';
+import a11y from '../../../orderstudio/ui/a11y.module.css';
+import t from './skuTable.module.css';
 
-export default function SkuHardwareTab({
-  hardwareCatalog, updateHardware, addHardware, deleteHardware,
-}) {
+/** Вкладка «Фурнитура»: комплектующие по группам, цена за штуку */
+export default function SkuHardwareTab({ hardwareCatalog, updateHardware, addHardware, deleteHardware, readOnly = false }) {
   return (
-    <div className="sku-ed-body">
-      {HARDWARE_GROUPS.map(g => {
-        const items = hardwareCatalog.filter(h => h.group === g.id);
+    <div className={t.body}>
+      {HARDWARE_GROUPS.map((g) => {
+        const items = hardwareCatalog.filter((h) => h.group === g.id);
         return (
-          <div key={g.id} className="sku-ed-group">
-            <div className="sku-ed-group-header">
-              <span>{g.name}</span>
-              <span className="sku-ed-group-count">{items.length}</span>
-              <button className="sku-ed-add-btn-sm" onClick={() => addHardware(g.id)}>+</button>
+          <section key={g.id} className={t.group} aria-labelledby={`sku-hw-${g.id}`}>
+            <div className={t.toolbar}>
+              <h2 id={`sku-hw-${g.id}`} className={t.groupHead}>
+                {g.name}
+                <span className={t.groupCount}>{items.length}</span>
+              </h2>
+              <span className={t.spacer} />
+              {!readOnly && (
+                <Button icon="plus" onClick={() => addHardware(g.id)} aria-label={`Добавить: ${g.name}`}>Добавить</Button>
+              )}
             </div>
-            <table className="sku-ed-table">
-              <thead>
-                <tr>
-                  <th className="sku-th-num">№</th>
-                  <th className="sku-th-art">Код</th>
-                  <th className="sku-th-name">Название</th>
-                  <th className="sku-th-price">Цена ₽</th>
-                  <th className="sku-th-del"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((h) => {
-                  const realIdx = hardwareCatalog.indexOf(h);
-                  return (
-                    <tr key={h.code + realIdx}>
-                      <td className="sku-td-num">{realIdx + 1}</td>
-                      <td className="sku-td-art">{h.code}</td>
-                      <td>
-                        <input className="sku-edit-input sku-edit-name" value={h.name}
-                          onChange={e => updateHardware(realIdx, 'name', e.target.value)} />
-                      </td>
-                      <td>
-                        <input className="sku-edit-input sku-edit-num" type="number" value={h.price}
-                          onChange={e => updateHardware(realIdx, 'price', Number(e.target.value) || 0)} />
-                      </td>
-                      <td><button className="sku-del-btn" onClick={() => deleteHardware(realIdx)} aria-label="Удалить комплектующее">✕</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            <ScrollTable label={`Фурнитура: ${g.name}`} readOnly={readOnly}>
+              <table className={t.table}>
+                <thead>
+                  <tr>
+                    <th scope="col">№</th>
+                    <th scope="col">Код</th>
+                    <th scope="col">Название</th>
+                    <th scope="col">Цена, ₽</th>
+                    <th scope="col"><span className={a11y.srOnly}>Удалить</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((h) => {
+                    const realIdx = hardwareCatalog.indexOf(h);
+                    return (
+                      <tr key={h.code + realIdx}>
+                        <td className={`${t.num} ${t.dim}`}>{realIdx + 1}</td>
+                        <td className={t.code}>{h.code}</td>
+                        <td>
+                          <input type="text" className={`${t.input} ${t.name}`} value={h.name} aria-label={`Название: ${h.code}`}
+                            onChange={(e) => updateHardware(realIdx, 'name', e.target.value)} />
+                        </td>
+                        <td>
+                          <input className={`${t.input} ${t.numInput}`} type="number" value={h.price} aria-label={`Цена, ₽: ${h.name}`}
+                            onChange={(e) => updateHardware(realIdx, 'price', Number(e.target.value) || 0)} />
+                        </td>
+                        <td>
+                          <Button variant="ghost" icon="trash" iconOnly aria-label={`Удалить: ${h.name}`}
+                            onClick={() => deleteHardware(realIdx)} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </ScrollTable>
+          </section>
         );
       })}
     </div>

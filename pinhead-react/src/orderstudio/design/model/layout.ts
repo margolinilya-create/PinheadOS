@@ -22,6 +22,7 @@ import { flatAtVersion } from '../catalog/flatVersion';
 import { fitToZone, placementInfo, presetPosition, viewZone, yForNecklineOffset } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { offsetFor } from './offset';
+import { ZONE_ID_RE } from '../../catalog/tzRows';
 
 /**
  * Строгий разбор раскладки — `layoutMark.parseLayout` (без zod: чанк холста
@@ -95,6 +96,14 @@ const tenth = (v: number) => Math.round(v * 10) / 10;
 const wholeMm = (v: number) => Math.max(1, Math.round(v));
 const normDeg = (v: number) => tenth(((v % 360) + 360) % 360);
 
+/**
+ * Код зоны нанесения (веха 8, К5): `zone_id` зоны флэта по формату справочника;
+ * служебная зона (без связи) или код не по формату — null
+ */
+export function zoneIdOfArea(area: PrintArea): string | null {
+  return area.zone_id && ZONE_ID_RE.test(area.zone_id) ? area.zone_id : null;
+}
+
 /** Имя зоны нанесения: по `zone_id` из справочника зон; служебная зона — имя зоны флэта */
 export function zoneNameOf(area: PrintArea, zonesCatalog: ZoneDefinition[]): string {
   return area.zone_id ? getZoneName(area.zone_id, zonesCatalog) : area.name;
@@ -130,6 +139,7 @@ export function applyPlacement(print: SalesPrint, pl: Placement, ctx: PlaceCtx):
   return {
     ...print,
     zone: zoneNameOf(where.area, ctx.zonesCatalog),
+    zone_id: zoneIdOfArea(where.area),
     width_mm: width,
     height_mm: height,
     method: pl.method,
@@ -162,6 +172,8 @@ export interface NewPlacedCtx extends PlaceCtx {
   itemKind: SalesItemKind;
   /** Техника нового нанесения — `defaultMethod(area, rules)` из `model/printMethods` */
   method: SalesPrintMethod;
+  /** Подложка нового нанесения по цвету изделия (`model/garmentTextile`); нет — умолчание фабрики */
+  textile?: SalesPrint['textile'];
 }
 
 /** Новое нанесение сразу на холсте; зона не найдена или раскладка не по форме (`parseLayout`) — `null` */
@@ -169,7 +181,7 @@ export function newPlacedPrint(asset: AssetMeta, artworkPath: string, areaId: st
   const where = locate(ctx.flat, ctx.view, areaId);
   if (!where) return null;
   const box = initialBox(where.view, where.area, asset);
-  const base = newSalesPrint({ on: ctx.itemKind === 'sku' ? 'cut' : 'finished' });
+  const base = newSalesPrint({ on: ctx.itemKind === 'sku' ? 'cut' : 'finished', ...(ctx.textile ? { textile: ctx.textile } : {}) });
   const placed = applyPlacement(base, {
     print_key: base.key, view: ctx.view, area_id: areaId, x_mm: box.x, y_mm: box.y,
     width_mm: box.w, height_mm: box.h, rotation_deg: 0, flip_h: false, flip_v: false,

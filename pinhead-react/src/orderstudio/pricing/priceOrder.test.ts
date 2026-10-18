@@ -66,6 +66,27 @@ describe('priceItem — позиция', () => {
     expect(r.issues).toEqual([]);
   });
 
+  it('шелкография меньше 50 шт — пометка, как у экспресса; от 50 — нет (обход, M-4)', () => {
+    const pr = () => newSalesPrint({ method: 'silkscreen', width_mm: 200, height_mm: 280, colors: 1 });
+    const small = priceItem(item({ prints: [pr()] }), P, CAT, DEFAULT_PRICE_RULES, false);
+    expect(small.qty).toBe(40);
+    expect(small.issues).toContain('screen_low_qty');
+    const big = item({ prints: [pr()], size_grid: { sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: 50 } }] } });
+    expect(priceItem(big, P, CAT, DEFAULT_PRICE_RULES, false).issues).not.toContain('screen_low_qty');
+    const dtf = priceItem(item({ prints: [newSalesPrint({ method: 'dtf', width_mm: 200, height_mm: 280 })] }), P, CAT, DEFAULT_PRICE_RULES, false);
+    expect(dtf.issues).not.toContain('screen_low_qty');
+  });
+
+  it('пометка тиража: у пустой позиции её нет (только no_qty), без размеров — обе (обход M-4, раунд 1)', () => {
+    const pr = (w: number | null, h: number | null) => newSalesPrint({ method: 'silkscreen', width_mm: w, height_mm: h, colors: 1 });
+    const empty = item({ prints: [pr(200, 280)], size_grid: { sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: 0 } }] } });
+    const e = priceItem(empty, P, CAT, DEFAULT_PRICE_RULES, false);
+    expect(e.issues).toContain('no_qty');
+    expect(e.issues).not.toContain('screen_low_qty');
+    const noSize = priceItem(item({ prints: [pr(null, null)] }), P, CAT, DEFAULT_PRICE_RULES, false);
+    expect(noSize.issues).toEqual(expect.arrayContaining(['print_no_size', 'screen_low_qty']));
+  });
+
   it('нанесение на весь тираж совпадает с зоной прежней формулы', () => {
     const pr = newSalesPrint({ method: 'silkscreen', width_mm: 200, height_mm: 280, colors: 2 });
     const old = core.calcTotalBreakdown(P, wizardState({

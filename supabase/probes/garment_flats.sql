@@ -340,17 +340,17 @@ select pg_temp.p('seller_set_staff_old', '42883',
   $q$select public.sales_set_staff('9285888e-4401-4b1b-b523-a3e6a9b90e82', false)$q$);
 -- CHECK формы нанесения и флэта позиции — через сохранение заказа v4
 select pg_temp.p('save_layout_array', '23514',
-  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "prints": [{"method": "dtf", "layout": [1, 2]}]}]}'::jsonb)::text$q$);
+  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 4, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "prints": [{"method": "dtf", "layout": [1, 2]}]}]}'::jsonb)::text$q$);
 select pg_temp.p('save_layout_v2', '23514',
-  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "prints": [{"method": "dtf", "layout": {"v": 2}}]}]}'::jsonb)::text$q$);
+  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 4, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "prints": [{"method": "dtf", "layout": {"v": 2}}]}]}'::jsonb)::text$q$);
 select pg_temp.p('save_layout_big', '23514',
-  $q$select public.order_v4_save_full(jsonb_build_object('id', '00000000-0000-4000-8000-000000000ff1', 'client_rev', 3,
+  $q$select public.order_v4_save_full(jsonb_build_object('id', '00000000-0000-4000-8000-000000000ff1', 'client_rev', 4,
        'items', jsonb_build_array(jsonb_build_object('key', '00000000-0000-4000-8000-000000000ff2',
          'prints', jsonb_build_array(jsonb_build_object('method', 'dtf', 'layout', jsonb_build_object('v', 1, 'pad', repeat('x', 8200))))))))::text$q$);
 select pg_temp.p('save_flat_id_bad', '23514',
-  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "flat_id": "../x"}]}'::jsonb)::text$q$);
+  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 4, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "flat_id": "../x"}]}'::jsonb)::text$q$);
 select pg_temp.p('save_layout_ok', 'OK {"id": "00000000-0000-4000-8000-000000000ff1"',
-  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 3, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "flat_id": "tshirt-freefit", "prints": [{"method": "dtf", "zone": "Грудь (перед)", "layout": {"v": 1, "flat_id": "tshirt-freefit", "flat_version": 1, "view": "front"}}]}]}'::jsonb)::text$q$);
+  $q$select public.order_v4_save_full('{"id": "00000000-0000-4000-8000-000000000ff1", "client_rev": 4, "items": [{"key": "00000000-0000-4000-8000-000000000ff2", "flat_id": "tshirt-freefit", "prints": [{"method": "dtf", "zone": "Грудь (перед)", "layout": {"v": 1, "flat_id": "tshirt-freefit", "flat_version": 1, "view": "front"}}]}]}'::jsonb)::text$q$);
 select pg_temp.p('save_layout_ok_effect', 'OK tshirt-freefit/1',
   $q$select i.flat_id || '/' || (p.layout->>'v') from public.order_items i join public.order_item_prints p on p.item_id = i.id where i.id = '00000000-0000-4000-8000-000000000ff2'$q$);
 reset role;

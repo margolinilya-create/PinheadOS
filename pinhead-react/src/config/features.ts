@@ -4,11 +4,16 @@
  * Позволяют «убрать в ящик» большие блоки без удаления кода.
  * Приоритет источников: URL-параметр → localStorage → env → дефолт.
  *
- * Как включить старый Order Studio (визард/цены) вручную:
- *   - URL:          ?studio=1
- *   - консоль:      setFeature('orderStudio', true)  (затем перезагрузить)
- *   - localStorage: pinhead_feature_orderStudio = '1'
- *   - env (билд):   VITE_FEATURE_ORDER_STUDIO=1
+ * Раздел «Оформление заказа» (`orderStudio`) с вехи 8 выбирается НЕ здесь,
+ * а чистой функцией `config/shellChoice.ts` (по профилю, адресу и выбору
+ * устройства, один раз за загрузку — `ShellGate` в `App.jsx`). Здесь — только
+ * хранение выбора устройства (`setFeature`/`clearFeature`) и сырое значение
+ * переменной сборки. `VITE_FEATURE_ORDER_STUDIO` — тройка:
+ *   - '0' / 'false' — аварийный выключатель: раздел гаснет у всех, `?studio=1`
+ *                     его не обходит (права на сервере остаются — снимаются отметки);
+ *   - '1' / 'true'  — dev и e2e: раздел по умолчанию;
+ *   - не задано     — по профилю (продавец, МС, rop — в раздел; прочие — в «Производство»).
+ * Ручной выбор: `?studio=1|0` (один заход), консоль `setFeature('orderStudio', true)`.
  *
  * Витрина дизайн-системы (/styleguide) — тем же механизмом:
  *   - URL:          ?styleguide=1
@@ -25,6 +30,9 @@
  */
 
 export type FeatureName = 'orderStudio' | 'styleguide';
+
+/** Все флаги — для сторожа хранилища: каждый ключ классифицирован при выходе */
+export const FEATURE_NAMES: readonly FeatureName[] = ['orderStudio', 'styleguide'];
 
 const DEFAULTS: Record<FeatureName, boolean> = {
   orderStudio: false,
@@ -43,6 +51,33 @@ const URL_KEYS: Record<FeatureName, string> = {
 };
 
 const LS_PREFIX = 'pinhead_feature_';
+
+/**
+ * Ключи `localStorage` флагов. Собираются динамически, поэтому сторож полноты
+ * `lib/storage` их в исходниках не видит — `storage.ts` классифицирует их отсюда:
+ * выбор раздела стирается при выходе, витрина остаётся настройкой устройства.
+ */
+export const FEATURE_STORAGE_KEYS = Object.fromEntries(
+  FEATURE_NAMES.map((n) => [n, LS_PREFIX + n]),
+) as Record<FeatureName, string>;
+
+/** Сырой выбор устройства (`'1'`, `'0'` или `null`) — вход `chooseShell` */
+export function readStoredFeature(name: FeatureName): string | null {
+  try {
+    return localStorage.getItem(FEATURE_STORAGE_KEYS[name]);
+  } catch {
+    return null;
+  }
+}
+
+/** Сырое значение переменной сборки флага (тройка у `orderStudio`, см. шапку) */
+export function featureEnv(name: FeatureName): string | undefined {
+  try {
+    return import.meta.env?.[ENV_KEYS[name]] as string | undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function truthy(v: string | null | undefined): boolean | null {
   if (v === null || v === undefined || v === '') return null;
@@ -67,11 +102,7 @@ function fromLocalStorage(name: FeatureName): boolean | null {
 }
 
 function fromEnv(name: FeatureName): boolean | null {
-  try {
-    return truthy(import.meta.env?.[ENV_KEYS[name]] as string | undefined);
-  } catch {
-    return null;
-  }
+  return truthy(featureEnv(name));
 }
 
 export function isFeatureEnabled(name: FeatureName): boolean {
@@ -100,11 +131,11 @@ export function clearFeature(name: FeatureName): void {
   }
 }
 
-/** Удобный геттер: FEATURES.orderStudio */
+/**
+ * Удобный геттер: FEATURES.styleguide. Оболочку раздела заказа по нему
+ * НЕ выбирают — только `chooseShell` (у него выключатель и профиль)
+ */
 export const FEATURES = {
-  get orderStudio(): boolean {
-    return isFeatureEnabled('orderStudio');
-  },
   get styleguide(): boolean {
     return isFeatureEnabled('styleguide');
   },

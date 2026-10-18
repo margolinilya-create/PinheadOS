@@ -1,294 +1,153 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import PageHeader from '../shared/PageHeader';
-import { supabase } from '../../lib/supabase';
-import { useOrdersStore, STATUS_LABELS, STATUS_COLORS } from '../../store/useOrdersStore';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useOrdersStore, STATUS_LABELS } from '../../store/useOrdersStore';
 import { TYPE_NAMES } from '../../data';
-import { ROLE_LABELS, ALL_ROLES } from '../../data/roles';
-import { toast } from '../../store/useToastStore';
-import { confirm } from '../../store/useConfirmStore';
 import { pluralize } from '../../utils/i18n';
-import { SkeletonTable } from '../shared/Skeleton';
+import { Button } from '../../erp/components/Button';
+import { SearchInput } from '../../erp/components/SearchInput';
+import { SortableTh } from '../../erp/components/SortableTh';
+import { ScrollHintBox } from '../../erp/components/ScrollHintBox';
+import { EmptyResult, EmptyState, LoadFailed } from '../../erp/components/ErpStates';
+import { TableSkeleton } from '../../erp/components/ErpSkeletons';
+import erp from '../../erp/erp.module.css';
+import styles from './AdminPanel.module.css';
+
 /**
- * Единая админка смонтирована и в ERP (вкладка «Заказы ТЗ» в AdminScreen),
- * то есть вне Order Studio, — а разметка здесь на его классах
- * (.page-header-*, .page-tabs, .empty-state, .kanban-page, .kb-search,
- * .sku-table). Раньше они приезжали глобально; теперь стили раздела едут
- * со своим чанком, поэтому нужные файлы импортирует тот, кто их использует.
- * Компонент ленивый в обоих местах — в оболочку это не попадает.
+ * «Заказы ТЗ» в админке Производства (`erp/screens/AdminScreen`, вкладка `studio`):
+ * старые заказы визарда (v3) — ТОЛЬКО ПРОСМОТР (веха 8, К4/К6). Запись v3 закрыта
+ * стражем миграции L, поэтому кнопок правки статуса и удаления нет.
+ *
+ * На примитивах ERP и своём CSS-модуле: прежде панель тянула шесть глобальных
+ * файлов Order Studio (`forms-buttons`, `wizard`, `extras-zones`, `kanban`,
+ * `editors`, `responsive`), и их правила оставались в документе для экранов ERP,
+ * открытых после `/admin`. Заголовок страницы (`h1`) и вкладки даёт принимающий
+ * экран — здесь свой `h2` (второй `h1` и смена `document.title` внутри вкладки
+ * были бы лишними). Ветка «Пользователи» удалена: учётные записи ведёт
+ * вкладка «Пользователи» админки ERP. Проп `ordersOnly` (его передаёт
+ * замороженный `AdminScreen`) больше ничего не меняет.
  */
-/* Тот же порядок, что у OrderStudioApp: forms-buttons перед остальными */
-import '../../styles/forms-buttons.css'
-import '../../styles/wizard.css'
-import '../../styles/extras-zones.css'
-import '../../styles/kanban.css'
-import '../../styles/editors.css'
-/* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
-import '../../styles/responsive.css'
 
-export default function AdminPanel({ ordersOnly = false }) {
-  const [tab, setTab] = useState('orders');
+const STATUS_OPTIONS = Object.entries(STATUS_LABELS);
+const NO_SORT = { key: null, dir: null };
 
-  // Orders from store (shared with KanbanBoard/Dashboard)
-  const { orders, fetchOrders, updateStatus, deleteOrder: storeDeleteOrder } = useOrdersStore(
-    useShallow(s => ({ orders: s.orders, fetchOrders: s.fetchOrders, updateStatus: s.updateStatus, deleteOrder: s.deleteOrder }))
+/** Следующая сортировка по колонке: по возрастанию → по убыванию → без сортировки */
+function nextSort(sort, key) {
+  if (sort.key !== key) return { key, dir: 'asc' };
+  return sort.dir === 'asc' ? { key, dir: 'desc' } : NO_SORT;
+}
+
+const productOf = (o) => TYPE_NAMES[o.item_type] || TYPE_NAMES[(o.item_type || '').toLowerCase()] || o.item_type || '—';
+const rub = (n) => `${(Number(n) || 0).toLocaleString('ru-RU')} ₽`;
+const dateOf = (iso) => (iso ? new Date(iso).toLocaleDateString('ru-RU') : '');
+
+const SORT_VALUE = {
+  number: (o) => o.order_number || '',
+  customer: (o) => o.data?.name || '',
+  qty: (o) => Number(o.total_qty) || 0,
+  sum: (o) => Number(o.total_sum) || 0,
+  date: (o) => o.created_at || '',
+};
+
+function sorted(rows, sort) {
+  const value = SORT_VALUE[sort.key];
+  if (!value) return rows;
+  const sign = sort.dir === 'desc' ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const x = value(a);
+    const y = value(b);
+    if (typeof x === 'number' && typeof y === 'number') return sign * (x - y);
+    return sign * String(x).localeCompare(String(y), 'ru');
+  });
+}
+
+export default function AdminPanel() {
+  const { orders, loading, loadError, fetchOrders } = useOrdersStore(
+    useShallow((s) => ({ orders: s.orders, loading: s.loading, loadError: s.loadError, fetchOrders: s.fetchOrders })),
+  );
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [sort, setSort] = useState(NO_SORT);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = orders.filter((o) => (status === 'all' || o.status === status)
+      && (!q || (o.order_number || '').toLowerCase().includes(q) || (o.data?.name || '').toLowerCase().includes(q)));
+    return sorted(rows, sort);
+  }, [orders, search, status, sort]);
+
+  const total = orders.reduce((s, o) => s + (Number(o.total_sum) || 0), 0);
+  const reset = () => { setSearch(''); setStatus('all'); };
+  const th = (key, label) => (
+    <SortableTh sortKey={key} sort={sort} onSort={(k) => setSort((prev) => nextSort(prev, k))}>{label}</SortableTh>
   );
 
-  // Users — direct Supabase (no store needed, admin-only)
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [orderSearch, setOrderSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from('profiles').select('*').order('name');
-    if (data) setUsers(data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchOrders();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch is intended
-    loadUsers();
-  }, [fetchOrders, loadUsers]);
-
-  const approveUser = async (id) => {
-    const { error } = await supabase.from('profiles').update({ approved: true }).eq('id', id);
-    if (error) { toast.error('Не удалось подтвердить пользователя'); return; }
-    setUsers(u => u.map(x => x.id === id ? { ...x, approved: true } : x));
-  };
-
-  const changeRole = async (id, newRole) => {
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', id);
-    if (error) { toast.error('Не удалось изменить роль'); return; }
-    setUsers(u => u.map(x => x.id === id ? { ...x, role: newRole } : x));
-  };
-
-  const deactivateUser = async (id) => {
-    const ok = await confirm({ title: 'Деактивировать пользователя?', confirmLabel: 'Деактивировать', variant: 'danger' });
-    if (!ok) return;
-    const { error } = await supabase.from('profiles').update({ active: false, approved: false }).eq('id', id);
-    if (error) { toast.error('Не удалось деактивировать пользователя'); return; }
-    setUsers(u => u.map(x => x.id === id ? { ...x, active: false, approved: false } : x));
-  };
-
-  const reactivateUser = async (id) => {
-    const { error } = await supabase.from('profiles').update({ active: true }).eq('id', id);
-    if (error) { toast.error('Не удалось активировать пользователя'); return; }
-    setUsers(u => u.map(x => x.id === id ? { ...x, active: true } : x));
-  };
-
-  const handleDeleteOrder = async (id) => {
-    const ok = await confirm({ title: 'Удалить заказ?', confirmLabel: 'Удалить', variant: 'danger' });
-    if (!ok) return;
-    storeDeleteOrder(id);
-  };
-
-  // Filtered orders
-  const filteredOrders = useMemo(() => {
-    let result = orders;
-    if (statusFilter !== 'all') result = result.filter(o => o.status === statusFilter);
-    if (orderSearch.trim()) {
-      const q = orderSearch.trim().toLowerCase();
-      result = result.filter(o =>
-        (o.order_number || '').toLowerCase().includes(q) ||
-        (o.data?.name || '').toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [orders, statusFilter, orderSearch]);
-
-  const totalRevenue = orders.reduce((s, o) => s + (o.total_sum || 0), 0);
-
-  /**
-   * ВСТРОЕННЫЙ РЕЖИМ (`ordersOnly`) — БЕЗ СВОЕЙ ОБОЛОЧКИ (обход 04.09).
-   *
-   * Панель монтируется вкладкой «Заказы ТЗ» внутри админки раздела
-   * «Производство», а несла с собой полный каркас страницы Order Studio:
-   * `.kanban-page` объявлен `height: calc(100vh - 52px); overflow: hidden`,
-   * и внутри вкладки это давало коробку фиксированной высоты — карточка
-   * обрывалась, а селект и таблица висели на фоне страницы. Сверху при этом
-   * стояли чужие «← Назад», второй заголовок и второй ряд вкладок с одной
-   * вкладкой: две навигации одна в другой.
-   *
-   * Встроенная панель отдаёт ТОЛЬКО содержимое, а заголовок, вкладки
-   * и прокрутку даёт принимающий экран.
-   */
-  const refresh = () => { fetchOrders(); loadUsers(); };
-
   return (
-    <div className={ordersOnly ? undefined : 'kanban-page'}>
-      {ordersOnly ? (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-          <strong>
-            {orders.length} {pluralize(orders.length, 'заказ', 'заказа', 'заказов')}
-            {' · '}
-            {totalRevenue.toLocaleString('ru-RU')} ₽
-          </strong>
-          <button type="button" className="btn" onClick={refresh}>Обновить</button>
-        </div>
+    <section className={styles.panel} aria-labelledby="v3-orders-head">
+      <div className={styles.head}>
+        <h2 id="v3-orders-head" className={styles.title}>Старые заказы — только просмотр</h2>
+        <p className={styles.sub}>
+          Заказы, оформленные до раздела «Оформление заказа». Изменить, сменить статус или удалить их нельзя —
+          новый заказ заводится в разделе «Оформление заказа».
+        </p>
+      </div>
+
+      <div className={styles.toolbar}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Номер или клиент" ariaLabel="Поиск по номеру или клиенту" />
+        <label className={styles.filter}>
+          Статус
+          <select className={erp.select} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="all">Все статусы</option>
+            {STATUS_OPTIONS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+        <Button variant="secondary" icon="refresh" onClick={() => fetchOrders()}>Обновить</Button>
+        {orders.length > 0 && (
+          <span className={styles.count}>
+            Показано: {filtered.length} из {orders.length} {pluralize(orders.length, 'заказа', 'заказов', 'заказов')} · {rub(total)}
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <TableSkeleton rows={5} label="Загрузка старых заказов" />
+      ) : loadError && orders.length === 0 ? (
+        <LoadFailed what="старые заказы" onRetry={() => fetchOrders()} />
+      ) : orders.length === 0 ? (
+        <EmptyState icon="inbox" title="Старых заказов нет" text="Новые заказы — в разделе «Оформление заказа»." />
+      ) : filtered.length === 0 ? (
+        <EmptyResult query={search.trim()} onReset={reset} resetLabel="Сбросить поиск и статус" />
       ) : (
-        <PageHeader
-          title="АДМИН-ПАНЕЛЬ"
-          badge={`${orders.length} ${pluralize(orders.length, 'заказ', 'заказа', 'заказов')} · ${totalRevenue.toLocaleString('ru-RU')} ₽`}
-          actions={<button className="btn" onClick={refresh}>Обновить</button>}
-          tabs={[{ id: 'orders', name: 'Заказы' }, { id: 'users', name: 'Пользователи' }]}
-          activeTab={tab}
-          onTabChange={setTab}
-        />
-      )}
-
-      {/* Body */}
-      <div style={ordersOnly ? undefined : { flex: 1, overflowY: 'auto', padding: '20px 40px 40px' }}>
-        {tab === 'orders' ? (
-          <>
-            {/* Search + Filter */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                className="kb-search"
-                placeholder="Поиск по номеру или клиенту..."
-                value={orderSearch}
-                onChange={e => setOrderSearch(e.target.value)}
-                style={{ width: 260 }}
-              />
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                style={{
-                  border: '1.5px solid #ccc', padding: '6px 12px',
-                  fontFamily: 'var(--font-display)', fontSize: 12,
-                }}
-              >
-                <option value="all">Все статусы</option>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-              <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>
-                Показано: {filteredOrders.length} из {orders.length}
-              </span>
-            </div>
-
-            <table className="sku-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Клиент</th>
-                  <th>Изделие</th>
-                  <th>Кол-во</th>
-                  <th>Сумма</th>
-                  <th>Статус</th>
-                  <th>Дата</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>
-                    {orderSearch || statusFilter !== 'all' ? 'Ничего не найдено' : (
-                      <div className="empty-state">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          <path d="M9 9h6M9 13h4" />
-                        </svg>
-                        <p>Заказов пока нет</p>
-                      </div>
-                    )}
-                  </td></tr>
-                )}
-                {filteredOrders.map(o => (
-                  <tr key={o.id}>
-                    <td className="sku-code">{o.order_number || '—'}</td>
-                    <td>{o.data?.name || '—'}</td>
-                    <td>{TYPE_NAMES[o.item_type] || TYPE_NAMES[(o.item_type || '').toLowerCase()] || o.item_type || '—'}</td>
-                    <td>{o.total_qty || 0}</td>
-                    <td className="sku-price">{(o.total_sum || 0).toLocaleString('ru-RU')} ₽</td>
-                    <td>
-                      <select
-                        value={o.status || 'draft'}
-                        onChange={e => updateStatus(o.id, e.target.value)}
-                        style={{ borderColor: (STATUS_COLORS[o.status] || STATUS_COLORS.draft).bar, fontWeight: 600, fontSize: 11 }}
-                      >
-                        {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={{ fontSize: 11, color: '#888' }}>
-                      {o.created_at ? new Date(o.created_at).toLocaleDateString('ru-RU') : ''}
-                    </td>
-                    <td>
-                      <button className="sku-del-btn" onClick={() => handleDeleteOrder(o.id)} aria-label="Удалить заказ">✕</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : loading ? (
-          <SkeletonTable rows={5} cols={5} />
-        ) : (
-          <table className="sku-table">
+        <ScrollHintBox className={erp.tableWrap} label="Старые заказы">
+          <table className={erp.table}>
             <thead>
               <tr>
-                <th>Имя</th>
-                <th>Email</th>
-                <th>Роль</th>
-                <th>Статус</th>
-                <th></th>
+                {th('number', 'Номер')}
+                {th('customer', 'Клиент')}
+                <th scope="col">Изделие</th>
+                {th('qty', 'Кол-во')}
+                {th('sum', 'Сумма')}
+                <th scope="col">Статус</th>
+                {th('date', 'Дата')}
               </tr>
             </thead>
             <tbody>
-              {users.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 30, textAlign: 'center', color: '#888', fontSize: 13 }}>
-                  Пользователей нет
-                </td></tr>
-              )}
-              {users.map(u => (
-                <tr key={u.id}>
-                  <td style={{ fontWeight: 600 }}>{u.name || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <select
-                      value={u.role || 'manager'}
-                      onChange={e => changeRole(u.id, e.target.value)}
-                      style={{
-                        border: '1.5px solid #ccc', padding: '2px 8px',
-                        fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600,
-                        background: u.role === 'admin' ? '#1D19EA' : 'transparent',
-                        color: u.role === 'admin' ? '#fff' : '#000',
-                      }}
-                    >
-                      {ALL_ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    {u.active === false ? (
-                      <span style={{ color: '#999', fontWeight: 600, fontSize: 11 }}>Деактивирован</span>
-                    ) : u.approved ? (
-                      <span style={{ color: '#007840', fontWeight: 600, fontSize: 11 }}>Активен</span>
-                    ) : (
-                      <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: 10 }} onClick={() => approveUser(u.id)}>
-                        Одобрить
-                      </button>
-                    )}
-                  </td>
-                  <td>
-                    {u.active === false ? (
-                      <button className="btn" style={{ padding: '3px 10px', fontSize: 10 }} onClick={() => reactivateUser(u.id)}>
-                        Активировать
-                      </button>
-                    ) : (
-                      <button className="sku-del-btn" onClick={() => deactivateUser(u.id)} aria-label="Деактивировать пользователя">✕</button>
-                    )}
-                  </td>
+              {filtered.map((o) => (
+                <tr key={o.id}>
+                  <td className={styles.mono}>{o.order_number || '—'}</td>
+                  <td>{o.data?.name || '—'}</td>
+                  <td>{productOf(o)}</td>
+                  <td className={styles.num}>{Number(o.total_qty) || 0}</td>
+                  <td className={styles.num}>{rub(o.total_sum)}</td>
+                  <td>{STATUS_LABELS[o.status] || STATUS_LABELS.draft}</td>
+                  <td className={styles.date}>{dateOf(o.created_at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </div>
+        </ScrollHintBox>
+      )}
+    </section>
   );
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { qaSupabaseBridge } from './scripts/qa-supabase-bridge.mjs'
+import { makeBuildId } from './scripts/build-id.mjs'
 
 /**
  * Маркер сборки — для проверки «вышло обновление» ДО того, как человек
@@ -13,10 +14,14 @@ import { qaSupabaseBridge } from './scripts/qa-supabase-bridge.mjs'
  * месте (снимки владельца 27.09). Чтобы узнавать раньше, приложение
  * периодически читает `/version.json` и сравнивает с маркером, зашитым
  * в свой код. Оба берутся из ОДНОГО значения здесь: коммит на Vercel,
- * иначе — момент сборки. Маркер не проходит через `/assets/`, поэтому
+ * иначе — момент сборки, плюс значение выключателя `VITE_FEATURE_ORDER_STUDIO`
+ * (веха 8: redeploy того же коммита с `=0` обязан дать новый маркер —
+ * `scripts/build-id.mjs`). Флаг читается из окружения процесса, как на Vercel;
+ * значение из файла `.env*` в маркер не попадает — выключатель ставится
+ * переменной Vercel. Маркер не проходит через `/assets/`, поэтому
  * service worker его не кеширует (он кеширует только `/assets/` и `/fonts/`).
  */
-const buildId = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || new Date().toISOString();
+const buildId = makeBuildId(process.env);
 
 function buildVersionFile() {
   return {

@@ -131,7 +131,7 @@ test.describe('рабочее место заказа', () => {
 
     // Модель → ткань → цвет → размеры 10 + 5 → обработка
     await page.getByRole('button', { name: /^Худи Regular regular/ }).click();
-    await page.getByRole('button', { name: 'Выбрать' }).click();
+    await page.getByRole('button', { name: 'Выбрать модель' }).click();
     await page.getByRole('button', { name: /^Футер 3-х нитка петля 65% хб/ }).first().click();
     await page.getByRole('button', { name: 'Чёрный (40-01)', exact: true }).click();
     await setSize(page, 'M', 10);
@@ -169,6 +169,8 @@ test.describe('рабочее место заказа', () => {
     await page.getByRole('button', { name: 'Далее: клиент и доставка' }).click();
     await expect(page).toHaveURL(/tab=client/);
     await page.getByLabel('Клиент', { exact: true }).fill('ООО Ромашка');
+    // «Комментарий для цехов» (веха 8): мок отвечает как сервер после K — поле есть
+    await page.getByRole('textbox', { name: 'Комментарий для цехов' }).fill('Упаковать по 10 шт.');
     await settled(page);
 
     // «ТЗ и цена» — итог больше нуля
@@ -182,7 +184,8 @@ test.describe('рабочее место заказа', () => {
     await settled(page);
 
     const last = saves(calls).at(-1)!;
-    expect(last.client_rev).toBe(3);
+    expect(last.client_rev).toBe(4);
+    expect(last.notes).toBe('Упаковать по 10 шт.');
     expect(last.id).toBe('mock-sales-1');
     expect(last.customer).toBe('ООО Ромашка');
     expect(last.price_total).toBeGreaterThan(0);
@@ -211,6 +214,9 @@ test.describe('рабочее место заказа', () => {
     await expect(page.getByRole('spinbutton', { name: 'Размер M', exact: true })).toHaveValue('10');
     await expect(page.getByRole('spinbutton', { name: 'Размер L', exact: true })).toHaveValue('5');
     await expect(page.getByRole('button', { name: 'Чёрный (40-01)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    // Комментарий для цехов на месте после перезагрузки
+    await page.getByRole('tab', { name: /^Клиент/ }).click();
+    await expect(page.getByRole('textbox', { name: 'Комментарий для цехов' })).toHaveValue('Упаковать по 10 шт.');
     // Открытие ничего не пишет
     await page.waitForTimeout(1500);
     expect(saves(calls)).toHaveLength(savesBefore);
@@ -385,5 +391,56 @@ test.describe('рабочее место заказа', () => {
       });
       expect(report, `вкладка ${tab} — нарушения:\n${report.join('\n')}`).toEqual([]);
     }
+  });
+});
+
+/**
+ * Панели «Изделия» на телефоне (веха 8, задача 6): тач-цели — токеном
+ * `--control-h-md` на `pointer: coarse` (44 px), а не `:global`-заплатками
+ * рабочего места; палитра без вложенной прокрутки — она «ловила» палец.
+ * `hasTouch` обязателен: без него `pointer: coarse` не срабатывает.
+ */
+test.describe('панели изделия на 375 px с тачем', () => {
+  test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
+
+  test('тач-цели не меньше 44 px, палитра без своей прокрутки, страница без горизонтальной', async ({ page }) => {
+    const id = '6f1c2d3e-0000-4000-8000-0000000000ee';
+    const items = [{ ...hoodieItem('6f1c2d3e-0000-4000-8000-0000000000e1', 'Чёрный (40-01)'), sort_order: 0 }];
+    await installSupabaseMock(page, { catalogs: orderCatalogs(), salesOrders: [salesRow(id, 'draft', items)] });
+    await page.goto(`/sales/${id}?tab=item&studio=1`);
+
+    const panel = page.getByRole('tabpanel');
+    const palette = panel.getByRole('group', { name: /^Палитра/ });
+    await expect(palette).toBeVisible();
+
+    // Палитра: высота по содержимому, прокрутки внутри нет
+    const scroll = await palette.evaluate((el) => ({
+      overflowY: getComputedStyle(el).overflowY,
+      maxHeight: getComputedStyle(el).maxHeight,
+      clipped: el.scrollHeight > el.clientHeight + 1,
+    }));
+    expect(scroll).toEqual({ overflowY: 'visible', maxHeight: 'none', clipped: false });
+
+    // Тач-цели панелей: образцы, «−»/«+», поле размера, поиск, фильтры, обработки
+    const targets = [
+      palette.getByRole('button').first(),
+      panel.getByRole('button', { name: /^Увеличить/ }).first(),
+      panel.getByRole('button', { name: /^Уменьшить/ }).first(),
+      panel.getByRole('spinbutton').first(),
+      panel.getByLabel('Поиск цвета'),
+      panel.getByLabel('Поиск модели'),
+      panel.getByRole('group', { name: 'Категория' }).getByRole('button').first(),
+      panel.getByRole('button', { name: /Доп\. обработки/ }),
+    ];
+    for (const t of targets) {
+      const what = await t.evaluate((el) => el.outerHTML.slice(0, 80));
+      const box = await t.boundingBox();
+      expect(box, what).not.toBeNull();
+      expect(box!.height, what).toBeGreaterThanOrEqual(44);
+    }
+
+    // Без горизонтальной прокрутки страницы
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

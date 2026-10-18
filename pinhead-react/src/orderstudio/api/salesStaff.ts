@@ -59,6 +59,47 @@ export async function fetchSalesStaff(): Promise<SalesStaffRow[] | null> {
   }
 }
 
+/** Событие журнала смены признаков (`sales_staff_events`, миграция L) */
+export interface SalesStaffEvent {
+  id: number;
+  profile_id: string;
+  kind: SalesStaffKind;
+  on_value: boolean;
+  /** Кто сменил; null — служебно (SQL Editor, service_role) */
+  actor: string | null;
+  source: 'rpc' | 'service';
+  at: string;
+}
+
+/** Сколько последних событий показывает «Кто и когда менял» */
+export const STAFF_EVENTS_LIMIT = 50;
+
+/**
+ * Последние события журнала признаков, новые сверху. Пишет только триггер
+ * на `profiles` (миграция L), читает руководство продаж по политике
+ * `sales_is_lead()` обычным select. Ошибка — тост и `null`.
+ */
+export async function fetchStaffEvents(): Promise<SalesStaffEvent[] | null> {
+  const fallback = 'Не удалось загрузить журнал отметок';
+  try {
+    const { data, error } = await supabase
+      .from('sales_staff_events')
+      .select('id, profile_id, kind, on_value, actor, source, at')
+      .order('at', { ascending: false })
+      .limit(STAFF_EVENTS_LIMIT);
+    if (error) {
+      console.error('sales_staff_events', error);
+      toast.error(fallback);
+      return null;
+    }
+    return (data ?? []) as SalesStaffEvent[];
+  } catch (e) {
+    console.error('sales_staff_events', e);
+    toast.error(`${fallback}: ${networkFailureMessage(e)}`);
+    return null;
+  }
+}
+
 /** Поставить или снять признак вида `kind`; `true` — сервер принял */
 export async function setSalesStaff(id: string, kind: SalesStaffKind, on: boolean): Promise<boolean> {
   const fallback = 'Не удалось сохранить признак сотрудника продаж';

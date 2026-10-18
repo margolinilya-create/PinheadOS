@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
-const setFeature = vi.fn();
-vi.mock('../../config/features', () => ({ setFeature: (...a) => setFeature(...a) }));
+// Переход перезагружает страницу — в jsdom навигации нет; что пишется, проверяет switchToProduction.test
+const switchToProduction = vi.fn();
+vi.mock('../switchToProduction', () => ({ switchToProduction: (...a) => switchToProduction(...a) }));
 // Подтверждение — императивный диалог; ответ задаёт тест
 const confirm = vi.fn();
 vi.mock('../../store/useConfirmStore', () => ({ confirm: (...a) => confirm(...a) }));
@@ -26,7 +27,7 @@ const SELLER = { id: 'u-2', role: 'manager', name: 'Анна', active: true, app
 
 describe('OrderLayout', () => {
   beforeEach(() => {
-    setFeature.mockClear();
+    switchToProduction.mockClear();
     confirm.mockReset();
     localStorage.clear();
   });
@@ -49,6 +50,19 @@ describe('OrderLayout', () => {
     renderLayout(ADMIN, path);
     const current = screen.getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page');
     expect(current.map((a) => a.textContent)).toEqual([active]);
+  });
+
+  it.each([
+    [SELLER, 'Менеджер продаж'],
+    [{ ...SELLER, is_sales: false, is_ms: true }, 'Менеджер сопровождения'],
+    [{ ...SELLER, role: 'rop', is_sales: false }, 'РОП'],
+    [ADMIN, 'Админ'],
+    [{ ...SELLER, role: 'rop', is_sales: true }, 'РОП'],
+    [{ ...ADMIN, is_sales: true, is_ms: true }, 'Админ'],
+  ])('роль в шапке — русской подписью, не кодом (обход, M-2): %#', (user, caption) => {
+    renderLayout(user);
+    expect(screen.getByText(caption)).toBeTruthy();
+    expect(screen.queryByText(user.role)).toBeNull();
   });
 
   it('продавец видит «Мои заказы» и не видит настроек', () => {
@@ -86,15 +100,24 @@ describe('OrderLayout', () => {
     expect(screen.getByText('PINHEAD ORDER')).toBeTruthy();
   });
 
-  it('«Перейти в Производство» выключает флаг orderStudio', () => {
-    renderLayout(ADMIN);
-    fireEvent.click(screen.getByRole('button', { name: 'Перейти в Производство' }));
-    expect(setFeature).toHaveBeenCalledWith('orderStudio', false);
+  it.each([
+    ['admin', ADMIN],
+    ['продавец', SELLER],
+    ['МС', { id: 'u-3', role: 'manager', active: true, approved: true, is_ms: true }],
+    ['rop', { id: 'u-4', role: 'rop', active: true, approved: true }],
+  ])('%s: «Производство» уводит в раздел Производство своим профилем', (_n, user) => {
+    renderLayout(user);
+    const btn = screen.getByRole('button', { name: 'Перейти в раздел Производство' });
+    expect(btn.getAttribute('title')).toBe('Перейти в раздел Производство');
+    // Видимая подпись есть в разметке (на ≤ 480 px — только для читалки)
+    expect(btn.textContent).toBe('Производство');
+    fireEvent.click(btn);
+    expect(switchToProduction).toHaveBeenCalledWith('/', user);
   });
 
-  it('у продавца кнопки перехода в Производство нет', () => {
-    renderLayout(SELLER);
-    expect(screen.queryByRole('button', { name: 'Перейти в Производство' })).toBeNull();
+  it('без доступа к разделу кнопки перехода нет', () => {
+    renderLayout({ id: 'u-5', role: 'designer', active: true, approved: true });
+    expect(screen.queryByRole('button', { name: 'Перейти в раздел Производство' })).toBeNull();
   });
 
   it('«Меню» открывает сайдбар, переход по ссылке закрывает', () => {

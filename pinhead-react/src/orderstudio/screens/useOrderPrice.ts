@@ -61,6 +61,8 @@ export function useOrderPrice(order: SalesOrder | null): OrderPrice | null {
     // Библиотека бирок (веха 4): цена бирки считается по ней (`salesLabelPrice`),
     // её правка пересчитывает заказ. Упаковка — внутри `prices`, отдельно не нужна
     labelLibrary: s.labelLibrary,
+    // Справочник зон (веха 8): карман DTG — по коду зоны нанесения
+    zonesCatalog: s.zonesCatalog,
   })));
 
   const pricer = useMemo(() => makeOrderPricer(cat as unknown as PricerSource), [cat]);

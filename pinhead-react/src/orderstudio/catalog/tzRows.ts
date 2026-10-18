@@ -85,3 +85,32 @@ export function tzRowOfArea(
   if (area.zone_id === null) return 'other';
   return tzRowOfZone(zones.find((z) => z.id === area.zone_id) ?? { id: area.zone_id });
 }
+
+type NamedZone = { id: string; name?: string; tz_row?: string };
+
+const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase();
+
+/**
+ * Код зоны справочника по её названию (веха 8, К5): строка нанесения выбирает
+ * зону названием из подсказки, а цена кармана и строка ТЗ читают код. Название
+ * не найдено или код не по формату `ZONE_ID_RE` — null (свободный текст)
+ */
+export function zoneIdByName(name: string | null | undefined, zones: readonly NamedZone[] | null | undefined): string | null {
+  const key = norm(name);
+  if (!key || !Array.isArray(zones)) return null;
+  const id = zones.find((z) => norm(z.name) === key)?.id;
+  return typeof id === 'string' && ZONE_ID_RE.test(id) ? id : null;
+}
+
+/**
+ * Зона справочника нанесения: по `zone_id` (нет в справочнике — сам код, его строка
+ * по умолчанию), без кода — по названию (строки до вехи 8 и свободный текст)
+ */
+export function zoneOfPrint(
+  print: { zone: string; zone_id: string | null },
+  zones: readonly NamedZone[],
+): { id: string; tz_row?: string } | undefined {
+  if (print.zone_id) return zones.find((z) => z.id === print.zone_id) ?? { id: print.zone_id };
+  const key = norm(print.zone);
+  return key ? zones.find((z) => norm(z.name) === key) : undefined;
+}

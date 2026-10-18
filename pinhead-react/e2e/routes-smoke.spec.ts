@@ -1,7 +1,7 @@
 // E2E smoke tests: routes that had zero coverage
 // Covers: /admin, /prices, /sku, перенаправления /analytics и /print
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Онбординг-тур (`OnboardingTips`) в свежем профиле накрывает страницу
@@ -27,36 +27,34 @@ test.describe('Admin panel', () => {
 test.describe('Price editor', () => {
   test('loads with price table', async ({ page }) => {
     await page.goto('/prices');
-    await expect(page.locator('.pe-matrix, .pe-tabs, [class*="price"]').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tablist', { name: 'Разделы прайса' })).toBeVisible({ timeout: 10000 });
   });
 });
 
 test.describe('SKU editor', () => {
+  const tab = (page: Page, name: string) => page.getByRole('tab', { name: new RegExp(`^${name}`) });
+
   test('loads with SKU catalog tabs', async ({ page }) => {
     await page.goto('/sku');
-    await expect(page.getByText('Изделия')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Основная ткань')).toBeVisible();
+    await expect(tab(page, 'Изделия')).toBeVisible({ timeout: 10000 });
+    await expect(tab(page, 'Основная ткань')).toBeVisible();
   });
 
   test('can switch between tabs', async ({ page }) => {
     await page.goto('/sku');
-    await expect(page.getByText('Изделия')).toBeVisible({ timeout: 10000 });
+    await expect(tab(page, 'Изделия')).toBeVisible({ timeout: 10000 });
 
-    // Switch to fabrics tab
-    await page.getByRole('button', { name: 'Основная ткань' }).click();
-    await expect(page.locator('.fabrics-table')).toBeVisible();
+    await tab(page, 'Основная ткань').click();
+    await expect(page.getByRole('region', { name: 'Основные ткани' })).toBeVisible();
 
-    // Switch to trims tab
-    await page.getByRole('button', { name: 'Отделочная ткань' }).click();
-    await expect(page.locator('.fabrics-table')).toBeVisible();
+    await tab(page, 'Отделочная ткань').click();
+    await expect(page.getByRole('region', { name: 'Отделочные ткани' })).toBeVisible();
 
-    // Switch to extras tab
-    await page.getByRole('button', { name: 'Обработки' }).click();
-    await expect(page.getByText(/обработок/)).toBeVisible();
+    await tab(page, 'Обработки').click();
+    await expect(page.getByText(/Обработок:/)).toBeVisible();
 
-    // Switch to hardware tab
-    await page.getByRole('button', { name: 'Фурнитура' }).click();
-    await expect(page.locator('.sku-ed-group').first()).toBeVisible();
+    await tab(page, 'Фурнитура').click();
+    await expect(page.getByRole('tabpanel').getByRole('heading', { level: 2 }).first()).toBeVisible();
   });
 });
 

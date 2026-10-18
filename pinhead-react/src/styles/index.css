@@ -17,9 +17,9 @@
 /*                                                            */
 /*  Теперь эти шесть файлов импортируют те, кому они нужны:    */
 /*    orderstudio/OrderStudioApp.jsx — сам раздел (ленивый);   */
-/*    components/auth/AdminPanel.jsx — вкладка «Заказы ТЗ»     */
-/*      единой админки, тоже ленивая, ей нужны .page-header-*, */
-/*      .page-tabs, .empty-state, .kanban-page, .sku-table.    */
+/*    (до вехи 8 ещё components/auth/AdminPanel.jsx — вкладка   */
+/*      «Заказы ТЗ»; теперь она на примитивах ERP и своём      */
+/*      AdminPanel.module.css, глобальных файлов не держит).   */
 /*  Vite кладёт такой CSS в чанк импортёра, а не в оболочку.   */
 /*                                                            */
 /*  С 23.08 туда же уехал и forms-buttons.css — но НЕ целиком:     */

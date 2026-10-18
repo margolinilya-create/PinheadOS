@@ -254,7 +254,7 @@
 | 5б | Админка «Флэты и зоны»: загрузка своих флэтов и новых версий, правка зон, точные флэты моделей, рукава и прочие виды |
 | 6 | ТЗ в PDF + «Отправить в работу» + отметка оплаты |
 | 7 | «К запуску» + запуск через стор ERP; проба на бою с откатом |
-| 8 | Рестайл остатка (`SkuEditor`, экспресс), эталоны, обход `pinhead-qa`, включение для людей |
+| 8 | Рестайл остатка (`SkuEditor`, экспресс, панели «Изделия»), рабочее место на 375 px, эталоны, обход `pinhead-qa`, хвосты: `zone_id` у нанесения и `orders.notes` («Комментарий для цехов», миграция K, ревизия клиента 4), v3 только чтение и закрытие `order_comments`, журнал смены `is_sales`/`is_ms` (`sales_staff_events`, миграция L), старые ключи `catalog_config` (миграция M), уборка файлов заказа (`order-files-gc`, отчёт); включение для людей по чек-листу `supabase/rollout/m8/CHECKLIST.md`. QR в подвале ТЗ — бэклог (новый пакет npm). План — `docs/superpowers/plans/2026-10-18-order-flow-m8-polish-enable.md` |
 
 ## Переиспользуем
 - **Order:** `pricing/priceOrder.ts`, `wizard/wizardAdapter.ts`, `bridge/tzToErpDraft.ts` + `erpNames.ts`, `store/useSalesStore.ts`, `api/salesOrders.ts`, `BufferedInput`, `utils/{costRules,printRules,pricingCore,displayNames}.ts`.

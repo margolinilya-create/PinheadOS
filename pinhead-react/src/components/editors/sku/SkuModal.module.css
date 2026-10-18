@@ -1,0 +1,312 @@
+/*
+ * Окна каталога (`/sku`): «Добавить модель», «Зоны нанесения», карточка модели
+ * (веха 8, задача 3; было — `sku-modal*`, `sku-detail-*` из `styles/editors.css`).
+ * Оболочка окна — примитив ERP `Modal`. Только токены `:root`.
+ */
+
+.narrow { max-width: 480px; }
+.wide { max-width: 960px; }
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.form .input,
+.section .input {
+  min-height: var(--control-h-md);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+/* ── Флажки (зоны, размеры) ── */
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+}
+
+.check:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.check input { width: auto; margin: 0; }
+
+/* ── Карточка модели ── */
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.code {
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+
+.sectionHead .push { margin-left: auto; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+/* ── Строка переопределения: подпись — значение — «сбросить» ── */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.rowLabel {
+  min-width: 140px;
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+}
+
+.row .numInput {
+  width: 96px;
+  min-height: var(--control-h-sm);
+  font-family: var(--mono);
+}
+
+.inherited {
+  color: var(--text-dim);
+  font-size: var(--type-label);
+}
+
+.badge {
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--bg3);
+  font-size: var(--type-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Экономика ── */
+
+.econ {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+  font-size: var(--type-body-sm);
+}
+
+.econ dt { color: var(--text-mid); }
+.econ dd { margin: 0; font-family: var(--mono); text-align: right; white-space: nowrap; }
+.econTotal { font-weight: 700; color: var(--text); }
+
+/* ── Табель мер ── */
+
+.scroll { overflow-x: auto; max-width: 100%; }
+
+.chart {
+  border-collapse: collapse;
+  font-size: var(--type-body-sm);
+}
+
+.chart th,
+.chart td {
+  padding: 2px;
+  border: 1px solid var(--border-light);
+}
+
+.chart .cell {
+  width: 88px;
+  min-height: var(--control-h-sm);
+  padding: var(--space-xs);
+  border: none;
+  text-align: center;
+}
+
+.headCell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Фото ── */
+
+.photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-sm);
+}
+
+.photo {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg1);
+}
+
+.photoMain { border-color: var(--accent); }
+
+.photoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.photoImg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.photoTools {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.photoBadge {
+  position: absolute;
+  left: var(--space-xs);
+  bottom: var(--space-xs);
+  padding: 1px var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  font-size: var(--type-label);
+}
+
+.upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  aspect-ratio: 1;
+  padding: var(--space-sm);
+  border: 1px dashed var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text-mid);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+}
+
+.upload:hover,
+.uploadOver { border-color: var(--accent); color: var(--accent); }
+
+.mockup { width: 64px; height: 64px; }
+
+.photoImg:focus-visible,
+.upload:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Выбор цветов и списков ── */
+
+.swatchGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.swatchLabel {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.swatch {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: 50%;
+  background: var(--swatch-color);
+  cursor: pointer;
+  opacity: 0.35;
+}
+
+.swatch[aria-pressed='true'] { opacity: 1; box-shadow: var(--focus-ring); }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+@media (pointer: coarse) {
+  .check,
+  .row .numInput,
+  .chart .cell,
+  .swatch { min-height: var(--control-h-md); }
+  .swatch { width: var(--control-h-md); height: var(--control-h-md); }
+}

@@ -1,0 +1,64 @@
+/* Общее у панелей «Изделия» (веха 8, задача 6): заголовок секции, поиск, подсказка,
+   текст только для читалки. Было в глобальных `wizard.css` (`.section-label`,
+   `.section-badge`, `.page-search`) и `garment.css`. */
+
+.section { min-width: 0; }
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-xl) 0 var(--space-md);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.sectionLabel::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
+
+.badge {
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+/* Поле поиска панели: высота токеном (40 px, на тач — 44 px) */
+.search {
+  width: 100%;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.search:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.search::placeholder { color: var(--text-dim); }
+.search:disabled { opacity: .6; cursor: not-allowed; }
+
+.hint {
+  margin: var(--space-xs) 0 0;
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

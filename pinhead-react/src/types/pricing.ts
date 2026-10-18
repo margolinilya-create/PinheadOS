@@ -68,7 +68,6 @@ export interface PriceBreakdown {
   markedBase: number;
   base: number;       // alias for cost
   extras: number;
-  labels: number;
   print: number;
   pack: number;
   discount: number;   // alias for markup

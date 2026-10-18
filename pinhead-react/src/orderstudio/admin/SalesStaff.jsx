@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { fetchSalesStaff, setSalesStaff } from '../api/salesStaff';
+import { fetchSalesStaff, fetchStaffEvents, setSalesStaff } from '../api/salesStaff';
+import SalesStaffJournal from './SalesStaffJournal';
 import { ROLE_LABELS } from '../../data/roles';
 import base from '../screens/Sales.module.css';
 import styles from './SalesStaff.module.css';
@@ -18,6 +19,8 @@ const savingKey = (id, kind) => `${id}:${kind}`;
  * (admin, director, rop) отмечает, кто ведёт заказы (`is_sales`) и кто МС
  * (`is_ms`). Права — на сервере (`sales_set_staff`), экран только передаёт
  * намерение. Переключатель — optimistic с откатом своего признака при отказе.
+ * Под таблицей — журнал «Кто и когда менял» (веха 8, миграция L), он
+ * перечитывается после каждой принятой отметки.
  */
 export default function SalesStaff() {
   const [rows, setRows] = useState(null);
@@ -25,6 +28,9 @@ export default function SalesStaff() {
   const [saving, setSaving] = useState(() => new Set());
   // Повтор загрузки — сменой ключа: состояние ставится только в ответе запроса
   const [attempt, setAttempt] = useState(0);
+  // Журнал: undefined — грузится, null — не загрузился; ключ — повтор и перечитывание
+  const [events, setEvents] = useState(undefined);
+  const [journalKey, setJournalKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -35,6 +41,19 @@ export default function SalesStaff() {
     });
     return () => { alive = false; };
   }, [attempt]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchStaffEvents().then((data) => {
+      if (alive) setEvents(data);
+    });
+    return () => { alive = false; };
+  }, [journalKey]);
+
+  const reloadJournal = () => {
+    setEvents(undefined);
+    setJournalKey((n) => n + 1);
+  };
 
   const retry = () => {
     setFailed(false);
@@ -60,6 +79,7 @@ export default function SalesStaff() {
     markSaving(key, true);
     const ok = await setSalesStaff(row.id, kind, !prevValue);
     if (!ok) patch(row.id, field, prevValue);
+    else setJournalKey((n) => n + 1);
     markSaving(key, false);
   };
 
@@ -134,6 +154,8 @@ export default function SalesStaff() {
           </tbody>
         </table>
       )}
+
+      {rows && <SalesStaffJournal events={events} rows={rows} onRetry={reloadJournal} />}
     </div>
   );
 }

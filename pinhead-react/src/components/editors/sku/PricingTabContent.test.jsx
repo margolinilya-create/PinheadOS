@@ -95,7 +95,7 @@ describe('PricingTabContent — прайс без затирания (веха 4
     // После миграции G ключ flexMatrix засеян (= FLEX_MATRIX кода)
     fetchMock.mockResolvedValue({ exists: true, value: { ...DB, flexMatrix: FLEX_MATRIX } });
     await ready();
-    fireEvent.click(screen.getByRole('button', { name: 'Флекс' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Флекс' }));
     fireEvent.change(screen.getByLabelText('Флекс A4, 1 цв., тираж 1+'), { target: { value: '760' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
@@ -111,7 +111,7 @@ describe('PricingTabContent — прайс без затирания (веха 4
 
   it('флекса в прайсе нет — правка начинается с умолчаний кода, матрица полная', async () => {
     await ready();
-    fireEvent.click(screen.getByRole('button', { name: 'Флекс' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Флекс' }));
     fireEvent.change(screen.getByLabelText('Флекс A6, 2 цв., тираж 20+'), { target: { value: '210' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));

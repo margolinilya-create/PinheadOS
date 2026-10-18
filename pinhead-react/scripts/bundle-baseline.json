@@ -1,14 +1,14 @@
 {
-  "comment": "База bundle-budget (веха 5б, задача 0). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md («Замеры 5б»)",
+  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, причина — design/README.md, «Замеры 8»). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
   "strict": {
     "entryJs": {
-      "raw": 498594,
-      "gzip": 151563,
-      "sha256": "cb03fcf3960554ecf329bbaa05bc1452b804fe1ac1304babb85055034f9fdf89",
+      "raw": 499839,
+      "gzip": 152045,
+      "sha256": "2d75e5ddcdefb47f76ae2b54d11fe4eaabed14274aa8a29f223dae856e48a216",
       "files": {
         "assets/index-HASH.js": {
-          "raw": 39776,
-          "gzip": 13702
+          "raw": 41021,
+          "gzip": 14184
         },
         "assets/vendor-react-HASH.js": {
           "raw": 287180,
@@ -21,17 +21,17 @@
       }
     },
     "shellJs": {
-      "raw": 615662,
-      "gzip": 192908,
-      "sha256": "c036d4918059f9e144fa35e48ff7b8895bb1b929977be1b339f5fc46c6d61137",
+      "raw": 616677,
+      "gzip": 193298,
+      "sha256": "527d81e0059f5240e88965d3411e411296c3ded6a9809c57b56714020949fed6",
       "files": {
         "assets/date-HASH.js": {
           "raw": 1375,
           "gzip": 664
         },
         "assets/ErpApp-HASH.js": {
-          "raw": 22787,
-          "gzip": 7715
+          "raw": 22828,
+          "gzip": 7728
         },
         "assets/ErpSkeletons-HASH.js": {
           "raw": 3713,
@@ -39,15 +39,15 @@
         },
         "assets/ErpStates-HASH.js": {
           "raw": 18827,
-          "gzip": 6657
+          "gzip": 6658
         },
         "assets/index-HASH.js": {
-          "raw": 39776,
-          "gzip": 13702
+          "raw": 41021,
+          "gzip": 14184
         },
         "assets/Skeleton-HASH.js": {
-          "raw": 479,
-          "gzip": 290
+          "raw": 208,
+          "gzip": 183
         },
         "assets/stageUi-HASH.js": {
           "raw": 1838,
@@ -55,7 +55,7 @@
         },
         "assets/statusUi-HASH.js": {
           "raw": 47401,
-          "gzip": 16114
+          "gzip": 16115
         },
         "assets/types-HASH.js": {
           "raw": 10763,

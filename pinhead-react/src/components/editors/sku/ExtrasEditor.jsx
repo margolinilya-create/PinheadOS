@@ -1,8 +1,29 @@
 import { useState } from 'react';
 import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { confirm } from '../../../store/useConfirmStore';
+import { Button } from '../../../erp/components/Button';
+import a11y from '../../../orderstudio/ui/a11y.module.css';
+import t from './skuTable.module.css';
+import x from './Extras.module.css';
 
-export default function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onToggleCat }) {
+const MODES = [['by-category', 'По категории'], ['by-extra', 'По обработке']];
+
+/** Флажок «обработка доступна категории» — подпись связана с контролом, работает с клавиатуры */
+function CatCheck({ checked, onChange, children, price }) {
+  return (
+    <label className={x.item}>
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      <span className={x.name}>{children}</span>
+      {price !== undefined && <span className={x.price}>{price} ₽</span>}
+    </label>
+  );
+}
+
+/**
+ * Вкладка «Обработки»: какие обработки доступны каким категориям — двумя
+ * взглядами («по категории» и «по обработке»), цена за штуку.
+ */
+export default function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onToggleCat, readOnly = false }) {
   const [mode, setMode] = useState('by-category');
   const [selectedCat, setSelectedCat] = useState('tshirts');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -10,7 +31,8 @@ export default function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onTogg
   const [newName, setNewName] = useState('');
   const [newPrice, setNewPrice] = useState(30);
 
-  const handleAdd = () => {
+  const handleAdd = (e) => {
+    e.preventDefault();
     if (!newName.trim()) return;
     onAdd();
     const idx = extras.length;
@@ -33,91 +55,93 @@ export default function ExtrasEditor({ extras, onUpdate, onAdd, onDelete, onTogg
   const current = extras[selectedIdx] || null;
 
   return (
-    <div className="sku-ed-body">
-      <div className="sku-ed-toolbar">
-        <div className="extras-mode-switch">
-          <button className={`extras-mode-btn${mode === 'by-category' ? ' active' : ''}`} onClick={() => setMode('by-category')}>По категории</button>
-          <button className={`extras-mode-btn${mode === 'by-extra' ? ' active' : ''}`} onClick={() => setMode('by-extra')}>По обработке</button>
+    <div className={t.body}>
+      <div className={t.toolbar}>
+        <div className={t.chips} role="group" aria-label="Вид списка">
+          {MODES.map(([id, label]) => (
+            <button key={id} type="button" className={t.chip} aria-pressed={mode === id} onClick={() => setMode(id)}>{label}</button>
+          ))}
         </div>
-        <span className="sku-ed-count">Всего: {extras.length} обработок</span>
+        <span className={t.count}>Обработок: {extras.length}</span>
       </div>
 
-      {/* ── Mode A: By Category ── */}
       {mode === 'by-category' && (
         <>
-          <div className="extras-cat-tabs">
-            {SKU_CATEGORIES.map(c => (
-              <button key={c.id} className={`extras-cat-tab${selectedCat === c.id ? ' active' : ''}`} onClick={() => setSelectedCat(c.id)}>
+          <div className={`${t.chips} ${x.cats}`} role="group" aria-label="Категория">
+            {SKU_CATEGORIES.map((c) => (
+              <button key={c.id} type="button" className={t.chip} aria-pressed={selectedCat === c.id}
+                onClick={() => setSelectedCat(c.id)}>
                 {c.name}
               </button>
             ))}
           </div>
-          <div className="extras-editor-list">
-            {extras.map((e, i) => {
-              const enabled = (e.forCategories || []).includes(selectedCat);
-              return (
-                <div key={e.code + i} className={`extras-list-item${!enabled ? ' disabled' : ''}`} onClick={() => onToggleCat(i, selectedCat)}>
-                  <div className={`extras-check${enabled ? ' checked' : ''}`}>
-                    {enabled && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </div>
-                  <span className="extras-item-name">{e.name}</span>
-                  <span className="extras-price">{e.price} ₽</span>
-                </div>
-              );
-            })}
-          </div>
+          <fieldset className={`${t.fieldset} ${x.list}`} disabled={readOnly}>
+            <legend className={a11y.srOnly}>
+              Обработки категории «{SKU_CATEGORIES.find((c) => c.id === selectedCat)?.name}»
+            </legend>
+            {extras.map((e, i) => (
+              <CatCheck key={e.code + i} checked={(e.forCategories || []).includes(selectedCat)}
+                onChange={() => onToggleCat(i, selectedCat)} price={e.price}>
+                {e.name}
+              </CatCheck>
+            ))}
+          </fieldset>
         </>
       )}
 
-      {/* ── Mode B: By Extra ── */}
       {mode === 'by-extra' && (
         <>
-          <div className="extras-nav-bar">
-            <button className="extras-nav-btn" disabled={selectedIdx <= 0} onClick={() => setSelectedIdx(selectedIdx - 1)}>← Пред</button>
-            <span className="extras-nav-label">{current ? `${selectedIdx + 1} / ${extras.length}` : '—'}</span>
-            <button className="extras-nav-btn" disabled={selectedIdx >= extras.length - 1} onClick={() => setSelectedIdx(selectedIdx + 1)}>След →</button>
+          <div className={x.nav}>
+            <Button icon="chevronLeft" disabled={selectedIdx <= 0} onClick={() => setSelectedIdx(selectedIdx - 1)}>Предыдущая</Button>
+            <span className={t.count} aria-live="polite">{current ? `${selectedIdx + 1} из ${extras.length}` : '—'}</span>
+            <Button icon="chevronRight" disabled={selectedIdx >= extras.length - 1} onClick={() => setSelectedIdx(selectedIdx + 1)}>Следующая</Button>
           </div>
           {current && (
-            <div className="extras-detail">
-              <div className="extras-detail-header">
-                <input className="sku-edit-input sku-edit-name" value={current.name} onChange={e => onUpdate(selectedIdx, 'name', e.target.value)} />
-                <div className="extras-detail-price">
-                  <span className="extras-detail-price-label">Цена:</span>
-                  <input className="sku-edit-input sku-edit-num" type="number" value={current.price} onChange={e => onUpdate(selectedIdx, 'price', Number(e.target.value) || 0)} />
-                  <span>₽</span>
-                </div>
-                <button className="sku-del-btn" onClick={() => handleDelete(selectedIdx)} title="Удалить обработку" aria-label="Удалить обработку">✕</button>
+            <fieldset className={`${t.fieldset} ${x.detail}`} disabled={readOnly}>
+              <legend className={a11y.srOnly}>Обработка «{current.name}»</legend>
+              <div className={x.detailHead}>
+                <label className={x.field}>
+                  <span className={x.label}>Название</span>
+                  <input className={x.input} value={current.name} onChange={(e) => onUpdate(selectedIdx, 'name', e.target.value)} />
+                </label>
+                <label className={x.field}>
+                  <span className={x.label}>Цена, ₽</span>
+                  <input className={`${x.input} ${x.num}`} type="number" value={current.price}
+                    onChange={(e) => onUpdate(selectedIdx, 'price', Number(e.target.value) || 0)} />
+                </label>
+                <Button variant="ghost" icon="trash" onClick={() => handleDelete(selectedIdx)}>Удалить обработку</Button>
               </div>
-              <div className="extras-detail-cats">
-                <span className="extras-detail-cats-label">Категории:</span>
-                {SKU_CATEGORIES.map(c => {
-                  const enabled = (current.forCategories || []).includes(c.id);
-                  return (
-                    <div key={c.id} className={`extras-list-item${!enabled ? ' disabled' : ''}`} onClick={() => onToggleCat(selectedIdx, c.id)}>
-                      <div className={`extras-check${enabled ? ' checked' : ''}`}>
-                        {enabled && <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                      </div>
-                      <span className="extras-item-name">{c.name}</span>
-                    </div>
-                  );
-                })}
+              <div className={x.list} role="group" aria-label="Категории обработки">
+                {SKU_CATEGORIES.map((c) => (
+                  <CatCheck key={c.id} checked={(current.forCategories || []).includes(c.id)}
+                    onChange={() => onToggleCat(selectedIdx, c.id)}>
+                    {c.name}
+                  </CatCheck>
+                ))}
               </div>
-            </div>
+            </fieldset>
           )}
         </>
       )}
 
-      {/* ── Add Extra Form ── */}
-      {showAddForm ? (
-        <div className="extras-add-form">
-          <input className="sku-edit-input" placeholder="Название обработки" value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
-          <input className="sku-edit-input sku-edit-num" type="number" placeholder="Цена" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
-          <button className="pe-btn pe-btn-primary" onClick={handleAdd} disabled={!newName.trim()}>Добавить</button>
-          <button className="pe-btn" onClick={() => setShowAddForm(false)}>Отмена</button>
-        </div>
+      {!readOnly && (showAddForm ? (
+        <form className={x.addForm} onSubmit={handleAdd}>
+          <label className={x.field}>
+            <span className={x.label}>Название обработки</span>
+            <input className={x.input} value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
+          </label>
+          <label className={x.field}>
+            <span className={x.label}>Цена, ₽</span>
+            <input className={`${x.input} ${x.num}`} type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
+          </label>
+          <Button type="submit" variant="primary" disabled={!newName.trim()}>Добавить</Button>
+          <Button onClick={() => setShowAddForm(false)}>Отмена</Button>
+        </form>
       ) : (
-        <button className="sku-ed-add-btn" style={{ marginTop: 12 }} onClick={() => setShowAddForm(true)}>+ Добавить обработку</button>
-      )}
+        <div className={x.addRow}>
+          <Button icon="plus" onClick={() => setShowAddForm(true)}>Добавить обработку</Button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -96,8 +96,46 @@ describe('ColorPicker — снятые и чужие цвета', () => {
   it('hex со вставкой разметки — в стиль идёт #ccc', () => {
     const bad = updateColor(SUPPLIERS_SEED, 'medastex', '01-01', { hex: '#fff" onload=alert(1)' });
     setup({ suppliers: bad });
-    const circle = swatch('Белый (01-01)').querySelector('.swatch-circle');
-    expect(circle.style.backgroundColor).toBe('rgb(204, 204, 204)');
+    const circle = swatch('Белый (01-01)').querySelector('[data-swatch-circle]');
+    expect(circle.style.getPropertyValue('--swatch-color')).toBe('#ccc');
+  });
+});
+
+describe('ColorPicker — выбранный образец', () => {
+  it('галочка одна и только у выбранного, выбор передан не только цветом', () => {
+    setup({ color: '01-01' });
+    const white = swatch('Белый (01-01)');
+    expect(white).toHaveAttribute('aria-pressed', 'true');
+    expect(white.querySelectorAll('svg')).toHaveLength(1);
+    expect(swatch('Молочный (01-02)').querySelectorAll('svg')).toHaveLength(0);
+  });
+
+  it('инлайн-стиль образца — только вычисляемый цвет', () => {
+    setup({ color: '01-01' });
+    const styled = [...document.querySelectorAll('[style]')];
+    expect(styled.length).toBeGreaterThan(0);
+    for (const el of styled) {
+      expect([...el.style].every((p) => p === '--swatch-color'), el.getAttribute('style')).toBe(true);
+    }
+  });
+});
+
+describe('ColorPicker — ограничение цветов модели (allowedColors, К10)', () => {
+  const rules = (allowedColors) => [{ categoryId: SKU.category, allowedColors }];
+
+  it('коды из палитры ткани — только они и подсказка «N из M»', () => {
+    setup({ categoryRules: rules(['01-01', '01-02']) });
+    const grid = screen.getByRole('group', { name: 'Палитра Медастекс' });
+    expect(within(grid).getAllByRole('button')).toHaveLength(2);
+    const total = useStore.getState().suppliers.find((s) => s.id === 'medastex').palette.colors.length;
+    expect(screen.getByText(`Для этой модели доступно 2 из ${total} цветов «Медастекс»`)).toBeInTheDocument();
+  });
+
+  it('коды Медастекс у ткани другого поставщика — палитра целиком, не пусто', () => {
+    setup({ fabric: COTTON, colorSupplier: '', categoryRules: rules(['01-01', '01-02']) });
+    const grid = screen.getByRole('group', { name: 'Палитра Коттонпром' });
+    expect(within(grid).getAllByRole('button').length).toBeGreaterThan(2);
+    expect(screen.queryByText(/Для этой модели доступно/)).toBeNull();
   });
 });
 

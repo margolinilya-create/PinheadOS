@@ -7,6 +7,7 @@ import { pluralize } from '../../../utils/i18n';
 import { useFlatsCatalog } from '../catalog/useFlatsCatalog';
 import { pickFlat } from '../catalog/pickFlat';
 import { garmentHexOf } from '../assets/garmentHex';
+import { textileOfItem } from '../../model/garmentTextile';
 import { placementOf, remapToFlat } from '../model/layout';
 import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
@@ -42,6 +43,7 @@ export function useDesignTab({ order, item, readOnly }) {
     zonesCatalog: s.zonesCatalog,
     categoryRules: s.categoryRules,
     suppliers: s.suppliers,
+    fabricsCatalog: s.fabricsCatalog,
     extrasCatalog: s.extrasCatalog,
   })));
   const ds = useDesignStore(useShallow((s) => ({
@@ -81,6 +83,11 @@ export function useDesignTab({ order, item, readOnly }) {
   const category = sku?.category ?? '';
   const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category } : null), [flat, zonesCatalog, category]);
   const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? []), [item, cat.suppliers]);
+  // Подложка нового логотипа — по цвету изделия: на чёрном не «белое» (обход, H-2)
+  const textile = useMemo(
+    () => textileOfItem(item, { suppliers: cat.suppliers ?? [], fabricsCatalog: cat.fabricsCatalog ?? [] }),
+    [item, cat.suppliers, cat.fabricsCatalog],
+  );
 
   // Вида нет на этом силуэте — первый, что есть (порядок: перед → спина → левый → правый рукав)
   const view = views.includes(ds.view) ? ds.view : (views[0] ?? 'front');
@@ -89,8 +96,8 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [view, ds.view]);
 
   const target = useMemo(() => (ctx && !readOnly ? {
-    orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules, areaAllowed: itemFlat.areaAllowed,
-  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed]);
+    orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules, areaAllowed: itemFlat.areaAllowed, textile,
+  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed, textile]);
   const art = useArtworkActions(target);
 
   /** Правка нанесений через историю; `fn(prints) → prints | null` */

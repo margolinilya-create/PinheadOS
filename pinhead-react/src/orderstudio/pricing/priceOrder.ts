@@ -25,6 +25,7 @@
 import * as core from '../../utils/pricingCore';
 import * as cost from '../../utils/costRules';
 import * as printRules from '../../utils/printRules';
+import { ceilToStep, SCREEN_MIN_QTY, UNIT_PRICE_STEP } from '../../utils/quoteRules';
 import type { PricesExt } from '../../utils/pricingCore';
 import type { SkuItem, Fabric, Trim } from '../../types/catalog';
 import { gridQty } from '../model/factory';
@@ -32,6 +33,7 @@ import type { SalesItem, SalesLabel, SalesOrder, SalesPrint, SalesPrintMethod } 
 import type { LabelLibrary } from '../catalog/types';
 import { libraryLabelPrice } from '../catalog/labels';
 import { itemPackaging } from '../model/packaging';
+import { tzRowOfZone, zoneOfPrint } from '../catalog/tzRows';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -46,6 +48,11 @@ export interface PriceCatalogs {
    * → `core.packPrice`), смена прайса и так пересчитывает заказ.
    */
   labelLibrary?: LabelLibrary;
+  /**
+   * Справочник зон (веха 8): карман DTG — по `zone_id` нанесения и строке ТЗ зоны
+   * (`tzRowOfZone`); нет справочника — строка по умолчанию кода
+   */
+  zonesCatalog?: readonly { id: string; name?: string; tz_row?: string }[];
 }
 
 export interface PriceRules {
@@ -57,7 +64,7 @@ export interface PriceRules {
   minMarginPct: number | null;
 }
 
-export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: 5, prepFees: {}, minMarginPct: null };
+export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: UNIT_PRICE_STEP, prepFees: {}, minMarginPct: null };
 
 export type PriceIssue =
   | 'no_qty'            // сетка пуста
@@ -68,7 +75,8 @@ export type PriceIssue =
   | 'print_oversize'    // макет больше A3 — посчитано по A3
   | 'print_too_big'     // DTF: макет не помещается в плёнку — расчёт заблокирован
   | 'fabric_not_found'  // ткань не найдена или без цены — не ноль, а ошибка
-  | 'emb_low_qty';      // вышивка меньше 50 шт. — тариф согласовать отдельно
+  | 'emb_low_qty'       // вышивка меньше 50 шт. — тариф согласовать отдельно
+  | 'screen_low_qty';   // шелкография меньше 50 шт. — тираж согласовать отдельно
 
 export interface PrintPrice {
   key: string;
@@ -152,11 +160,21 @@ export function embroideryExtras(special: string): string[] {
   return (special || '').split('+').filter((x) => x === 'metallic' || x === 'puff');
 }
 
-const ceilTo = (v: number, step: number): number => (step > 0 ? Math.ceil(v / step) * step : Math.round(v));
+
+/**
+ * Нанесение по карману (веха 8, К5): с кодом зоны — строка ТЗ зоны справочника
+ * «Карман» (переименование зоны цену не меняет); без кода (строки до вехи 8,
+ * свободный текст) — по названию, как прежде
+ */
+export function isPocketPrint(print: SalesPrint, zones: PriceCatalogs['zonesCatalog'] = []): boolean {
+  if (print.zone_id) return tzRowOfZone(zoneOfPrint(print, zones ?? [])) === 'pocket';
+  return /карман|pocket/i.test(print.zone || '');
+}
 
 /** Цена одного нанесения за штуку; null — у техники нет конструктора цен */
 function printUnitPrice(
   P: PricesExt, print: SalesPrint, qty: number, fabricCode: string, embMode: printRules.EmbMode = 'cut',
+  zones: PriceCatalogs['zonesCatalog'] = [],
 ): { unit: number | null; issue?: PriceIssue } {
   const { fmt, issue } = fitFormat(print.width_mm, print.height_mm);
   const w = print.width_mm ?? undefined;
@@ -164,15 +182,18 @@ function printUnitPrice(
   switch (print.method) {
     case 'silkscreen': {
       const sf = screenFormat(print.width_mm, print.height_mm);
-      return { unit: core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode), issue: sf.issue };
+      const unit = core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode);
+      // Пометка «тираж от 50 шт» — в `priceItem` по тиражу нанесения: здесь `qty`
+      // у пустой позиции подменён единицей, а строка держит одну пометку
+      return { unit, issue: sf.issue };
     }
     case 'heat_transfer':
       return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };
     case 'dtg': {
       // Размеры DTG свои (А4 — 20×30, А3 — 30×41, 40×45 см): подбор по мм макета
       const size = w && h ? printRules.dtgFitSize(w, h) : 'A4';
-      // Зона v4 хранит название («Карман»); печать по карману — × 1,2
-      const placement = /карман|pocket/i.test(print.zone || '') ? 'pocket' : 'standard';
+      // Печать по карману — × 1,2: по коду зоны, без кода — по названию («Карман»)
+      const placement = isPocketPrint(print, zones) ? 'pocket' : 'standard';
       return {
         unit: core.calcZonePriceDirect(P, 'dtg', { fmt: size || '40x45', textile: print.textile, placement }, qty),
         issue: !w || !h ? 'print_no_size' : size ? undefined : 'print_oversize',
@@ -291,8 +312,13 @@ export function priceItem(
     const mode: printRules.EmbMode = /шеврон|нашивк|patch/i.test(pr.garment_kind || '')
       ? 'patch'
       : sewn && pr.on === 'cut' ? 'cut' : 'garment';
-    const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode);
+    const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode, cat.zonesCatalog);
     if (issue && !issues.includes(issue)) issues.push(issue);
+    // Как в экспрессе: только при тираже > 0 (у пустой позиции хватает «no_qty»)
+    // и вместе с пометкой формата («нет размеров» и меньший тираж — обе)
+    if (pr.method === 'silkscreen' && pq > 0 && pq < SCREEN_MIN_QTY && !issues.includes('screen_low_qty')) {
+      issues.push('screen_low_qty');
+    }
     const u = unit ?? 0;
     prints.push({ key: pr.key, method: pr.method, qty: pq, unit: u });
     printsTotal += u * pq;
@@ -303,7 +329,7 @@ export function priceItem(
   const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l, cat.labelLibrary), 0);
   const packUnit = core.packPrice(P, itemPackaging(item, orderPackaging));
   const rawUnit = garment + printsPerUnit + labelsUnit + packUnit;
-  const calcUnit = qty > 0 ? ceilTo(rawUnit, rules.roundTo) : 0;
+  const calcUnit = qty > 0 ? ceilToStep(rawUnit, rules.roundTo) : 0;
 
   const manual = item.manual_unit_price != null;
   const unit = manual ? item.manual_unit_price! : calcUnit;

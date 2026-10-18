@@ -1,0 +1,97 @@
+/* Ткань позиции (веха 8, задача 6; было `.fit-*` в `garment.css`) */
+
+.search { margin-bottom: var(--space-md); }
+
+.notFound {
+  margin: var(--space-xs) 0 var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  font-size: var(--type-body-sm);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-md) var(--space-lg);
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.option:hover { background: var(--surface); }
+.option:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.option[aria-disabled='true'] { cursor: default; }
+.option[aria-disabled='true']:hover { background: var(--card); }
+.selected,
+.selected:hover,
+.selected[aria-disabled='true']:hover { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Отметка выбора — рамкой и галочкой, не только цветом фона */
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+}
+.selected .check { border-color: var(--btn-primary-bg); background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+
+.info { min-width: 0; }
+.name {
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.desc {
+  margin-top: var(--space-xs);
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.colorCount {
+  margin-bottom: var(--space-lg);
+  font-family: var(--font-body);
+  font-size: var(--type-label);
+  font-weight: 600;
+  letter-spacing: .3px;
+  color: var(--text-mid);
+}
+
+@media (max-width: 760px) {
+  .grid { grid-template-columns: 1fr; }
+  .desc { white-space: normal; }
+}
+
+@media (pointer: coarse) {
+  .option { min-height: var(--control-h-md); }
+}

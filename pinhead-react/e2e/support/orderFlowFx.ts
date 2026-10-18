@@ -88,10 +88,10 @@ export function artworkObject(extra: MockExtras, path: string): Buffer {
   return o!.body;
 }
 
-/** Нарушения тач-целей: видимые кнопки и ссылки внутри `main` меньше 44 px по высоте */
+/** Нарушения тач-целей: видимые кнопки, ссылки и раскрывашки (`summary`) внутри `main` меньше 44 px по высоте */
 export async function smallTargets(page: Page, scope = 'main'): Promise<string[]> {
   const out: string[] = [];
-  for (const el of await page.locator(`${scope} button:visible, ${scope} a[href]:visible, ${scope} input[type="date"]:visible`).all()) {
+  for (const el of await page.locator(`${scope} button:visible, ${scope} a[href]:visible, ${scope} summary:visible, ${scope} input[type="date"]:visible`).all()) {
     const box = await el.boundingBox();
     if (!box || box.height >= 44) continue;
     const name = (await el.getAttribute('aria-label')) ?? (await el.innerText()).trim();

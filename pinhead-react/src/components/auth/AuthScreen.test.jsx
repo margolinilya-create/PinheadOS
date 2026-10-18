@@ -28,6 +28,12 @@ describe('AuthScreen', () => {
     expect(screen.getByText(/PINHEAD/)).toBeInTheDocument();
   });
 
+  it('подпись по-русски, без «Order Studio» (обход, M-1)', () => {
+    render(<AuthScreen />);
+    expect(screen.getByText('Производство и оформление заказов')).toBeInTheDocument();
+    expect(screen.queryByText(/Order Studio/)).toBeNull();
+  });
+
   it('renders login tab by default', () => {
     render(<AuthScreen />);
     expect(screen.getByText('Войти')).toBeInTheDocument();
