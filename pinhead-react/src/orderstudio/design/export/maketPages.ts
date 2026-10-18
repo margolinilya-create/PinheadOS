@@ -12,7 +12,8 @@
  * - нанесение без раскладки, на другом флэте или с битой раскладкой в PDF
  *   не идёт (`placementOf` → `null`) — оно остаётся строкой ТЗ.
  */
-import type { PrintOffsetDir, PrintOffsetFrom, SalesItem, SalesOrder, SalesPrint } from '../../model/types';
+import type { SalesItem, SalesOrder, SalesPrint } from '../../model/types';
+import { offsetText } from '../../model/printOffset';
 import { METHOD_LABELS } from '../../model/printMethods';
 import { asciiFileName, translitAscii } from '../../../utils/asciiFileName';
 import { DESIGN_VIEWS, type FlatView, type GarmentFlat, type Placement } from '../types';
@@ -60,31 +61,7 @@ export function maketPages(item: Pick<SalesItem, 'prints'>, flat: GarmentFlat): 
   });
 }
 
-/** Опора отступа — в родительном падеже («ниже шва горловины») */
-const OFFSET_FROM: Record<PrintOffsetFrom, string> = {
-  '': '',
-  neck_seam: 'шва горловины',
-  top_edge: 'верхнего края',
-  part_seam: 'шва детали',
-  center: 'центра',
-  other: '',
-};
-
-const OFFSET_DIR: Record<PrintOffsetDir, string> = {
-  '': 'от',
-  up: 'выше',
-  down: 'ниже',
-  left: 'левее',
-  right: 'правее',
-};
-
-function offsetText(p: SalesPrint): string {
-  const from = OFFSET_FROM[p.offset_from] ?? '';
-  if (p.offset_mm === null || !from) return '';
-  return `${p.offset_mm} мм ${OFFSET_DIR[p.offset_dir] ?? 'от'} ${from}`;
-}
-
-/** Строка легенды: «Грудь (перед) — DTF, 120×80 мм, 80 мм ниже шва горловины» */
+/** Строка легенды: «Грудь (перед) — DTF, 120×80 мм, 80 мм от шва горловины» */
 export function maketCaption(e: MaketEntry): string {
   const p = e.print;
   const size = `${Math.round(e.placement.width_mm)}×${Math.round(e.placement.height_mm)} мм`;

@@ -4,6 +4,7 @@ import { FLEX_MAX_COLORS, SCREEN_MAX_COLORS } from '../../utils/pricingCore';
 import { METHOD_LABELS, METHOD_ORDER, SCREEN_EFFECTS, EMBROIDERY_EFFECTS, rub } from './labels';
 import BufferedInput from './BufferedInput';
 import { formatPantone, parseIntIn, parsePantone } from './fieldParse';
+import { offsetText } from '../model/printOffset';
 import styles from './Sales.module.css';
 
 const toInt = (v) => {
@@ -19,15 +20,6 @@ function retiredZoneOf(zonesCatalog, zone) {
   const key = (zone || '').trim().toLowerCase();
   if (!key || !Array.isArray(zonesCatalog)) return null;
   return zonesCatalog.find((z) => z.active === false && (z.name || '').trim().toLowerCase() === key) ?? null;
-}
-
-const OFFSET_FROM = { neck_seam: 'шва горловины', top_edge: 'верхнего края', part_seam: 'шва' };
-
-/** Отступ с холста текстом: «80 мм от шва горловины» */
-function offsetText(p) {
-  const from = OFFSET_FROM[p.offset_from];
-  if (p.offset_mm == null || !from) return '';
-  return p.offset_dir === 'up' ? `${p.offset_mm} мм выше ${from}` : `${p.offset_mm} мм от ${from}`;
 }
 
 /**

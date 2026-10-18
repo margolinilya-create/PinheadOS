@@ -1,0 +1,88 @@
+{
+  "sample": "63886",
+  "group": 0,
+  "order": {
+    "id": "6e3a8860-0000-4000-8000-000000063886",
+    "number": "PH-6388",
+    "bitrix_id": "63886",
+    "title": "Эквилент Олд Мани",
+    "customer": "ООО «Эквилент»",
+    "manager": "Анна Смирнова",
+    "due_date": "2026-11-20",
+    "packaging": "bopp",
+    "packaging_note": "",
+    "stickers": "other",
+    "stickers_note": "Стикер с артикулом и размером на каждый пакет",
+    "sticker_preview_path": "orders/6e3a8860-0000-4000-8000-000000063886/sticker/a1b2c3d4-sticker.png",
+    "no_chestny_znak": true,
+    "items": [
+      {
+        "key": "63886-i1",
+        "sku_code": "tee-oversize",
+        "product_type": "Футболка Old Money",
+        "fabric_code": "medas-kulirnaya-100-240",
+        "main_fabric": "Кулирная гладь 100% хлопок, 240 г/м²",
+        "trim_material": "Рибана 1×1, в цвет",
+        "supplier": "",
+        "model_description": "Оверсайз, спущенное плечо, горловина рибаной 2 см",
+        "extra_processing_note": "",
+        "extras": ["neck-tape"],
+        "tz_comment": "Футболки оверсайз с вышивкой логотипа на груди",
+        "flat_id": "tee-typical",
+        "size_grid": { "sizes": ["XS", "S", "M", "L", "XL"], "rows": [{ "color": "Чёрный", "sizes": { "XS": 5, "S": 15, "M": 25, "L": 25, "XL": 10 } }] },
+        "prints": [
+          {
+            "key": "63886-p1", "method": "embroidery", "zone": "Грудь (перед)", "width_mm": 90, "height_mm": 40,
+            "offset_mm": 70, "offset_from": "neck_seam", "offset_dir": "down", "on": "finished",
+            "pantone": ["Бежевый"], "comment": "Нить в цвет образца клиента",
+            "artwork_path": "orders/6e3a8860-0000-4000-8000-000000063886/logo/11111111-logo.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "front", "area_id": "chest",
+              "x_mm": 300, "y_mm": 182, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "logo.png", "intrinsic_w_mm": 90, "intrinsic_h_mm": 40, "size_estimated": false, "has_preview": false } }
+          }
+        ],
+        "labels": [
+          { "key": "63886-l1", "label_type": "brand", "variant_id": "custom:woven", "place": "neck", "comment": "Бирка клиента, тканая",
+            "blank": false, "preview_paths": ["orders/6e3a8860-0000-4000-8000-000000063886/label/22222222-brand.jpg"],
+            "attach_scheme": "neck", "attach_image_path": "orders/6e3a8860-0000-4000-8000-000000063886/label/33333333-scheme.jpg" },
+          { "key": "63886-l2", "label_type": "size", "variant_id": "", "blank": true },
+          { "key": "63886-l3", "label_type": "composition", "variant_id": "standard", "blank": true, "attach_scheme": "left-side-seam" }
+        ]
+      },
+      {
+        "key": "63886-i2",
+        "sku_code": "tee-oversize",
+        "product_type": "Футболка Old Money",
+        "fabric_code": "medas-kulirnaya-100-240",
+        "main_fabric": "Кулирная гладь 100% хлопок, 240 г/м²",
+        "trim_material": "Рибана 1×1, в цвет",
+        "model_description": "Оверсайз, спущенное плечо, горловина рибаной 2 см",
+        "extras": ["neck-tape"],
+        "tz_comment": "Футболки оверсайз с вышивкой логотипа на груди",
+        "flat_id": "tee-typical",
+        "size_grid": { "sizes": ["XS", "S", "M", "L", "XL"], "rows": [{ "color": "Молочный", "sizes": { "S": 10, "M": 20, "L": 15 } }] },
+        "prints": [
+          {
+            "key": "63886-p2", "method": "embroidery", "zone": "Грудь (перед)", "width_mm": 90, "height_mm": 40,
+            "offset_mm": 70, "offset_from": "neck_seam", "offset_dir": "down", "on": "finished",
+            "pantone": ["Бежевый"], "comment": "Нить в цвет образца клиента",
+            "artwork_path": "orders/6e3a8860-0000-4000-8000-000000063886/logo/11111111-logo.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "front", "area_id": "chest",
+              "x_mm": 300, "y_mm": 182, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "logo.png", "intrinsic_w_mm": 90, "intrinsic_h_mm": 40, "size_estimated": false, "has_preview": false } }
+          }
+        ],
+        "labels": [
+          { "key": "63886-l4", "label_type": "brand", "variant_id": "custom:woven", "place": "neck", "comment": "Бирка клиента, тканая",
+            "blank": false, "preview_paths": ["orders/6e3a8860-0000-4000-8000-000000063886/label/22222222-brand.jpg"],
+            "attach_scheme": "neck", "attach_image_path": "orders/6e3a8860-0000-4000-8000-000000063886/label/33333333-scheme.jpg" },
+          { "key": "63886-l5", "label_type": "size", "variant_id": "", "blank": true },
+          { "key": "63886-l6", "label_type": "composition", "variant_id": "standard", "blank": true, "attach_scheme": "left-side-seam" }
+        ]
+      }
+    ],
+    "notes_cards": [
+      { "key": "63886-n1", "item_key": null, "group_title": "Упаковка", "caption": "Дизайн стикера на пакет", "link": "", "image_path": "orders/6e3a8860-0000-4000-8000-000000063886/note/44444444-pack.jpg" }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "sample": "68180",
+  "group": 1,
+  "order": {
+    "id": "68180000-0000-4000-8000-000000068180",
+    "items": [
+      {
+        "key": "68180-sweat",
+        "sku_code": "sweat-basic",
+        "product_type": "Свитшот",
+        "fabric_code": "cottonprom-futer-3n-350",
+        "main_fabric": "Футер 3-нитка петля, 350 г/м²",
+        "trim_material": "Кашкорсе, в цвет",
+        "supplier": "",
+        "tz_comment": "Свитшоты с вышивкой логотипа на груди",
+        "flat_id": "tee-typical",
+        "size_grid": { "sizes": ["S", "M", "L", "XL"], "rows": [{ "color": "Тёмно-синий", "sizes": { "S": 10, "M": 20, "L": 20, "XL": 10 } }] },
+        "prints": [
+          { "key": "68180-sweat-p1", "method": "embroidery", "zone": "Грудь (перед)", "width_mm": 80, "height_mm": 30,
+            "offset_mm": 100, "offset_from": "neck_seam", "offset_dir": "down", "on": "cut", "pantone": ["Белый"],
+            "artwork_path": "orders/68180000-0000-4000-8000-000000068180/logo/b0000001-navis.png",
+            "layout": { "v": 1, "flat_id": "tee-typical", "flat_version": 1, "view": "front", "area_id": "chest", "x_mm": 360, "y_mm": 207, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "navis.png", "intrinsic_w_mm": 80, "intrinsic_h_mm": 30, "size_estimated": false, "has_preview": false } } }
+        ],
+        "labels": [
+          { "key": "68180-sweat-l1", "label_type": "size", "blank": true }
+        ]
+      }
+    ]
+  }
+}
