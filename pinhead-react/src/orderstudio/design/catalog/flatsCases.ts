@@ -102,5 +102,61 @@ export const FLATS_CASES: FlatsCase[] = [
   { name: 'active_string', note: 'active не boolean', value: variant((c: any) => { f0(c).active = 'true'; }), ok: false },
   { name: 'no_neckline', note: 'у переда одежды нет горловины', value: variant((c: any) => { delete front(c).anchors.neckline_point; }), ok: false },
   { name: 'shopper_no_neckline', note: 'у шоппера горловины может не быть', value: variant((c: any) => { f0(c).garment_type = 'shopper'; delete front(c).anchors.neckline_point; }), ok: true },
+  // ── Веха 5б (задача 1): история, строки ТЗ, коды моделей, рукава — имена повторяют пробы `flats_admin.sql`
+  { name: 'history_ok', note: 'версия 2 с историей версии 1', value: variant((c: any) => { releaseTo2(c); }), ok: true },
+  { name: 'tz_row_ok', note: 'строка ТЗ из перечня', value: variant((c: any) => { chest(c).tz_row = 'front_l'; }), ok: true },
+  { name: 'sku_dup_inactive_ok', note: 'код модели у активного и у снятого флэта', value: variant((c: any) => { twoFlats(c, false); }), ok: true },
+  { name: 'sleeve_ok', note: 'левый рукав с низом и центром рукава', value: variant((c: any) => { f0(c).views.push(sleeveView()); }), ok: true },
+  { name: 'history_path_foreign', note: 'путь записи истории с версией текущей', value: variant((c: any) => { releaseTo2(c); hist0(c).views[0].svg_path = 'flats/tshirt-regular/v2/front.svg'; }), ok: false },
+  { name: 'history_path_other_flat', note: 'путь записи истории — другой флэт той же версии', value: variant((c: any) => { releaseTo2(c); hist0(c).views[0].svg_path = 'flats/hoodie-regular/v1/front.svg'; }), ok: false },
+  { name: 'history_path_traversal', note: 'путь записи истории с ../', value: variant((c: any) => { releaseTo2(c); hist0(c).views[0].svg_path = 'flats/tshirt-regular/v1/../v1/front.svg'; }), ok: false },
+  { name: 'history_version_ge', note: 'версия записи истории не меньше текущей', value: variant((c: any) => { releaseTo2(c); hist0(c).version = 2; }), ok: false },
+  { name: 'history_dup_version', note: 'две записи истории одной версии', value: variant((c: any) => { releaseTo2(c); f0(c).version = 3; repath(f0(c).views, 3); f0(c).history.push(JSON.parse(JSON.stringify(hist0(c)))); }), ok: false },
+  { name: 'history_bad_view', note: 'зона в записи истории из двух точек', value: variant((c: any) => { releaseTo2(c); hist0(c).views[0].print_areas[0].polygon_mm = [[0, 0], [10, 10]]; }), ok: false },
+  { name: 'tz_row_bad', note: 'строка ТЗ не из перечня', value: variant((c: any) => { chest(c).tz_row = 'Полочка'; }), ok: false },
+  { name: 'sku_dup_active', note: 'код модели у двух активных флэтов', value: variant((c: any) => { twoFlats(c, true); }), ok: false },
+  { name: 'sku_code_65', note: 'код модели длиннее 64', value: variant((c: any) => { f0(c).sku_codes = ['T'.repeat(65)]; }), ok: false },
+  { name: 'garment_type_bad', note: 'тип изделия не из перечня', value: variant((c: any) => { f0(c).garment_type = 'dress'; }), ok: false },
+  { name: 'typical_missing', note: 'нет признака «типовой»', value: variant((c: any) => { delete f0(c).typical; }), ok: false },
+  { name: 'sleeve_no_anchor', note: 'у рукава нет центра рукава', value: variant((c: any) => { const v = sleeveView(); delete v.anchors.sleeve_center_x; f0(c).views.push(v); }), ok: false },
+  { name: 'front_no_axis', note: 'у переда нет оси центра', value: variant((c: any) => { delete front(c).anchors.center_axis_x; }), ok: false },
+  { name: 'inset_negative', note: 'отрицательный безопасный отступ', value: variant((c: any) => { chest(c).safe_inset_mm = -1; }), ok: false },
 ];
+
+/** Пути видов — на версию `v` */
+function repath(views: any[], v: number): void {
+  for (const view of views) view.svg_path = String(view.svg_path).replace(/\/v\d+\//, `/v${v}/`);
+}
+
+/** Выпуск версии 2: прежние виды — в историю как есть, текущие — по путям v2 */
+function releaseTo2(c: any): void {
+  const flat = f0(c);
+  flat.history = [{ version: 1, views: JSON.parse(JSON.stringify(flat.views)) }];
+  flat.version = 2;
+  repath(flat.views, 2);
+}
+
+function hist0(c: any): any {
+  return c.flats[0].history[0];
+}
+
+/** Второй флэт с тем же кодом модели T-006; `active` — снят ли он */
+function twoFlats(c: any, active: boolean): void {
+  f0(c).sku_codes = ['T-006'];
+  const other = JSON.parse(JSON.stringify(f0(c)));
+  other.id = 'tshirt-oversize';
+  other.active = active;
+  for (const v of other.views) v.svg_path = String(v.svg_path).replace('tshirt-regular', 'tshirt-oversize');
+  c.flats.push(other);
+}
+
+function sleeveView(): any {
+  return {
+    kind: 'sleeve_left',
+    svg_path: 'flats/tshirt-regular/v1/sleeve_left.svg',
+    scale_mm_per_unit: 1,
+    anchors: { sleeve_bottom_y: 500, sleeve_center_x: 150 },
+    print_areas: [{ id: 'sleeve', name: 'Левый рукав', zone_id: 'sleeve-l', tz_row: 'sleeve_l', polygon_mm: [[100, 100], [200, 100], [200, 300], [100, 300]], safe_inset_mm: 5 }],
+  };
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
