@@ -2523,6 +2523,13 @@
       "files": [
         "20261018120000_order_v4_launch.sql"
       ]
+    },
+    {
+      "version": "20261018150000",
+      "name": "order_v3_readonly_staff_audit",
+      "files": [
+        "20261018150000_order_v3_readonly_staff_audit.sql"
+      ]
     }
   ]
 }
