@@ -1,0 +1,30 @@
+{
+  "sample": "68180",
+  "group": 2,
+  "order": {
+    "id": "68180000-0000-4000-8000-000000068180",
+    "items": [
+      {
+        "key": "68180-polo",
+        "sku_code": "polo-classic",
+        "product_type": "Поло",
+        "fabric_code": "cottonprom-pike-220",
+        "main_fabric": "Пике, 220 г/м²",
+        "trim_material": "Воротник и манжеты вязаные, в цвет",
+        "tz_comment": "Поло с вышивкой логотипа слева на груди",
+        "flat_id": "polo-navis",
+        "packaging": "bopp",
+        "packaging_note": "Поло — каждое в свой пакет",
+        "size_grid": { "sizes": ["M", "L", "XL", "2XL"], "rows": [{ "color": "Белый", "sizes": { "M": 10, "L": 10, "XL": 5, "2XL": 5 } }] },
+        "prints": [
+          { "key": "68180-polo-p1", "method": "embroidery", "zone": "Грудь (перед)", "width_mm": 60, "height_mm": 22,
+            "offset_mm": 120, "offset_from": "neck_seam", "offset_dir": "down", "on": "finished", "pantone": ["Тёмно-синий"],
+            "artwork_path": "orders/68180000-0000-4000-8000-000000068180/logo/b0000001-navis.png",
+            "layout": { "v": 1, "flat_id": "polo-navis", "flat_version": 1, "view": "front", "area_id": "chest-l", "x_mm": 380, "y_mm": 241, "rotation_deg": 0, "flip_h": false, "flip_v": false,
+              "asset": { "type": "png", "source_file": "navis.png", "intrinsic_w_mm": 60, "intrinsic_h_mm": 22, "size_estimated": false, "has_preview": false } } }
+        ],
+        "labels": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "header": {
+    "orderNumber": "PH-6710",
+    "bitrixId": "67108",
+    "title": "Фертоинг (образец)",
+    "manager": "Никита Орлов",
+    "dueDate": "30.10.2026",
+    "productTitle": "Fertoing_T-shirt_Regular_01.10.2025",
+    "qty": 2,
+    "packaging": "Без упаковки",
+    "stickers": "Нет",
+    "stickerImage": null,
+    "noChestnyZnak": false,
+    "comments": [{ "label": null, "text": "Образец: проверить посадку перед партией" }]
+  },
+  "fabric": {
+    "main": "Кулирная гладь 100% хлопок, 180 г/м²",
+    "trim": "Рибана 1×1",
+    "supplier": "Медас (партия 0925)",
+    "colors": [
+      { "color": "Чёрный", "parts": [
+        { "part": "Перед", "color": "Чёрный" },
+        { "part": "Спинка", "color": "Чёрный" },
+        { "part": "Рукава", "color": "Белый" }
+      ] }
+    ],
+    "matrix": [
+      { "row": "front", "rowLabel": "Полочка", "cols": ["Т", "П"] },
+      { "row": "front_l", "rowLabel": "Полочка Л", "cols": [] },
+      { "row": "front_r", "rowLabel": "Полочка П", "cols": [] },
+      { "row": "back", "rowLabel": "Спинка", "cols": ["Ш", "Т", "DTG"] },
+      { "row": "sleeve_l", "rowLabel": "Рукав Л", "cols": ["В"] },
+      { "row": "sleeve_r", "rowLabel": "Рукав П", "cols": [] },
+      { "row": "hood_l", "rowLabel": "Капюшон Л", "cols": [] },
+      { "row": "hood_r", "rowLabel": "Капюшон П", "cols": [] },
+      { "row": "pocket", "rowLabel": "Карман", "cols": [] }
+    ],
+    "grid": {
+      "sizes": ["2XS", "XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "ONE"],
+      "rows": [{ "color": "Чёрный", "cells": [0, 0, 0, 1, 1, 0, 0, 0, 0, 0], "total": 2 }],
+      "total": 2
+    },
+    "modelDescription": "Лекала клиента, регуляр. Колорблок: рукава белые",
+    "extraProcessing": ["Двойная отстрочка", "Отстрочка плечевых швов"]
+  },
+  "labels": { "none": true, "sizeBlank": false, "compositionBlank": false, "items": [] },
+  "prints": [
+    { "n": 1, "method": "dtf", "methodLabel": "DTF", "column": "Т", "sizeText": "В 120 × Ш 250 мм", "zone": "Грудь (перед)",
+      "row": "front", "rowLabel": "Полочка", "offset": "80 мм от шва горловины", "on": "на готовом", "pantone": "",
+      "fabric": "Кулирная гладь 100% хлопок, 180 г/м²",
+      "mockup": { "view": "front", "flatId": "tee-typical", "flatVersion": 1, "printKeys": ["67108-p1"], "highlight": "67108-p1" } },
+    { "n": 2, "method": "silkscreen", "methodLabel": "Шелкография", "column": "Ш", "effects": "PUFF", "sizeText": "В 60 × Ш 300 мм",
+      "zone": "Спина", "row": "back", "rowLabel": "Спинка", "offset": "50 мм от шва горловины", "on": "на крое", "pantone": "1204, Белый",
+      "mockup": { "view": "back", "flatId": "tee-typical", "flatVersion": 1, "printKeys": ["67108-p2", "67108-p3", "67108-p4"], "highlight": "67108-p2" } },
+    { "n": 3, "method": "dtf", "column": "Т", "sizeText": "В 280 × Ш 280 мм", "offset": "согласно комментарию",
+      "comment": "Центр спины, под надписью",
+      "mockup": { "view": "back", "printKeys": ["67108-p2", "67108-p3", "67108-p4"], "highlight": "67108-p3" } },
+    { "n": 4, "method": "dtg", "methodLabel": "DTG", "column": "DTG", "offset": "30 мм выше верхнего края",
+      "mockup": { "view": "back", "highlight": "67108-p4" } },
+    { "n": 5, "method": "embroidery", "column": "В", "zone": "Левый рукав", "row": "sleeve_l", "rowLabel": "Рукав Л",
+      "offset": "20 мм выше шва детали", "on": "на крое", "pantone": "Белый",
+      "mockup": { "view": "sleeve_left", "printKeys": ["67108-p5"], "highlight": "67108-p5" } },
+    { "n": 6, "method": "other", "methodLabel": "Прочее / подряд", "column": "П", "zone": "Грудь (перед)", "row": "front",
+      "comment": "Эмбоссинг логотипа", "contractor": "Тиснение-Про", "contractorDays": 5, "artworkPath": "", "mockup": null }
+  ],
+  "notes": [
+    { "group": "Фурнитура", "caption": "Молния YKK №5, в цвет", "link": "https://ykk.example.ru/catalog/5", "linkSafe": true, "image": null },
+    { "group": "Фурнитура", "caption": "Кнопка 15 мм", "link": "javascript:alert(1)", "linkSafe": false, "image": null }
+  ],
+  "footer": { "group": "PH-6710 · ТЗ 1 из 1" },
+  "typicalFlat": true
+}

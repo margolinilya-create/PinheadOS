@@ -1,0 +1,90 @@
+{
+  "fabricsCatalog": [
+    { "code": "medas-kulirnaya-100-180", "name": "Кулирная гладь 100% хлопок", "supplier": "Медас", "density": 180 },
+    { "code": "medas-kulirnaya-100-240", "name": "Кулирная гладь 100% хлопок", "supplier": "Медас", "density": 240 },
+    { "code": "cottonprom-futer-3n-350", "name": "Футер 3-нитка петля", "supplier": "Коттонпром", "density": 350 },
+    { "code": "cottonprom-pike-220", "name": "Пике", "supplier": "Коттонпром", "density": 220 }
+  ],
+  "extrasCatalog": [
+    { "code": "hanger-loop", "name": "Петля для вешалки", "price": 15, "forCategories": [] },
+    { "code": "double-stitch", "name": "Двойная отстрочка", "price": 30, "forCategories": [] },
+    { "code": "neck-tape", "name": "Тесьма по горловине", "price": 20, "forCategories": [] }
+  ],
+  "labelLibrary": {
+    "kinds": [
+      { "type": "size", "name": "Размерник", "variants": [], "materials": [], "active": true },
+      { "type": "composition", "name": "Составник", "active": true, "materials": [], "variants": [
+        { "id": "standard", "name": "Стандартный", "price": 3, "withMaterial": false, "active": true },
+        { "id": "my-logo", "name": "С логотипом", "price": 6, "withMaterial": false, "active": true }
+      ] },
+      { "type": "brand", "name": "Брендовая бирка", "active": true, "variants": [
+        { "id": "standard", "name": "Стандартная", "price": 12, "withMaterial": true, "active": true },
+        { "id": "custom", "name": "Своя (дизайн клиента)", "price": 25, "withMaterial": true, "active": true }
+      ], "materials": [
+        { "key": "woven", "name": "Тканая", "priceDelta": 0, "active": true },
+        { "key": "canvas", "name": "Хлопковый канвас", "priceDelta": 10, "active": true }
+      ] },
+      { "type": "hangtag", "name": "Хэнгтег", "variants": [], "materials": [], "active": true }
+    ],
+    "schemes": [
+      { "id": "neck", "name": "На воротнике (спина)", "active": true },
+      { "id": "inseam", "name": "Петля вшивная (шов)", "active": true },
+      { "id": "left-side-seam", "name": "Левый внутренний боковой шов", "active": true }
+    ]
+  },
+  "packOptions": [
+    { "key": "none", "name": "Без упаковки", "price": 0 },
+    { "key": "bopp", "name": "БОПП пакет", "price": 20 },
+    { "key": "zip", "name": "ЗИП пакет", "price": 40 },
+    { "key": "other", "name": "Другая — опишите в требованиях", "price": 0 }
+  ],
+  "zonesCatalog": [
+    { "id": "front", "name": "Грудь (перед)" },
+    { "id": "back", "name": "Спина" },
+    { "id": "sleeve-l", "name": "Левый рукав" },
+    { "id": "sleeve-r", "name": "Правый рукав" },
+    { "id": "hood", "name": "Капюшон" },
+    { "id": "pocket", "name": "Карман" }
+  ],
+  "garmentFlats": {
+    "version": 1,
+    "flats": [
+      {
+        "id": "tee-typical", "name": "Футболка (типовая)", "garment_type": "tshirt", "typical": true, "active": true,
+        "version": 1, "sku_codes": [], "categories": ["tshirts"], "fits": [], "base_size": "M", "sizes": ["M"],
+        "views": [
+          { "kind": "front", "svg_path": "flats/tee-typical/v1/front.svg", "scale_mm_per_unit": 1,
+            "anchors": { "neckline_point": { "x": 300, "y": 92 }, "center_axis_x": 300 },
+            "print_areas": [
+              { "id": "chest", "name": "Грудь", "zone_id": "front", "polygon_mm": [[150, 140], [450, 140], [450, 540], [150, 540]], "safe_inset_mm": 15 }
+            ] },
+          { "kind": "back", "svg_path": "flats/tee-typical/v1/back.svg", "scale_mm_per_unit": 1,
+            "anchors": { "neckline_point": { "x": 300, "y": 40 }, "center_axis_x": 300 },
+            "print_areas": [
+              { "id": "back", "name": "Спина", "zone_id": "back", "polygon_mm": [[150, 100], [450, 100], [450, 500], [150, 500]], "safe_inset_mm": 15 }
+            ] },
+          { "kind": "sleeve_left", "svg_path": "flats/tee-typical/v1/sleeve_left.svg", "scale_mm_per_unit": 1,
+            "anchors": { "sleeve_center_x": 100, "sleeve_bottom_y": 200 },
+            "print_areas": [
+              { "id": "sleeve-l", "name": "Левый рукав", "zone_id": "sleeve-l", "polygon_mm": [[40, 20], [160, 20], [160, 180], [40, 180]], "safe_inset_mm": 5 }
+            ] }
+        ]
+      },
+      {
+        "id": "polo-navis", "name": "Поло", "garment_type": "polo", "typical": false, "active": true,
+        "version": 1, "sku_codes": ["polo-classic"], "categories": ["polo"], "fits": [], "base_size": "M", "sizes": ["M"],
+        "views": [
+          { "kind": "front", "svg_path": "flats/polo-navis/v1/front.svg", "scale_mm_per_unit": 1,
+            "anchors": { "neckline_point": { "x": 300, "y": 110 }, "center_axis_x": 300 },
+            "print_areas": [
+              { "id": "chest-l", "name": "Грудь слева", "zone_id": "front", "polygon_mm": [[320, 160], [440, 160], [440, 300], [320, 300]], "safe_inset_mm": 10 }
+            ] }
+        ]
+      }
+    ]
+  },
+  "suppliers": [],
+  "tzSettings": {
+    "footerText": "Возможно расхождение в расположении нанесения до 2 см. Претензии по качеству принимаются до использования изделий."
+  }
+}
