@@ -207,7 +207,7 @@
 
 **Files:**
 - Create: `supabase/migrations/20261019110000_erp_cut_result_once.sql`
-- Create: `supabase/migrations/20261019110000_erp_cut_result_once_rollback.sql` (только `erp_stage_submit_report` прежним телом; читатели остаются новыми)
+- Create: `supabase/rollout/r1910a/20261019110000_erp_cut_result_once_rollback.sql` (только `erp_stage_submit_report` прежним телом; читатели остаются новыми)
 - Create: `supabase/probes/erp_cut_result_once.sql`
 - Test: `pinhead-react/src/erp/utils/cutResultOnce.test.ts` (node)
 
@@ -281,7 +281,7 @@
 ### Task 9: Проверка ветки, документы, выкатка
 
 **Files:**
-- Create: `supabase/rollout/r1910a/README.md`, `supabase/migrations/20261019100000_erp_embroidery_one_stage_rollback.sql`
+- Create: `supabase/rollout/r1910a/README.md`, `supabase/rollout/r1910a/20261019100000_erp_embroidery_one_stage_rollback.sql`
 - Modify: `CLAUDE.md`, `pinhead-react/CLAUDE.md`, `docs/rules/pravila-pravok-19-10.md` (новый) + `docs/rules/INDEX.md`, `docs/rules/react/pravila-sessii-61-hvosty-14-09-gde-chto-lezhit.md:4-6`, `docs/DESIGN.md` (форма закроя, `ariaDisabledReason`), `docs/changelog/2026-10.md`, `SESSION-STATE.md`
 - Test: `pinhead-react/src/erp/utils/rollout1910a.test.ts` — тело каждой функции в `…_rollback.sql` = `functionBody` предыдущей редакции
 

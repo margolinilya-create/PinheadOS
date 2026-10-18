@@ -126,7 +126,7 @@
 ### Task 3: Диалог задачи и напоминания (миграция T3)
 
 **Files:**
-- Create: `supabase/migrations/20261020110000_erp_biz_tasks_chat_cron.sql` + `_rollback.sql` (новые тела без ветки задач — не дословно старые; `cron.unschedule` в `exists`)
+- Modify: `supabase/migrations/20261020100000_erp_biz_tasks_rpc.sql` (Ruling: T3 входит в ту же миграцию, что T2 — лимит неприменённых ≤ 5) + Create `supabase/rollout/r1910b/20261020100000_erp_biz_tasks_rpc_rollback.sql` (новые тела без ветки задач — не дословно старые; `cron.unschedule` в `exists`)
 - Test: `pinhead-react/src/erp/utils/bizTasksChat.test.ts`, `utils/chatServer.test.ts`, `utils/chatNotifyRead.test.ts`
 
 **Interfaces — Produces:**
@@ -255,7 +255,7 @@
 **Files:**
 - Create: `pinhead-react/e2e/erp-biz-tasks.spec.ts` — создание из заказа → взять в работу → сообщение с @ → сдать на проверку → вернуть → принять; 375 px — вкладки
 - Modify: `e2e/erp-axe.spec.ts` (+ `/biz-tasks`, карточка, форма), эталоны `erp-biz-tasks-*`
-- Create: `supabase/rollout/r1910b/README.md` — предусловие «A выкачена»; T1 → T2 → T3 (сухой прогон с пробой, применение, `notify pgrst`), в нерабочее время для T3; смоук старого вызова `erp_chat_send` через REST; SELECT `cron.job`, через 15 мин — `cron.job_run_details` `succeeded`; фронт строго после T1–T3. Триггеры отката: `PROBE_RESULT fails>0` → откат миграции; `42883`/`PGRST202`/«not unique» на `erp_chat_*` за 60 мин → `T3_rollback`; `cron.job_run_details failed` → `unschedule`; новые «Ошибки интерфейса» за 2 ч → откат фронта. Таблицы при откате не удаляются (данные).
+- Create: `supabase/rollout/r1910b/README.md` — предусловие «A выкачена»; T1 → T2 (T2 включает диалог и cron; сухой прогон с пробой, применение, `notify pgrst`), в нерабочее время для T3; смоук старого вызова `erp_chat_send` через REST; SELECT `cron.job`, через 15 мин — `cron.job_run_details` `succeeded`; фронт строго после T1–T3. Триггеры отката: `PROBE_RESULT fails>0` → откат миграции; `42883`/`PGRST202`/«not unique» на `erp_chat_*` за 60 мин → `r1910b/…_rpc_rollback.sql`; `cron.job_run_details failed` → `unschedule`; новые «Ошибки интерфейса» за 2 ч → откат фронта. Таблицы при откате не удаляются (данные).
 - Modify: `CLAUDE.md` (маршруты ERP, схема, правило «задачи пишут только RPC», тред задачи с `order_id null`), `pinhead-react/CLAUDE.md`, `docs/rules/pravila-biznes-zadach-19-10.md` + `INDEX.md`, `docs/rules/react/INDEX.md`, `docs/DESIGN.md`, `docs/changelog/2026-10.md`, `SESSION-STATE.md`
 - Test: `pinhead-react/src/erp/utils/rollout1910b.test.ts` — rollback-тела
 
