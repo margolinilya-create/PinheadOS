@@ -2509,6 +2509,13 @@
       "files": [
         "20261017185435_garment_flats.sql"
       ]
+    },
+    {
+      "version": "20261018090000",
+      "name": "flats_admin",
+      "files": [
+        "20261018090000_flats_admin.sql"
+      ]
     }
   ]
 }
