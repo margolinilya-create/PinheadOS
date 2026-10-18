@@ -17,8 +17,10 @@ import { SALES_CLIENT_REV, saveFailureKind } from './api/salesOrders';
  *     и пересоздаются явно (`drop policy if exists` + `create policy`);
  *   · метка режима RPC `order_v4.rpc`: каждое `'on'` закрыто своим `'off'`
  *     в той же функции — иначе вся оставшаяся транзакция идёт мимо стража;
- *   · белый список стража == колонки, которые пишут `order_v4_save`
- *     (последняя редакция) и `order_v4_set_urgent_days`, плюс `updated_at`.
+ *   · белый список стража (последняя редакция `order_v4_guard`: с вехи 8 —
+ *     миграция L) == колонки, которые пишут `order_v4_save`, `order_v4_save_full`
+ *     (последние редакции; с K обёртка пишет `notes`) и `order_v4_set_urgent_days`,
+ *     плюс `updated_at`.
  *     Новая колонка в сохранении без строки в списке — сохранение начнёт
  *     падать 42501; лишняя строка в списке — дыра в страже.
  */
@@ -90,11 +92,14 @@ function guardList(sql: string, name: string): string[] {
   if (!guard) throw new Error('нет order_v4_guard');
   const arr = guard.body.match(new RegExp(`${name}\\s+constant\\s+text\\[\\]\\s*:=\\s*array\\[([\\s\\S]*?)\\];`));
   if (!arr) throw new Error(`нет ${name} в order_v4_guard`);
-  return [...arr[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
+  // строки-комментарии (метки правок `-- L:was|…`) не в счёт
+  return [...noComments(arr[1]).matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
 }
 
 /** Белый список UPDATE стража */
 const guardAllowed = (sql: string) => guardList(sql, 'c_allowed');
+/** Файл с последней редакцией стража `order_v4_guard` (B, с вехи 8 — L) */
+const GUARD_SQL = latestDefining('order_v4_guard');
 
 /** Колонки, добавленные в `public.orders` (`alter table public.orders … add column`) */
 function addedOrderColumns(sqls: string[]): string[] {
@@ -207,13 +212,14 @@ describe('миграция B: права Order v4', () => {
     expect(guard?.body).toMatch(/current_setting\('order_v4\.rpc', true\)[\s\S]{0,80}current_user <> 'authenticated'/);
   });
 
-  it('белый список стража = колонки order_v4_save + order_v4_set_urgent_days + updated_at', () => {
-    const save = functionsOf(latestDefining('order_v4_save')).find((f) => f.name === 'order_v4_save');
-    const urgent = functionsOf(latestDefining('order_v4_set_urgent_days'))
-      .find((f) => f.name === 'order_v4_set_urgent_days');
-    if (!save || !urgent) throw new Error('нет order_v4_save / order_v4_set_urgent_days');
-    const written = [...new Set([...updatedColumns(save.body), ...updatedColumns(urgent.body), 'updated_at'])].sort();
-    expect(guardAllowed(RIGHTS)).toEqual(written);
+  it('белый список стража = колонки order_v4_save + order_v4_save_full + order_v4_set_urgent_days + updated_at', () => {
+    const last = (n: string) => functionsOf(latestDefining(n)).find((f) => f.name === n);
+    const [save, full, urgent] = ['order_v4_save', 'order_v4_save_full', 'order_v4_set_urgent_days'].map(last);
+    if (!save || !full || !urgent) throw new Error('нет order_v4_save / order_v4_save_full / order_v4_set_urgent_days');
+    const written = [...new Set([
+      ...updatedColumns(save.body), ...updatedColumns(full.body), ...updatedColumns(urgent.body), 'updated_at',
+    ])].sort();
+    expect(guardAllowed(GUARD_SQL)).toEqual(written);
   });
 
   it('стражи висят на INSERT/UPDATE/DELETE всех таблиц заказа', () => {
@@ -242,10 +248,10 @@ describe('миграция B: права Order v4', () => {
     expect(child).toMatch(/order_artwork_path_ok\(v_new_order, v_path\)/);
   });
 
-  it('каждая колонка orders v4 классифицирована стражем ровно один раз', () => {
-    const allowed = guardAllowed(RIGHTS);
-    const dbFilled = guardList(RIGHTS, 'c_db_filled');
-    const insertEmpty = guardList(RIGHTS, 'c_insert_empty');
+  it('каждая колонка orders v4 классифицирована стражем ровно один раз (последняя редакция стража)', () => {
+    const allowed = guardAllowed(GUARD_SQL);
+    const dbFilled = guardList(GUARD_SQL, 'c_db_filled');
+    const insertEmpty = guardList(GUARD_SQL, 'c_insert_empty');
     const added = addedOrderColumns(files.filter((f) => f >= V4_SINCE).map(read));
     expect(added.length).toBeGreaterThan(30);
     const known = new Set([...BASE_ORDER_COLUMNS, ...added]);
@@ -364,25 +370,39 @@ describe('миграция E: признак «Менеджер продаж»',
 });
 
 /**
- * Проверка ревизии первой строкой; порог — тот же `SALES_CLIENT_REV`, что
- * шлёт клиент (поднял ревизию в клиенте — подними и в SQL). Группа 1 — текст отказа
+ * Проверка ревизии первой строкой. Группа 1 — порог, группа 2 — текст отказа.
+ * Порог обёртки `order_v4_save_full` — ревизия клиента (`SALES_CLIENT_REV`; с вехи 8
+ * миграция K поднимает её до 4 раньше клиента — пару K ↔ клиент держит orderV4M8.test.ts).
+ * Внутренняя `order_v4_save` K не пересоздаёт (в её теле операторы удаления строк —
+ * файл с ними нельзя применить через MCP): её порог остаётся 3 (миграция D).
  */
-const CLIENT_REV_CHECK = new RegExp(String.raw`^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < ${SALES_CLIENT_REV} then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';`);
+const CLIENT_REV_CHECK = /^\s*if coalesce\(\(p_order->>'client_rev'\)::int, 0\) < (\d+) then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';/;
+/** Порог внутренней `order_v4_save` (D; K её не трогает) */
+const SAVE_INNER_REV = 3;
+const revOf = (body: string) => Number(codeAfterBegin(body).match(CLIENT_REV_CHECK)?.[1]);
 /** Сверка версии в обёртке; группа 1 — текст отказа */
 const CONFLICT_CHECK = /if found and v_status = 'draft' and v_current is distinct from v_expected then\s+raise exception using errcode = 'P0001',\s+message = '([^']+)';/;
 
-/** Тело функции с кодом от первого `begin` — без объявлений и комментариев */
-const codeAfterBegin = (body: string) => noComments(body.slice(body.search(/\bbegin\b/) + 'begin'.length));
+/** Тело функции с кодом от первого `begin` — без объявлений и комментариев (метки `-- K:begin` не в счёт) */
+const codeAfterBegin = (body: string) => {
+  const code = noComments(body);
+  return code.slice(code.search(/\bbegin\b/) + 'begin'.length);
+};
 
 describe('миграция D: ревизия клиента и конкурентная правка', () => {
   const fnOf = (n: string) => functionsOf(latestDefining(n)).find((f) => f.name === n);
 
-  it('обе функции сохранения ПЕРВЫМ делом отказывают клиенту без ревизии 3', () => {
+  it('обе функции сохранения ПЕРВЫМ делом отказывают устаревшему клиенту', () => {
     for (const n of ['order_v4_save', 'order_v4_save_full']) {
       const f = fnOf(n);
       expect(f, n).toBeTruthy();
       expect(codeAfterBegin(f?.body ?? ''), n).toMatch(CLIENT_REV_CHECK);
     }
+    expect(revOf(fnOf('order_v4_save')?.body ?? '')).toBe(SAVE_INNER_REV);
+    // обёртка не отстаёт от клиента и опережает его не больше чем на шаг (окно «K → фронт»)
+    const full = revOf(fnOf('order_v4_save_full')?.body ?? '');
+    expect(full).toBeGreaterThanOrEqual(SALES_CLIENT_REV);
+    expect(full - SALES_CLIENT_REV).toBeLessThanOrEqual(1);
   });
 
   it('обёртка сверяет expected_updated_at со строкой, взятой FOR UPDATE, до записи', () => {
@@ -406,26 +426,27 @@ describe('миграция D: ревизия клиента и конкурен�
 
   it('тексты отказов сервера распознаёт клиент: outdated / conflict / locked', () => {
     for (const n of ['order_v4_save', 'order_v4_save_full']) {
-      const outdated = codeAfterBegin(fnOf(n)?.body ?? '').match(CLIENT_REV_CHECK)?.[1];
+      const outdated = codeAfterBegin(fnOf(n)?.body ?? '').match(CLIENT_REV_CHECK)?.[2];
       expect(outdated, n).toBeTruthy();
       expect(saveFailureKind({ code: 'P0001', message: outdated })).toBe('outdated');
     }
     const conflict = noComments(fnOf('order_v4_save_full')?.body ?? '').match(CONFLICT_CHECK)?.[1];
     expect(conflict).toBeTruthy();
     expect(saveFailureKind({ code: 'P0001', message: conflict })).toBe('conflict');
-    // Страж B: отказ правки не-черновика — тот, что клиент зовёт locked
-    const guard = functionsOf(RIGHTS).find((f) => f.name === 'order_v4_guard');
+    // Страж B (с вехи 8 — L): отказ правки не-черновика — тот, что клиент зовёт locked
+    const guard = functionsOf(GUARD_SQL).find((f) => f.name === 'order_v4_guard');
     const locked = noComments(guard?.body ?? '')
       .match(/if old\.status is distinct from 'draft' then\s+raise exception using errcode = '42501', message = '([^']+)';/)?.[1];
     expect(locked).toBeTruthy();
     expect(saveFailureKind({ code: '42501', message: locked })).toBe('locked');
   });
 
-  it('самопроверка: проверка не первой строкой или с порогом 2 — красный', () => {
+  it('самопроверка: проверка не первой строкой или с порогом ниже клиента — красный', () => {
     const ok = `begin\n  if coalesce((p_order->>'client_rev')::int, 0) < ${SALES_CLIENT_REV} then`
       + "\n    raise exception using errcode = 'P0001',\n      message = 'Вышло обновление — обновите страницу, правка не сохранена';";
     expect(codeAfterBegin(ok)).toMatch(CLIENT_REV_CHECK);
-    expect(codeAfterBegin(ok.replace(`< ${SALES_CLIENT_REV}`, `< ${SALES_CLIENT_REV - 1}`))).not.toMatch(CLIENT_REV_CHECK);
+    expect(revOf(ok)).toBe(SALES_CLIENT_REV);
+    expect(revOf(ok.replace(`< ${SALES_CLIENT_REV}`, `< ${SALES_CLIENT_REV - 1}`))).toBeLessThan(SALES_CLIENT_REV);
     expect(codeAfterBegin(ok.replace('begin\n', 'begin\n  perform 1;\n'))).not.toMatch(CLIENT_REV_CHECK);
   });
 });
