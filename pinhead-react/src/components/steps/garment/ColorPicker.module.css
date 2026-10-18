@@ -84,7 +84,7 @@
   background: var(--swatch-color);
   box-shadow: var(--shadow-card);
 }
-.selected .circle { border-color: var(--accent); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+.selected .circle { border-color: var(--accent); box-shadow: var(--focus-ring); }
 
 .check {
   position: absolute;
