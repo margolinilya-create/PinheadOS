@@ -1,5 +1,5 @@
 import { addArea, moveArea, rectArea, removeArea } from '../../design/edit/flatEdit';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import AreaFields from './AreaFields';
 import { areaFieldId, areaRowId, GEOMETRY_HINT, NO_AREAS_TEXT } from './flatEditorView';
 import styles from './FlatEditor.module.css';
@@ -65,19 +65,19 @@ export default function AreasSection({ ctx, view }) {
               {a.zone_id === null && <span className={styles.tag}>служебная</span>}
             </button>
             <button type="button" className={styles.iconBtn} aria-label={`Поднять зону «${a.name}»`} disabled={i === 0} onClick={() => ctx.edit((f) => moveArea(f, kind, a.id, -1))}>
-              <DesignIcon name="arrowUp" />
+              <FlatIcon name="arrowUp" />
             </button>
             <button type="button" className={styles.iconBtn} aria-label={`Опустить зону «${a.name}»`} disabled={i === areas.length - 1} onClick={() => ctx.edit((f) => moveArea(f, kind, a.id, 1))}>
-              <DesignIcon name="arrowDown" />
+              <FlatIcon name="arrowDown" />
             </button>
             <button type="button" className={styles.iconBtn} aria-label={`Удалить зону «${a.name}»`} disabled={areas.length <= 1} onClick={() => remove(i)}>
-              <DesignIcon name="trash" />
+              <FlatIcon name="trash" />
             </button>
           </li>
         ))}
       </ul>
       <button type="button" id={ADD_ID} className="btn" onClick={add} disabled={areas.length >= 32}>
-        <DesignIcon name="plus" />
+        <FlatIcon name="plus" />
         Добавить зону
       </button>
       {selected && <AreaFields key={`${kind}:${selected.id}`} ctx={ctx} kind={kind} area={selected} />}

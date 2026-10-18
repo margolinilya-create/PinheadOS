@@ -19,7 +19,7 @@
  *      «уже есть» с другим текстом — следующая версия, все виды заново,
  *      не больше `MAX_VERSION_ATTEMPTS` раз (гонка двух администраторов).
  *   3. Справочник — последним: `putCatalog` с базой от свежего чтения.
- *      Успех — сброс кэша справочника флэтов (`invalidateFlatsCatalog`).
+ *      Успех — сброс кэша справочника флэтов холста событием `FLATS_SAVED_EVENT`.
  *
  * Сбой файла — справочник не пишется; повтор с тем же файлом принимается
  * как `'same'`. Отказ сервера 22023 — вид `invalid` с текстом сервера дословно.
@@ -33,12 +33,23 @@ import {
   catalogBytes, geometryChanged, historyPreserved, mergeFlatIntoRaw, nextVersion, releaseFlat,
 } from '../../design/catalog/flatVersion';
 import { VIEW_LABELS } from '../../design/catalog/flatLabels';
-import { invalidateFlatsCatalog } from '../../design/catalog/useFlatsCatalog';
 import { validateFlat, CATALOG_MAX_BYTES } from '../../design/edit/validateFlat';
 import type { ZoneLike } from '../../design/edit/flatAreas';
 import { resolveFlat } from '../../design/export/resolveFlat';
 import { MAX_FLAT_VERSION, flatSvgPathOf } from '../../design/limits';
 import type { FlatViewKind, GarmentFlat } from '../../design/types';
+
+/**
+ * = `FLATS_SAVED_EVENT` из `design/catalog/useFlatsCatalog` (совпадение держит тест).
+ * Событие, а не импорт: модуль кэша холста, общий с редактором, Rollup вынес бы
+ * в отдельный чанк за счёт бюджета холста (веха 5б, задача 7)
+ */
+export const FLATS_SAVED_EVENT = 'pinhead:garment-flats-saved';
+
+/** Сбросить кэш справочника флэтов холста (если холст в этой вкладке открывали) */
+function invalidateFlatsCatalog(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(FLATS_SAVED_EVENT));
+}
 
 /** Попыток выпуска при «уже есть, другой текст» — только на гонку двух администраторов (К3) */
 export const MAX_VERSION_ATTEMPTS = 5;

@@ -1,5 +1,5 @@
 import { VIEW_LABELS } from '../../design/catalog/flatLabels';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import styles from './FlatEditor.module.css';
 import checks from './FlatChecks.module.css';
 
@@ -13,7 +13,7 @@ function Group({ id, title, icon, items, onGo }) {
   return (
     <div className={checks.checkGroup} data-kind={id}>
       <h4 id={`flat-checks-${id}`} className={checks.checkTitle}>
-        <DesignIcon name={icon} />
+        <FlatIcon name={icon} />
         {`${title} (${items.length})`}
       </h4>
       <ul aria-labelledby={`flat-checks-${id}`}>

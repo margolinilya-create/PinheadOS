@@ -5,9 +5,8 @@ import { DESIGN_ICONS, DESIGN_ICON_NAMES } from './designIcons';
 
 /** Набор плана (решение 9) — его ждёт панель задачи 6б */
 const PLAN_SET = ['upload', 'redo', 'flipH', 'flipV', 'rotateCw', 'rotateCcw', 'copy', 'layers',
-  'zoomIn', 'zoomOut', 'fit', 'lock', 'unlock', 'eyeOff',
-  // Редактор флэта (веха 5б, задача 6б)
-  'plus', 'trash', 'arrowUp', 'arrowDown', 'anchor', 'ruler'];
+  'zoomIn', 'zoomOut', 'fit', 'lock', 'unlock', 'eyeOff'];
+// Иконки редактора флэта (веха 5б) — свой набор `admin/flats/flatIcons.ts` (бюджет холста, задача 7)
 
 describe('DesignIcon', () => {
   it('svg 24×24 с заданным размером, цвет — currentColor', () => {

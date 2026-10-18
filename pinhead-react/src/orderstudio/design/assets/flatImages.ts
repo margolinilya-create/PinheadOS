@@ -17,7 +17,7 @@
  *
  * Модуль без React: хук — `useFlatImage.ts`.
  */
-import { downloadFlatSvg } from '../../api/garmentFlats';
+import { downloadFlatSvg } from '../../api/garmentFlatsRead';
 import { toast } from '../../../store/useToastStore';
 import type { FlatView } from '../types';
 import { recolorGarment } from '../export/flatMarkup';

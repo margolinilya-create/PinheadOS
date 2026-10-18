@@ -3,7 +3,7 @@ import { VIEW_LABELS } from '../../design/catalog/flatLabels';
 import { removedText } from '../../design/edit/newFlat';
 import { MAX_SCALE_MM_PER_UNIT } from '../../design/limits';
 import { FLAT_VIEW_KINDS } from '../../design/types';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import AnchorFields from './AnchorFields';
 import { FieldErrors, MmField } from './flatFields';
 import {
@@ -72,7 +72,7 @@ export default function FlatViewsSection({ ctx, view }) {
         onCommit={(w) => width && calibrate(w / width)}
       />
       <button type="button" className="btn" aria-pressed={ctx.mode === 'calibrate'} onClick={() => ctx.setMode('calibrate')}>
-        <DesignIcon name="ruler" />
+        <FlatIcon name="ruler" />
         Калибровать по размеру
       </button>
       <details className={styles.details}>
@@ -96,7 +96,7 @@ export default function FlatViewsSection({ ctx, view }) {
         disabled={draft.views.length <= 1}
         onClick={(e) => ctx.actions.dropView(kind, e.currentTarget)}
       >
-        <DesignIcon name="trash" />
+        <FlatIcon name="trash" />
         Удалить вид
       </button>
 

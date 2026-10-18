@@ -29,23 +29,23 @@
  *
  * Ошибка → `toast.error` и `null` (правило проекта). Сторож
  * `flatsWrites.test.ts`: запись в бакет — только из этого модуля.
+ *
+ * Чтение (`downloadFlatSvg`, `isFlatPath`, константы бакета) — в
+ * `garmentFlatsRead.ts`, здесь реэкспорт (веха 5б, задача 7): холст «Дизайн»
+ * берёт только чтение, и писатель редактора и сида не попадает в его бюджет
+ * («Кэши картинок» ≤ 9 400 Б gzip).
  */
 import { supabase } from '../../lib/supabase';
-import { toast } from '../../store/useToastStore';
 import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
 import { FLAT_VIEW_KINDS, type FlatViewKind } from '../design/types';
 import { FLAT_ID_RE, MAX_FLAT_VERSION, flatSvgPathOf } from '../design/limits';
+import {
+  FLATS_BUCKET, FLAT_MAX_BYTES, FLAT_MIME, downloadFlatSvg, fail, isFlatPath,
+} from './garmentFlatsRead';
 
 export { FLAT_VIEW_KINDS, FLAT_ID_RE };
 export type { FlatViewKind };
-
-export const FLATS_BUCKET = 'garment-flats';
-/** = `allowed_mime_types` бакета */
-export const FLAT_MIME = 'image/svg+xml';
-/** = `file_size_limit` бакета (1 МБ; самый большой сид — около 80 КБ) */
-export const FLAT_MAX_BYTES = 1048576;
-/** = регулярка `garment_flat_path_ok` (без флага m: `$` — только конец строки) */
-export const FLAT_PATH_RE = /^flats\/[a-z0-9][a-z0-9-]{0,62}\/v[1-9][0-9]{0,3}\/(front|back|sleeve_left|sleeve_right)\.svg$/;
+export { FLATS_BUCKET, FLAT_MIME, FLAT_MAX_BYTES, FLAT_PATH_RE, isFlatPath, downloadFlatSvg } from './garmentFlatsRead';
 
 /** Путь SVG вида флэта; неверный id, версия или вид — пустая строка */
 export function flatSvgPath(id: string, version: number, kind: FlatViewKind): string {
@@ -53,15 +53,6 @@ export function flatSvgPath(id: string, version: number, kind: FlatViewKind): st
   if (!Number.isInteger(version) || version < 1 || version > MAX_FLAT_VERSION) return '';
   if (!(FLAT_VIEW_KINDS as readonly string[]).includes(kind)) return '';
   return flatSvgPathOf(id, version, kind);
-}
-
-export function isFlatPath(p: unknown): p is string {
-  return typeof p === 'string' && FLAT_PATH_RE.test(p);
-}
-
-function fail(context: string, message: string): null {
-  toast.error(`${context}: ${message}`);
-  return null;
 }
 
 interface StorageError { message?: string; statusCode?: string | number; error?: string }
@@ -93,24 +84,6 @@ export async function uploadFlatSvg(path: string, svgText: string): Promise<'upl
     return 'uploaded';
   } catch (e) {
     console.error('uploadFlatSvg', e);
-    return fail(context, networkFailureMessage(e));
-  }
-}
-
-/** Текст SVG вида флэта либо `null` (путь не флэта, ошибка, больше лимита) */
-export async function downloadFlatSvg(path: string): Promise<string | null> {
-  const context = 'Флэт не загружен с сервера';
-  if (!isFlatPath(path)) return fail(context, 'неверный путь в справочнике');
-  try {
-    const { data, error } = await supabase.storage.from(FLATS_BUCKET).download(path);
-    if (error || !data) {
-      console.error('downloadFlatSvg', error);
-      return fail(context, error ? translateSupabaseError(error.message) : 'пустой ответ');
-    }
-    if (data.size > FLAT_MAX_BYTES) return fail(context, 'файл больше 1 МБ');
-    return await data.text();
-  } catch (e) {
-    console.error('downloadFlatSvg', e);
     return fail(context, networkFailureMessage(e));
   }
 }

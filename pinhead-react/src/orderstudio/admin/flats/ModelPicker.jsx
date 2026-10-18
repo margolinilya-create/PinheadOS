@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import base from '../../screens/Sales.module.css';
 import styles from './FlatEditor.module.css';
 
@@ -43,7 +43,7 @@ export default function ModelPicker({ id, label, skus, value, onChange, describe
             <li key={code} className={styles.chip}>
               {byCode.get(code) ? `${code} — ${byCode.get(code).name}` : code}
               <button type="button" className={styles.chipX} aria-label={`Убрать модель ${code}`} onClick={() => onChange(value.filter((c) => c !== code))}>
-                <DesignIcon name="close" size={14} />
+                <FlatIcon name="close" size={14} />
               </button>
             </li>
           ))}

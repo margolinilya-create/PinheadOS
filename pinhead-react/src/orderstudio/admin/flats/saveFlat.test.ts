@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { downloadFlatSvg, listFlatVersions, uploadFlatSvgOnce } from '../../api/garmentFlats';
 import { putCatalog } from '../../api/catalogAdmin';
-import { invalidateFlatsCatalog } from '../../design/catalog/useFlatsCatalog';
+import { FLATS_SAVED_EVENT as CANVAS_EVENT } from '../../design/catalog/useFlatsCatalog';
 import { clone, flat } from '../../design/fixtures.testutil';
 import type { GarmentFlat } from '../../design/types';
 import {
-  MAX_VERSION_ATTEMPTS, MSG_TOO_BIG, MSG_VERSIONS_BUSY, MSG_VERSIONS_RACE, msgTransferFailed, saveFlat,
+  FLATS_SAVED_EVENT, MAX_VERSION_ATTEMPTS, MSG_TOO_BIG, MSG_VERSIONS_BUSY, MSG_VERSIONS_RACE, msgTransferFailed, saveFlat,
   type SaveFlatInput,
 } from './saveFlat';
 
@@ -21,13 +21,14 @@ vi.mock('../../api/garmentFlats', async (orig) => ({
   downloadFlatSvg: vi.fn(),
 }));
 vi.mock('../../api/catalogAdmin', async (orig) => ({ ...(await orig<object>()), putCatalog: vi.fn() }));
-vi.mock('../../design/catalog/useFlatsCatalog', () => ({ invalidateFlatsCatalog: vi.fn() }));
 
 const uploadMock = vi.mocked(uploadFlatSvgOnce);
 const listMock = vi.mocked(listFlatVersions);
 const downloadMock = vi.mocked(downloadFlatSvg);
 const putMock = vi.mocked(putCatalog);
-const invalidateMock = vi.mocked(invalidateFlatsCatalog);
+/** Сброс кэша холста — событием окна (`FLATS_SAVED_EVENT`), не импортом */
+const invalidateMock = vi.fn();
+window.addEventListener(CANVAS_EVENT, invalidateMock);
 
 const svg = (w: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 700"><g id="garment"><path d="M0 0L${w} 0L${w} 700Z"/></g></svg>`;
@@ -79,6 +80,12 @@ function input(patch: Partial<SaveFlatInput>): SaveFlatInput {
 
 const uploadedPaths = () => uploadMock.mock.calls.map((c) => c[0]);
 const sentCatalog = () => putMock.mock.calls[0][2] as { version: 1; flats: GarmentFlat[] };
+
+describe('сброс кэша холста событием (бюджет холста, задача 7)', () => {
+  it('имя события совпадает с тем, что слушает useFlatsCatalog', () => {
+    expect(FLATS_SAVED_EVENT).toBe(CANVAS_EVENT);
+  });
+});
 
 describe('saveFlat — новый флэт', () => {
   it('файлы v1 обоих видов, затем ровно один putCatalog; справочник — последним', async () => {

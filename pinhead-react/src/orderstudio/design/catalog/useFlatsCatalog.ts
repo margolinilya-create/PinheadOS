@@ -89,6 +89,17 @@ registerAppReset(resetFlatsCatalog);
  */
 export const invalidateFlatsCatalog = resetFlatsCatalog;
 
+/**
+ * Событие окна «справочник флэтов записан»: редактор флэта (`admin/flats/saveFlat`)
+ * сбрасывает кэш им, а НЕ импортом этого модуля. Общий с ленивым редактором модуль
+ * Rollup вынес бы в отдельный чанк, и холст платил бы за него в своём бюджете
+ * (веха 5б, задача 7). Холст ни разу не открывали — модуля нет, и сбрасывать нечего.
+ * Строку дублирует `saveFlat.ts`; совпадение держит `saveFlat.test.ts`
+ */
+export const FLATS_SAVED_EVENT = 'pinhead:garment-flats-saved';
+
+if (typeof window !== 'undefined') window.addEventListener(FLATS_SAVED_EVENT, resetFlatsCatalog);
+
 /** Только для тестов */
 export function __resetFlatsCatalogForTests(): void {
   resetFlatsCatalog();

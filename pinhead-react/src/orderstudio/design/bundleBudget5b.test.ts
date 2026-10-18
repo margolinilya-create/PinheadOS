@@ -103,8 +103,9 @@ describe('бюджет 5б: подключение в bundle-budget.mjs', () => 
     expect(main).toContain('baseline.done()');
   });
 
-  it('потолок редактора флэта и три корня без konva', () => {
-    expect(flats).toMatch(/FLAT_EDITOR_BUDGET = 45_000/);
+  it('потолок редактора флэта (замер задачи 7 + 10 %), модули 5б обязательны, три корня без konva', () => {
+    expect(flats).toMatch(/FLAT_EDITOR_BUDGET = 53_200;/);
+    expect(flats).toMatch(/const FLATS_REQUIRED = true;/);
     for (const name of ['OrderSettings', 'FlatsTab', 'FlatPreview']) expect(flats).toContain(`['${name}', flatsKey(`);
   });
 });

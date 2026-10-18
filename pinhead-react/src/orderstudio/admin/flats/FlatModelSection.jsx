@@ -4,7 +4,7 @@ import { GARMENT_TYPE_LABELS } from '../../design/catalog/flatLabels';
 import { updateMeta } from '../../design/edit/flatEdit';
 import { addSize, removeSize, setBaseSize } from '../../design/edit/flatSizes';
 import { GARMENT_TYPES } from '../../design/types';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import ModelPicker from './ModelPicker';
 import { Field, FieldErrors } from './flatFields';
 import { ACTIVE_HINT, errorsAt, errorTextId, fieldAria, flatFieldId, OFF_TEXT } from './flatEditorView';
@@ -87,7 +87,7 @@ export default function FlatModelSection({ ctx }) {
               {s}
               {s === draft.base_size ? <span className={styles.tag}>базовый</span> : (
                 <button type="button" className={styles.chipX} aria-label={`Удалить размер ${s}`} onClick={() => ctx.edit((f) => removeSize(f, s))}>
-                  <DesignIcon name="close" size={14} />
+                  <FlatIcon name="close" size={14} />
                 </button>
               )}
             </li>

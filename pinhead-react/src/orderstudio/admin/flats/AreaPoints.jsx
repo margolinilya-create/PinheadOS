@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { insertPoint, movePoint, removePoint } from '../../design/edit/flatEdit';
-import { DesignIcon } from '../../design/ui/DesignIcon';
+import { FlatIcon } from './FlatIcon';
 import { MAX_POLYGON_POINTS } from '../../design/limits';
 import { MmField } from './flatFields';
 import { areaFieldId } from './flatEditorView';
@@ -56,7 +56,7 @@ export default function AreaPoints({ ctx, kind, area, errors }) {
               onClick={() => remove(i)}
               disabled={pts.length <= 3}
             >
-              <DesignIcon name="trash" />
+              <FlatIcon name="trash" />
             </button>
           </li>
         ))}
