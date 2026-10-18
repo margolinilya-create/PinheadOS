@@ -131,6 +131,33 @@ export const MUTATIONS = [
     find: "  if p_kind = 'ms' and p_on is true\n",
     replace: "  if false and p_kind = 'ms' and p_on is true\n",
     kills: 'rop_rop2_ms' },
+  // Раунд 2 ревью задачи 1: разделение обязанностей в переходе, метка при смене оплаты,
+  // путь документа ТЗ у другого заказа ERP
+  { name: 'no-duty-launch-own', fn: 'order_v4_transition',
+    find: '    if v_row.created_by = v_uid and not coalesce(v_boss, false) then',
+    replace: '    if false then',
+    kills: 'race_own_prod (МС-автор зовёт переход напрямую)' },
+  { name: 'no-duty-launch-override', fn: 'order_v4_transition',
+    find: '      if v_override_by = v_uid then',
+    replace: '      if false then',
+    kills: 'race_override_prod (rop, разрешивший «без оплаты», зовёт переход напрямую)' },
+  { name: 'pay-label-fresh-allowed', fn: 'order_v4_set_payment',
+    find: "    if v_row.launch_started_at > now() - interval '10 minutes' then",
+    replace: '    if false then',
+    kills: 'toctou_pay_fresh / toctou_override_fresh / rop_pay_reason' },
+  { name: 'pay-label-kept', fn: 'order_v4_set_payment',
+    find: '         launch_started_at = null, launch_by = null,\n',
+    replace: '',
+    kills: 'toctou_label_cleared / toctou_prod' },
+  { name: 'pay-label-erp-allowed', fn: 'order_v4_set_payment',
+    find: '    if exists (select 1 from public.erp_orders e\n',
+    replace: '    if false and exists (select 1 from public.erp_orders e\n',
+    kills: 'toctou_pay_erp' },
+  { name: 'authentic-reused-path', fn: 'order_v4_erp_authentic',
+    find: '\n               and not exists (\n                 select 1 from public.erp_tz_documents d2\n' +
+      '                  where d2.file_path = d.file_path and d2.order_id <> p_erp)',
+    replace: '',
+    kills: 'oldcopy_check / oldcopy_prod (старая копия ТЗ того же МС у другого заказа ERP)' },
 ];
 
 /** Границы тела функции `fn` в тексте J: [начало, конец) между `$$` */

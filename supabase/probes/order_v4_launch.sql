@@ -1,7 +1,7 @@
 -- Пробы миграции J (20261018120000_order_v4_launch, веха 6+7): «Отправить в работу»,
 -- оплата МС, проверка запуска и переход в production.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=138 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=162 {…}
 --
 -- До применения J — только сухим прогоном вместе с ней (1-dryrun-J.sql: предусловие, J,
 -- этот файл). На схеме без J (B/F) файл обязан дать fails>0 — это «красный» прогон
@@ -32,7 +32,8 @@
 -- Разбор по разделам: автор, отправка (PDF и макеты в бакете, версия заказа), launch_check
 -- (права ERP до метки, чужая метка 10 минут, продление, разделение обязанностей),
 -- erp_create_order от имени МС, переход в production (p_erp_order_id, подлинность),
--- подделка связи с ERP, гонка возврата, set_payment МС, sales_set_staff, Storage у МС.
+-- подделка связи с ERP, старая копия ТЗ, гонки обязанностей, гонка возврата, set_payment МС,
+-- sales_set_staff, Storage у МС.
 --
 -- Storage у МС: запись в erp-attachments на бою гейтует политика erp_att_upload =
 -- erp_is_member() (любой активный и одобренный). Продавец и МС с должностью worker туда
@@ -40,17 +41,23 @@
 -- erp_has_permission у admin/director без строки ERP — роль 'director' (права есть),
 -- erp_is_member — true: проверка запуска и запись в бакет дают один итог.
 --
--- ОСТАТОЧНЫЙ ПУТЬ ПОДДЕЛКИ (известный факт, ревью задачи 1, раунд 1; закрыть внутри J без
--- правки ERP нельзя — erp_orders.created_by без умолчания, аудит пишет только UPDATE):
--- order_v4_erp_authentic проверяет лишь ВЛАДЕЛЬЦА объекта Storage (= launch_by). Продавец
--- с правом ERP tz.manage (на бою — должность production_head) после метки МС вставляет свой
--- erp_orders с tz_order_id, позицию и erp_tz_documents с путём к объекту, который загрузил
--- сам МС (копия ТЗ на шаге files, оставшаяся после отказа erp_create_order; ключи видны
--- любому члену ERP списком бакета). Тогда launch_check отвечает already с поддельным
--- erp_order_id, а transition(production) проходит — пробы resid_* фиксируют это как OK.
+-- ОСТАТОЧНЫЙ ПУТЬ ПОДДЕЛКИ (известный факт, ревью задачи 1, раунды 1–2; закрыть внутри J без
+-- правки ERP нельзя — erp_orders.created_by и erp_tz_documents.uploaded_by без умолчания,
+-- аудит пишет только UPDATE): order_v4_erp_authentic сверяет ВЛАДЕЛЬЦА объекта Storage
+-- (= launch_by) и то, что путь не привязан к другому заказу ERP (oldcopy_*: копия прошлого
+-- запуска того же МС — не подлинная). Продавец с правом ERP tz.manage (на бою — должность
+-- production_head) после метки МС вставляет свой erp_orders с tz_order_id, позицию
+-- и erp_tz_documents с путём к НЕПРИВЯЗАННОЙ копии ТЗ этого МС — копии текущей попытки или
+-- остатку неудачного запуска любого другого заказа (ключи видны любому члену ERP списком
+-- бакета). Тогда launch_check отвечает already с поддельным erp_order_id, а
+-- transition(production) проходит — пробы resid_* фиксируют это как OK.
 -- Без tz.manage (должность worker) вставка документа ТЗ — 42501 (resid_worker_doc), запись
 -- в бакет — OK (К13). Решение — за владельцем: снять у продавцов production_head, принять
 -- риск или ослабить заморозку ERP (README, раздел «Остаточный путь подделки»).
+--
+-- РАЗДЕЛЕНИЕ ОБЯЗАННОСТЕЙ (находка 2, раунд 2): переход в production повторяет проверки
+-- launch_check (race_*), set_payment не меняет оплату при свежей метке и созданном заказе
+-- ERP, старую метку снимает (toctou_*).
 
 begin;
 set local lock_timeout = '3s';
@@ -129,9 +136,14 @@ values
   ('00000000-0000-4000-8000-000067020011', 'PROBE-J31', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
   ('00000000-0000-4000-8000-000067020012', 'PROBE-J32', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
   ('00000000-0000-4000-8000-000067020013', 'PROBE-J33', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
-  ('00000000-0000-4000-8000-000067020014', 'PROBE-J34', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10);
+  ('00000000-0000-4000-8000-000067020014', 'PROBE-J34', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020015', 'PROBE-J35', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020016', 'PROBE-J36', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020017', 'PROBE-J37', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020018', 'PROBE-J38', 4, 'ready_to_launch', '43a8021c-6ddc-4a25-88f6-62e13b46c1c5',    '{}', 'Клиент', current_date + 10),
+  ('00000000-0000-4000-8000-000067020019', 'PROBE-J39', 4, 'ready_to_launch', '9285888e-4401-4b1b-b523-a3e6a9b90e82', '{}', 'Клиент', current_date + 10);
 update public.orders set paid_at = now(), paid_kind = 'full'
- where id in ('00000000-0000-4000-8000-000067020001', '00000000-0000-4000-8000-000067020002', '00000000-0000-4000-8000-000067020003', '00000000-0000-4000-8000-000067020004', '00000000-0000-4000-8000-000067020005', '00000000-0000-4000-8000-000067020007', '00000000-0000-4000-8000-000067020008', '00000000-0000-4000-8000-000067020009', '00000000-0000-4000-8000-000067020013', '00000000-0000-4000-8000-000067020014');
+ where id in ('00000000-0000-4000-8000-000067020001', '00000000-0000-4000-8000-000067020002', '00000000-0000-4000-8000-000067020003', '00000000-0000-4000-8000-000067020004', '00000000-0000-4000-8000-000067020005', '00000000-0000-4000-8000-000067020007', '00000000-0000-4000-8000-000067020008', '00000000-0000-4000-8000-000067020009', '00000000-0000-4000-8000-000067020013', '00000000-0000-4000-8000-000067020014', '00000000-0000-4000-8000-000067020015', '00000000-0000-4000-8000-000067020016', '00000000-0000-4000-8000-000067020018', '00000000-0000-4000-8000-000067020019');
 
 -- Позиции: у L1 два нанесения (dtf с макетом и «прочее» без), у остальных черновиков — по одному
 insert into public.order_items (id, order_id, tz_pdf_path) values
@@ -149,7 +161,8 @@ insert into public.order_items (id, order_id, tz_pdf_path) values
   ('00000000-0000-4000-8000-000067030014', '00000000-0000-4000-8000-000067010014', 'orders/00000000-0000-4000-8000-000067010014/tz/t.pdf'),
   ('00000000-0000-4000-8000-000067040001', '00000000-0000-4000-8000-000067020001', ''), ('00000000-0000-4000-8000-000067040002', '00000000-0000-4000-8000-000067020002', ''), ('00000000-0000-4000-8000-000067040003', '00000000-0000-4000-8000-000067020003', ''), ('00000000-0000-4000-8000-000067040004', '00000000-0000-4000-8000-000067020004', ''),
   ('00000000-0000-4000-8000-000067040005', '00000000-0000-4000-8000-000067020005', ''), ('00000000-0000-4000-8000-000067040007', '00000000-0000-4000-8000-000067020007', ''), ('00000000-0000-4000-8000-000067040008', '00000000-0000-4000-8000-000067020008', ''), ('00000000-0000-4000-8000-000067040009', '00000000-0000-4000-8000-000067020009', ''),
-  ('00000000-0000-4000-8000-000067040010', '00000000-0000-4000-8000-000067020010', ''), ('00000000-0000-4000-8000-000067040011', '00000000-0000-4000-8000-000067020011', ''), ('00000000-0000-4000-8000-000067040012', '00000000-0000-4000-8000-000067020012', ''), ('00000000-0000-4000-8000-000067040014', '00000000-0000-4000-8000-000067020014', '');
+  ('00000000-0000-4000-8000-000067040010', '00000000-0000-4000-8000-000067020010', ''), ('00000000-0000-4000-8000-000067040011', '00000000-0000-4000-8000-000067020011', ''), ('00000000-0000-4000-8000-000067040012', '00000000-0000-4000-8000-000067020012', ''), ('00000000-0000-4000-8000-000067040014', '00000000-0000-4000-8000-000067020014', ''),
+  ('00000000-0000-4000-8000-000067040015', '00000000-0000-4000-8000-000067020015', ''), ('00000000-0000-4000-8000-000067040016', '00000000-0000-4000-8000-000067020016', ''), ('00000000-0000-4000-8000-000067040017', '00000000-0000-4000-8000-000067020017', ''), ('00000000-0000-4000-8000-000067040018', '00000000-0000-4000-8000-000067020018', ''), ('00000000-0000-4000-8000-000067040019', '00000000-0000-4000-8000-000067020019', '');
 insert into public.order_item_prints (item_id, method, artwork_path) values
   ('00000000-0000-4000-8000-000067030001', 'dtf', 'orders/00000000-0000-4000-8000-000067010001/a.png'),
   ('00000000-0000-4000-8000-000067030001', 'other', ''),
@@ -170,6 +183,9 @@ insert into storage.objects (bucket_id, name, owner, metadata) values
 
 -- R12: метка стоит, оплаты нет (переход отвечает «Нет отметки оплаты»)
 update public.orders set launch_started_at = now() - interval '20 minutes', launch_by = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9' where id = '00000000-0000-4000-8000-000067020012';
+-- R39: метка МС1 старше 10 минут, заказ ERP этого запуска уже есть — оплату не сменить
+update public.orders set launch_started_at = now() - interval '11 minutes', launch_by = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9' where id = '00000000-0000-4000-8000-000067020019';
+insert into public.erp_orders (id, title, tz_order_id, tz_number) values ('00000000-0000-4000-8000-000067050019', 'PROBE запуск J39', '00000000-0000-4000-8000-000067020019', 'PROBE-J39');
 -- R5: метка МС1 старше 10 минут — возврат другим МС разрешён
 update public.orders set launch_started_at = now() - interval '11 minutes', launch_by = 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9' where id = '00000000-0000-4000-8000-000067020005';
 
@@ -354,6 +370,89 @@ select pg_temp.p('resid_prod', 'OK {"id": "00000000-0000-4000-8000-000067020014"
 select pg_temp.p('resid_linked', 'OK 00000000-0000-4000-8000-000067050004', $q$select erp_order_id::text from public.orders where id = '00000000-0000-4000-8000-000067020014'$q$);
 reset role;
 
+-- ── Старая копия ТЗ того же МС (находка 1, раунд 2): путь уже у другого заказа ERP ──
+-- Копия ТЗ запуска J21 (владелец МС1, ключ виден списком бакета) привязана к заказу ERP J21.
+-- Продавец ссылается на неё из своего заказа ERP для J35 после метки МС1 — не подлинный.
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('oldcopy_ms1_check', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020015')::text$q$);
+reset role;
+select pg_temp.as_user('9285888e-4401-4b1b-b523-a3e6a9b90e82');
+set local role authenticated;
+select pg_temp.p('oldcopy_order', 'OK rows=1', $q$insert into public.erp_orders (id, title, tz_order_id, tz_number) values ('00000000-0000-4000-8000-000067050015', 'PROBE старая копия', '00000000-0000-4000-8000-000067020015', 'PROBE-J35')$q$);
+select pg_temp.p('oldcopy_item', 'OK rows=1', $q$insert into public.erp_order_items (id, order_id, product_type, qty) values ('00000000-0000-4000-8000-000067060015', '00000000-0000-4000-8000-000067050015', 'Футболка', 1)$q$);
+select pg_temp.p('oldcopy_doc', 'OK rows=1', $q$insert into public.erp_tz_documents (order_id, item_id, group_id, file_path) values ('00000000-0000-4000-8000-000067050015', '00000000-0000-4000-8000-000067060015', '00000000-0000-4000-8000-000067070025', 'tz/v4-00000000-0000-4000-8000-000067070001/00000000-0000-4000-8000-000067070002/v1-tz.pdf')$q$);
+select pg_temp.p('oldcopy_linked', 'OK 1', $q$select count(distinct d.order_id)::text from public.erp_tz_documents d where d.file_path = 'tz/v4-00000000-0000-4000-8000-000067070001/00000000-0000-4000-8000-000067070002/v1-tz.pdf' and d.order_id <> '00000000-0000-4000-8000-000067050015'$q$);
+reset role;
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('oldcopy_check', 'OK {"ok": false, "reason": "Заказ ERP с этой связью создан не этим запуском — обратитесь к администратору"', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020015')::text$q$);
+select pg_temp.p('oldcopy_prod', 'P0001 Заказ ERP с этой связью создан не этим запуском', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020015', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050015')$q$);
+reset role;
+
+-- ── Гонки разделения обязанностей (находка 2, раунд 2) ───────────────────
+-- rop с признаком МС (признак ставит admin) — и руководитель, и МС
+select pg_temp.as_user(null);
+update public.profiles set is_ms = true where id = '22d22715-1487-480a-aea1-53a7bd52df2d';
+-- Гонка 1: сменили оплату после проверки запуска. Свежая метка — смена запрещена;
+-- старая метка снимается сменой, и «без оплаты» своего разрешения rop уже не запустит.
+select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
+set local role authenticated;
+select pg_temp.p('toctou_check', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020016')::text$q$);
+select pg_temp.p('toctou_pay_fresh', 'P0001 Заказ сейчас запускает ', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020016', null)$q$);
+select pg_temp.p('toctou_override_fresh', 'P0001 Заказ сейчас запускает ', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020016', null, 'постоянный клиент')$q$);
+select pg_temp.p('toctou_paid_kept', 'OK full/true', $q$select paid_kind || '/' || (launch_by = '22d22715-1487-480a-aea1-53a7bd52df2d')::text from public.orders where id = '00000000-0000-4000-8000-000067020016'$q$);
+reset role;
+select pg_temp.as_user(null);
+update public.orders set launch_started_at = now() - interval '11 minutes' where id = '00000000-0000-4000-8000-000067020016';
+select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
+set local role authenticated;
+select pg_temp.p('toctou_pay_stale', 'OK {"id": "00000000-0000-4000-8000-000067020016", "status": "ready_to_launch", "paid_at": null', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020016', null)::text$q$);
+select pg_temp.p('toctou_label_cleared', 'OK true', $q$select (launch_started_at is null and launch_by is null)::text from public.orders where id = '00000000-0000-4000-8000-000067020016'$q$);
+select pg_temp.p('toctou_override', 'OK {"id": "00000000-0000-4000-8000-000067020016", "status": "ready_to_launch", "paid_at": null', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020016', null, 'постоянный клиент')::text$q$);
+select pg_temp.p('toctou_prod', 'P0001 Сначала проверка запуска', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020016', 'production')$q$);
+select pg_temp.p('toctou_recheck', 'OK {"ok": false, "reason": "Запуск без оплаты разрешили вы — запустить должен другой сотрудник"', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020016')::text$q$);
+-- старая метка, но заказ ERP этого запуска уже создан — смена оплаты запрещена
+select pg_temp.p('toctou_pay_erp', 'P0001 Заказ уже создан в производстве — сначала завершите запуск', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020019', null, 'постоянный клиент')$q$);
+-- Гонка 2: rop сам разрешил «без оплаты» (J37), МС1 прошёл проверку и создал заказ ERP;
+-- rop зовёт переход напрямую. То же — МС-автор своего заказа (J38)
+select pg_temp.p('race_override', 'OK {"id": "00000000-0000-4000-8000-000067020017", "status": "ready_to_launch", "paid_at": null', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020017', null, 'постоянный клиент')::text$q$);
+reset role;
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('race_ms1_check_override', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020017')::text$q$);
+select pg_temp.p('race_ms1_check_own', 'OK {"ok": true, "already": false', $q$select public.order_v4_launch_check('00000000-0000-4000-8000-000067020018')::text$q$);
+reset role;
+-- заказы ERP этих запусков — как после шагов files и createOrder МС1 (копии ТЗ под МС1)
+select pg_temp.as_user(null);
+insert into storage.objects (bucket_id, name, owner, owner_id, metadata) values
+  ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-000067070017/00000000-0000-4000-8000-000067070027/v1-tz.pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{"mimetype": "application/pdf", "size": 1000}'),
+  ('erp-attachments', 'tz/v4-00000000-0000-4000-8000-000067070018/00000000-0000-4000-8000-000067070028/v1-tz.pdf', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', 'f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9', '{"mimetype": "application/pdf", "size": 1000}');
+insert into public.erp_orders (id, title, tz_order_id, tz_number) values
+  ('00000000-0000-4000-8000-000067050017', 'PROBE запуск J37', '00000000-0000-4000-8000-000067020017', 'PROBE-J37'),
+  ('00000000-0000-4000-8000-000067050018', 'PROBE запуск J38', '00000000-0000-4000-8000-000067020018', 'PROBE-J38');
+insert into public.erp_order_items (id, order_id, product_type, qty) values
+  ('00000000-0000-4000-8000-000067060017', '00000000-0000-4000-8000-000067050017', 'Футболка', 1),
+  ('00000000-0000-4000-8000-000067060018', '00000000-0000-4000-8000-000067050018', 'Футболка', 1);
+insert into public.erp_tz_documents (order_id, item_id, group_id, file_path) values
+  ('00000000-0000-4000-8000-000067050017', '00000000-0000-4000-8000-000067060017', '00000000-0000-4000-8000-000067070027', 'tz/v4-00000000-0000-4000-8000-000067070017/00000000-0000-4000-8000-000067070027/v1-tz.pdf'),
+  ('00000000-0000-4000-8000-000067050018', '00000000-0000-4000-8000-000067060018', '00000000-0000-4000-8000-000067070028', 'tz/v4-00000000-0000-4000-8000-000067070018/00000000-0000-4000-8000-000067070028/v1-tz.pdf');
+select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
+set local role authenticated;
+select pg_temp.p('race_override_prod', '42501 Запуск без оплаты разрешили вы — запустить должен другой сотрудник', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020017', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050017')$q$);
+reset role;
+select pg_temp.as_user('43a8021c-6ddc-4a25-88f6-62e13b46c1c5');
+set local role authenticated;
+select pg_temp.p('race_own_prod', '42501 Свой заказ запускает другой МС или руководитель производства', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020018', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050018')$q$);
+reset role;
+select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
+set local role authenticated;
+select pg_temp.p('race_ms1_prod_override', 'OK {"id": "00000000-0000-4000-8000-000067020017", "status": "production"', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020017', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050017')::text$q$);
+select pg_temp.p('race_ms1_prod_own', 'OK {"id": "00000000-0000-4000-8000-000067020018", "status": "production"', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020018', 'production', p_erp_order_id => '00000000-0000-4000-8000-000067050018')::text$q$);
+reset role;
+select pg_temp.as_user(null);
+update public.profiles set is_ms = false where id = '22d22715-1487-480a-aea1-53a7bd52df2d';
+
 -- ── Гонка возврата: свой возврат и старая метка — можно ──────────────────
 select pg_temp.as_user('f13c33f3-cd7a-4f24-b6f5-855ca2b24ba9');
 set local role authenticated;
@@ -421,7 +520,8 @@ select pg_temp.p('ms1_prod_no_erp', 'P0001 Заказ ERP этого запус�
 reset role;
 select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
 set local role authenticated;
-select pg_temp.p('rop_pay_reason', 'OK {"id": "00000000-0000-4000-8000-000067020011", "status": "ready_to_launch", "paid_at": null', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020011', null, 'по договору')::text$q$);
+-- метка МС1 (ms1_check_r11) свежая — «без оплаты» во время запуска не поставить (находка 2)
+select pg_temp.p('rop_pay_reason', 'P0001 Заказ сейчас запускает ', $q$select public.order_v4_set_payment('00000000-0000-4000-8000-000067020011', null, 'по договору')::text$q$);
 -- К17: rop не возвращает, не запускает и не завершает
 select pg_temp.p('rop_return', '42501 Вернуть заказ может МС или руководитель производства', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020009', 'draft', 'правка')$q$);
 select pg_temp.p('rop_launch', '42501 Запустить заказ может МС или руководитель производства', $q$select public.order_v4_transition('00000000-0000-4000-8000-000067020009', 'production')$q$);

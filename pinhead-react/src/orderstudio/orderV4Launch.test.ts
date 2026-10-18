@@ -195,6 +195,26 @@ describe('миграция J: что в ней нет и как закрыто',
     expect(helper).toMatch(/coalesce\(o\.owner_id, o\.owner::text\) = p_launch_by::text/);
     expect(helper).toMatch(/exists \(select 1 from public\.erp_order_items i where i\.order_id = p_erp\)/);
     expect(helper).toMatch(/d\.file_path like 'tz\/v4-%'/);
+    // путь документа ТЗ не привязан к другому заказу ERP (старая копия того же МС — не подлинная)
+    expect(helper).toMatch(/not exists \(\s*select 1 from public\.erp_tz_documents d2\s+where d2\.file_path = d\.file_path and d2\.order_id <> p_erp\)/);
+  });
+
+  it('разделение обязанностей: переход в production повторяет проверки launch_check (находка 2)', () => {
+    const tr = noComments(defIn(J, 'order_v4_transition')?.body ?? '');
+    const start = tr.indexOf("v_row.status = 'ready_to_launch' and p_to = 'production' then");
+    const branch = tr.slice(start, tr.indexOf('elsif', start + 1));
+    expect(branch).toMatch(/if v_row\.created_by = v_uid and not coalesce\(v_boss, false\) then/);
+    expect(branch).toMatch(/e\.kind = 'payment' and e\.reason is not null[\s\S]*if v_override_by = v_uid then/);
+    // проверки — до поиска заказа ERP и записи
+    expect(branch.indexOf('v_override_by = v_uid')).toBeLessThan(branch.indexOf('from public.erp_orders e'));
+  });
+
+  it('оплата: свежая метка и созданный заказ ERP запрещают смену, смена снимает метку (находка 2)', () => {
+    const sp = noComments(defIn(J, 'order_v4_set_payment')?.body ?? '');
+    expect(sp).toMatch(/if v_row\.launch_started_at > now\(\) - interval '10 minutes' then/);
+    expect(sp).toMatch(/where e\.tz_order_id = p_id and e\.status <> 'cancelled'/);
+    expect(sp).toMatch(/launch_started_at = null, launch_by = null,\s*updated_at = now\(\)/);
+    expect(sp.indexOf("interval '10 minutes'")).toBeLessThan(sp.indexOf('update public.orders'));
   });
 
   it('отправка: версия заказа — первой проверкой ветки draft → ready_to_launch', () => {
@@ -233,7 +253,9 @@ describe('пробы J: тексты, файлы, мутации', () => {
   it('пробы J называют миграцию J и разделы прав из плана', () => {
     expect(launch).toContain('20261018120000_order_v4_launch');
     for (const name of ['msw_no_label', 'ms2_after_3min', 'fake_check', 'fake_empty_check', 'ms2_return_race',
-      'msa_own_check', 'rop_override_self_check', 'rop_self_ms', 'rop_rop2_ms', 'seq_unchanged', 'helper_closed']) {
+      'msa_own_check', 'rop_override_self_check', 'rop_self_ms', 'rop_rop2_ms', 'seq_unchanged', 'helper_closed',
+      'oldcopy_check', 'oldcopy_prod', 'toctou_pay_fresh', 'toctou_label_cleared', 'toctou_prod', 'toctou_pay_erp',
+      'race_override_prod', 'race_own_prod']) {
       expect(probeNames.has(name), name).toBe(true);
     }
   });

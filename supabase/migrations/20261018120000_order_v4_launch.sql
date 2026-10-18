@@ -26,12 +26,16 @@
 --     объектом в бакете `order-artworks` (К18); возврат во время чужого
 --     свежего запуска запрещён (К17); `production` — только заказ ERP,
 --     id которого вернул createOrder этого запуска, с документами ТЗ из
---     объектов, загруженных тем, кто ставил метку (находка 1);
+--     объектов, загруженных тем, кто ставил метку, и не привязанных к другому
+--     заказу ERP (находка 1), и снова разделение обязанностей (К16, находка 2);
 --   · launch_check: права ERP (`erp_is_member`, `order.manage`, `tz.manage`)
 --     до метки (К14), чужая метка 10 минут от последнего продления (К15),
 --     разделение обязанностей (К16), подлинность сироты (находка 1);
 --   · set_payment: МС отмечает `prepaid`/`full` в `ready_to_launch` —
---     с правом ERP `order.manage` и не на своём заказе (К16);
+--     с правом ERP `order.manage` и не на своём заказе (К16); при свежей
+--     метке запуска или созданном заказе ERP оплату не меняет никто, старая
+--     метка при смене оплаты снимается (находка 2: проверка запуска шла при
+--     прежней оплате);
 --   · sales_set_staff: свой признак и признак МС профилю rop — только
 --     admin и director (К21);
 --   · новый хелпер `order_v4_erp_authentic(uuid, uuid)` — зовут только
@@ -62,6 +66,11 @@
 -- не меняет. Заказ ERP без позиций подлинным не считается: иначе прямая
 -- вставка пустого `erp_orders` с `tz_order_id` прошла бы проверку «у каждой».
 -- `owner` Storage помечает устаревшей — первой читается `owner_id`.
+-- Путь документа не должен встречаться у ДРУГОГО заказа ERP: копия ТЗ прошлого
+-- запуска того же МС (ключи видны списком публичного бакета любому члену ERP)
+-- уже привязана к своему заказу ERP и подлинности не даёт (ревью задачи 1,
+-- раунд 2). Свежесть объекта (`o.created_at >= launch_started_at`) не годится:
+-- шаг recheck продлевает метку уже ПОСЛЕ загрузки копий на шаге files.
 
 create or replace function public.order_v4_erp_authentic(p_erp uuid, p_launch_by uuid)
 returns boolean
@@ -81,7 +90,10 @@ as $$
                 on o.bucket_id = 'erp-attachments' and o.name = d.file_path
              where d.order_id = p_erp and d.item_id = i.id
                and d.file_path like 'tz/v4-%'
-               and coalesce(o.owner_id, o.owner::text) = p_launch_by::text));
+               and coalesce(o.owner_id, o.owner::text) = p_launch_by::text
+               and not exists (
+                 select 1 from public.erp_tz_documents d2
+                  where d2.file_path = d.file_path and d2.order_id <> p_erp)));
 $$;
 
 revoke execute on function public.order_v4_erp_authentic(uuid, uuid) from public, anon, authenticated;
@@ -115,6 +127,7 @@ declare
   v_erp uuid;
   -- J:begin decl
   v_launcher text;
+  v_override_by uuid;
   -- J:end decl
 begin
   if v_uid is null then
@@ -253,6 +266,22 @@ begin
     if v_row.paid_at is null and v_row.paid_override_reason is null then
       raise exception using errcode = 'P0001', message = 'Нет отметки оплаты';
     end if;
+    -- J:begin duty_launch
+    -- Разделение обязанностей — и здесь, а не только в launch_check (находка 2):
+    -- переход зовут напрямую, оплату могли сменить после проверки запуска
+    if v_row.created_by = v_uid and not coalesce(v_boss, false) then
+      raise exception using errcode = '42501', message = 'Свой заказ запускает другой МС или руководитель производства';
+    end if;
+    if v_row.paid_kind is null and v_row.paid_override_reason is not null then
+      select e.actor into v_override_by from public.order_events e
+       where e.order_id = p_id and e.kind = 'payment' and e.reason is not null
+       order by e.at desc, e.id desc
+       limit 1;
+      if v_override_by = v_uid then
+        raise exception using errcode = '42501', message = 'Запуск без оплаты разрешили вы — запустить должен другой сотрудник';
+      end if;
+    end if;
+    -- J:end duty_launch
     select e.id into v_erp from public.erp_orders e
      where e.tz_order_id = p_id
        and e.created_at >= v_row.launch_started_at
@@ -507,6 +536,9 @@ declare
   v_author boolean;
   v_reason text := nullif(btrim(coalesce(p_override_reason, '')), '');
   v_row public.orders%rowtype;
+  -- J:begin decl
+  v_launcher text;
+  -- J:end decl
 begin
   if v_uid is null then
     raise exception using errcode = '42501', message = 'Нужен вход в систему';
@@ -562,6 +594,25 @@ begin
   if v_reason is not null and not v_lead then
     raise exception using errcode = '42501', message = 'Запуск без оплаты разрешает только руководитель';
   end if;
+  -- J:begin pay_label
+  -- Метка запуска ставилась при ПРЕЖНЕЙ оплате (launch_check проверял разделение
+  -- обязанностей по ней): при свежей метке или созданном заказе ERP оплату не
+  -- меняет никто, старую метку смена оплаты снимает (находка 2)
+  if v_row.launch_started_at is not null then
+    if exists (select 1 from public.erp_orders e
+                where e.tz_order_id = p_id and e.status <> 'cancelled') then
+      raise exception using errcode = 'P0001',
+        message = 'Заказ уже создан в производстве — сначала завершите запуск';
+    end if;
+    if v_row.launch_started_at > now() - interval '10 minutes' then
+      select coalesce(nullif(btrim(p.name), ''), p.email) into v_launcher
+        from public.profiles p where p.id = v_row.launch_by;
+      raise exception using errcode = 'P0001',
+        message = 'Заказ сейчас запускает ' || coalesce(v_launcher, 'другой сотрудник')
+                  || ' — оплату меняют после итога запуска';
+    end if;
+  end if;
+  -- J:end pay_label
 
   perform set_config('order_v4.rpc', 'on', true);
   update public.orders
@@ -571,7 +622,11 @@ begin
            when v_reason is not null then v_reason
            when p_kind is null and v_lead then null
            else paid_override_reason end,
+         -- J:begin pay_label_clear
+         launch_started_at = null, launch_by = null,
          updated_at = now()
+         -- J:was|         updated_at = now()
+         -- J:end pay_label_clear
    where id = p_id returning * into v_row;
   perform set_config('order_v4.rpc', 'off', true);
 
