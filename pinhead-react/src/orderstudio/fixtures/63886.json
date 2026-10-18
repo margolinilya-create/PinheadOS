@@ -75,7 +75,9 @@
         "labels": [
           { "key": "63886-l4", "label_type": "brand", "variant_id": "custom:woven", "place": "neck", "comment": "Бирка клиента, тканая",
             "blank": false, "preview_paths": ["orders/6e3a8860-0000-4000-8000-000000063886/label/22222222-brand.jpg"],
-            "attach_scheme": "neck", "attach_image_path": "orders/6e3a8860-0000-4000-8000-000000063886/label/33333333-scheme.jpg" }
+            "attach_scheme": "neck", "attach_image_path": "orders/6e3a8860-0000-4000-8000-000000063886/label/33333333-scheme.jpg" },
+          { "key": "63886-l5", "label_type": "size", "variant_id": "", "blank": true },
+          { "key": "63886-l6", "label_type": "composition", "variant_id": "standard", "blank": true, "attach_scheme": "left-side-seam" }
         ]
       }
     ],

@@ -41,7 +41,8 @@ describe('sendChecklist — фикстуры', () => {
       [setItem(o, 0, { labels: [{ ...o.items[0].labels[0], preview_paths: [] }] }), 'Добавьте превью бирки 1 позиции «Футболка Old Money, чёрный» или отметьте её бланком', `?tab=item&item=${key}`],
     ];
     for (const [order, text, href] of cases) {
-      const items = sendChecklist(order, cat, seller);
+      // правка только первой позиции у 63886 ещё и разводит группу (бирка) — это неблокирующий пункт, его проверяет свой тест
+      const items = sendChecklist(order, cat, seller).filter((i) => i.blocking);
       expect(items).toHaveLength(1);
       expect(items[0]).toMatchObject({ text, href, blocking: true, ok: false });
       expect(canSend(items)).toBe(false);
@@ -118,6 +119,21 @@ describe('sendChecklist — тексты', () => {
     const sizes = { [o.items[0].prints[0].artwork_path]: 21 * 1024 * 1024 };
     const m = sendChecklist(withPdf(o), cat, { ...ms, fileSizes: sizes });
     expect(m.map((i) => i.text)).toContain('Файл макета нанесения 1 «Футболка Old Money, чёрный» больше 20 МБ — производство его не примет — верните менеджеру');
+  });
+
+  it('у позиций одного ТЗ разные бирки — неблокирующий пункт со ссылкой на первую (у МС — без ссылки)', () => {
+    const o = ready('63886');
+    expect(o.items).toHaveLength(2);
+    const second = o.items[1];
+    const broken = setItem(o, 1, { labels: second.labels.map((l, i) => (i === 0 ? { ...l, place: 'Другое место' } : l)) });
+    const s = sendChecklist(broken, cat, seller);
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ blocking: false, href: `?tab=item&item=${o.items[0].key}` });
+    expect(s[0].id).toMatch(/^group-diff:/);
+    expect(s[0].text).toMatch(/разное: бирки — в ТЗ попадёт вариант первой позиции\. Выровняйте или вынесите/);
+    expect(canSend(s)).toBe(true);
+    const m = sendChecklist(withPdf(broken), cat, ms);
+    expect(m[0]).toMatchObject({ href: null, text: expect.stringMatching(/— верните менеджеру$/) });
   });
 
   it('маржа ниже порога и предупреждения моста — не блокируют', () => {

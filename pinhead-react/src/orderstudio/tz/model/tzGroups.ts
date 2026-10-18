@@ -13,7 +13,7 @@
  * по первой позиции группы. `hash8` — FNV-1a 32 ключа: синхронный, его
  * пишет имя файла PDF (`-g<hash8>`), криптостойкость не нужна.
  */
-import type { SalesItem, SalesOrder } from '../../model/types';
+import type { SalesItem, SalesOrder, SalesPrint } from '../../model/types';
 
 export interface TzGroup {
   key: string;
@@ -44,10 +44,30 @@ function partColorsPart(item: SalesItem): [string, string][] {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
+/** Ключ нанесения в группе: `(норм. зона, техника, Ш, В, макет)` — им же сопоставляются нанесения позиций */
+export function tzPrintKey(p: SalesPrint): string {
+  return JSON.stringify([norm(p.zone), p.method, p.width_mm ?? null, p.height_mm ?? null, p.artwork_path || '']);
+}
+
 function printsPart(item: SalesItem): string[] {
-  return item.prints
-    .map((p) => JSON.stringify([norm(p.zone), p.method, p.width_mm ?? null, p.height_mm ?? null, p.artwork_path || '']))
-    .sort();
+  return item.prints.map(tzPrintKey).sort();
+}
+
+/**
+ * Нанесения позиции `item` в порядке нанесений `first` (той же группы): по ключу
+ * `tzPrintKey`, а не по номеру — порядок строк у позиций группы может различаться.
+ * Одинаковые ключи сопоставляются по очереди появления; нет пары — `undefined`.
+ */
+export function alignPrints(first: SalesItem, item: SalesItem): (SalesPrint | undefined)[] {
+  const pool = new Map<string, SalesPrint[]>();
+  for (const p of item.prints) {
+    const k = tzPrintKey(p);
+    pool.set(k, [...(pool.get(k) ?? []), p]);
+  }
+  return first.prints.map((p) => {
+    const list = pool.get(tzPrintKey(p));
+    return list && list.length > 0 ? list.shift() : undefined;
+  });
 }
 
 /** Ключ группы ТЗ позиции (без цвета позиции и комментария) */

@@ -27,7 +27,7 @@ import { parseDateLocal } from '../../../utils/date';
 import { TZ_COLUMNS, tzColumnOf, type TzColumn } from './tzColumns';
 import { isSafeHttpUrl } from './safeUrl';
 import { tzGrid } from './tzGrid';
-import type { TzGroup } from './tzGroups';
+import { alignPrints, type TzGroup } from './tzGroups';
 import type { TzCatalogs, TzDoc, TzLabel, TzMatrixRow, TzMockupRef, TzNoteCard, TzPrintPage } from './tzDocTypes';
 
 export interface TzDocOpts {
@@ -123,11 +123,12 @@ function effectsOf(p: SalesPrint): string {
   return [special, ...p.effects.map(trim)].filter(Boolean).join(', ');
 }
 
-function printPage(n: number, items: SalesItem[], cat: TzCatalogs, rows: TzRow[]): TzPrintPage {
+function printPage(n: number, items: SalesItem[], aligned: (SalesPrint | undefined)[][], cat: TzCatalogs, rows: TzRow[]): TzPrintPage {
   const first = items[0];
   const p = first.prints[n - 1];
+  // Нанесение каждой позиции — по ключу группы (`alignPrints`), не по номеру строки
   const same = (pick: (x: SalesPrint) => string) =>
-    joinByColor(items.map((item) => ({ item, text: pick(item.prints[n - 1] ?? p) })));
+    joinByColor(items.map((item, j) => ({ item, text: pick(aligned[j][n - 1] ?? p) })));
   return {
     n,
     key: p.key,
@@ -194,6 +195,7 @@ export function tzDocument(order: SalesOrder, group: TzGroup, cat: TzCatalogs, o
   const items = group.items;
   const first = items[0];
   const rows = first.prints.map((p) => printRow(p, cat));
+  const aligned = items.map((item) => alignPrints(first, item));
   const grid = tzGrid(items);
   const pack = itemPackaging(first, order.packaging);
   const ownPack = !!first.packaging && first.packaging !== 'inherit';
@@ -241,7 +243,7 @@ export function tzDocument(order: SalesOrder, group: TzGroup, cat: TzCatalogs, o
       sizeBlank: labels.some((l) => l.type === 'size' && l.blank),
       compositionBlank: labels.some((l) => l.type === 'composition' && l.blank),
     },
-    prints: first.prints.map((_, i) => printPage(i + 1, items, cat, rows)),
+    prints: first.prints.map((_, i) => printPage(i + 1, items, aligned, cat, rows)),
     notes: notesOf(order, new Set(items.map((i) => i.key))),
     footer: {
       text: trim(cat.tzSettings?.footerText),

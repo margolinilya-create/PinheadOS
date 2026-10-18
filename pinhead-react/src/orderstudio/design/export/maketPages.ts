@@ -61,7 +61,7 @@ export function maketPages(item: Pick<SalesItem, 'prints'>, flat: GarmentFlat): 
   });
 }
 
-/** Строка легенды: «Грудь (перед) — DTF, 120×80 мм, 80 мм ниже шва горловины» */
+/** Строка легенды: «Грудь (перед) — DTF, 120×80 мм, 80 мм от шва горловины» */
 export function maketCaption(e: MaketEntry): string {
   const p = e.print;
   const size = `${Math.round(e.placement.width_mm)}×${Math.round(e.placement.height_mm)} мм`;

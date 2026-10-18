@@ -9,6 +9,9 @@
  * не мягче сервера: пункты с `rule` дают те же условия (паритет — тест и сторож T1).
  * PDF у позиции проверяется у МС и при `withTzPdf` (продавцу PDF собирает отправка).
  *
+ * Расхождения внутри группы ТЗ вне ключа К3 (бирки, упаковка, подрядчик, эффекты…) —
+ * НЕблокирующий пункт `group-diff:<hash8>` (`groupDivergence`): документ берёт их у первой позиции.
+ *
  * Глифы — по полям `TzDoc` каждой группы (К10), без раскладки и `fitText`
  * (сторож `tzModelGuards`): чек-лист живёт в графе рабочего места.
  */
@@ -16,6 +19,7 @@ import type { SalesItem, SalesOrder } from '../../model/types';
 import { gridQty } from '../../model/factory';
 import { parseDateLocal } from '../../../utils/date';
 import { glyphItems, itemHref, itemName } from './sendGlyphs';
+import { groupDivergence } from './groupDiff';
 import { hashFromTzPath } from './tzHash';
 import { tzDocument } from './tzDocument';
 import { tzGroups } from './tzGroups';
@@ -95,6 +99,13 @@ export function sendChecklist(order: SalesOrder, cat: TzCatalogs, ctx: CheckCtx)
   for (const g of tzGroups(order)) {
     const doc = tzDocument(order, g, cat, { issuedOn: '', appOrigin: '' });
     out.push(...glyphItems(doc, g.items[0], ms));
+    const diff = groupDivergence(g.items);
+    if (diff.length > 0) {
+      const names = g.items.map((i) => `«${itemName(i)}»`).join(', ');
+      const fact = `У позиций одного ТЗ (${names}) разное: ${diff.join(', ')} — в ТЗ попадёт вариант первой позиции`;
+      out.push({ id: `group-diff:${g.hash8}`, ok: false, blocking: false, href: ms ? null : itemHref(g.items[0]),
+        text: ms ? `${fact} — верните менеджеру` : `${fact}. Выровняйте или вынесите позицию в отдельное изделие` });
+    }
   }
   if (ctx.marginPct != null && ctx.minMarginPct != null && ctx.marginPct < ctx.minMarginPct) {
     out.push({ id: 'margin', ok: false, blocking: false, href: null,

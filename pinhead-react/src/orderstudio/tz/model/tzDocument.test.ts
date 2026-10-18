@@ -76,6 +76,37 @@ describe('tzDocument — граничные случаи', () => {
     expect(g.rows).toEqual([{ color: 'Чёрный', cells: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0], total: 1 }]);
   });
 
+  it('нанесения в разном порядке у позиций группы — Pantone и комментарий по ключу, а не по номеру', () => {
+    const chest = newSalesPrint({ zone: 'Грудь', method: 'silkscreen', width_mm: 100, height_mm: 80, artwork_path: 'orders/o1/a.png' });
+    const back = newSalesPrint({ zone: 'Спина', method: 'silkscreen', width_mm: 300, height_mm: 400, artwork_path: 'orders/o1/b.png' });
+    const black = item({ prints: [
+      { ...chest, pantone: ['White'], comment: 'грудь чёрной' },
+      { ...back, pantone: ['Red 032 C'], comment: 'спина чёрной' },
+    ] });
+    const white = {
+      ...duplicateInColor(black, 'Белый'),
+      size_grid: { sizes: ['S', 'M'], rows: [{ color: 'Белый', sizes: { S: 1, M: 1 } }] },
+      prints: [
+        { ...back, key: 'wb', pantone: ['Navy 289 C'], comment: 'спина белой' },
+        { ...chest, key: 'wc', pantone: ['Black 6 C'], comment: 'грудь белой' },
+      ],
+    };
+    const order = newSalesOrder({ id: 'o1', number: 'PH-1', items: [black, white] });
+    expect(tzGroups(order)).toHaveLength(1);
+    const doc = docOf([black, white]);
+    expect(doc.prints.map((p) => p.zone)).toEqual(['Грудь', 'Спина']);
+    expect(doc.prints[0]).toMatchObject({ pantone: 'Чёрный: White; Белый: Black 6 C', comment: 'Чёрный: грудь чёрной; Белый: грудь белой' });
+    expect(doc.prints[1]).toMatchObject({ pantone: 'Чёрный: Red 032 C; Белый: Navy 289 C', comment: 'Чёрный: спина чёрной; Белый: спина белой' });
+  });
+
+  it('две позиции одного цвета в группе — одна строка сетки, штуки сложены', () => {
+    const a = item();
+    const b = { ...duplicateInColor(a, 'Чёрный'), size_grid: { sizes: ['S', 'M'], rows: [{ color: ' Чёрный ', sizes: { S: 4, M: 0 } }] } };
+    const g = tzGrid([a, b]);
+    expect(g.rows).toEqual([{ color: 'Чёрный', cells: [0, 0, 5, 2, 0, 0, 0, 0, 0, 0], total: 7 }]);
+    expect(g.total).toBe(7);
+  });
+
   it('дата оформления и срок — «дд.мм.гггг»; мусор — пусто; ссылка подвала без двойного «/»', () => {
     expect(fmtDate('2026-01-05')).toBe('05.01.2026');
     expect(fmtDate('не дата')).toBe('');

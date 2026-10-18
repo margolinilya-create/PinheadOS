@@ -3,6 +3,7 @@
  * вне ряда (3XS, 5XL, детские, свой) — доп. колонкой в конце, если в нём есть
  * штуки; итог — от всех колонок.
  *
+ * Строки одного цвета (две позиции «Чёрный» в одной группе) сливаются в одну.
  * Считаются только АКТИВНЫЕ размеры позиции (`size_grid.sizes`), как у `gridQty`
  * и ERP: штуки неактивного размера в тираж не входят. Строка — цвет позиции;
  * строка без штук и позиция с пустой сеткой в таблицу не идут (они в группе,
@@ -32,9 +33,23 @@ function rowQty(item: SalesItem, sizes: Record<string, number>, only: readonly s
   return out;
 }
 
+/** Строки одного цвета (в т.ч. из разных позиций группы) — одной строкой, штуки складываются */
+function mergeByColor(rows: { color: string; qty: Record<string, number> }[]): { color: string; qty: Record<string, number> }[] {
+  const byColor = new Map<string, { color: string; qty: Record<string, number> }>();
+  for (const r of rows) {
+    const k = r.color.toLowerCase();
+    const prev = byColor.get(k);
+    if (!prev) { byColor.set(k, { color: r.color, qty: { ...r.qty } }); continue; }
+    const qty = { ...prev.qty };
+    for (const [s, n] of Object.entries(r.qty)) qty[s] = (qty[s] ?? 0) + n;
+    byColor.set(k, { color: prev.color, qty });
+  }
+  return [...byColor.values()];
+}
+
 export function tzGrid(items: readonly SalesItem[], only: readonly string[] = []): TzGrid {
-  const raw = items.flatMap((item) => item.size_grid.rows.map((r) => ({ color: r.color.trim(), qty: rowQty(item, r.sizes, only) })))
-    .filter((r) => Object.keys(r.qty).length > 0);
+  const raw = mergeByColor(items.flatMap((item) => item.size_grid.rows.map((r) => ({ color: r.color.trim(), qty: rowQty(item, r.sizes, only) })))
+    .filter((r) => Object.keys(r.qty).length > 0));
   const extra = [...new Set(raw.flatMap((r) => Object.keys(r.qty)))]
     .filter((s) => !TZ_STANDARD_SIZES.includes(s))
     .map((s, i) => ({ s, i }))
