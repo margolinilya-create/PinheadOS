@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildSceneSvg, PDF_FONT_FAMILY, TYPICAL_FLAT_NOTE, type SceneInput } from './buildSceneSvg';
+import { createHash } from 'node:crypto';
+import { buildSceneSvg, mockupSceneMm, PDF_FONT_FAMILY, TYPICAL_FLAT_NOTE, type SceneInput } from './buildSceneSvg';
+import { goldenScene } from './sceneGolden.testutil';
 import { sanitizeSvg } from '../assets/sanitizeSvg';
 import { frontView } from '../fixtures.testutil';
 import type { Placement, ProfileOf } from '../types';
@@ -185,5 +187,55 @@ describe('buildSceneSvg — чужие данные (H1)', () => {
   it('вредный флэт вычищен', () => {
     const evil = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 760"><foreignObject><b>x</b></foreignObject><g id="garment" onload="alert(1)"/></svg>';
     expect(scene({ flatMarkup: evil })).not.toMatch(/foreignObject|onload|alert/);
+  });
+});
+
+describe('buildSceneSvg — мокап ТЗ: outputScale и выделение (веха 6+7, задача 3, К6)', () => {
+  /** 7 pt в мм — меньше цех не читает; линия — не тоньше 0,25 мм */
+  const MIN_FONT_MM = (7 * 25.4) / 72;
+  const MIN_LINE_MM = 0.25;
+  const markupLayer = (svg: string) => svg.match(/data-layer="markup">([\s\S]*?)<\/g><\/g>/)?.[1] ?? '';
+  const nums = (s: string, attr: string) => [...s.matchAll(new RegExp(`${attr}="([\\d.]+)"`, 'g'))].map((m) => parseFloat(m[1]));
+
+  it('по умолчанию лист макета 5а побайтно прежний (sha-256 до правки) и равен outputScale = 1', () => {
+    const svg = goldenScene();
+    expect(createHash('sha256').update(svg).digest('hex')).toBe('3318d9d90ec8707219c87e6105990edbf0b9e3a8a124dceb73995fd286596a1c');
+    expect(goldenScene({ outputScale: 1 })).toBe(svg);
+  });
+
+  it('мокап: без шапки, шкалы «1:1» и метки размера; лист — флэт с полями', () => {
+    const svg = goldenScene({ outputScale: 0.18, legend: [] });
+    expect(svg).not.toContain('data-order-header');
+    expect(svg).not.toContain('data-calibration-mm');
+    expect(svg).not.toContain('масштаб 1:1');
+    expect(svg).not.toContain('data-size-label');
+    expect(mockupSceneMm({ w: 600, h: 760 })).toEqual({ w: 628, h: 788 });
+    expect(svg).toMatch(/width="628mm"/);
+    expect(svg).toMatch(/height="788mm"/);
+  });
+
+  it('подписи и линии разметки в PDF не мельче 7 pt и 0,25 мм при любом масштабе', () => {
+    for (const s of [0.1, 0.18, 0.3]) {
+      const marks = markupLayer(goldenScene({ outputScale: s, legend: [] }));
+      const fonts = nums(marks, 'font-size');
+      const lines = nums(marks, 'stroke-width');
+      expect(fonts.length).toBeGreaterThan(0);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const f of fonts) expect(f * s).toBeGreaterThanOrEqual(MIN_FONT_MM - 1e-6);
+      for (const w of lines) expect(w * s).toBeGreaterThanOrEqual(MIN_LINE_MM - 1e-6);
+    }
+  });
+
+  it('выделение: разметка (отступ и плашка) — только у текущего нанесения, рисунки — у всех', () => {
+    const images = { a: 'data:image/png;base64,AAAA', b: 'data:image/png;base64,BBBB' };
+    const svg = goldenScene({ outputScale: 0.2, legend: [], images, highlight: 'b' });
+    expect((svg.match(/<image /g) ?? []).length).toBe(2);
+    expect((markupLayer(svg).match(/100×80 мм/g) ?? []).length).toBe(1);
+    expect(svg).toContain('data-highlight="b"');
+  });
+
+  it('мокап проходит санитайзер без потерь', () => {
+    const again = sanitizeSvg(goldenScene({ outputScale: 0.2, legend: [], highlight: 'a' }), 'scene');
+    expect(again.ok && again.removed).toEqual([]);
   });
 });
