@@ -87,6 +87,12 @@ realtime.
 - `pravila-sessii-61-pr-2-chat-vnutri-sdelki-gde-chto-lezhit.md`
 - `pravila-sessii-61-pr-3-katalog-sku-v-erp-gde-chto-lezhit.md`
 
+## Order v4: вкладка «Дизайн» (веха 5а)
+
+Карта модуля `orderstudio/design/` (ядро, ассеты, стор, холст, панель, PDF макета, сид флэтов)
+и замеры бюджета — `pinhead-react/src/orderstudio/design/README.md`. Правила (что можно
+и чего нельзя) — этажом выше, `../pravila-dizain-meikera-veha-5a-18-10.md`.
+
 ## Прочее
 
 - `pravila-erp-audit-po-skilam.md`

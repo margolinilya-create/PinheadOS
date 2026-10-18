@@ -1,7 +1,8 @@
 # `orderstudio/design/` — вкладка «Дизайн» (веха 5а)
 
 План: `docs/superpowers/plans/2026-10-17-order-flow-m5a-design.md`. Этот файл — карта
-модуля и замеры задачи 0 (спайк 17.10). Код модуля появляется в задачах 3–7.
+модуля и замеры бюджета (задачи 0–8, 17–18.10). Правила (что можно и чего нельзя) —
+`docs/rules/pravila-dizain-meikera-veha-5a-18-10.md`.
 
 ## Карта (целевая, по плану)
 
@@ -31,6 +32,44 @@
 (`ProfileOf`, `methodAllowed`) и своих не держит. Сторожа модуля — `designGuards.test.ts`
 (нет импортов ERP, нет HTML-строкой в DOM, ядро без React); паритет цены холста и строки —
 `model/pricingParity.test.ts`.
+
+## Сид флэтов и вкладка «Флэты и зоны» (задача 4, 17.10)
+
+| Модуль | Что |
+|---|---|
+| `seed/flats/*.svg`, `seed/garmentFlats.seed.json` | 35 флэтов и 67 SVG дизайн-мейкера в нашем формате; получены `scripts/flats-seed-convert.mjs` (разово, правила зон и таблица точных моделей — в шапке скрипта) |
+| `seed/seedFlats.ts` | кнопка сида: свежее чтение `garmentFlats` → по каждому недостающему флэту `sanitizeSvg` → `uploadFlatSvg` (`upsert:false`, «уже есть» = успех, по 4 одновременно) → последним `putCatalog`; SVG — `import.meta.glob(..., { eager: true, query: '?raw' })` внутри модуля, один ленивый чанк |
+| `seed/seedInfo.ts` | `SEED_FLATS_COUNT`, `SEED_FILES_COUNT` — тексты вкладки без загрузки сида |
+| `admin/tabs/FlatsTab.jsx` (вне `design/`) | `/order-settings?tab=flats`: таблица силуэтов, кнопка «Загрузить типовые флэты» (admin, director; не на ≤ 760), прогресс и прореженные объявления |
+
+Сторож сида — `seed/garmentFlatsSeed.test.ts` (схема, санитайзер без вырезанного, `zone_id` в справочнике
+зон, подбор силуэта для каждой модели каталога), правила конвертера — `seed/flatsSeedConvert.test.ts`.
+
+## Стор, ассеты, загрузка логотипа (задача 5, 17.10)
+
+| Модуль | Что |
+|---|---|
+| `store/useDesignStore.ts` | выбор, вид, масштаб, история; `bind(orderId, itemKey)` ничего не пишет; `commit(label, fn, key?)` — правка от свежей позиции, запись только `useSalesStore.edit`, снимок `{ prints, flat_id }`, предел 50, слияние 800 мс; только черновик и не конечное состояние сохранения; `reset()` и `registerAppReset` |
+| `model/editItem.ts`, `model/placeArtwork.ts`, `model/orderArtworks.ts` | правки позиции; размещение логотипа «без задвоения» (неразмещённая строка той же зоны получает раскладку); «Логотипы заказа» |
+| `assets/artworkImages.ts`, `assets/flatImages.ts` (+ хуки `useArtworkImage`, `useFlatImage`) | кэши картинок: скачивание → `sniff` по байтам → SVG через санитайзер в новый Blob, растр — новый Blob с типом по сигнатуре; > 4096 px — уменьшение; object URL освобождаются при сбросе и замене |
+| `assets/loadPdf.ts` | pdfjs только `import()`: свой воркер (`workerPort`), без eval/XFA, `maxImageSize` 16 Мп, таймаут 30 с, один PDF за раз; превью 300 dpi, ≤ 2048 px |
+| `assets/useAddArtwork.ts` | конвейер: проверка → загрузка в `order-artworks` при выборе → превью PDF/AI `<путь>.preview.png` (`uploadArtworkPreview`) → один `commit` вместе с `flat_id`; сменилась позиция — нанесение не создаётся |
+| `catalog/useFlatsCatalog.ts` | свежий `fetchCatalogKey('app_config','garmentFlats')` + схема своим ленивым чанком, кэш 10 мин |
+
+Сторожа: `assets/assetGuards.test.ts` (pdfjs только в `loadPdf`, `createObjectURL` только в кэшах,
+без `href`, нет подписанных ссылок, zod — только `zod/mini`), `orderstudio/artworkWrites.test.ts`
+(запись `order-artworks` — только `api/artworks.ts`).
+
+## Холст (задача 6а, 17.10)
+
+| Модуль | Что |
+|---|---|
+| `ui/konva.ts`, `ui/konvaCore.ts` | Core-импорты konva и react-konva; ядро без `Tween`/`Animation`/`FastLayer` |
+| `ui/canvas/EditorCanvas.jsx` | холст: контракт `<EditorCanvas flat view prints selectedKey readOnly onSelect onCommit onDropFile orderId colorHex onUndo onRedo />` (шапка файла); `role="application"`, сброс и вставка файла, `aria-live` с задержкой 500 мс, `data-ready` |
+| `ui/canvas/PlacementNode.jsx`, `canvasOverlays.jsx` | узел размещения (на `pointer: coarse` — `hitStrokeWidth`), сетка, зоны, оси, размеры, привязки |
+| `ui/canvas/useCanvasViewport.ts`, `useCanvasKeys.ts`, `useCanvasTheme.ts`, `usePlacementImages.ts` | масштаб и сдвиг (мм ↔ px), клавиши (стрелки, Esc, Delete, Ctrl+Z), цвета из токенов, картинки размещений |
+| `ui/canvas/canvasMath.ts`, `canvasChange.ts`, `canvasText.ts` | чистая математика, правки `dragend`/`transformend` → поля нанесения, тексты для читалки |
+| `ui/DesignIcon.jsx`, `ui/designIcons.ts` | свой набор иконок Order (20 форм по Lucide, ISC) |
 
 ## PDF макета (задача 7, 17.10)
 
