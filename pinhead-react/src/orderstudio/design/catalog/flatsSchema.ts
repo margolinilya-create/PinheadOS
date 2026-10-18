@@ -13,11 +13,18 @@
  *
  * Битый справочник не роняет экран: `parseFlatsCatalog` отбрасывает битые
  * флэты и возвращает список замечаний (`issues`) по-русски.
+ *
+ * Веха 5б (задача 1): история версий `history[]` (К1) — у записи свой путь
+ * `flats/<id>/v<версия записи>/<вид>.svg`, версии уникальны и меньше текущей;
+ * `tz_row` — код из перечня `catalog/tzRows` (К8); `zone_id` — `ZONE_ID_RE`;
+ * код модели — не больше чем у одного активного флэта (уровень справочника).
+ * Та же форма — у ветки `garmentFlats` в `catalog_value_check` миграции I.
  */
 import * as z from 'zod/mini';
 import { SALES_PRINT_METHODS } from '../../model/types';
 import { FLAT_VIEW_KINDS, GARMENT_TYPES, type GarmentFlat, type GarmentFlatsCatalog } from '../types';
 import { isAccessoryType } from './categoryMap';
+import { TZ_ROW_CODES, ZONE_ID_RE } from '../../catalog/tzRows';
 import {
   AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_NAME_LEN, MAX_POLYGON_POINTS,
   MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
@@ -32,7 +39,7 @@ const method = z.enum(SALES_PRINT_METHODS);
 const point = z.object({ x: coord, y: coord });
 const box = z.object({ width: positiveMm, height: positiveMm });
 
-const anchorsSchema = z.object({
+export const anchorsSchema = z.object({
   neckline_point: z.optional(point),
   center_axis_x: z.optional(coord),
   sleeve_bottom_y: z.optional(coord),
@@ -52,8 +59,8 @@ const gradeRuleSchema = z.object({
 export const printAreaSchema = z.object({
   id: z.string().check(z.regex(AREA_ID_RE)),
   name,
-  zone_id: z.nullable(z.string().check(z.regex(AREA_ID_RE))),
-  tz_row: z.optional(z.string().check(z.maxLength(MAX_NAME_LEN))),
+  zone_id: z.nullable(z.string().check(z.regex(ZONE_ID_RE))),
+  tz_row: z.optional(z.enum(TZ_ROW_CODES)),
   polygon_mm: z.array(z.tuple([coord, coord])).check(z.minLength(3), z.maxLength(MAX_POLYGON_POINTS)),
   safe_inset_mm: z.number().check(z.gte(0), z.lte(MAX_COORD_MM)),
   default_method: z.optional(method),
@@ -75,7 +82,7 @@ export const printAreaSchema = z.object({
   }
 }));
 
-const viewSchema = z.object({
+export const viewSchema = z.object({
   kind: z.enum(FLAT_VIEW_KINDS),
   svg_path: z.string().check(z.maxLength(MAX_NAME_LEN)),
   scale_mm_per_unit: z.number().check(z.gt(0), z.lte(MAX_SCALE_MM_PER_UNIT)),
@@ -99,6 +106,45 @@ function checkAnchors(a: AnchorsIn, kind: string, accessory: boolean, path: (str
   if (a.center_axis_x === undefined) miss('center_axis_x', 'у переда и спины обязательна ось центра');
 }
 
+const historyEntrySchema = z.object({
+  version: z.int().check(z.gte(1), z.lte(MAX_FLAT_VERSION)),
+  views: z.array(viewSchema).check(z.minLength(1), z.maxLength(FLAT_VIEW_KINDS.length)),
+});
+
+type ViewIn = z.infer<typeof viewSchema>;
+
+/**
+ * Виды одной версии: вид не повторяется, путь — по формуле с этой версией (M5),
+ * якоря по виду, зона не повторяется. `sizes` — размеры флэта; у истории `null`:
+ * размеры — метаданные текущей версии и могли измениться
+ */
+function checkViews(
+  views: ViewIn[], f: { id: string; garment_type: string }, version: number,
+  sizes: Set<string> | null, path: (string | number)[], ctx: Ctx,
+): void {
+  const accessory = isAccessoryType(f.garment_type as GarmentFlat['garment_type']);
+  const kinds = new Set<string>();
+  views.forEach((v, vi) => {
+    const at = [...path, vi];
+    if (kinds.has(v.kind)) ctx.addIssue({ code: 'custom', path: [...at, 'kind'], message: `вид «${v.kind}» повторяется` });
+    kinds.add(v.kind);
+    const expected = flatSvgPathOf(f.id, version, v.kind);
+    if (v.svg_path !== expected) {
+      ctx.addIssue({ code: 'custom', path: [...at, 'svg_path'], message: `путь SVG должен быть «${expected}»` });
+    }
+    checkAnchors(v.anchors, v.kind, accessory, [...at, 'anchors'], ctx);
+    for (const [size, a] of Object.entries(v.size_anchors ?? {})) {
+      if (sizes && !sizes.has(size)) ctx.addIssue({ code: 'custom', path: [...at, 'size_anchors', size], message: `размера «${size}» нет в размерах` });
+      checkAnchors(a, v.kind, accessory, [...at, 'size_anchors', size], ctx);
+    }
+    const ids = new Set<string>();
+    v.print_areas.forEach((a, ai) => {
+      if (ids.has(a.id)) ctx.addIssue({ code: 'custom', path: [...at, 'print_areas', ai, 'id'], message: `зона «${a.id}» повторяется` });
+      ids.add(a.id);
+    });
+  });
+}
+
 export const flatSchema = z.object({
   id: z.string().check(z.regex(FLAT_ID_RE)),
   name,
@@ -112,31 +158,22 @@ export const flatSchema = z.object({
   base_size: shortStr,
   sizes: z.array(shortStr).check(z.maxLength(64)),
   views: z.array(viewSchema).check(z.minLength(1), z.maxLength(FLAT_VIEW_KINDS.length)),
+  history: z.optional(z.array(historyEntrySchema).check(z.maxLength(MAX_FLAT_VERSION))),
 }).check(z.superRefine((f, ctx) => {
   const sizes = new Set(f.sizes);
   if (f.sizes.length > 0 && !sizes.has(f.base_size)) {
     ctx.addIssue({ code: 'custom', path: ['base_size'], message: `базового размера «${f.base_size}» нет в размерах` });
   }
-  const accessory = isAccessoryType(f.garment_type);
-  const kinds = new Set<string>();
-  f.views.forEach((v, vi) => {
-    const at = ['views', vi];
-    if (kinds.has(v.kind)) ctx.addIssue({ code: 'custom', path: [...at, 'kind'], message: `вид «${v.kind}» повторяется` });
-    kinds.add(v.kind);
-    const expected = flatSvgPathOf(f.id, f.version, v.kind);
-    if (v.svg_path !== expected) {
-      ctx.addIssue({ code: 'custom', path: [...at, 'svg_path'], message: `путь SVG должен быть «${expected}»` });
+  checkViews(f.views, f, f.version, sizes, ['views'], ctx);
+  const versions = new Set<number>();
+  (f.history ?? []).forEach((h, hi) => {
+    const at = ['history', hi];
+    if (versions.has(h.version)) ctx.addIssue({ code: 'custom', path: [...at, 'version'], message: `версия истории ${h.version} повторяется` });
+    versions.add(h.version);
+    if (!(h.version < f.version)) {
+      ctx.addIssue({ code: 'custom', path: [...at, 'version'], message: `версия истории ${h.version} должна быть меньше текущей ${f.version}` });
     }
-    checkAnchors(v.anchors, v.kind, accessory, [...at, 'anchors'], ctx);
-    for (const [size, a] of Object.entries(v.size_anchors ?? {})) {
-      if (!sizes.has(size)) ctx.addIssue({ code: 'custom', path: [...at, 'size_anchors', size], message: `размера «${size}» нет в размерах` });
-      checkAnchors(a, v.kind, accessory, [...at, 'size_anchors', size], ctx);
-    }
-    const ids = new Set<string>();
-    v.print_areas.forEach((a, ai) => {
-      if (ids.has(a.id)) ctx.addIssue({ code: 'custom', path: [...at, 'print_areas', ai, 'id'], message: `зона «${a.id}» повторяется` });
-      ids.add(a.id);
-    });
+    checkViews(h.views, f, h.version, null, [...at, 'views'], ctx);
   });
 }));
 
@@ -195,5 +232,46 @@ export function parseFlatsCatalog(raw: unknown): FlatsParse {
     seen.add(r.data.id);
     flats.push(r.data as GarmentFlat);
   });
+  issues.push(...catalogIssues(flats));
   return { ok: issues.length === 0, catalog: { version: 1, flats }, issues };
+}
+
+/**
+ * Проверки уровня справочника (как у сервера, миграция I): код модели —
+ * не больше чем у одного АКТИВНОГО флэта. Снятый флэт код не занимает.
+ * Флэты не отбрасываются: какой из двух «лишний», решает администратор
+ */
+export function catalogIssues(flats: readonly GarmentFlat[]): string[] {
+  const owner = new Map<string, string>();
+  const issues: string[] = [];
+  for (const f of flats) {
+    if (!f.active) continue;
+    for (const code of new Set(f.sku_codes)) {
+      const first = owner.get(code);
+      if (first) issues.push(`Флэт «${f.id}»: модель ${code} уже у флэта «${first}»`);
+      else owner.set(code, f.id);
+    }
+  }
+  return issues;
+}
+
+/** Замечание схемы по одному флэту: путь поля и текст по-русски */
+export interface FlatSchemaIssue {
+  path: (string | number)[];
+  text: string;
+}
+
+/** Замечания схемы по одному флэту (редактор: адрес поля для «Перейти»); пусто — флэт корректен */
+export function flatSchemaIssues(f: unknown): FlatSchemaIssue[] {
+  const r = z.safeParse(flatSchema, f);
+  if (r.success) return [];
+  return r.error.issues.map((i) => ({
+    path: i.path.filter((p): p is string | number => typeof p === 'string' || typeof p === 'number'),
+    text: issueText(i),
+  }));
+}
+
+/** Замечания схемы по одному флэту — тексты, как в `parseFlatsCatalog` */
+export function flatIssues(f: unknown): string[] {
+  return flatSchemaIssues(f).map((i) => i.text);
 }

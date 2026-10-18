@@ -26,6 +26,11 @@ export const MAX_PX_SIDE = 12000;
 export const MAX_PX_AREA = 80_000_000;
 /** Предел SVG-текста, байт (M1) */
 export const MAX_SVG_BYTES = 5 * 1024 * 1024;
+/**
+ * Предел файла силуэта, байт — как у бакета флэтов (`FLAT_MAX_BYTES` в
+ * `api/garmentFlats.ts`, миграция H): чистое ядро редактора (5б) не импортирует `api/`
+ */
+export const FLAT_SVG_MAX_BYTES = 1048576;
 
 /**
  * Путь SVG вида в бакете — формула, которую сверяют и клиент (M5), и сервер:

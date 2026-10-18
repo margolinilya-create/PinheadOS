@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Фикстура вехи 5б: злонамеренный силуэт. Санитайзер обязан вычистить всё, что ниже, кроме контура и группы garment -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" width="300mm" height="600mm" viewBox="0 0 300 600" onload="alert('svg-onload')">
+  <sodipodi:namedview id="base"/>
+  <style>path { fill: url(https://evil.example/x.svg#p) }</style>
+  <script>alert('svg-script');document.title='pwned';</script>
+  <g id="garment" fill="#d9d9d9" onclick="alert('click')" style="filter:url(https://evil.example/f)">
+    <path d="M 20,0 L 280,0 L 300,600 L 0,600 Z" onmouseover="alert('over')"/>
+    <use href="https://evil.example/sprite.svg#x"/>
+  </g>
+  <foreignObject x="0" y="0" width="300" height="600"><body xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="alert('fo')"/></body></foreignObject>
+  <image href="https://evil.example/track.png" x="0" y="0" width="10" height="10"/>
+  <a href="javascript:alert('a')"><text x="20" y="95">x</text></a>
+</svg>

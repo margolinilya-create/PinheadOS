@@ -13,7 +13,11 @@ import { readSource, sourceFiles, SRC_DIR } from '../../testutil/sourceFiles';
  *   + `importNode`, показывается `<img>`;
  * - нет открытия окна (`open`), `<iframe>`/`<object>`/`<embed>` — blob-URL логотипа
  *   никуда, кроме `<img>`, не уходит;
- * - чистое ядро (геометрия, справочник, файлы, модель, сцена) — без React.
+ * - чистое ядро (геометрия, справочник, файлы, модель, сцена, правка флэта) — без React;
+ * - ядро правки флэта `edit/` (веха 5б, К14) — без побочных эффектов: ни сети
+ *   (`api/`, `lib/supabase`), ни сторов (`store/use*`, слайсы), ни уведомлений
+ *   (`useToastStore`). Чистые хелперы стора (`store/slices/helpers` — `sizeOrder`)
+ *   разрешены: в них нет состояния.
  */
 const DESIGN_DIR = join(SRC_DIR, 'orderstudio', 'design');
 const files = sourceFiles(DESIGN_DIR).map((f) => ({ rel: relative(DESIGN_DIR, f).split(sep).join('/'), text: readSource(f) }));
@@ -24,12 +28,15 @@ function specifiers(text: string): string[] {
   return [...text.matchAll(re)].map((m) => m[2]);
 }
 
-const PURE_DIRS = ['geometry/', 'catalog/', 'assets/', 'model/', 'export/'];
+const PURE_DIRS = ['geometry/', 'catalog/', 'assets/', 'model/', 'export/', 'edit/'];
 const PURE_FILES = ['types.ts', 'limits.ts'];
 /** Хуки (`catalog/useFlatsCatalog.ts`, задача 5) — React по назначению, они не ядро */
 const isHook = (rel: string) => /(^|\/)use[A-Z][^/]*$/.test(rel);
 const isPure = (rel: string) => PURE_FILES.includes(rel)
   || (PURE_DIRS.some((d) => rel.startsWith(d)) && /\.ts$/.test(rel) && !isHook(rel));
+
+/** Побочные эффекты, запрещённые ядру правки флэта `edit/` */
+const EDIT_SIDE_EFFECTS = /(^|\/)api\/|(^|\/)lib\/supabase|useToastStore|(^|\/)store\/(use[A-Z]|appReset|slices\/[A-Za-z]+Slice)/;
 
 const HTML_SINKS = /\binnerHTML\b|\bouterHTML\s*=|insertAdjacentHTML|document\s*\.\s*write|dangerouslySetInnerHTML/;
 const ESCAPES = /\bwindow\s*\.\s*open\b|<iframe|<object|<embed/i;
@@ -58,7 +65,19 @@ describe('сторожа модуля дизайна', () => {
     expect(bad.map((f) => f.rel)).toEqual([]);
   });
 
+  it('ядро правки флэта edit/ — без сети, сторов и уведомлений', () => {
+    expect(files.filter((f) => f.rel.startsWith('edit/')).length).toBeGreaterThanOrEqual(8);
+    const bad = files.filter((f) => f.rel.startsWith('edit/'))
+      .flatMap((f) => specifiers(f.text).filter((s) => EDIT_SIDE_EFFECTS.test(s)).map((s) => `${f.rel}: ${s}`));
+    expect(bad).toEqual([]);
+  });
+
   it('проверка ловит то, что должна (мутация на строке)', () => {
+    for (const s of ['../../api/garmentFlats', '../../../lib/supabase', '../../../store/useToastStore', '../store/useDesignStore', '../../../store/slices/catalogSlice', '../../../store/appReset']) {
+      expect(EDIT_SIDE_EFFECTS.test(s), s).toBe(true);
+    }
+    expect(EDIT_SIDE_EFFECTS.test('../../../store/slices/helpers')).toBe(false);
+    expect(EDIT_SIDE_EFFECTS.test('../catalog/flatVersion')).toBe(false);
     expect(specifiers("import { x } from '../../erp/types';").some((s) => /(^|\/)erp(\/|$)/.test(s))).toBe(true);
     expect(specifiers("const m = await import('../../../erp/store/useErpStore');")).toEqual(['../../../erp/store/useErpStore']);
     expect(HTML_SINKS.test('holder.innerHTML = svg')).toBe(true);
