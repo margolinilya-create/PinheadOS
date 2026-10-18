@@ -24,6 +24,8 @@ export interface FlatRow {
   kind: string;
   models: string;
   active: boolean;
+  /** Текущая версия геометрии (веха 5б: колонка «Версия») */
+  version: number;
   views: string;
   /** Печатных зон во всех видах */
   zoneCount: number;
@@ -41,6 +43,7 @@ export function flatRow(f: GarmentFlat): FlatRow {
     kind: f.typical ? 'Типовой' : 'Лекало модели',
     models: f.sku_codes.join(', '),
     active: f.active,
+    version: f.version,
     views: f.views.map((v) => VIEW_LABELS[v.kind] ?? v.kind).join(', '),
     zoneCount: areas.length,
     zones,

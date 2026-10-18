@@ -1,8 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { useEffect } from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { fetchCatalogKey } from '../../../lib/catalogs';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { confirm } from '../../../store/useConfirmStore';
 import { useToastStore } from '../../../store/useToastStore';
+import { downloadFlatSvg } from '../../api/garmentFlats';
+import { setCatalogUnsaved } from '../../leaveGuard';
 import { seedFlats } from '../../design/seed/seedFlats';
 import { validFlatsCatalog } from '../../design/catalog/flatsCases';
 import { flatRow, SEED_CONFLICT_TEXT, SEED_SPOKEN_STEPS, seedStatusText, spokenProgress, zonesCount } from './flatsView';
@@ -10,15 +15,46 @@ import FlatsTab from './FlatsTab';
 
 vi.mock('../../../lib/catalogs', async (orig) => ({ ...(await orig()), fetchCatalogKey: vi.fn() }));
 vi.mock('../../design/seed/seedFlats', () => ({ seedFlats: vi.fn() }));
+vi.mock('../../../store/useConfirmStore', async (orig) => ({ ...(await orig()), confirm: vi.fn() }));
+vi.mock('../../api/garmentFlats', async (orig) => ({ ...(await orig()), downloadFlatSvg: vi.fn() }));
+/** Модуль редактора (холст konva): шпион на его загрузку — телефон его не грузит */
+const loaded = vi.hoisted(() => ({ editor: vi.fn() }));
+vi.mock('../flats/FlatEditor', () => {
+  loaded.editor();
+  return {
+    default: (p) => (
+      <div data-testid="flat-editor" data-flat={p.flatId} data-readonly={String(p.readOnly)}>
+        <button type="button" onClick={p.onBack}>← Все флэты</button>
+      </div>
+    ),
+  };
+});
+vi.mock('../flats/ZonesCatalogEditor', () => ({ default: () => <p>Справочник зон нанесения</p> }));
 
 const fetchMock = vi.mocked(fetchCatalogKey);
 const seedMock = vi.mocked(seedFlats);
 const BUTTON = 'Загрузить типовые флэты';
 
-function renderTab(role = 'admin', props = {}) {
-  useAuthStore.setState({ user: { id: 'u-1', role, active: true, approved: true } });
-  return render(<FlatsTab readOnly={false} {...props} />);
+/** Текущий адрес вкладки */
+const where = { search: '' };
+const track = (search) => { where.search = search; };
+function Probe() {
+  const { search } = useLocation();
+  useEffect(() => track(search), [search]);
+  return null;
 }
+
+function renderTab(role = 'admin', props = {}, search = '?tab=flats') {
+  useAuthStore.setState({ user: { id: 'u-1', role, active: true, approved: true } });
+  return render(
+    <MemoryRouter initialEntries={[`/order-settings${search}`]}>
+      <Probe />
+      <FlatsTab readOnly={false} {...props} />
+    </MemoryRouter>,
+  );
+}
+
+const param = (k) => new URLSearchParams(where.search).get(k);
 
 const toasts = (type) => useToastStore.getState().toasts.filter((t) => t.type === type).map((t) => t.message);
 /** Область `aria-live` сида — единственная с явным `aria-live` на вкладке */
@@ -29,12 +65,16 @@ beforeEach(() => {
   seedMock.mockReset();
   useToastStore.setState({ toasts: [] });
   fetchMock.mockResolvedValue({ exists: false, value: null });
+  vi.mocked(confirm).mockReset();
 });
+
+afterEach(() => setCatalogUnsaved('test', false));
 
 describe('FlatsTab — список', () => {
   it('флэтов нет: пустое состояние с числом моделей сида и кнопкой', async () => {
     renderTab('admin');
-    expect(await screen.findByText('Типовых силуэтов пока нет. Загрузите 35 моделей одной кнопкой')).toBeInTheDocument();
+    expect(await screen.findByText('Флэтов пока нет — загрузите типовые или создайте свой из SVG')).toBeInTheDocument();
+    expect(screen.getByText(/типовые силуэты дизайн-мейкера \(35 моделей\)/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: BUTTON })).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledWith('app_config', 'garmentFlats');
   });
@@ -75,7 +115,7 @@ describe('FlatsTab — список', () => {
     expect(screen.getByRole('button', { name: BUTTON })).toBeDisabled();
     fetchMock.mockResolvedValueOnce({ exists: false, value: null });
     fireEvent.click(screen.getByRole('button', { name: 'Загрузить снова' }));
-    expect(await screen.findByText(/Типовых силуэтов пока нет/)).toBeInTheDocument();
+    expect(await screen.findByText(/Флэтов пока нет/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
@@ -97,6 +137,7 @@ describe('FlatsTab — права', () => {
     renderTab('admin', { readOnly: true });
     await screen.findByText(/Типовых силуэтов пока нет/);
     expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Новый флэт' })).toBeNull();
   });
 });
 
@@ -195,11 +236,90 @@ describe('FlatsTab — загрузка типовых флэтов', () => {
   });
 });
 
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 700"><g id="garment"><path d="M0 0h600v700H0z"/></g></svg>';
+
+describe('FlatsTab — режимы по адресу (веха 5б)', () => {
+  beforeEach(() => fetchMock.mockResolvedValue({ exists: true, value: validFlatsCatalog() }));
+
+  it('список: колонка «Версия», строка — ссылка на флэт; «Новый флэт» → flat=new', async () => {
+    renderTab('admin');
+    const link = await screen.findByRole('link', { name: 'Футболка Regular' });
+    expect(link).toHaveAttribute('href', '/order-settings?tab=flats&flat=tshirt-regular');
+    expect(screen.getByRole('columnheader', { name: 'Версия' })).toBeInTheDocument();
+    expect(link.closest('tr')).toHaveTextContent('Типовой1Перед, Спина');
+    fireEvent.click(screen.getByRole('button', { name: 'Новый флэт' }));
+    expect(await screen.findByTestId('flat-editor')).toHaveAttribute('data-flat', 'new');
+    expect(param('flat')).toBe('new');
+  });
+
+  it('flat=<id> — редактор (лениво); rop — только чтение', async () => {
+    renderTab('rop', {}, '?tab=flats&flat=tshirt-regular&view=back');
+    const editor = await screen.findByTestId('flat-editor');
+    expect(editor).toHaveAttribute('data-flat', 'tshirt-regular');
+    expect(editor).toHaveAttribute('data-readonly', 'true');
+  });
+
+  it('part=zones — справочник зон; переключатель «Флэты | Зоны нанесения» пишет part в адрес', async () => {
+    renderTab('admin', {}, '?tab=flats&part=zones');
+    expect(await screen.findByText('Справочник зон нанесения')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Зоны нанесения' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Флэты' }));
+    expect(await screen.findByRole('link', { name: 'Футболка Regular' })).toBeInTheDocument();
+    expect(param('part')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Зоны нанесения' }));
+    await waitFor(() => expect(param('part')).toBe('zones'));
+  });
+
+  it('«← Все флэты» снимает flat и view и возвращает фокус на строку флэта', async () => {
+    renderTab('admin', {}, '?tab=flats&flat=tshirt-regular&view=back');
+    fireEvent.click(await screen.findByRole('button', { name: '← Все флэты' }));
+    const link = await screen.findByRole('link', { name: 'Футболка Regular' });
+    await waitFor(() => expect(document.activeElement).toBe(link));
+    expect(param('flat')).toBeNull();
+    expect(param('view')).toBeNull();
+    expect(param('tab')).toBe('flats');
+  });
+
+  it('уход с несохранённым — подтверждение; «Остаться» — режим прежний', async () => {
+    renderTab('admin', {}, '?tab=flats&flat=tshirt-regular');
+    await screen.findByTestId('flat-editor');
+    setCatalogUnsaved('test', true);
+    vi.mocked(confirm).mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByRole('tab', { name: 'Зоны нанесения' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(confirm).mock.calls[0][0].message).toBe('Правки справочника не сохранены. Если уйти, они пропадут.');
+    expect(param('flat')).toBe('tshirt-regular');
+    vi.mocked(confirm).mockResolvedValueOnce(true);
+    fireEvent.click(screen.getByRole('button', { name: '← Все флэты' }));
+    await waitFor(() => expect(param('flat')).toBeNull());
+  });
+
+  it('телефон (390 px): превью картинкой, модуль редактора не загружается', async () => {
+    loaded.editor.mockClear();
+    vi.mocked(downloadFlatSvg).mockResolvedValue(SVG);
+    renderTab('admin', { readOnly: true }, '?tab=flats&flat=tshirt-regular');
+    const img = await screen.findByRole('img', { name: 'Силуэт «Футболка Regular», вид Перед, зон: 1' });
+    expect(img.getAttribute('src')).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(screen.getByText('Править — с компьютера')).toBeInTheDocument();
+    expect(screen.getByText(/^Грудь — \d+ × \d+ мм — Полочка$/)).toBeInTheDocument();
+    expect(screen.queryByTestId('flat-editor')).toBeNull();
+    expect(loaded.editor).not.toHaveBeenCalled();
+  });
+
+  it('телефон: список — карточки с версией и статусом, без «Новый флэт»', async () => {
+    renderTab('admin', { readOnly: true });
+    const card = await screen.findByRole('link', { name: /Футболка Regular/ });
+    expect(card).toHaveTextContent('Футболка · версия 1');
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Новый флэт' })).toBeNull();
+  });
+});
+
 describe('flatsView — показ', () => {
   it('строка флэта: виды, зоны без повторов, точные модели', () => {
     const f = { ...validFlatsCatalog().flats[0], typical: false, sku_codes: ['T-006'] };
     expect(flatRow(f)).toMatchObject({
-      type: 'Футболка', kind: 'Лекало модели', models: 'T-006', views: 'Перед, Спина', zones: ['Грудь', 'Этикетка'],
+      type: 'Футболка', kind: 'Лекало модели', models: 'T-006', views: 'Перед, Спина', zones: ['Грудь', 'Этикетка'], version: 1,
     });
     expect(zonesCount(1)).toBe('1 зона');
     expect(zonesCount(5)).toBe('5 зон');

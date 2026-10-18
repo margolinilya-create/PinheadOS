@@ -1,0 +1,471 @@
+/* Редактор флэта (веха 5б, задача 6б). Поля и подписи — из Sales.module.css,
+   плашки — из OrderSettings.module.css. ≥ 1101 px — две колонки (холст sticky),
+   761–1100 px — колонки одна под другой, ≤ 760 — FlatPreview. */
+
+.editor { min-width: 0; }
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.back {
+  font: inherit;
+  font-size: var(--type-body);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--type-h4);
+  color: var(--ink);
+}
+
+.badge {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--bg-info);
+  color: var(--color-info-ink);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+}
+
+.unsaved {
+  color: var(--color-warning-ink);
+  background: var(--bg-warning);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-body-sm);
+}
+
+.title:focus-visible,
+.badge:focus-visible,
+.back:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.hint,
+.geoHint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+}
+
+.geoHint { color: var(--color-info-ink); }
+
+.warnText {
+  margin: 0;
+  color: var(--color-warning-ink);
+  font-size: var(--type-body-sm);
+}
+
+.fieldError { color: var(--color-error-ink); font-size: var(--type-body-sm); }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Плашка состояния — как у вкладок справочников (OrderSettings.module.css):
+   своя копия, чтобы ленивый редактор не тянул чанк страницы справочников */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--card);
+  border: 1px solid var(--border-mid);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+}
+
+.notice p { margin: 0; flex: 1 1 320px; }
+.notice:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Две колонки ── */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.sticky {
+  position: sticky;
+  top: var(--space-md);
+  min-width: 0;
+}
+
+.side { min-width: 0; }
+
+@media (max-width: 1100px) {
+  .columns { grid-template-columns: minmax(0, 1fr); }
+  .sticky { position: static; }
+}
+
+.canvasCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.canvasWrap {
+  min-height: 320px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.tab,
+.toggle,
+.pick,
+.goBtn {
+  font: inherit;
+  font-size: var(--type-body-sm);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.tab[aria-selected='true'],
+.toggle[aria-pressed='true'],
+.pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  font-weight: 600;
+}
+
+.toggle:disabled { opacity: 0.5; cursor: default; }
+
+.tab:focus-visible,
+.toggle:focus-visible,
+.pick:focus-visible,
+.goBtn:focus-visible,
+.iconBtn:focus-visible,
+.chipX:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.plain {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.section:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.sectionHead {
+  margin: 0;
+  font-size: var(--type-title);
+  color: var(--ink);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.group legend {
+  padding: 0 var(--space-xs);
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.areaFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+
+.quad {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* ── Списки ── */
+.areaList,
+.pointList,
+.history,
+.hits,
+.previewZones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.areaRow {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.areaRow .pick { flex: 1 1 auto; }
+
+.pointRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.tag {
+  margin-left: var(--space-sm);
+  color: var(--text-dim);
+  font-size: var(--type-label);
+  font-weight: 400;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-h-sm);
+  min-height: var(--control-h-sm);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.iconBtn:disabled { opacity: 0.4; cursor: default; }
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-xs) var(--space-md);
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body);
+  color: var(--ink);
+  min-height: var(--control-h-sm);
+}
+
+.chips,
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+
+.groupLabel {
+  width: 100%;
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--bg2);
+  color: var(--ink);
+  font-size: var(--type-body-sm);
+}
+
+.chipX {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.details summary {
+  cursor: pointer;
+  min-height: var(--control-h-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+
+.removed {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-warning);
+  color: var(--color-warning-ink);
+  font-size: var(--type-body-sm);
+}
+
+.removed p { margin: 0; }
+.removed ul { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); }
+
+.inlineNotice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-md);
+}
+
+.inlineNotice p { margin: 0; }
+
+/* ── Низ: замечания и кнопка (sticky) ── */
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding: var(--space-md) 0;
+  background: var(--card);
+  border-top: 1px solid var(--border-mid);
+}
+
+.saveRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.status { color: var(--text-dim); font-size: var(--type-body-sm); }
+
+/* ── Новый флэт ── */
+.newForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 640px;
+}
+
+/* ── Загрузка ── */
+.skeleton {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-lg);
+}
+
+.skelBlock {
+  min-height: 320px;
+  border-radius: var(--radius-md);
+  background: var(--bg2);
+}
+
+/* ── Телефон: превью ── */
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.previewImg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background: var(--paper);
+  border-radius: var(--radius-md);
+}
+
+.previewZones li {
+  font-size: var(--type-body-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Тач-цель ≥ 44 px: кнопки, иконочные кнопки, чипы, флажки техник, строки выбора */
+@media (pointer: coarse) {
+  .editor :global(.btn),
+  .preview :global(.btn),
+  .notice :global(.btn),
+  .back,
+  .tab,
+  .toggle,
+  .pick,
+  .goBtn,
+  .iconBtn,
+  .checkLabel,
+  .details summary { min-height: 44px; }
+
+  .iconBtn,
+  .chipX { min-width: 44px; }
+  .chipX { min-height: 44px; }
+}
