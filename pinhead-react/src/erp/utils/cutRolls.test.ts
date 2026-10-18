@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
 import {
   rollsAwaitingFate, rollsFateBlock,
-  rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock, rollLeft,
+  rollsForItem, rollLabel, cutTotals, rollTotal, cutBlock, rollLeft, rollAvailable,
   cutSizesPayload, cutRollsPayload, sizeCellsOf, cellKey,
 } from './cutRolls';
 import type { CutSizeRow } from './cutRolls';
@@ -87,6 +87,24 @@ describe('rollsForItem — рулоны не вводятся вручную', (
     const m = fabric({ rolls: [roll(1, { status: 'used' }), roll(2)] });
     expect(rollsForItem([m], 'i1', ['r1']).map((o) => o.roll.label))
       .toEqual(['Рулон №1', 'Рулон №2']);
+  });
+
+  /**
+   * Повторная сдача закроя с тем же рулоном (правки 19.10): прошлая сдача
+   * закрыла рулон с пригодным остатком — с него кроят дальше, «доступно» =
+   * текущий остаток. Малый остаток и израсходованный рулон не возвращаются.
+   */
+  it('свой рулон с пригодным остатком прошлой сдачи — в списке, доступно = length_left_m', () => {
+    const m = fabric({
+      rolls: [
+        roll(1, { status: 'used', leftover_kind: 'usable', length_left_m: 12 }),
+        roll(2, { status: 'used', leftover_kind: 'scrap', length_left_m: 3 }),
+        roll(3, { status: 'used', leftover_kind: 'usable', length_left_m: 0 }),
+      ],
+    });
+    const list = rollsForItem([m], 'i1');
+    expect(list.map((o) => o.roll.id)).toEqual(['r1']);
+    expect(rollAvailable(list[0])).toBe(12);
   });
 
   it('рулоны идут по номерам, а не по порядку хранения', () => {

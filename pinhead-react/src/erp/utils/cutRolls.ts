@@ -22,10 +22,10 @@
  * действия «выдать рулон в цех» на складе нет, и заводить под него колонку,
  * которую никто не пишет, значит завести механизм, которому нечем питаться.
  *
- * ИЗРАСХОДОВАННЫЕ РУЛОНЫ НЕ ПРЕДЛАГАЮТСЯ. `status = 'used'` ставит сам отчёт
- * закроя («рулон израсходован»), и показывать его снова значит предлагать
- * кроить из того, чего нет. Но уже выбранный в текущей форме рулон остаётся
- * видимым всегда — иначе строка исчезала бы из-под рук.
+ * ИЗРАСХОДОВАННЫЕ РУЛОНЫ НЕ ПРЕДЛАГАЮТСЯ (`status = 'used'` ставит отчёт закроя),
+ * кроме закрытых с ПРИГОДНЫМ остатком > 0: с него кроят следующей сдачей,
+ * «доступно» = остаток (правки 19.10). Уже выбранный в текущей форме рулон
+ * остаётся видимым всегда — иначе строка исчезала бы из-под рук.
  */
 
 import type { ErpItemStage, ErpMaterial, ErpMaterialRoll, SizeGridRow } from '../types';
@@ -50,7 +50,6 @@ export interface RollOption {
    */
   fromOrder?: string | null;
 }
-
 
 /** Строка формы: один рулон, расход и раскрой по размерам */
 export interface CutRollEntry {
@@ -140,7 +139,8 @@ export function rollsForItem(
     if (material.kind !== 'fabric') continue;
     if (!acceptedForCutting(material)) continue;
     for (const roll of material.rolls ?? []) {
-      if (roll.status === 'used' && !keep.has(roll.id)) continue;
+      const reusable = roll.leftover_kind === 'usable' && Number(roll.length_left_m ?? roll.qty_left ?? 0) > 0;
+      if (roll.status === 'used' && !reusable && !keep.has(roll.id)) continue;
       out.push({ roll, material, label: rollLabel(roll, material) });
     }
   }

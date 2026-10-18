@@ -42,10 +42,16 @@ export function reportTotals<R extends RollLike>(input: ReportInput & { rolls?: 
     0,
   );
   const scalar = (v: number | undefined) => Math.max(v ?? 0, 0);
+  /**
+   * ВЫПУСК ОДИН РАЗ (правки 19.10, Р5): новая форма закроя шлёт рулоны
+   * без размеров — только расход, а годные — таблицей выпуска (`sizes`).
+   * Старый формат (размеры на рулоне) по-прежнему считает годные с рулонов.
+   */
+  const rolledSizes = rolls.some((r) => (r.sizes ?? []).length > 0);
   return {
     sizes,
     rolls,
-    good: rolls.length > 0
+    good: rolledSizes || (rolls.length > 0 && sizes.length === 0)
       ? rollSum
       : (sizes.length > 0 ? sizeSum((s) => s.qty_good) : scalar(input.qtyGood)),
     /**

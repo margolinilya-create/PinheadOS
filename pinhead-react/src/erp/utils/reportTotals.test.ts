@@ -47,4 +47,20 @@ describe('reportTotals', () => {
     });
     expect(r).toMatchObject({ good: 10, defect: 3, rework: 1 });
   });
+
+  /**
+   * Закрой с правки 19.10: выпуск вводится один раз таблицей, рулоны несут
+   * только расход (без размеров). Годные — сумма таблицы, брак — скаляр формы;
+   * зеркало новой ветки `erp_stage_submit_report`.
+   */
+  it('режим рулонов: good — сумма таблицы выпуска', () => {
+    const r = reportTotals({
+      qtyGood: 999,
+      qtyDefect: 2,
+      sizes: [size(60), size(40, { size: 'L', qty_defect: 7 })],
+      rolls: [{ roll_id: 'r1' }, { roll_id: 'r2', sizes: [] }],
+    });
+    expect(r).toMatchObject({ good: 100, defect: 2, rework: 0 });
+    expect(r.rolls).toHaveLength(2);
+  });
 });
