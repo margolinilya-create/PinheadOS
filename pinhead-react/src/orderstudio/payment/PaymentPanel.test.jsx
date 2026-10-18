@@ -83,7 +83,7 @@ describe('PaymentPanel', () => {
 
   it('МС на «К запуску»: подтверждение перед RPC; отказ в диалоге — RPC нет; нет «Снять отметку»', async () => {
     const o = order({ status: 'ready_to_launch', paid_kind: 'prepaid', paid_at: 't' });
-    dlg.confirm.mockResolvedValueOnce({ ok: false, value: '' }).mockResolvedValueOnce({ ok: true, value: '' });
+    dlg.confirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     rpc.setPayment.mockResolvedValue(okAnswer({ paid_kind: 'full', status: 'ready_to_launch' }));
     render(<PaymentPanel order={o} user={MS} />);
     expect(screen.queryByRole('button', { name: 'Снять отметку' })).toBeNull();

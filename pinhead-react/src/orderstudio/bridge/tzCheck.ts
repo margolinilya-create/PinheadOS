@@ -13,7 +13,7 @@
 import type { SalesOrder } from '../model/types';
 import { tzDocument } from '../tz/model/tzDocument';
 import { tzGroups } from '../tz/model/tzGroups';
-import { NO_CRYPTO_MESSAGE, groupHashFromTzPath, hashFromTzPath, tzContentHash, type Digest } from '../tz/model/tzHash';
+import { NO_CRYPTO_MESSAGE, defaultDigest, groupHashFromTzPath, hashFromTzPath, tzContentHash, type Digest } from '../tz/model/tzHash';
 import type { TzCatalogs } from '../tz/model/tzDocTypes';
 
 export const TZ_MISMATCH = 'ТЗ не соответствует текущим данным заказа или справочникам — верните менеджеру, он отправит заново';
@@ -24,7 +24,7 @@ export type TzCheck = { ok: true } | { ok: false; reason: string };
 
 /** Сверка PDF ТЗ всех позиций с моделью по данным заказа */
 export async function checkTzHashes(
-  order: SalesOrder, cat: TzCatalogs, digest: Digest | null | undefined,
+  order: SalesOrder, cat: TzCatalogs, digest: Digest | null = defaultDigest(),
 ): Promise<TzCheck> {
   const dir = `orders/${order.id.toLowerCase()}/tz/`;
   try {

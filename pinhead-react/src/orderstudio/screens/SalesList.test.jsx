@@ -25,13 +25,14 @@ function Where() {
   return <div data-testid="where">{loc.pathname}{loc.search}</div>;
 }
 
-function renderList(user) {
+function renderList(user, path = '/sales') {
   useAuthStore.setState({ user });
   return render(
-    <MemoryRouter initialEntries={['/sales']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/sales" element={<SalesList />} />
         <Route path="/sales/:id" element={<Where />} />
+        <Route path="/sales/:id/launch" element={<Where />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -72,11 +73,11 @@ describe('SalesList — заголовок и колонки по роли', () 
     expect(screen.queryByRole('button', { name: 'Мои' })).toBeNull();
   });
 
-  it('колонки: номер, клиент, название, статус, сумма, срок, обновлён', async () => {
+  it('колонки: номер, клиент, название, статус, оплата, отправлен, сумма, срок, обновлён', async () => {
     renderList(SELLER);
     await screen.findByText('PH-0101');
     const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
-    expect(heads).toEqual(['Номер', 'Клиент', 'Название', 'Статус', 'Сумма', 'Срок', 'Обновлён']);
+    expect(heads).toEqual(['Номер', 'Клиент', 'Название', 'Статус', 'Оплата', 'Отправлен', 'Сумма', 'Срок', 'Обновлён']);
   });
 });
 
@@ -158,5 +159,54 @@ describe('SalesList — «Новый заказ»', () => {
     await waitFor(() => expect(findOwnEmptyDraft).toHaveBeenCalled());
     expect(saveSalesOrder).not.toHaveBeenCalled();
     expect(screen.queryByTestId('where')).toBeNull();
+  });
+});
+
+const MS = { id: 'u-ms', role: 'manager', name: 'Мария', active: true, approved: true, is_sales: false, is_ms: true };
+const QUEUE = [
+  { ...ROWS[0], id: 'q-1', order_number: 'PH-0201', status: 'ready_to_launch', due_date: '2026-11-05', paid_kind: 'full', sent_at: '2026-10-17T09:00:00Z' },
+  { ...ROWS[0], id: 'q-2', order_number: 'PH-0202', status: 'ready_to_launch', due_date: '2026-10-25', paid_kind: null, paid_override_reason: 'постоянный клиент', sent_at: '2026-10-18T09:00:00Z' },
+  { ...ROWS[0], id: 'q-3', order_number: 'PH-0203', status: 'draft', due_date: '2026-10-20' },
+];
+
+describe('SalesList — пресет «К запуску» (веха 6+7, К22)', () => {
+  it('МС: заголовок «К запуску», только ждущие запуска, по сроку; оплата и дата отправки', async () => {
+    vi.mocked(fetchSalesOrders).mockResolvedValue(QUEUE.map((r) => ({ ...r })));
+    renderList(MS, '/sales?status=ready_to_launch&sort=due');
+    expect(await screen.findByRole('heading', { name: 'К запуску' })).toBeInTheDocument();
+    const rows = bodyRows();
+    expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['PH-0202', 'PH-0201']);
+    expect(within(rows[0]).getByText('Без оплаты (разрешено)')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Оплачен')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('17.10.2026')).toBeInTheDocument();
+    expect(screen.getByLabelText('Порядок')).toHaveValue('due');
+  });
+
+  it('строка, ждущая запуска, у МС ведёт на экран запуска', async () => {
+    vi.mocked(fetchSalesOrders).mockResolvedValue(QUEUE.map((r) => ({ ...r })));
+    renderList(MS, '/sales?status=ready_to_launch&sort=due');
+    fireEvent.click(await screen.findByRole('button', { name: 'PH-0202' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/sales/q-2/launch');
+  });
+
+  it('у продавца та же строка ведёт в карточку, заголовок — свой', async () => {
+    vi.mocked(fetchSalesOrders).mockResolvedValue(QUEUE.map((r) => ({ ...r })));
+    renderList(SELLER, '/sales?status=ready_to_launch');
+    expect(await screen.findByRole('heading', { name: 'Мои заказы' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'PH-0202' }));
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/sales\/q-2$/);
+  });
+
+  it('очередь пуста — «Заказов к запуску нет — менеджеры ещё не отправили»', async () => {
+    vi.mocked(fetchSalesOrders).mockResolvedValue([{ ...QUEUE[2] }]);
+    renderList(MS, '/sales?status=ready_to_launch&sort=due');
+    expect(await screen.findByText('Заказов к запуску нет — менеджеры ещё не отправили')).toBeInTheDocument();
+  });
+
+  it('порядок «По сроку сдачи» пишется в адрес', async () => {
+    renderList(ADMIN);
+    await screen.findByText('PH-0101');
+    fireEvent.change(screen.getByLabelText('Порядок'), { target: { value: 'due' } });
+    await waitFor(() => expect(bodyRows().map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['PH-0101', 'PH-0102', 'PH-0103']));
   });
 });

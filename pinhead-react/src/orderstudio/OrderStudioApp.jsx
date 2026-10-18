@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react'
-import { Routes, Route, Navigate, useBlocker } from 'react-router-dom'
+import { Routes, Route, Navigate, useBlocker, useParams } from 'react-router-dom'
 import styles from '../App.module.css'
 /**
  * Стили раздела. Лежат ЗДЕСЬ, а не в глобальном `styles/index.css`: раздел
@@ -29,7 +29,7 @@ import {
   shouldBlockCatalogLeave, catalogHasUnsaved, CATALOG_LEAVE_TEXT,
 } from './leaveGuard'
 import { useSalesStore } from './store/useSalesStore'
-import { canManageOrderCatalogs, canManageSalesStaff, canUseSales, legacyRedirect } from './layout/orderNav'
+import { canManageOrderCatalogs, canManageSalesStaff, canSeeLaunchQueue, canUseSales, legacyRedirect } from './layout/orderNav'
 import { switchToProduction } from './switchToProduction'
 import OrderLayout from './layout/OrderLayout'
 
@@ -48,6 +48,8 @@ const SkuEditor = React.lazy(() => import('../components/editors/SkuEditor'));
 const SalesList = React.lazy(() => import('./screens/SalesList'));
 // Рабочее место заказа (веха 3): изделия, клиент, ТЗ и цена — ленивый чанк
 const OrderWorkplace = React.lazy(() => import('./workplace/OrderWorkplace'));
+// «К запуску» (веха 6+7): экран МС — PDF ТЗ, оплата, маршрут, запуск в ERP; стор ERP — только по кнопке
+const LaunchScreen = React.lazy(() => import('./launch/LaunchScreen'));
 // Сотрудники продаж (вехи 3, 4): признаки is_sales и is_ms ставят admin, director, rop
 const SalesStaff = React.lazy(() => import('./admin/SalesStaff'));
 // Справочники заказа (веха 4): поставщики, бирки, упаковка, правила цены, подвал ТЗ — admin, director, rop
@@ -88,6 +90,13 @@ function LeaveToProduction() {
  */
 function RoleGuard({ allowed, children }) {
   if (!allowed) return <Navigate to="/sales" replace />;
+  return children;
+}
+
+/** «К запуску» — только МС и руководству производства; прочим — карточка заказа */
+function LaunchGuard({ allowed, children }) {
+  const { id } = useParams();
+  if (!allowed) return <Navigate to={`/sales/${id}`} replace />;
   return children;
 }
 
@@ -159,6 +168,7 @@ function OrderStudioShell({ user }) {
         <Route path="/admin" element={<RoleGuard allowed={isAdmin}><Suspense fallback={Fallback}><div className="container"><AdminScreen /></div></Suspense></RoleGuard>} />
         <Route path="/sales" element={<Suspense fallback={Fallback}><SalesList /></Suspense>} />
         <Route path="/sales/:id" element={<Suspense fallback={Fallback}><OrderWorkplace /></Suspense>} />
+        <Route path="/sales/:id/launch" element={<LaunchGuard allowed={canSeeLaunchQueue(user)}><Suspense fallback={Fallback}><LaunchScreen /></Suspense></LaunchGuard>} />
         <Route path="/sales-staff" element={<RoleGuard allowed={canManageSalesStaff(user)}><Suspense fallback={Fallback}><SalesStaff /></Suspense></RoleGuard>} />
         <Route path="/order-settings" element={<RoleGuard allowed={canManageOrderCatalogs(user)}><Suspense fallback={Fallback}><OrderSettings /></Suspense></RoleGuard>} />
         {/* Неизвестный адрес и старый мастер позиции `/sales/:id/item/:key` — в список */}

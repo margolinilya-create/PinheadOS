@@ -166,14 +166,17 @@ export interface NavItem {
   label: string;
   /** Имя иконки из `erp/components/icons.js` */
   icon: string;
-  /** Кому пункт: admin/director, руководство продаж (сотрудники, справочники заказа) или кто заводит заказы */
-  access?: 'admin' | 'lead' | 'create';
+  /** Кому пункт: admin/director, руководство продаж (сотрудники, справочники заказа), кто заводит заказы или МС и руководство производства («К запуску») */
+  access?: 'admin' | 'lead' | 'create' | 'launch';
 }
 
 export interface NavGroup {
   title: string;
   items: NavItem[];
 }
+
+/** Очередь «К запуску» — пресет списка заказов (веха 6+7, К22) */
+export const LAUNCH_QUEUE_PATH = '/sales?status=ready_to_launch&sort=due';
 
 /** Полное меню; подпись списка заказов зависит от роли — см. `ordersLabel` */
 export const ORDER_NAV: NavGroup[] = [
@@ -182,6 +185,8 @@ export const ORDER_NAV: NavGroup[] = [
     items: [
       { action: NEW_ORDER, label: 'Новый заказ', icon: 'plus', access: 'create' },
       { to: '/sales', label: 'Все заказы', icon: 'orders' },
+      // Пресет списка (К22): ждут запуска, по сроку; строка ведёт на экран запуска
+      { to: LAUNCH_QUEUE_PATH, label: 'К запуску', icon: 'play', access: 'launch' },
     ],
   },
   {
@@ -214,6 +219,7 @@ export function navFor(p: SalesProfile | null | undefined): NavGroup[] {
     admin: isSalesLead(p) && ADMIN_ROLES.includes(p?.role ?? ''),
     lead: canManageSalesStaff(p),
     create: canCreateOrders(p),
+    launch: canSeeLaunchQueue(p),
   };
   return ORDER_NAV
     .map((g) => ({

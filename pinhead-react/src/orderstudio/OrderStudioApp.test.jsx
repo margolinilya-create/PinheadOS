@@ -171,3 +171,25 @@ describe('OrderStudioApp — уход с несохранённым справо
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
+
+describe('OrderStudioApp — «К запуску» /sales/:id/launch (веха 6+7)', () => {
+  it('продавцу экран запуска закрыт — карточка заказа', async () => {
+    const router = renderApp(prof('manager', true), '/sales/o-1/launch');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/o-1'));
+  });
+
+  it('rop (не МС) — тоже в карточку: запуск — сторона производства', async () => {
+    const router = renderApp(prof('rop'), '/sales/o-1/launch');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/o-1'));
+  });
+
+  it.each([
+    ['admin', prof('admin')],
+    ['МС', { ...prof('manager'), is_ms: true }],
+  ])('%s открывает ленивый экран запуска', async (_name, user) => {
+    const router = renderApp(user, '/sales/o-1/launch');
+    // Первый ленивый чанк экрана в jsdom грузится дольше секунды по умолчанию
+    expect(await screen.findByText('Заказ не найден или недоступен', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/sales/o-1/launch');
+  });
+});
