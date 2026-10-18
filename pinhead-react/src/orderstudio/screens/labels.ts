@@ -10,7 +10,7 @@ export const STATUS_LABELS: Record<SalesOrderStatus, string> = {
   quoted: 'КП отправлено',
   ready_to_launch: 'Готов к запуску',
   production: 'В производстве',
-  done: 'Готов',
+  done: 'Сдан',
   cancel_requested: 'Запрошена отмена',
   archived: 'В архиве',
 };

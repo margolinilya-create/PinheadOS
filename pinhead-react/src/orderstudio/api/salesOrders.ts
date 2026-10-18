@@ -58,9 +58,17 @@ export interface SalesOrderListRow {
   created_by: string | null;
   /** «Менеджер» шапки — колонка списка у руководства */
   manager_name: string | null;
+  /** Оплата (веха 6+7): колонка «Оплата» списка и «К запуску» */
+  paid_kind: PaidKind | null;
+  paid_override_reason: string | null;
+  /** Когда отправлен в работу — колонка «Отправлен» */
+  sent_at: string | null;
+  /** Заказ ERP после запуска */
+  erp_order_id: string | null;
 }
 
-const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at, created_by, manager_name';
+/** Литерал целиком: по нему supabase-js выводит тип строки (склейка дала бы `GenericStringError`) */
+export const LIST_COLUMNS = 'id, order_number, title, customer, status, price_total, due_date, updated_at, created_by, manager_name, paid_kind, paid_override_reason, sent_at, erp_order_id';
 /**
  * Связи названы явно (`!fkey`): у `order_notes_cards` два внешних ключа —
  * к заказу и составной к позиции, и без подсказки PostgREST мог бы счесть
@@ -240,6 +248,7 @@ export function rowToSalesOrder(r: Row): SalesOrder {
     launch_by: r.launch_by ?? null,
     launched_at: r.launched_at ?? null,
     launched_by: r.launched_by ?? null,
+    created_by: r.created_by ?? null,
     updated_at: r.updated_at ?? null,
   });
 }
