@@ -11,8 +11,9 @@
  *    права МС в ERP, разделение обязанностей) ДО создания заказа ERP; ставит
  *    метку запуска. Ответ обязан нести `launched` (миграция J) — нет его,
  *    сервер старше фронта: отказ, а не догадка по форме ответа.
- * 2. `bootstrap` — стор ERP и его доменные слайсы ЛЕНИВО (`import()`): сторож
- *    `erpImports.test.ts` пускает сюда ровно три модуля и только так.
+ * 2. `bootstrap` — стор ERP и его доменные слайсы ЛЕНИВО: `import()` шлюза
+ *    `erpGateway.ts` — единственного модуля Order со стором ERP (почему шлюз,
+ *    а не прямые `import()` модулей ERP, — в его шапке; сторож `erpImports`).
  * 3. `payload` — черновик моста → позиции payload формы ERP.
  * 4. `tzcheck` — модель ТЗ по данным заказа против хэша в `tz_pdf_path`
  *    (решения 42, 45): расхождение — запуск закрыт.
@@ -37,6 +38,7 @@
  */
 import { launchCheck, transitionOrder, type LaunchCheckResult, type TransitionResult } from '../api/salesTransitions';
 import type { NewOrderInput } from '../../erp/store/types';
+import type { ErpLaunchModules } from './erpGateway';
 import type { DraftItem } from '../../erp/utils/orderForm';
 import type { SalesOrder } from '../model/types';
 import type { ServerPatch } from '../store/useSalesStore';
@@ -137,25 +139,15 @@ function afterAlready(order: SalesOrder, check: CheckOk, alreadyLaunched: boolea
   return finish(order, erpOrderId, alreadyLaunched, warnings);
 }
 
-/**
- * Модули ERP — загрузчиками, каждый с новой строки `() => import(…)`: сторож
- * ERP `domainSlices.test.ts` считает динамический импорт из `erp/screens/`
- * экраном, кроме строк-загрузчиков. `orderPayload` — чистые функции, а стор
- * получает доменные действия явно (`ensureDomainSlices()`).
- */
-const ERP_MODULES = [
-  () => import('../../erp/lazyScreen'),
-  () => import('../../erp/store/useErpStore'),
-  () => import('../../erp/screens/orders/create/orderPayload'),
-] as const;
-
-type PayloadModule = Awaited<ReturnType<(typeof ERP_MODULES)[2]>>;
+type PayloadModule = ErpLaunchModules['payload'];
 type ErpInput = NewOrderInput & { tz_order_id: string; tz_number: string };
 type Built = { draft: ReturnType<typeof tzToErpDraft>; valid: DraftItem[]; warnings: string[] };
 
 /** Шаг `payload`: черновик моста и позиции payload, либо причина отказа */
-function buildDraft(order: SalesOrder, opts: LaunchOptions, payload: PayloadModule): Built | { fail: string } {
-  const draft = tzToErpDraft(order, opts.launchDate);
+function buildDraft(
+  order: SalesOrder, opts: LaunchOptions, payload: PayloadModule, needsPurchase: ErpLaunchModules['itemNeedsPurchase'],
+): Built | { fail: string } {
+  const draft = tzToErpDraft(order, opts.launchDate, needsPurchase);
   const valid = payload.payloadItems(draft.items);
   if (valid.length === 0) return { fail: REASON.payload };
   // Без связи заказ ERP стал бы сиротой, которую ни переход, ни проверка не опознают
@@ -177,12 +169,10 @@ function inputOf(b: Built, payload: PayloadModule, tzDocs: TzDocPayload[], attac
   } as ErpInput;
 }
 
-async function loadErp() {
-  const [loadLazyScreen, loadStore, loadPayload] = ERP_MODULES;
-  const [lazyScreen, store, payload] = await Promise.all([loadLazyScreen(), loadStore(), loadPayload()]);
-  await lazyScreen.ensureDomainSlices();
-  await store.useErpStore.getState().loadBootstrap();
-  return { store: store.useErpStore, payload };
+/** Шлюз — только `import()`: стор ERP не попадает в граф экрана «К запуску» */
+async function loadErp(): Promise<ErpLaunchModules> {
+  const gateway = await import('./erpGateway');
+  return gateway.loadErpForLaunch();
 }
 
 /** Проверка запуска с разбором ответа: `null` — успех без «уже», иначе итог */
@@ -216,7 +206,7 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
   stage('payload');
   let built;
   try {
-    built = buildDraft(order, opts, erp.payload);
+    built = buildDraft(order, opts, erp.payload, erp.itemNeedsPurchase);
   } catch (e) {
     console.error('[launchToErp] payload', e);
     return { ok: false, stage: 'payload', reason: REASON.payloadBuild };

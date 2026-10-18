@@ -123,6 +123,8 @@ describe('launchToErp', () => {
     expect(input.tz_order_id).toBe(ORDER_ID);
     expect(input.tz_number).toBe('PH-1234');
     expect(input.launch_date).toBe('2026-10-20');
+    // Правило закупки ERP приезжает со шлюзом (`erpGateway`), а не импортом моста
+    expect(input.purchase_required).toBe(true);
     expect(input.items).toHaveLength(1);
     expect(input.items[0]).toMatchObject({ product_type: 'Худи', qty: 15 });
     expect(input.tz.documents).toHaveLength(1);

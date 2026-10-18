@@ -26,7 +26,7 @@
  *    поэтому признаков два: ключ `src/erp/store/useErpStore.ts` (если появится) и литерал
  *    `[loadBootstrap]` из `erp/store/slices/bootstrapSlice.ts` — строка `console.error`
  *    переживает минификацию, а ERP заморожен, так что она не уедет молча.
- *    Потолок временный, 25 000 Б.
+ *    Потолок — замер задачи 7 + 10 %.
  *
  * Модули 6+7 появляются по задачам: нет исходника — «⧗ ещё нет»; исходник есть, но экран
  * его ещё не подключил — «⧗ не подключён»; подключён, а в манифесте нет — красный.
@@ -39,17 +39,26 @@ import { join } from 'node:path';
 /*
  * Задача 7: true — пропавший из манифеста модуль 6+7 красный, а не «⧗ пропущено».
  */
-const M67_REQUIRED = false;
+export const M67_REQUIRED = true;
 
 /**
  * Потолок «Рабочего места» = замер задачи 0 + 15 000 Б gzip. История:
- * · 18.10, задача 0 — замер 79 705 Б gzip (база 5а + 5б) → 94 705.
+ * · 18.10, задача 0 — замер 79 705 Б gzip (база 5а + 5б) → 94 705;
+ * · 18.10, задача 7 — замер 91 557 (модель ТЗ, чек-лист и `sendToWork` статически —
+ *   задача 5); потолок оставлен 94 705 (97 %): рост сверх него — разбор, а не подъём.
  */
 export const WORKPLACE_BUDGET = 94_705;
-/** «ТЗ PDF» без `vendor-pdf`: временно; T7 — замер T3 + 10 % */
-export const TZ_PDF_BUDGET = 60_000;
-/** «Экран запуска»: временно; T7 — замер T6 + 10 % */
-export const LAUNCH_BUDGET = 25_000;
+/**
+ * «ТЗ PDF» без `vendor-pdf` = замер + 10 %. История: задача 3 (проба) — 26 741;
+ * задача 7 (подключён экраном, задача 5) — 28 255 → 31 100.
+ */
+export const TZ_PDF_BUDGET = 31_100;
+/**
+ * «Экран запуска» = замер + 10 %. Задача 7 — 52 679 Б gzip (из них общие с
+ * рабочим местом `salesTransitions`, `ErpStates`, `styles` ≈ 18,7 кБ) → 57 950.
+ * Временный потолок плана 25 000 считал только сам экран, без общих чанков.
+ */
+export const LAUNCH_BUDGET = 57_950;
 
 export const ERP_STORE_SRC = 'src/erp/store/useErpStore.ts';
 /** Литерал стора ERP, переживающий минификацию (`bootstrapSlice`, `console.error`) */
@@ -64,12 +73,12 @@ const LAUNCH_SRC = 'src/orderstudio/launch/LaunchScreen.jsx';
  * Ключ модуля 6+7 или null. Модуль «подключён», когда хоть один из `importers`
  * содержит `needle` (имя модуля или его загрузчика).
  */
-function m67Key({ root, findKey, fail }, name, srcPath, importers = [], needle = name) {
+function m67Key({ root, findKey, fail, m67Required = M67_REQUIRED }, name, srcPath, importers = [], needle = name) {
   const key = findKey(name, srcPath);
   if (key) return key;
   const exists = existsSync(join(root, srcPath));
   const wired = exists && importers.some((f) => existsSync(join(root, f)) && readFileSync(join(root, f), 'utf8').includes(needle));
-  if (M67_REQUIRED || wired) {
+  if (m67Required || wired) {
     fail(`${srcPath} ${exists ? 'подключён' : 'обязателен'}, но не найден в манифесте — проверьте страж`);
   } else if (exists) {
     console.log(`⧗ ${srcPath} ещё не подключён (${importers.join(', ')} не грузят ${needle}) — проверка пропущена`);
@@ -89,7 +98,8 @@ const vendorIn = (files, name) => files.filter((f) => f.includes(name));
 
 /**
  * Проверки 6+7. `ctx`: manifest, root, dist, findKey, staticGraph, report, check, fail, minus,
- * entryKey, orderAppKey, workplaceKey, orderJs (граф оболочки Order: вход + OrderStudioApp + OrderWorkplace).
+ * entryKey, orderAppKey, workplaceKey, orderJs (граф оболочки Order: вход + OrderStudioApp + OrderWorkplace);
+ * `m67Required` — для тестов стража (по умолчанию `M67_REQUIRED`).
  * Возвращает размеры для справки против базы.
  */
 export function checkTzLaunch(ctx) {

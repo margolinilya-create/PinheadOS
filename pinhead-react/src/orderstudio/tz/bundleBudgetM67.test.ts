@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import {
-  checkTzLaunch, erpStoreFiles, ERP_STORE_MARKER, LAUNCH_BUDGET, TZ_PDF_BUDGET, WORKPLACE_BUDGET,
+  checkTzLaunch, erpStoreFiles, ERP_STORE_MARKER, LAUNCH_BUDGET, M67_REQUIRED, TZ_PDF_BUDGET, WORKPLACE_BUDGET,
 } from '../../../scripts/bundle-budget-m67.mjs';
 
 /**
@@ -35,7 +35,9 @@ function staticGraph(manifest: Manifest, roots: string[]) {
 const minus = (files: string[], ...sets: string[][]) => files.filter((f) => !sets.some((s) => s.includes(f)));
 
 /** Файлы в dist: имя → размер (содержимое из «x», gzip считает только report) */
-function setup(opts: { sources?: Record<string, string>; manifest: Manifest; bodies?: Record<string, string>; sizes?: Record<string, number> }) {
+function setup(opts: {
+  sources?: Record<string, string>; manifest: Manifest; bodies?: Record<string, string>; sizes?: Record<string, number>; required?: boolean;
+}) {
   const root = mkdtempSync(join(tmpdir(), 'budget-m67-'));
   const dist = join(root, 'dist');
   mkdirSync(join(dist, 'assets'), { recursive: true });
@@ -59,6 +61,8 @@ function setup(opts: { sources?: Record<string, string>; manifest: Manifest; bod
     entryKey: 'index.html',
     orderAppKey: '_OrderStudioApp.js',
     workplaceKey: '_OrderWorkplace.js',
+    // Режим «до задач T3/T6» по умолчанию: пропавший неподключённый модуль — пропуск
+    m67Required: opts.required ?? false,
   };
   return { ctx, errors, checks, root, dist };
 }
@@ -105,6 +109,19 @@ describe('бюджет 6+7: до задач T3 и T6', () => {
       },
     });
     expect(errors).toEqual([]);
+  });
+});
+
+describe('бюджет 6+7: после задачи 7 (M67_REQUIRED)', () => {
+  it('флаг включён: все модули 6+7 подключены', () => {
+    expect(M67_REQUIRED).toBe(true);
+  });
+
+  it('пропавший модуль — красный и без исходника, и неподключённый', () => {
+    const { errors } = run({ manifest: BASE, required: true });
+    expect(errors).toHaveLength(2);
+    expect(errors.join('\n')).toMatch(/tzPdf\.ts обязателен, но не найден в манифесте/);
+    expect(errors.join('\n')).toMatch(/LaunchScreen\.jsx обязателен, но не найден в манифесте/);
   });
 });
 
