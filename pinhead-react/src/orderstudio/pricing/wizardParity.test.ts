@@ -129,20 +129,21 @@ describe('цена рабочего места = цена визарда', () =>
     })],
   })));
 
-  it('бирки: составник с логотипом, своя основная на канве, хэнгтег', () => close(compare({
-    labels: [
-      newSalesLabel({ label_type: 'composition', variant_id: 'my-logo' }),
-      newSalesLabel({ label_type: 'brand', variant_id: 'custom:canvas', place: 'Горловина' }),
-      newSalesLabel({ label_type: 'hangtag', variant_id: 'custom' }),
-    ],
-    wizard: {
-      labelConfig: {
-        careLabel: { enabled: true, logoOption: 'my-logo', composition: '', country: '', uploadData: null, comments: '' },
-        mainLabel: { option: 'custom', placement: 'neck', material: 'canvas', color: 'white', uploadData: null, comments: '' },
-        hangTag: { option: 'custom', uploadData: null, comments: '' },
-      },
-    },
-  })));
+  // Бирок визарда v3 больше нет (веха 8, задача 4: UI убран в вехе 3, мёртвый расчёт
+  // `labelConfig` удалён). Сверка — с прежними ставками визарда напрямую: бирки v4
+  // идут сверху цены изделия ровно на их сумму.
+  it('бирки: составник с логотипом, своя основная на канве, хэнгтег — по ставкам визарда', () => {
+    const { wizard, v4 } = compare({
+      labels: [
+        newSalesLabel({ label_type: 'composition', variant_id: 'my-logo' }),
+        newSalesLabel({ label_type: 'brand', variant_id: 'custom:canvas', place: 'Горловина' }),
+        newSalesLabel({ label_type: 'hangtag', variant_id: 'custom' }),
+      ],
+    });
+    const labels = core.careLabelPrice('my-logo') + core.mainLabelPrice('custom', 'canvas') + core.hangTagPrice('custom');
+    expect(labels).toBe(110);
+    close({ wizard: wizard + labels, v4 });
+  });
 
   it.each(['bopp', 'zip'])('упаковка %s', (packType) => close(compare({
     order: { packaging: packType },

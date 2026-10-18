@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   screenLookup, flexLookup, getZoneSurcharge, getTotalQty,
-  calcTotal, getSkuEstPrice, getLabelConfigPrice, getMarkup,
+  calcTotal, getSkuEstPrice, getMarkup,
   isAccessory, hasNoPrint, SCREEN_FX, TECH_TABS,
 } from './pricing';
+import * as pricing from './pricing';
+import * as pricingCore from './pricingCore';
 import { SKU_CATALOG_DEFAULT, FABRICS_CATALOG_DEFAULT, TRIM_CATALOG_DEFAULT, EXTRAS_CATALOG_DEFAULT } from '../data';
 
 // ── Helpers ──
@@ -188,47 +190,26 @@ describe('getSkuEstPrice', () => {
 });
 
 // ═══════════════════════════════
-// 6. Label config price
+// 6. Бирки визарда v3 (labelConfig) — мёртвая ветка удалена (веха 8, задача 4)
 // ═══════════════════════════════
-describe('getLabelConfigPrice', () => {
-  it('returns 0 when all disabled', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: false },
-      mainLabel: { option: 'none' },
-      hangTag: { option: 'none' },
-    })).toBe(0);
+// UI бирок визарда убран в вехе 3; цена бирок v4 — `salesLabelPrice` по библиотеке
+// (`orderstudio/pricing/priceOrder.ts`). Буфер визарда ещё носит `labelConfig`,
+// но в цене он участвовать не должен: иначе мёртвое поле молча меняет сумму.
+describe('бирки v3 (labelConfig) в цене визарда не участвуют', () => {
+  it('getLabelConfigPrice больше не экспортируется', () => {
+    expect('getLabelConfigPrice' in pricing).toBe(false);
+    expect('getLabelConfigPrice' in pricingCore).toBe(false);
   });
 
-  it('careLabel enabled + my-logo', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: true, logoOption: 'my-logo' },
-      mainLabel: { option: 'none' },
-      hangTag: { option: 'none' },
-    })).toBe(10 + 20);
-  });
-
-  it('mainLabel standard + woven', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: false },
-      mainLabel: { option: 'standard', material: 'woven' },
-      hangTag: { option: 'none' },
-    })).toBe(30);
-  });
-
-  it('hangTag custom', () => {
-    expect(getLabelConfigPrice({
-      careLabel: { enabled: false },
-      mainLabel: { option: 'none' },
-      hangTag: { option: 'custom' },
-    })).toBe(25);
-  });
-
-  it('all options combined', () => {
-    expect(getLabelConfigPrice({
+  it('все бирки включены — цена та же, что без бирок', () => {
+    const none = baseState();
+    const all = baseState();
+    all.labelConfig = {
       careLabel: { enabled: true, logoOption: 'my-logo' },
       mainLabel: { option: 'custom', material: 'canvas' },
       hangTag: { option: 'standard' },
-    })).toBe(30 + 55 + 15); // care(10+20) + main(45+10) + hang(15)
+    };
+    expect(calcTotal(all)).toBe(calcTotal(none));
   });
 });
 

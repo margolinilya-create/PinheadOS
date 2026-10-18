@@ -15,8 +15,8 @@ test.describe('Core navigation', () => {
 
   test('express calculator route loads', async ({ page }) => {
     await page.goto('/express');
-    // Any element with text EXPRESS or КАЛЬКУЛЯТОР appears in header
-    await expect(page.getByText(/EXPRESS|КАЛЬКУЛЯТОР/i).first()).toBeVisible({ timeout: 10000 });
+    // Шапка экрана — PageHead с h1 «Экспресс-расчёт» (веха 8, задача 4; было «EXPRESS КАЛЬКУЛЯТОР»)
+    await expect(page.getByRole('heading', { level: 1, name: 'Экспресс-расчёт' })).toBeVisible({ timeout: 10000 });
   });
 
   test('старые адреса ведут на рабочие экраны', async ({ page }) => {

@@ -1,0 +1,240 @@
+/* Экспресс-расчёт `/express` (веха 8, задача 4; было — глобальный `express.css`
+   с `exp-*` и каркас `.kanban-page`/`.sku-ed-header` из чужих файлов).
+   Только токены: цвета, кегли, отступы, высоты контролов. Выбор показан
+   не только цветом — заливкой, рамкой и галочкой (`aria-checked`/`aria-pressed`).
+
+   КНОПКИ И ПУСТОЕ СОСТОЯНИЕ — СНИМОК ПРИМИТИВОВ ERP, А НЕ ИМПОРТ (замер 18.10).
+   `ExpressCalc` грузится лениво из `OrderStudioApp`, в статическом графе которого
+   нет ни `Button`, ни `ErpStates`. Импорт их из экспресса менял набор потребителей
+   общего чанка `ErpStates`, Rollup резал его надвое — и оболочка ERP менялась
+   (JS +124 Б, CSS +404 Б gzip, CSS выше потолка 16 000), хотя ERP никто не правил.
+   Тот же приём, что у оболочки Order (К11 плана вехи 8): нужные правила
+   `erp/components/Button.module.css` (вариант secondary, размер md) и
+   `States.module.css` повторены здесь токенами. `Icon` импортируется — он уже
+   в статическом графе `OrderStudioApp` (шапка оболочки). Меняете кнопку ERP —
+   сверьте снимок. */
+
+/* Каркас страницы, шапка и поля — общие классы раздела (`Sales.module.css`) */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2xl);
+  align-items: start;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.hint {
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+
+/* ─── Группы вариантов ─── */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.groupLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-mid);
+}
+
+.groupSum {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* Вариант — снимок `Button` secondary md; выбранный — заливка главной кнопки
+   (контраст держит токен пары) и галочка/рамка: видно и без цвета. */
+.opt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: var(--control-h-md);
+  min-height: var(--control-h-md);
+  padding: 0 14px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+.opt:hover:not(:disabled) { background: var(--surface); border-color: var(--text-muted); }
+.opt:active:not(:disabled) { background: var(--bg3); border-color: var(--text-mid); }
+.opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.opt:disabled { cursor: not-allowed; opacity: 0.55; }
+.opt[aria-checked='true'],
+.opt[aria-pressed='true'] {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+}
+.opt[aria-checked='true']:hover:not(:disabled),
+.opt[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--btn-primary-hover-bg);
+}
+
+.optPrice {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-label);
+}
+
+/* ─── Зона нанесения ─── */
+.zone {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.zoneHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-display);
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+
+.zonePrice {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  white-space: nowrap;
+}
+
+.zoneBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.warn {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  color: var(--color-warning-ink);
+}
+
+/* ─── Итог ─── */
+/* Пустое состояние — снимок `EmptyState` (`States.module.css`), см. шапку */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xl) var(--space-lg);
+  text-align: center;
+}
+.emptyIcon { color: var(--text-dim); }
+.emptyTitle { font-size: var(--type-body); font-weight: 600; color: var(--text); }
+.emptyText { font-size: var(--type-body-sm); color: var(--text-dim); }
+
+.result {
+  position: sticky;
+  top: var(--space-lg);
+  padding: var(--space-xl);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  min-width: 0;
+}
+
+.resultTitle {
+  margin: 0 0 var(--space-md);
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+}
+
+.rows {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: var(--type-body-sm);
+}
+.row dt { color: var(--text-dim); min-width: 0; }
+.row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.unit { font-size: var(--type-body); }
+.unit dt { color: var(--text); font-weight: 600; }
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+}
+
+.totalValue {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-h4);
+  color: var(--accent);
+}
+
+/* ─── Компактная раскладка: экспресс — инструмент «на ходу», работает и с телефона ─── */
+@media (max-width: 760px) {
+  .grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); }
+  .result { position: static; padding: var(--space-lg); }
+  .zoneHead,
+  .zoneBody { padding-left: var(--space-md); padding-right: var(--space-md); }
+}

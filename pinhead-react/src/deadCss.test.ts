@@ -31,6 +31,9 @@ const FILES = ['editors', 'express', 'garment'].map((n) => `styles/${n}.css`);
  * «изменён / удалён». Исключение живёт, пока жив файл; протухшее — красное.
  */
 const KNOWN_DEAD: Record<string, Record<string, string>> = {
+  'styles/editors.css': {
+    'sku-ed-header': 'шапка экспресса; экспресс ушёл на свой CSS-модуль (задача 4), editors.css удаляет задача 3',
+  },
   'styles/garment.css': {
     'supplier-tabs': 'вкладки поставщиков ткани убраны из FabricGrid; файл уходит в задаче 6',
     'supplier-tab': 'то же',
