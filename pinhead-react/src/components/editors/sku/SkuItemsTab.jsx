@@ -83,7 +83,7 @@ export default function SkuItemsTab({
                         </td>
                         <td className={t.code}>{s.code}</td>
                         <td>
-                          <input className={`${t.input} ${t.name}`} value={s.name} aria-label={`Название: ${s.code}`}
+                          <input type="text" className={`${t.input} ${t.name}`} value={s.name} aria-label={`Название: ${s.code}`}
                             onChange={e => updateSku(realIdx, 'name', e.target.value)} />
                         </td>
                         <td>

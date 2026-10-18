@@ -51,6 +51,10 @@ export function jsxOffences(code: string): string[] {
   if (/dangerouslySetInnerHTML|\.innerHTML\s*=/.test(src)) out.push('HTML строкой');
   if (/[↓↑↻✕✓▲▼]|&#10005;|&#10003;|&#8381;|&rarr;/.test(src)) out.push('глиф вместо Icon/текста');
   if (/className="[^"]*\b(sku-|pe-|cat-rule|extras-|econ-|fabric-|page-search)/.test(src)) out.push('глобальный класс editors.css');
+  // Поле таблицы без type не получает стандарт поля (`input[type=…]` в forms-base.css):
+  // рамка браузера, как у активного поля, и на телефоне в режиме просмотра (обход, M-5)
+  const tableInputs = [...src.matchAll(/<input\b([\s\S]*?)\/>/g)].map((m) => m[1]).filter((a) => /\bt\.input\b/.test(a));
+  if (tableInputs.some((a) => !/\btype=/.test(a))) out.push('поле таблицы без type');
   return out;
 }
 
@@ -98,5 +102,7 @@ describe('«Каталог моделей и цен» — без глобаль�
     expect(jsxOffences('<div className="x" onClick={go}>')).toContain('<div onClick>');
     expect(jsxOffences('<button>Excel ↓</button>')).toContain('глиф вместо Icon/текста');
     expect(jsxOffences('<div className="sku-ed-panel">')).toContain('глобальный класс editors.css');
+    expect(jsxOffences('<input className={`${t.input} ${t.name}`} value={s.name}\n onChange={e => go(e)} />')).toContain('поле таблицы без type');
+    expect(jsxOffences('<input type="text" className={`${t.input} ${t.name}`} onChange={e => go(e)} />')).toEqual([]);
   });
 });

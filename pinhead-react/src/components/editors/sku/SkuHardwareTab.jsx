@@ -41,7 +41,7 @@ export default function SkuHardwareTab({ hardwareCatalog, updateHardware, addHar
                         <td className={`${t.num} ${t.dim}`}>{realIdx + 1}</td>
                         <td className={t.code}>{h.code}</td>
                         <td>
-                          <input className={`${t.input} ${t.name}`} value={h.name} aria-label={`Название: ${h.code}`}
+                          <input type="text" className={`${t.input} ${t.name}`} value={h.name} aria-label={`Название: ${h.code}`}
                             onChange={(e) => updateHardware(realIdx, 'name', e.target.value)} />
                         </td>
                         <td>
