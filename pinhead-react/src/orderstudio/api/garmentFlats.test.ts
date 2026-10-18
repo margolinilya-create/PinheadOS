@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import {
-  FLATS_BUCKET, FLAT_MAX_BYTES, FLAT_MIME, FLAT_VIEW_KINDS,
-  downloadFlatSvg, flatSvgPath, isFlatPath, uploadFlatSvg,
+  FLATS_BUCKET, FLAT_ID_RE, FLAT_MAX_BYTES, FLAT_MIME, FLAT_VIEW_KINDS,
+  downloadFlatSvg, flatSvgPath, isFlatPath, listFlatVersions, uploadFlatSvg, uploadFlatSvgOnce,
 } from './garmentFlats';
+import { FLAT_VIEW_KINDS as DESIGN_VIEW_KINDS } from '../design/types';
+import { FLAT_ID_RE as DESIGN_FLAT_ID_RE, MAX_FLAT_VERSION, flatSvgPathOf } from '../design/limits';
 
 /**
  * Флэты изделий — закрытый бакет `garment-flats` (веха 5а, миграция H).
@@ -37,6 +39,13 @@ describe('garmentFlats: константы и путь', () => {
     expect(FLAT_MIME).toBe('image/svg+xml');
     expect(FLAT_MAX_BYTES).toBe(1048576);
     expect([...FLAT_VIEW_KINDS]).toEqual(['front', 'back', 'sleeve_left', 'sleeve_right']);
+  });
+
+  it('константы — один источник с дизайном (design/types, design/limits; техдолг 5а)', () => {
+    expect(FLAT_VIEW_KINDS).toBe(DESIGN_VIEW_KINDS);
+    expect(FLAT_ID_RE).toBe(DESIGN_FLAT_ID_RE);
+    expect(flatSvgPath('tee', MAX_FLAT_VERSION, 'back')).toBe(flatSvgPathOf('tee', MAX_FLAT_VERSION, 'back'));
+    expect(flatSvgPath('tee', MAX_FLAT_VERSION + 1, 'back')).toBe('');
   });
 
   it('flatSvgPath строит версионный путь', () => {
@@ -155,5 +164,81 @@ describe('downloadFlatSvg', () => {
     mockBucket({ download: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')) });
     await expect(downloadFlatSvg(PATH)).resolves.toBeNull();
     expect(toastError).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('uploadFlatSvgOnce — «уже есть» сверяется содержимым (веха 5б, К3)', () => {
+  const PATH = 'flats/tee/v2/front.svg';
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><g id="garment"/></svg>';
+  const exists = () => vi.fn().mockResolvedValue({ data: null, error: { message: 'The resource already exists', statusCode: '409' } });
+  const blob = (text: string) => vi.fn().mockResolvedValue({ data: new Blob([text], { type: FLAT_MIME }), error: null });
+
+  it('объекта не было — uploaded, без скачивания', async () => {
+    const b = mockBucket({ download: vi.fn() });
+    await expect(uploadFlatSvgOnce(PATH, SVG)).resolves.toBe('uploaded');
+    expect(b.upload).toHaveBeenCalledTimes(1);
+    expect(b.download).not.toHaveBeenCalled();
+  });
+
+  it('объект есть с тем же текстом — same (повтор после сбоя)', async () => {
+    const b = mockBucket({ upload: exists(), download: blob(SVG) });
+    await expect(uploadFlatSvgOnce(PATH, SVG)).resolves.toBe('same');
+    expect(b.download).toHaveBeenCalledWith(PATH);
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('объект есть с другим текстом — differs (номер занят чужим сохранением)', async () => {
+    mockBucket({ upload: exists(), download: blob(SVG.replace('10 10', '20 20')) });
+    await expect(uploadFlatSvgOnce(PATH, SVG)).resolves.toBe('differs');
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('ошибка загрузки или скачивания — null с тостом', async () => {
+    mockBucket({ upload: vi.fn().mockResolvedValue({ data: null, error: { message: 'new row violates row-level security policy' } }) });
+    await expect(uploadFlatSvgOnce(PATH, SVG)).resolves.toBeNull();
+    mockBucket({ upload: exists(), download: vi.fn().mockResolvedValue({ data: null, error: { message: 'Object not found' } }) });
+    await expect(uploadFlatSvgOnce(PATH, SVG)).resolves.toBeNull();
+    expect(toastError).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('listFlatVersions — занятые номера версий в бакете (К3)', () => {
+  const folders = (...names: string[]) => names.map((name) => ({ name, id: null, metadata: null }));
+
+  it('читает папку флэта и отдаёт номера v<N> по возрастанию; прочее пропускает', async () => {
+    const list = vi.fn().mockResolvedValue({ data: folders('v2', 'v10', 'v1', 'tmp', 'v0', 'v03', 'v10000', 'front.svg'), error: null });
+    const b = mockBucket({ list });
+    await expect(listFlatVersions('tee')).resolves.toEqual([1, 2, 10]);
+    expect(storageFrom).toHaveBeenCalledWith('garment-flats');
+    expect(list.mock.calls[0][0]).toBe('flats/tee');
+    expect(b.upload).not.toHaveBeenCalled();
+  });
+
+  it('пустая папка — пустой список', async () => {
+    mockBucket({ list: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    await expect(listFlatVersions('tee')).resolves.toEqual([]);
+  });
+
+  it('полная страница — читает следующую', async () => {
+    const page = Array.from({ length: 1000 }, (_, i) => ({ name: `v${i + 1}`, id: null }));
+    const list = vi.fn()
+      .mockResolvedValueOnce({ data: page, error: null })
+      .mockResolvedValueOnce({ data: folders('v1001'), error: null });
+    mockBucket({ list });
+    const res = await listFlatVersions('tee');
+    expect(res).toHaveLength(1001);
+    expect(list.mock.calls[1][1]).toMatchObject({ offset: 1000 });
+  });
+
+  it('неверный id — без запроса; ошибка Storage или сети — toast и null', async () => {
+    const list = vi.fn();
+    mockBucket({ list });
+    await expect(listFlatVersions('../x')).resolves.toBeNull();
+    expect(list).not.toHaveBeenCalled();
+    mockBucket({ list: vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } }) });
+    await expect(listFlatVersions('tee')).resolves.toBeNull();
+    mockBucket({ list: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')) });
+    await expect(listFlatVersions('tee')).resolves.toBeNull();
+    expect(toastError).toHaveBeenCalledTimes(3);
   });
 });

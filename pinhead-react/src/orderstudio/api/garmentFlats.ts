@@ -20,34 +20,39 @@
  * SVG чужой: на холст и в PDF он идёт только через санитайзер (веха 5а,
  * `design/assets/sanitizeSvg`), здесь — только байты.
  *
+ * Веха 5б (задача 3, К3): редактор флэта грузит через `uploadFlatSvgOnce` —
+ * «уже есть» сверяется содержимым (`'same'` — повтор после сбоя, `'differs'` —
+ * номер занят другим сохранением, нужна следующая версия). Занятые номера
+ * версий — `listFlatVersions` (чтение папки, писателем не считается).
+ * Виды, форма id и формула пути — из `design/types` и `design/limits`
+ * (один источник с дизайном), здесь реэкспорт для сторожа бакета.
+ *
  * Ошибка → `toast.error` и `null` (правило проекта). Сторож
  * `flatsWrites.test.ts`: запись в бакет — только из этого модуля.
  */
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { FLAT_VIEW_KINDS, type FlatViewKind } from '../design/types';
+import { FLAT_ID_RE, MAX_FLAT_VERSION, flatSvgPathOf } from '../design/limits';
+
+export { FLAT_VIEW_KINDS, FLAT_ID_RE };
+export type { FlatViewKind };
 
 export const FLATS_BUCKET = 'garment-flats';
 /** = `allowed_mime_types` бакета */
 export const FLAT_MIME = 'image/svg+xml';
 /** = `file_size_limit` бакета (1 МБ; самый большой сид — около 80 КБ) */
 export const FLAT_MAX_BYTES = 1048576;
-/** Виды флэта: в 5а — перед и спина, рукава — под 5б */
-export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
-export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
-
-/** id флэта — как в `catalog_value_check` и CHECK `order_items.flat_id` */
-export const FLAT_ID_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** = регулярка `garment_flat_path_ok` (без флага m: `$` — только конец строки) */
 export const FLAT_PATH_RE = /^flats\/[a-z0-9][a-z0-9-]{0,62}\/v[1-9][0-9]{0,3}\/(front|back|sleeve_left|sleeve_right)\.svg$/;
-const MAX_VERSION = 9999;
 
 /** Путь SVG вида флэта; неверный id, версия или вид — пустая строка */
 export function flatSvgPath(id: string, version: number, kind: FlatViewKind): string {
   if (!FLAT_ID_RE.test(id)) return '';
-  if (!Number.isInteger(version) || version < 1 || version > MAX_VERSION) return '';
+  if (!Number.isInteger(version) || version < 1 || version > MAX_FLAT_VERSION) return '';
   if (!(FLAT_VIEW_KINDS as readonly string[]).includes(kind)) return '';
-  return `flats/${id}/v${version}/${kind}.svg`;
+  return flatSvgPathOf(id, version, kind);
 }
 
 export function isFlatPath(p: unknown): p is string {
@@ -108,4 +113,53 @@ export async function downloadFlatSvg(path: string): Promise<string | null> {
     console.error('downloadFlatSvg', e);
     return fail(context, networkFailureMessage(e));
   }
+}
+
+/**
+ * Загрузка для редактора флэта (К3): «уже есть» сверяется содержимым.
+ * `'uploaded'` — записан; `'same'` — по пути уже лежит тот же текст (повтор
+ * после сбоя; оба текста — выход санитайзера, он идемпотентен); `'differs'` —
+ * по пути чужой текст (сирота сорвавшегося сохранения или второй
+ * администратор): номер версии занят. Отказ — `null` (тост уже показан).
+ */
+export async function uploadFlatSvgOnce(path: string, svg: string): Promise<'uploaded' | 'same' | 'differs' | null> {
+  const res = await uploadFlatSvg(path, svg);
+  if (res !== 'exists') return res;
+  const stored = await downloadFlatSvg(path);
+  if (stored === null) return null;
+  return stored === svg ? 'same' : 'differs';
+}
+
+/** Папка версии флэта в бакете: `v<N>`, N = 1…9999 без ведущих нулей */
+const VERSION_DIR_RE = /^v([1-9][0-9]{0,3})$/;
+/** Строк на страницу `list` */
+const LIST_PAGE = 1000;
+
+/**
+ * Занятые номера версий флэта в бакете — по возрастанию (К3: стартовая версия
+ * выпуска считается и по бакету, иначе сироты навсегда закрыли бы выпуск).
+ * Чтение папки, не запись. Ошибка — `toast.error` и `null`.
+ */
+export async function listFlatVersions(id: string): Promise<number[] | null> {
+  const context = 'Не удалось прочитать версии флэта';
+  if (!FLAT_ID_RE.test(id)) return fail(context, 'неверный id флэта');
+  const found = new Set<number>();
+  try {
+    for (let offset = 0; offset <= MAX_FLAT_VERSION; offset += LIST_PAGE) {
+      const { data, error } = await supabase.storage.from(FLATS_BUCKET).list(`flats/${id}`, { limit: LIST_PAGE, offset });
+      if (error || !data) {
+        console.error('listFlatVersions', error);
+        return fail(context, error ? translateSupabaseError(error.message) : 'пустой ответ');
+      }
+      for (const item of data) {
+        const m = VERSION_DIR_RE.exec(String(item?.name ?? ''));
+        if (m) found.add(Number(m[1]));
+      }
+      if (data.length < LIST_PAGE) break;
+    }
+  } catch (e) {
+    console.error('listFlatVersions', e);
+    return fail(context, networkFailureMessage(e));
+  }
+  return [...found].sort((a, b) => a - b);
 }

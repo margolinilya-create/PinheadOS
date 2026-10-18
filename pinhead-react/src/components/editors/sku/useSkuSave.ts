@@ -61,7 +61,7 @@ const FIELDS = [...SKU_CATALOGS.map((c) => c.field), RATE.field];
 export interface SkuSaveFailure {
   field: string;
   name: string;
-  kind: 'conflict' | 'forbidden' | 'other';
+  kind: 'conflict' | 'forbidden' | 'invalid' | 'other';
 }
 
 type StoreRecord = Record<string, unknown>;
