@@ -634,8 +634,12 @@ describe('миграция H: перегрузки sales_set_staff(uuid, boolean
 
   it('трёхаргументная на месте: последняя редакция — F, H её не трогает', () => {
     expect(functionsOf(HF).map((f) => f.name)).not.toContain('sales_set_staff');
-    expect(latestDefining('sales_set_staff')).toBe(MSF);
-    const last = functionsOf(MSF).filter((f) => f.name === 'sales_set_staff').at(-1);
+    // Миграция J (веха 6+7) пересоздаёт трёхаргументную поверх текста F — сверку тела
+    // «F + помеченные правки» держит orderV4Launch.test.ts
+    const latest = latestDefining('sales_set_staff');
+    const jFile = files.find((f) => f.endsWith('_order_v4_launch.sql'));
+    expect([MSF, jFile ? read(jFile) : MSF]).toContain(latest);
+    const last = functionsOf(latest).filter((f) => f.name === 'sales_set_staff').at(-1);
     expect(last?.head).toMatch(/sales_set_staff\(p_profile uuid, p_kind text, p_on boolean\)/);
     // после H ни одна миграция не заводит перегрузку заново
     for (const f of files.filter((x) => x > flatsFile)) {
