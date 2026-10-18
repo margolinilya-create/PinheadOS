@@ -1,0 +1,78 @@
+/* Холст редактора флэта (веха 5б, задача 6а). Только токены, без !important.
+   Размер задаёт родитель (FlatEditor, задача 6б): холст тянется на всю высоту колонки. */
+
+/* Палитра холста — токены --flat-*: их читает konva (useCanvasTokens).
+   От темы интерфейса НЕ зависит намеренно: силуэт лежит на «бумаге», светлой
+   в обеих темах, как поле печати, а обводки держат контраст ≥ 3:1 и к бумаге,
+   и к силуэту — сторож flatCanvasCss.test.ts считает пары в обеих темах.
+   Где у общего токена значение одно на обе темы, берётся он (…-ink, --btn-primary-fg);
+   остальное — светлые значения палитры index.css, закреплённые для холста. */
+.root {
+  --flat-paper: #FDFAF3;
+  --flat-garment: #d9d9d9;
+  --flat-zone: #2B2BF0;
+  --flat-safe: var(--color-success-ink);
+  --flat-axis: #6D28D9;
+  --flat-neck: var(--color-error-ink);
+  --flat-calibrate: var(--color-warning-ink);
+  --flat-label: #0A0A0A;
+  --flat-halo: var(--btn-primary-fg);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+}
+
+/* Область холста — role="application": фокус с клавиатуры, кольцо фокуса видно.
+   touch-action: none — жесты пальцем достаются konva (перетаскивание ручек). */
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  outline: none;
+  touch-action: none;
+}
+
+.canvas:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.canvas[data-mode='calibrate'] {
+  cursor: crosshair;
+}
+
+/* Надпись поверх холста не перехватывает указатель — клики идут в konva */
+.notice {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-md);
+  left: 50%;
+  max-width: calc(100% - 2 * var(--space-lg));
+  margin: 0;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
