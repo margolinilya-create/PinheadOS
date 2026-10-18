@@ -3,8 +3,13 @@ import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 import { SIZES } from '../../../data/constants';
 import { getAvailableZonesForSku } from '../../../utils/skuRules';
 import { TECH_TABS } from '../../../utils/pricing';
+import { Icon } from '../../../erp/components/Icon';
+import ScrollTable from './ScrollTable';
+import t from './skuTable.module.css';
+import r from './CategoryRules.module.css';
 
-export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCatalog, onUpdate }) {
+/** Вкладка «Правила категорий»: техники, техники по зонам, MOQ, размеры, обработки по умолчанию */
+export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCatalog, onUpdate, readOnly = false }) {
   const [expanded, setExpanded] = useState(null);
 
   const getRuleForCategory = (catId) =>
@@ -68,12 +73,12 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
   };
 
   return (
-    <div className="cat-rules-tab">
-      <div className="cat-rules-hint">
-        Настройте ограничения и умолчания для каждой категории. Не заданные правила = нет ограничений.
-      </div>
+    <div className={r.root}>
+      <p className={r.hint}>
+        Ограничения и умолчания для каждой категории. Не заданное правило — ограничений нет.
+      </p>
 
-      <div className="cat-rules-list">
+      <ul className={r.list}>
         {SKU_CATEGORIES.map(cat => {
           const rule = getRuleForCategory(cat.id);
           const isExpanded = expanded === cat.id;
@@ -83,143 +88,125 @@ export default function CategoryRulesTab({ categoryRules, extrasCatalog, zonesCa
           const hasSizeRestriction = rule.availableSizes && rule.availableSizes.length < SIZES.length;
           const hasZoneTechs = rule.allowedZoneTechs && Object.keys(rule.allowedZoneTechs).length > 0;
           const hasRules = hasTechRestriction || hasExtras || hasMoq || hasSizeRestriction || hasZoneTechs;
+          const bodyId = `cat-rule-${cat.id}`;
 
           return (
-            <div key={cat.id} className={`cat-rule-card${isExpanded ? ' expanded' : ''}`}>
-              {/* Header row — always visible */}
+            <li key={cat.id} className={r.card} data-expanded={isExpanded || undefined}>
               <button
-                className="cat-rule-header"
+                type="button"
+                className={r.header}
+                aria-expanded={isExpanded}
+                aria-controls={bodyId}
                 onClick={() => setExpanded(isExpanded ? null : cat.id)}
               >
-                <span className="cat-rule-name">{cat.name}</span>
-                <span className="cat-rule-badges">
-                  {hasTechRestriction && <span className="cat-rule-badge">техники: {rule.allowedTechs.length}/{TECH_TABS.length}</span>}
-                  {hasMoq && <span className="cat-rule-badge">MOQ: {rule.moq}</span>}
-                  {hasSizeRestriction && <span className="cat-rule-badge">размеры: {rule.availableSizes.length}/{SIZES.length}</span>}
-                  {hasExtras && <span className="cat-rule-badge">обработки: {rule.defaultExtras.length}</span>}
-                  {hasZoneTechs && <span className="cat-rule-badge">зоны: {Object.keys(rule.allowedZoneTechs).length}</span>}
-                  {!hasRules && <span className="cat-rule-badge cat-rule-badge-none">без ограничений</span>}
+                <span className={r.name}>{cat.name}</span>
+                <span className={r.badges}>
+                  {hasTechRestriction && <span className={r.badge}>техники: {rule.allowedTechs.length}/{TECH_TABS.length}</span>}
+                  {hasMoq && <span className={r.badge}>MOQ: {rule.moq}</span>}
+                  {hasSizeRestriction && <span className={r.badge}>размеры: {rule.availableSizes.length}/{SIZES.length}</span>}
+                  {hasExtras && <span className={r.badge}>обработки: {rule.defaultExtras.length}</span>}
+                  {hasZoneTechs && <span className={r.badge}>зоны: {Object.keys(rule.allowedZoneTechs).length}</span>}
+                  {!hasRules && <span className={r.badgeNone}>без ограничений</span>}
                 </span>
-                <span className="cat-rule-chevron">{isExpanded ? '▲' : '▼'}</span>
+                <Icon name={isExpanded ? 'chevronUp' : 'chevronDown'} size={16} />
               </button>
 
-              {/* Expanded content */}
               {isExpanded && (
-                <div className="cat-rule-body">
-                  {/* Techs */}
-                  <div className="cat-rule-section">
-                    <div className="cat-rule-section-label">ТЕХНИКИ НАНЕСЕНИЯ</div>
-                    <div className="cat-rule-chips">
-                      {TECH_TABS.map(t => {
-                        const allowed = !rule.allowedTechs || rule.allowedTechs.includes(t.key);
-                        return (
-                          <button
-                            key={t.key}
-                            className={`cat-rule-chip${allowed ? ' active' : ''}`}
-                            onClick={() => toggleTech(cat.id, t.key)}
-                          >
-                            {t.label}
-                          </button>
-                        );
-                      })}
+                <div id={bodyId} className={r.body}>
+                  <div className={r.section}>
+                    <h3 className={r.sectionTitle}>Техники нанесения</h3>
+                    <div className={t.chips} role="group" aria-label={`Техники нанесения: ${cat.name}`}>
+                      {TECH_TABS.map(tt => (
+                        <button key={tt.key} type="button" className={t.chip} disabled={readOnly}
+                          aria-pressed={!rule.allowedTechs || rule.allowedTechs.includes(tt.key)}
+                          onClick={() => toggleTech(cat.id, tt.key)}>
+                          {tt.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Zone-Tech matrix */}
-                  <div className="cat-rule-section">
-                    <div className="cat-rule-section-label">ТЕХНИКИ ПО ЗОНАМ</div>
-                    <table className="zone-tech-matrix">
-                      <thead>
-                        <tr>
-                          <th>Зона</th>
-                          {TECH_TABS.map(t => <th key={t.key}>{t.label}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getAvailableZonesForSku(zonesCatalog, cat.id).map(z => {
-                          const zoneTechs = rule.allowedZoneTechs?.[z.id];
-                          return (
-                            <tr key={z.id}>
-                              <td>{z.name}</td>
-                              {TECH_TABS.map(t => {
-                                const checked = !zoneTechs || zoneTechs.includes(t.key);
-                                return (
-                                  <td key={t.key}>
+                  <div className={r.section}>
+                    <h3 className={r.sectionTitle}>Техники по зонам</h3>
+                    <ScrollTable className={r.scroll} label={`Техники по зонам: ${cat.name}`} readOnly={readOnly}>
+                      <table className={r.matrix} aria-label={`Техники по зонам: ${cat.name}`}>
+                        <thead>
+                          <tr>
+                            <th scope="col">Зона</th>
+                            {TECH_TABS.map(tt => <th key={tt.key} scope="col">{tt.label}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getAvailableZonesForSku(zonesCatalog, cat.id).map(z => {
+                            const zoneTechs = rule.allowedZoneTechs?.[z.id];
+                            return (
+                              <tr key={z.id}>
+                                <th scope="row">{z.name}</th>
+                                {TECH_TABS.map(tt => (
+                                  <td key={tt.key}>
                                     <input
                                       type="checkbox"
-                                      checked={checked}
-                                      onChange={() => toggleZoneTech(cat.id, z.id, t.key)}
+                                      aria-label={`${z.name}: ${tt.label}`}
+                                      checked={!zoneTechs || zoneTechs.includes(tt.key)}
+                                      onChange={() => toggleZoneTech(cat.id, z.id, tt.key)}
                                     />
                                   </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </ScrollTable>
                   </div>
 
-                  {/* MOQ */}
-                  <div className="cat-rule-section">
-                    <div className="cat-rule-section-label">МИНИМАЛЬНЫЙ ТИРАЖ (MOQ)</div>
+                  <div className={r.section}>
+                    <label htmlFor={`${bodyId}-moq`} className={r.sectionTitle}>Минимальный тираж (MOQ)</label>
                     <input
+                      id={`${bodyId}-moq`}
                       type="number"
-                      className="cat-rule-moq-input"
+                      className={r.moq}
+                      disabled={readOnly}
                       min="1"
                       value={rule.moq || 1}
                       onChange={e => setMoq(cat.id, e.target.value)}
                     />
                   </div>
 
-                  {/* Sizes */}
-                  <div className="cat-rule-section">
-                    <div className="cat-rule-section-label">ДОСТУПНЫЕ РАЗМЕРЫ</div>
-                    <div className="cat-rule-sizes">
-                      {SIZES.map(s => {
-                        const available = !rule.availableSizes || rule.availableSizes.includes(s);
-                        return (
-                          <label key={s} className={`cat-rule-size${available ? ' active' : ''}`}>
-                            <input
-                              type="checkbox"
-                              checked={available}
-                              onChange={() => toggleSize(cat.id, s)}
-                            />
-                            <span>{s}</span>
-                          </label>
-                        );
-                      })}
+                  <div className={r.section}>
+                    <h3 className={r.sectionTitle}>Доступные размеры</h3>
+                    <div className={r.checks} role="group" aria-label={`Доступные размеры: ${cat.name}`}>
+                      {SIZES.map(s => (
+                        <label key={s} className={r.check}>
+                          <input type="checkbox" disabled={readOnly} checked={!rule.availableSizes || rule.availableSizes.includes(s)}
+                            onChange={() => toggleSize(cat.id, s)} />
+                          <span>{s}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Default extras */}
-                  <div className="cat-rule-section">
-                    <div className="cat-rule-section-label">ОБРАБОТКИ ПО УМОЛЧАНИЮ</div>
-                    <div className="cat-rule-extras">
-                      {(extrasCatalog || []).map(e => {
-                        const selected = (rule.defaultExtras || []).includes(e.code);
-                        return (
-                          <label key={e.code} className={`cat-rule-extra${selected ? ' active' : ''}`}>
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleDefaultExtra(cat.id, e.code)}
-                            />
-                            <span>{e.name}</span>
-                          </label>
-                        );
-                      })}
+                  <div className={r.section}>
+                    <h3 className={r.sectionTitle}>Обработки по умолчанию</h3>
+                    <div className={r.checks} role="group" aria-label={`Обработки по умолчанию: ${cat.name}`}>
+                      {(extrasCatalog || []).map(e => (
+                        <label key={e.code} className={r.check}>
+                          <input type="checkbox" disabled={readOnly} checked={(rule.defaultExtras || []).includes(e.code)}
+                            onChange={() => toggleDefaultExtra(cat.id, e.code)} />
+                          <span>{e.name}</span>
+                        </label>
+                      ))}
                       {(!extrasCatalog || extrasCatalog.length === 0) && (
-                        <span className="cat-rule-empty">Нет обработок в каталоге</span>
+                        <span className={r.hint}>Нет обработок в каталоге</span>
                       )}
                     </div>
                   </div>
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }

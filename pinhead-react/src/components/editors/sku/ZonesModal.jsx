@@ -1,39 +1,26 @@
 import { useStore } from '../../../store/useStore';
-import { useShallow } from 'zustand/react/shallow';
-import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { getAvailableZonesForSku } from '../../../utils/skuRules';
-import { overlayClick } from '../../../utils/overlayClick';
+import { Modal } from '../../../erp/components/Modal';
+import { Button } from '../../../erp/components/Button';
+import ZoneChecks from './ZoneChecks';
+import m from './SkuModal.module.css';
 
+/** Зоны нанесения модели — правка применяется сразу, «Готово» закрывает */
 export default function ZonesModal({ skuItem, skuIndex, updateSku, onClose }) {
-  const panelRef = useFocusTrap(true, onClose);
-  const zonesCatalog = useStore(useShallow(s => s.zonesCatalog));
+  const zonesCatalog = useStore((s) => s.zonesCatalog);
   const availableZones = getAvailableZonesForSku(zonesCatalog, skuItem?.category || '');
+  const toggle = (id) => {
+    const zones = skuItem.zones || [];
+    updateSku(skuIndex, 'zones', zones.includes(id) ? zones.filter(x => x !== id) : [...zones, id]);
+  };
 
   return (
-    <div className="sku-modal-overlay" role="presentation" onClick={overlayClick(onClose)}>
-      <div className="sku-modal" ref={panelRef} role="dialog" aria-modal="true" aria-label="Зоны нанесения">
-        <h3>Зоны нанесения</h3>
-        <p className="sku-modal-hint">{skuItem?.name}</p>
-        <div className="sku-zones-grid">
-          {availableZones.map(z => {
-            const active = (skuItem?.zones || []).includes(z.id);
-            return (
-              <label key={z.id} className={`sku-zone-check${active ? ' active' : ''}`}>
-                <input type="checkbox" checked={active}
-                  onChange={() => {
-                    const zones = skuItem.zones || [];
-                    const newZones = active ? zones.filter(x => x !== z.id) : [...zones, z.id];
-                    updateSku(skuIndex, 'zones', newZones);
-                  }} />
-                <span>{z.name}</span>
-              </label>
-            );
-          })}
-        </div>
-        <div className="sku-modal-btns">
-          <button className="btn-accent" onClick={onClose}>Готово</button>
-        </div>
+    <Modal title="Зоны нанесения" onClose={onClose} className={m.narrow}>
+      <p className={m.hint}>{skuItem?.name}</p>
+      <ZoneChecks zones={availableZones} selected={skuItem?.zones || []} onToggle={toggle} label="Зоны нанесения модели" />
+      <div className={m.actions}>
+        <Button variant="primary" onClick={onClose}>Готово</Button>
       </div>
-    </div>
+    </Modal>
   );
 }

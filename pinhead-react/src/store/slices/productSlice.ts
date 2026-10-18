@@ -55,19 +55,6 @@ export const productSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
     };
   }),
   setSkuFilter: (f: string) => set({ skuFilter: f }),
-  // Техдолг (веха 4, задача 5): приложение больше не вызывает — перетаскивание
-  // в SkuList убрано вместе с записью порядка в app_config. Держат только тесты
-  // multiItem; удалить вместе с ними отдельной уборкой.
-  reorderSku: (fromCode: string, toCode: string) => set((s: Record<string, unknown>) => {
-    const arr = [...(s.skuCatalog as SkuItem[])];
-    const fromIdx = arr.findIndex(x => x.code === fromCode);
-    const toIdx = arr.findIndex(x => x.code === toCode);
-    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return {};
-    const [item] = arr.splice(fromIdx, 1);
-    arr.splice(toIdx, 0, item);
-    return { skuCatalog: arr };
-  }),
-
   // ─── Fabric & Color ───
   selectFabric: (key: string) => set((s: Record<string, unknown>) => ({
     fabric: key,

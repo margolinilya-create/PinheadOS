@@ -18,7 +18,6 @@ import '../styles/extras-zones.css'
    ExpressCalc на нём больше не живёт: express.css снят в вехе 8 (задача 4),
    у экспресса свой CSS-модуль */
 import '../styles/kanban.css'
-import '../styles/editors.css'
 /* ПОСЛЕДНИМ: переопределяет базовые правила той же специфичности */
 import '../styles/responsive.css'
 import { useStore } from '../store/useStore'

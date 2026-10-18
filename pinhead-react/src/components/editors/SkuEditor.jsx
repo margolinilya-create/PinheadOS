@@ -15,8 +15,16 @@ import CategoryRulesTab from './sku/CategoryRulesTab';
 import ZonesCatalogTab from './sku/ZonesCatalogTab';
 import AddSkuModal from './sku/AddSkuModal';
 import ZonesModal from './sku/ZonesModal';
-import { factoryToday } from '../../utils/date';
+import RateBar from './sku/RateBar';
+import { exportCatalogExcel, importCatalogExcel } from './sku/skuExcel';
 import { searchFabrics } from '../../utils/materialSearch';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { PageHead } from '../../erp/components/PageHead';
+import { Tabs, TabPanel } from '../../erp/components/Tabs';
+import { Button } from '../../erp/components/Button';
+import a11y from '../../orderstudio/ui/a11y.module.css';
+import base from '../../orderstudio/screens/Sales.module.css';
+import styles from './SkuEditor.module.css';
 
 const TABS = [
   { id: 'items', name: 'Изделия' },
@@ -28,6 +36,9 @@ const TABS = [
   { id: 'rules', name: 'Правила категорий' },
   { id: 'zones', name: 'Зоны нанесения' },
 ];
+
+/** Телефон: каталог только для просмотра (как «Справочники заказа») */
+const COMPACT = '(max-width: 760px)';
 
 function generateCode(name) {
   const tr = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'zh',з:'z',и:'i',й:'y',
@@ -56,14 +67,10 @@ export default function SkuEditor() {
     setTabState(id);
     setSearchParams(id === 'items' ? {} : { tab: id }, { replace: true });
   };
+  // Телефон: каталог только для просмотра (К2 вехи 8), правка — с компьютера
+  const readOnly = useMediaQuery(COMPACT);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
-  const [cbRate, setCbRate] = useState(() => {
-    try { const d = JSON.parse(localStorage.getItem('ph_cb_rate') || '{}'); return d.rate || null; } catch { return null; }
-  });
-  const [cbDate, setCbDate] = useState(() => {
-    try { const d = JSON.parse(localStorage.getItem('ph_cb_rate') || '{}'); return d.date || ''; } catch { return ''; }
-  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [showZonesModal, setShowZonesModal] = useState(null);
   const [addForm, setAddForm] = useState({ name: '', category: 'tshirts', fit: 'regular' });
@@ -194,95 +201,8 @@ export default function SkuEditor() {
     setField('hardwareCatalog', current.filter((_, i) => i !== idx));
   };
 
-  // ── CB Rate ──
-  const fetchCbRate = async () => {
-    try {
-      const r = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
-      const data = await r.json();
-      const usd = data?.Valute?.USD?.Value;
-      if (usd) {
-        const rate = Math.round(usd * 100) / 100;
-        const date = factoryToday();
-        setCbRate(rate);
-        setCbDate(date);
-        localStorage.setItem('ph_cb_rate', JSON.stringify({ rate, date }));
-      }
-    } catch { /* ignore fetch errors */ }
-  };
-
-  // ── Excel Export/Import ──
-  const exportExcel = () => {
-    if (!window.XLSX) { alert('XLSX не загружен'); return; }
-    const wb = window.XLSX.utils.book_new();
-    const skuData = skuCatalog.map(s => ({
-      'Артикул': s.code, 'Название': s.name, 'Категория': s.category,
-      'Fit': s.fit || '', 'Пошив ₽': s.sewingPrice, 'Расход осн. м': s.mainFabricUsage,
-      'Отделка код': s.trimCode || '', 'Расход отд. м': s.trimUsage || 0,
-      'Зоны': (s.zones || []).join(','),
-    }));
-    window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(skuData), 'SKU');
-    const fabData = fabricsCatalog.map(f => ({
-      'Код': f.code, 'Название': f.name, '₽ за пог. м': f.priceRub ?? '', 'м/кг': f.mPerKg ?? '',
-      'Состав': f.composition || '', 'Плотность': f.density ?? '',
-      'Категории': (f.forCategories || []).join(','), 'Поставщик': f.supplier || '',
-    }));
-    window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(fabData), 'Ткани');
-    const trimData = trimCatalog.map(t => ({
-      'Код': t.code, 'Название': t.name, 'Поставщик': t.supplier || '', 'Вид': t.kind || '',
-      'Цена ₽': t.priceRub ?? '', 'Ед.': t.unit === 'pcs' ? 'шт' : 'м', 'м/кг': t.mPerKg ?? '',
-    }));
-    window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(trimData), 'Отделка');
-    const extData = extrasCatalog.map(e => ({ 'Код': e.code, 'Название': e.name, 'Цена ₽': e.price }));
-    window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(extData), 'Обработки');
-    const hwData = hardwareCatalog.map(h => ({ 'Код': h.code, 'Название': h.name, 'Цена ₽': h.price, 'Группа': h.group }));
-    window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(hwData), 'Фурнитура');
-    window.XLSX.writeFile(wb, 'pinhead-sku-catalog.xlsx');
-  };
-
-  const importExcel = () => {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = '.xlsx,.xls';
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file || !window.XLSX) return;
-      const data = await file.arrayBuffer();
-      const wb = window.XLSX.read(data);
-      const skuSheet = wb.Sheets['SKU'];
-      if (skuSheet) {
-        const rows = window.XLSX.utils.sheet_to_json(skuSheet);
-        const items = rows.map(r => ({
-          code: r['Артикул'] || '', name: r['Название'] || '', category: r['Категория'] || 'tshirts',
-          fit: r['Fit'] || 'regular', sewingPrice: Number(r['Пошив ₽']) || 200,
-          mainFabricUsage: Number(r['Расход осн. м']) || 1.0,
-          trimCode: r['Отделка код'] || null, trimUsage: Number(r['Расход отд. м']) || 0,
-          mockupType: 'tee', zones: (r['Зоны'] || '').split(',').filter(Boolean),
-        }));
-        setField('skuCatalog', items);
-      }
-      const fabSheet = wb.Sheets['Ткани'];
-      if (fabSheet) {
-        const rows = window.XLSX.utils.sheet_to_json(fabSheet);
-        // Только ₽ за метр: колонку «$ за метр» прежней выгрузки не читаем —
-        // в ней лежала цена за кг (правка 13.10)
-        setField('fabricsCatalog', rows.map(r => ({
-          code: r['Код'] || '', name: r['Название'] || '',
-          priceRub: Number(r['₽ за пог. м']) || 0, unit: 'm', mPerKg: Number(r['м/кг']) || null, priceUSD: 0,
-          composition: r['Состав'] || '', density: Number(r['Плотность']) || null,
-          forCategories: (r['Категории'] || '').split(',').filter(Boolean), supplier: r['Поставщик'] || '',
-        })));
-      }
-      const trimSheet = wb.Sheets['Отделка'];
-      if (trimSheet) {
-        const rows = window.XLSX.utils.sheet_to_json(trimSheet);
-        setField('trimCatalog', rows.map(r => ({
-          code: r['Код'] || '', name: r['Название'] || '', supplier: r['Поставщик'] || '',
-          kind: r['Вид'] || null, priceRub: Number(r['Цена ₽']) || 0,
-          unit: r['Ед.'] === 'шт' ? 'pcs' : 'm', mPerKg: Number(r['м/кг']) || null, priceUSD: 0,
-        })));
-      }
-    };
-    input.click();
-  };
+  const exportExcel = () => exportCatalogExcel({ skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog });
+  const importExcel = () => importCatalogExcel(setField);
 
   // ── Computed ──
   const filteredSku = useMemo(() => {
@@ -315,136 +235,142 @@ export default function SkuEditor() {
   // своя копия формулы здесь множила цену за кг на метры)
   const estimatePrice = (s) => Math.round(getSkuEstPrice(s, null, fabricsCatalog, trimCatalog, usdRate));
 
+  const dirtyOf = (id) => {
+    if (id === 'pricing') return pricingDirty;
+    if (id === 'rules') return rulesDirty;
+    const map = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware };
+    return map[id]?.size > 0;
+  };
+  // Признак несохранённых правок — часть имени вкладки: точка глазу, текст читалке.
+  // Имя для читалки — одной строкой: точка (inline-block) между узлами дала бы
+  // в имени «Изделия , есть…» с пробелом перед запятой
+  const tabs = TABS.map((t) => ({
+    id: t.id,
+    label: dirtyOf(t.id) ? (
+      <>
+        <span aria-hidden="true">{t.name}<span className={styles.dirtyDot} /></span>
+        <span className={a11y.srOnly}>{t.name}, есть несохранённые правки</span>
+      </>
+    ) : t.name,
+  }));
+
   return (
-    <div className="sku-ed-overlay">
-      <div className="sku-ed-panel">
-      {/* ── Actions bar ── */}
-      <div className="sku-actions-bar">
-        <span className="sku-actions-title">Каталог SKU</span>
-        <div className="sku-actions-right">
-          <button className="pe-btn" onClick={exportExcel}>Excel ↓</button>
-          <button className="pe-btn" onClick={importExcel}>Excel ↑</button>
-          <button className="pe-btn pe-btn-primary" onClick={saveAll} disabled={saving || blocked}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
+    <div className={`${base.page} ${styles.page}`}>
+      <div className={styles.head}>
+        <PageHead title="Каталог моделей и цен" sub="Модели, ткани, обработки и цены для заказа" />
+        <div className={styles.actions}>
+          <Button icon="download" onClick={exportExcel}>Выгрузить в Excel</Button>
+          {!readOnly && (
+            <>
+              <Button icon="arrowUpToLine" onClick={importExcel}>Загрузить из Excel</Button>
+              <Button variant="primary" onClick={saveAll} loading={saving} disabled={blocked}>
+                {saving ? 'Сохраняю…' : 'Сохранить каталог'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
+      {readOnly && (
+        <p className={styles.readOnlyNote} role="note">
+          На телефоне каталог только для просмотра. Править — с компьютера.
+        </p>
+      )}
+
       {blocked && (
-        <div className="sku-ed-save-failed" role="status">
+        <div className={styles.notice} role="status">
           <p>Каталог не загрузился из базы — сохранение недоступно, чтобы не записать локальную копию поверх базы. Обновите страницу.</p>
         </div>
       )}
 
       {failed.length > 0 && (
-        <div className="sku-ed-save-failed" role="alert">
+        <div className={`${styles.notice} ${styles.noticeError}`} role="alert">
           <p>Не сохранено: {failureText(failed)}. Правки на экране остались.</p>
           {hasConflict && (
             <>
               <p>Свежая версия заменит ваши правки в изменённых справочниках — внесите их снова поверх неё.</p>
-              <button type="button" className="pe-btn" onClick={reloadConflicts}>Загрузить свежую версию</button>
+              <Button onClick={reloadConflicts}>Загрузить свежую версию</Button>
             </>
           )}
         </div>
       )}
 
-      {/* ── Exchange Rate Bar ── */}
-      <div className="sku-ed-rate-bar">
-        <div className="sku-ed-rate-cb">
-          <span>КУРС ЦБ:</span>
-          <b>{cbRate ? `${cbRate}` : '—'}</b>
-          {cbDate && <span className="sku-ed-rate-date">({cbDate})</span>}
-          <span>₽/$</span>
-          <button className="sku-ed-rate-refresh" onClick={fetchCbRate} title="Обновить курс ЦБ">↻</button>
-        </div>
-        <div className="sku-ed-rate-internal">
-          <span>ВНУТРЕННИЙ:</span>
-          <input
-            type="number"
-            value={usdRate}
-            onChange={e => setField('usdRate', Math.max(1, Number(e.target.value) || 1))}
+      <RateBar usdRate={usdRate} readOnly={readOnly} onRateChange={(v) => setField('usdRate', v)} />
+
+      <div className={styles.tabs}>
+        <Tabs idPrefix="sku" label="Разделы каталога" tabs={tabs} active={tab} onSelect={setTab} />
+      </div>
+
+      <TabPanel idPrefix="sku" active={tab} className={styles.panel}>
+        {tab === 'items' && (
+          <SkuItemsTab
+            search={search} setSearch={setSearch} catFilter={catFilter} setCatFilter={setCatFilter}
+            filteredSku={filteredSku} groupedSku={groupedSku} skuCatalog={skuCatalog} trimCatalog={trimCatalog}
+            updateSku={updateSku} deleteSku={deleteSku} estimatePrice={estimatePrice}
+            setShowAddModal={setShowAddModal} setShowZonesModal={setShowZonesModal}
+            onPersist={saveAll} readOnly={readOnly}
           />
-          <span>₽/$</span>
-        </div>
-      </div>
+        )}
 
-      {/* ── Tabs ── */}
-      <div className="pe-tabs">
-        {TABS.map(t => {
-          const dirtyMap = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware };
-          const dirty = t.id === 'pricing' ? pricingDirty : t.id === 'rules' ? rulesDirty : dirtyMap[t.id]?.size > 0;
-          return (
-            <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.name}{dirty && <span className="pe-tab-dot" />}
-            </button>
-          );
-        })}
-      </div>
+        {tab === 'fabrics' && (
+          <SkuFabricsTab
+            fabricSupplierFilter={fabricSupplierFilter} setFabricSupplierFilter={setFabricSupplierFilter}
+            fabricSearch={fabricSearch} setFabricSearch={setFabricSearch}
+            filteredFabrics={filteredFabrics} fabricsCatalog={fabricsCatalog}
+            changedFabrics={changedFabrics} readOnly={readOnly}
+            updateFabric={updateFabric} addFabric={addFabric} deleteFabric={deleteFabric}
+          />
+        )}
 
-      {tab === 'items' && (
-        <SkuItemsTab
-          search={search} setSearch={setSearch} catFilter={catFilter} setCatFilter={setCatFilter}
-          filteredSku={filteredSku} groupedSku={groupedSku} skuCatalog={skuCatalog} trimCatalog={trimCatalog}
-          updateSku={updateSku} deleteSku={deleteSku} estimatePrice={estimatePrice}
-          setShowAddModal={setShowAddModal} setShowZonesModal={setShowZonesModal}
-          onPersist={saveAll}
-        />
-      )}
+        {tab === 'trims' && (
+          <SkuTrimsTab
+            trimCatalog={trimCatalog} changedTrims={changedTrims} readOnly={readOnly}
+            updateTrim={updateTrim} addTrim={addTrim} deleteTrim={deleteTrim}
+          />
+        )}
 
-      {tab === 'fabrics' && (
-        <SkuFabricsTab
-          fabricSupplierFilter={fabricSupplierFilter} setFabricSupplierFilter={setFabricSupplierFilter}
-          fabricSearch={fabricSearch} setFabricSearch={setFabricSearch}
-          filteredFabrics={filteredFabrics} fabricsCatalog={fabricsCatalog}
-          changedFabrics={changedFabrics}
-          updateFabric={updateFabric} addFabric={addFabric} deleteFabric={deleteFabric}
-        />
-      )}
+        {tab === 'extras' && (
+          <ExtrasEditor
+            extras={extrasCatalog}
+            readOnly={readOnly}
+            onUpdate={updateExtra}
+            onAdd={addExtra}
+            onDelete={deleteExtra}
+            onToggleCat={(idx, catId) => {
+              const e = extrasCatalog[idx];
+              const cats = e.forCategories || [];
+              const updated = cats.includes(catId) ? cats.filter(c => c !== catId) : [...cats, catId];
+              updateExtra(idx, 'forCategories', updated);
+            }}
+          />
+        )}
 
-      {tab === 'trims' && (
-        <SkuTrimsTab
-          trimCatalog={trimCatalog} changedTrims={changedTrims}
-          updateTrim={updateTrim} addTrim={addTrim} deleteTrim={deleteTrim}
-        />
-      )}
+        {tab === 'hardware' && (
+          <SkuHardwareTab
+            hardwareCatalog={hardwareCatalog} readOnly={readOnly}
+            updateHardware={updateHardware} addHardware={addHardware} deleteHardware={deleteHardware}
+          />
+        )}
 
-      {tab === 'extras' && (
-        <ExtrasEditor
-          extras={extrasCatalog}
-          onUpdate={updateExtra}
-          onAdd={addExtra}
-          onDelete={deleteExtra}
-          onToggleCat={(idx, catId) => {
-            const e = extrasCatalog[idx];
-            const cats = e.forCategories || [];
-            const updated = cats.includes(catId) ? cats.filter(c => c !== catId) : [...cats, catId];
-            updateExtra(idx, 'forCategories', updated);
-          }}
-        />
-      )}
+        {tab === 'pricing' && (
+          <PricingTabContent onDirtyChange={setPricingDirty} readOnly={readOnly} />
+        )}
 
-      {tab === 'hardware' && (
-        <SkuHardwareTab
-          hardwareCatalog={hardwareCatalog}
-          updateHardware={updateHardware} addHardware={addHardware} deleteHardware={deleteHardware}
-        />
-      )}
+        {tab === 'rules' && (
+          <CategoryRulesTab
+            categoryRules={categoryRules}
+            extrasCatalog={extrasCatalog}
+            zonesCatalog={zonesCatalog}
+            readOnly={readOnly}
+            onUpdate={(rules) => { setField('categoryRules', rules); setRulesDirty(true); }}
+          />
+        )}
 
-      {tab === 'pricing' && (
-        <PricingTabContent onDirtyChange={setPricingDirty} />
-      )}
-
-      {tab === 'rules' && (
-        <CategoryRulesTab
-          categoryRules={categoryRules}
-          extrasCatalog={extrasCatalog}
-          zonesCatalog={zonesCatalog}
-          onUpdate={(rules) => { setField('categoryRules', rules); setRulesDirty(true); }}
-        />
-      )}
-
-      {tab === 'zones' && (
-        // Только просмотр: справочник зон правится во «Флэтах и зонах» (веха 5б)
-        <ZonesCatalogTab zonesCatalog={zonesCatalog} />
-      )}
+        {tab === 'zones' && (
+          // Только просмотр: справочник зон правится во «Флэтах и зонах» (веха 5б)
+          <ZonesCatalogTab zonesCatalog={zonesCatalog} />
+        )}
+      </TabPanel>
 
       {showAddModal && (
         <AddSkuModal
@@ -459,7 +385,6 @@ export default function SkuEditor() {
           updateSku={updateSku} onClose={() => setShowZonesModal(null)}
         />
       )}
-      </div>
     </div>
   );
 }

@@ -198,7 +198,7 @@ test('visual: erp-admin-roles', async ({ page }) => {
 
 test('visual: studio-sku', async ({ page }) => {
   await page.goto('/sku?studio=1');
-  await expect(page.getByText('Каталог SKU')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Каталог моделей и цен' })).toBeVisible();
   await shoot(page, 'studio-sku');
 });
 
