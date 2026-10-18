@@ -6,30 +6,7 @@ import { runAppResets } from './appReset';
 import { networkFailureMessage, translateSupabaseError } from '../utils/i18n';
 import type { User, UserRole, ProfileStatus, Profile } from '../types/auth';
 import { appOrigin, isAlreadyRegistered, isEmailNotConfirmed } from './authHelpers';
-
-/**
- * Dev-автологин: фиктивный администратор ВМЕСТО отсутствующей сессии.
- *
- * Раньше он включался от `import.meta.env.DEV`, то есть у любого, кто запустил
- * `npm run dev` — в том числе против боевой базы. Интерфейс показывал полный
- * доступ администратора и не показывал формы входа, а запросы уходили в Supabase
- * ролью `anon`: чтение возвращало пусто («Не удалось загрузить производственный
- * план», «…историю заказа», «…заказ»), запись отвечала `new row violates
- * row-level security policy`. Человек не мог понять, что он просто не вошёл.
- *
- * Проверено на проде 10.08.2026: под `authenticated` вставка в `storage.objects`
- * проходит, под `anon` — 42501 с этим самым текстом, который Storage отдаёт как
- * HTTP 400. На этом не загружалось ни одно ТЗ.
- *
- * Теперь режим включается ЯВНО (`VITE_DEV_AUTOLOGIN=1`) и только когда настоящей
- * сессии нет: сессия всегда важнее подделки.
- */
-const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === '1';
-
-const DEV_USER: User = {
-  id: 'dev', email: 'dev@pinhead.ru', name: 'Dev Mode',
-  role: 'admin', approved: true, active: true, is_sales: false, is_ms: false,
-};
+import { DEV_AUTOLOGIN, DEV_USER, devLoginUser, endDevLogin, isDevLogin } from './devAutologin';
 
 /**
  * Что человеку делать дальше после регистрации.
@@ -171,7 +148,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           '[auth] dev-автологин: настоящей сессии нет. Запросы уходят ролью anon — '
           + 'чтение вернёт пусто, запись откажет по RLS. Войдите, чтобы работать с данными.',
         );
-        set({ user: DEV_USER, profileStatus: 'active' as ProfileStatus, loading: false, error: null });
+        // Подмена профиля на моке (веха 8, задача 9) — только здесь: настоящей сессии нет.
+        // Под `DEV`: в прод-сборке ветка вырезается, вход не растёт
+        let user = DEV_USER;
+        if (import.meta.env.DEV) user = await devLoginUser();
+        set({ user, profileStatus: 'active' as ProfileStatus, loading: false, error: null });
         return;
       }
 
@@ -234,7 +215,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
    */
   refreshProfile: async () => {
     const current = get().user;
-    if (!current || current.id === 'dev' || get().checkingProfile) return;
+    if (!current || current.id === 'dev' || (import.meta.env.DEV && isDevLogin(current)) || get().checkingProfile) return;
     set({ checkingProfile: true });
     try {
       await get().fetchProfile(current.id, current.email);
@@ -458,7 +439,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
      * выкидывал бы разработчика (и весь e2e-прогон) на форму входа с сообщением
      * «сессия истекла» — про сессию, которой никогда не было.
      */
-    if (get().user?.id === 'dev') return;
+    if (get().user?.id === 'dev' || (import.meta.env.DEV && isDevLogin(get().user))) return;
     storageClearAll();
     runAppResets();
     set({
@@ -509,6 +490,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
        * (выборку RLS уже от чужого имени), его цех и его бейджи.
        */
       runAppResets();
+      if (import.meta.env.DEV) endDevLogin();
       set({
         user: null, profileStatus: 'no_profile' as ProfileStatus, error: null, signingOut: false,
         awaitingEmailConfirm: null, resetSentTo: null, passwordRecovery: false,

@@ -21,14 +21,14 @@
  * Запуск: npm run bundle:budget (после npm run build).
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createBaseline, checkFlatsAdmin } from './bundle-budget-5b.mjs';
 import { checkTzLaunch } from './bundle-budget-m67.mjs';
-import { checkRestyle } from './bundle-budget-m8.mjs';
+import { checkNoDevProfiles, checkRestyle } from './bundle-budget-m8.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -552,6 +552,10 @@ const m67 = checkTzLaunch({
 });
 // ── Веха 8: потолки оболочки Order, «Справочник моделей» и «Экспресс» (К11) ──
 checkRestyle({ manifest, staticGraph, report, check, fail, findKey, entryKey, orderAppKey, workplaceKey });
+// ── Веха 8, задача 9: подмена профиля dev-автологина не в сборке (все js `dist/assets`) ──
+const distJs = readdirSync(join(DIST, 'assets')).filter((f) => f.endsWith('.js'))
+  .map((f) => ({ name: `assets/${f}`, text: readFileSync(join(DIST, 'assets', f), 'utf8') }));
+checkNoDevProfiles({ files: distJs, fail, log: console.log });
 const konvaFile = Object.values(manifest).find((v) => v.name === 'vendor-konva')?.file;
 console.log('\nРазница с базой (справочно, потолки — выше)');
 baseline.reference('orderShell', 'Оболочка Order', orderJs.total);

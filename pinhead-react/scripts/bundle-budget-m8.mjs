@@ -62,3 +62,36 @@ export function checkRestyle(ctx) {
   }
   return { orderJsTotal, orderCssTotal, editors };
 }
+
+/**
+ * ПОДМЕНА ПРОФИЛЯ DEV-АВТОЛОГИНА НЕ В СБОРКЕ (задача 9, К12).
+ *
+ * `store/devProfiles.ts` подключается динамическим импортом под `import.meta.env.DEV`
+ * (`store/devAutologin.ts`): в прод-сборке ветка вырезается вместе с модулем. Сторож
+ * смотрит ВСЕ js-файлы сборки, а не граф манифеста: статический импорт Rollup вклеил бы
+ * в чанк импортёра без своей записи. Признаки — уникальный маркер модуля, ключ хранилища
+ * и чанк с именем модуля. Проверено мутацией: статический импорт или импорт без `DEV`
+ * дают красный (отчёт задачи 9).
+ *
+ * `files` — `[{ name, text }]` (имя относительно `dist`, содержимое).
+ */
+export const DEV_PROFILE_SIGNS = ['__PINHEAD_DEV_PROFILES__', 'pinhead_dev_profile'];
+
+export function checkNoDevProfiles({ files, fail, log = () => {} }) {
+  const hits = [];
+  for (const { name, text } of files) {
+    if (/(^|\/)devProfiles[-.]/.test(name)) hits.push(`${name}: чанк модуля devProfiles`);
+    for (const sign of DEV_PROFILE_SIGNS) if (text.includes(sign)) hits.push(`${name}: «${sign}»`);
+  }
+  if (files.length === 0) {
+    fail('подмена профиля: в сборке нет ни одного js — сторож сторожил бы пустоту');
+    return false;
+  }
+  if (hits.length) {
+    fail(`подмена профиля dev-автологина попала в сборку (${hits.join('; ')}) — `
+      + 'импорт `./devProfiles` обязан быть динамическим и под `import.meta.env.DEV` (store/devAutologin.ts)');
+    return false;
+  }
+  log(`✓ подмены профиля dev-автологина в сборке нет (${files.length} js-файлов)`);
+  return true;
+}

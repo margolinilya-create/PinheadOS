@@ -815,6 +815,9 @@ function salesSaveAnswer(body: Record<string, unknown>, extra: MockExtras): unkn
   const prev = saved.get(id)
     ?? ((extra.salesOrders ?? []) as Record<string, unknown>[]).find((r) => r.id === id);
   const row = kSavedRow(order as Record<string, unknown>, payloadToSalesRow(order as Record<string, unknown>, id, updated_at, prev), prev);
+  // Новый заказ: автор — вызывающий (умолчание `orders.created_by = auth.uid()`). Только
+  // при явном `v4.caller` (смены обхода, веха 8): без него — прежний null
+  if (!prev && extra.v4?.caller) row.created_by = extra.v4.caller.id;
   saved.set(id, row);
   return { id, order_number: row.order_number, updated_at, notes: String(row.notes ?? '') };
 }

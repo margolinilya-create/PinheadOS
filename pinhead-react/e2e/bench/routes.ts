@@ -28,7 +28,21 @@ export type Shot = {
   heading?: RegExp;
   /** Состояние, которого нет на узких ширинах (док прячет колонки) — снимать только шире */
   minWidth?: number;
+  /**
+   * Раздел «Оформление заказа» (веха 8, задача 9): `?studio=1` вместо `?studio=0`,
+   * `route` — маршрут `OrderStudioApp.jsx`, а не ERP (сторож ERP его не требует)
+   */
+  studio?: boolean;
+  /** Данные мока раздела (`shots.bench.ts`): справочники «из базы», заказ с флэтом, заказ на запуске */
+  mock?: 'catalogs' | 'order' | 'launch';
 };
+
+/**
+ * Заказ фикстуры эталонов (`e2e/support/visualStudioFx.ts`: `FLATS_ORDER`, `FLATS_ITEM`) —
+ * строками, а не импортом: матрицу читает и vitest-сторож, ему мок Supabase ни к чему
+ */
+const STUDIO_ORDER = '6f1c2d3e-0000-4000-8000-0000000005e1';
+const STUDIO_ITEM = '6f1c2d3e-0000-4000-8000-0000000005e2';
 
 export const SHOTS: Shot[] = [
   { name: 'dashboard', path: '/', route: '/', heading: /Обзор производства/ },
@@ -73,6 +87,14 @@ export const SHOTS: Shot[] = [
   { name: 'sku-card-history', path: '/sku-card/sku-a?tab=history', route: '/sku-card/:cardId' },
 
   { name: 'styleguide', path: '/styleguide?styleguide=1', route: '/styleguide' },
+
+  // ─── «Оформление заказа» (веха 8, задача 9) ───
+  { name: 'studio-sku', path: '/sku', route: '/sku', studio: true, mock: 'catalogs', heading: /Каталог моделей и цен/ },
+  { name: 'studio-express', path: '/express', route: '/express', studio: true, mock: 'catalogs', heading: /Экспресс-расчёт/ },
+  { name: 'studio-workplace', path: `/sales/${STUDIO_ORDER}?tab=item&item=${STUDIO_ITEM}`, route: '/sales/:id', studio: true, mock: 'order' },
+  { name: 'studio-workplace-summary', path: `/sales/${STUDIO_ORDER}?tab=summary&item=${STUDIO_ITEM}`, route: '/sales/:id', studio: true, mock: 'order' },
+  { name: 'studio-launch', path: `/sales/${STUDIO_ORDER}/launch`, route: '/sales/:id/launch', studio: true, mock: 'launch' },
+  { name: 'studio-settings', path: '/order-settings?tab=suppliers', route: '/order-settings', studio: true, mock: 'catalogs', heading: /Справочники заказа/ },
 ];
 
 /**

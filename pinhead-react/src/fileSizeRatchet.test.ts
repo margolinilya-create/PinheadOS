@@ -51,7 +51,7 @@ const CEILINGS: Record<string, number> = {
   'erp/screens/DepartmentQueue.jsx': 653,
   'erp/utils/routeDraft.ts': 624,
   'erp/utils/routes.ts': 618,
-  'store/useAuthStore.ts': 569,
+  'store/useAuthStore.ts': 551,
   'erp/screens/ErpDashboard.jsx': 560,
   'erp/screens/queue/StageActionsPanel.jsx': 532,
 };
