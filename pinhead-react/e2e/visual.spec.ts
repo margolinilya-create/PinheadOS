@@ -1,5 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { installSupabaseMock, FX_CREATED } from './support/mockSupabase';
+import { existsSync, readFileSync } from 'node:fs';
+import { installSupabaseMock, FX_CREATED, type MockExtras } from './support/mockSupabase';
+import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 import { orderCatalogs, staffFx } from './support/orderCatalogFx';
 
 /**
@@ -22,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(FIXED_TIME);
 });
 
-async function shoot(page: Page, name: string, target?: Locator) {
+async function shoot(page: Page, name: string, target?: Locator, mask: Locator[] = []) {
   /**
    * КУРСОР УВОДИТСЯ ИЗ УГЛА ПЕРЕД СНИМКОМ (правка 22.09).
    *
@@ -49,6 +51,9 @@ async function shoot(page: Page, name: string, target?: Locator) {
   const subject = target ?? page;
   await expect(subject).toHaveScreenshot(`${name}.png`, {
     ...(target ? {} : { fullPage: true }),
+    // Маска — для области, чей пиксельный вид зависит от растеризатора, а не от кода
+    // (холст konva): её содержимое сторожат unit-тесты сцены и e2e order-design.spec.ts
+    ...(mask.length ? { mask } : {}),
     threshold: 0.15,
     /**
      * ДОПУСК НА РАССЫПАННОЕ СГЛАЖИВАНИЕ. Прогоны 04.09 дважды подряд валили
@@ -262,4 +267,106 @@ test('visual: studio-staff', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Сотрудники продаж');
   await expect(page.getByRole('checkbox', { name: 'МС: Олег Петров' })).toBeVisible();
   await shoot(page, 'studio-staff', page.locator('#main-content'));
+});
+
+/**
+ * НОВЫЙ ЭТАЛОН ЕЩЁ НЕ СНЯТ — тест пропускается, а не краснеет (веха 5а). Эталоны
+ * снимает владелец (`update_snapshots` визуальной джобы CI): без этого обычный
+ * прогон падал бы на «A snapshot doesn't exist», не найдя ни одного изменения вида.
+ * С `--update-snapshots` (режимы `changed`/`all`) тест идёт и пишет эталон. Как
+ * только PNG появился в `visual.spec.ts-snapshots/`, пропуска больше нет.
+ */
+function skipUntilBaseline(name: string) {
+  const info = test.info();
+  const updating = info.config.updateSnapshots === 'all' || info.config.updateSnapshots === 'changed';
+  test.skip(!updating && !existsSync(info.snapshotPath(`${name}.png`, { kind: 'screenshot' })),
+    `эталона ${name} ещё нет — снимет владелец (update_snapshots)`);
+}
+
+const FLATS_ORDER = '6f1c2d3e-0000-4000-8000-0000000005e1';
+const FLATS_ITEM = '6f1c2d3e-0000-4000-8000-0000000005e2';
+const FLATS_LOGO = `orders/${FLATS_ORDER}/logo/00000000-0000-4000-8000-000000000001-logo.png`;
+
+/** Заказ с одной футболкой FreeFit и одним логотипом на груди (раскладка v1) */
+function designExtras(): MockExtras {
+  return {
+    catalogs: { app_config: { garmentFlats: seedFlatsCatalog(['tshirt-freefit']) } },
+    storageObjects: {
+      ...seedFlatObjects(['tshirt-freefit']),
+      [`order-artworks/${FLATS_LOGO}`]: {
+        type: 'image/png',
+        body: readFileSync(new URL('./fixtures/logo-300dpi.png', import.meta.url)),
+      },
+    },
+    salesOrders: [{
+      id: FLATS_ORDER,
+      schema_version: 4,
+      order_number: 'PH-9100',
+      title: 'Футболки для команды',
+      customer: 'ООО Тест',
+      status: 'draft',
+      kind: 'run',
+      price_total: null,
+      due_date: null,
+      updated_at: FX_CREATED,
+      created_by: null,
+      order_items: [{
+        id: FLATS_ITEM,
+        kind: 'sku',
+        sku_code: 'T-004',
+        product_type: 'Футболка',
+        flat_id: 'tshirt-freefit',
+        size_grid: { sizes: ['M', 'L'], rows: [{ color: 'Белый (01-01)', sizes: { M: 20, L: 10 } }] },
+        extras: [],
+        sort_order: 0,
+        order_item_prints: [{
+          id: '6f1c2d3e-0000-4000-8000-0000000005e3', sort_order: 0, method: 'dtf', zone: 'Грудь (перед)',
+          sizes: [], width_mm: 200, height_mm: 100, colors: 1, textile: 'white', fill: 1,
+          artwork_path: FLATS_LOGO, offset_mm: 111, offset_from: 'neck_seam', offset_dir: 'down',
+          layout: {
+            v: 1, flat_id: 'tshirt-freefit', flat_version: 1, view: 'front', area_id: 'chest',
+            x_mm: 377.6, y_mm: 230, rotation_deg: 0, flip_h: false, flip_v: false,
+            asset: {
+              type: 'png', source_file: 'logo.png', intrinsic_w_mm: 50.8, intrinsic_h_mm: 25.4,
+              px_w: 600, px_h: 300, dpi: 300, size_estimated: false, has_preview: false,
+            },
+          },
+        }],
+        order_item_labels: [],
+      }],
+      order_notes_cards: [],
+    }],
+  };
+}
+
+/**
+ * Вкладка «Дизайн» (веха 5а): холст с одним логотипом, панель, шапка. Пиксели
+ * самого холста под маской (растеризатор konva), рамка, панель и шапка — нет.
+ * На телефоне — превью-картинка (`DesignPreview`), снимается целиком.
+ */
+test('visual: studio-design', async ({ page }) => {
+  skipUntilBaseline('studio-design');
+  await installSupabaseMock(page, designExtras());
+  await page.goto(`/sales/${FLATS_ORDER}?tab=design&item=${FLATS_ITEM}&studio=1`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('PH-9100 · ООО Тест');
+  const compact = (page.viewportSize()?.width ?? 1280) <= 760;
+  if (compact) {
+    await expect(page.getByRole('img', { name: /нанесений 1$/ })).toBeVisible();
+  } else {
+    await expect(page.getByRole('application', { name: /^Холст/ })).toHaveAttribute('data-ready', 'true');
+    await expect(page.getByRole('list', { name: 'Нанесения на виде' }).getByRole('listitem')).toHaveCount(1);
+  }
+  await shoot(page, 'studio-design', page.locator('#main-content'), compact ? [] : [page.locator('canvas')]);
+});
+
+/** «Справочники заказа» → «Флэты и зоны»: таблица из трёх флэтов сида */
+test('visual: studio-settings-flats', async ({ page }) => {
+  skipUntilBaseline('studio-settings-flats');
+  const catalogs = orderCatalogs() as MockExtras['catalogs'] & { app_config: Record<string, unknown> };
+  catalogs.app_config.garmentFlats = seedFlatsCatalog(['tshirt-freefit', 'hoodie-classic', 'shopper-classic']);
+  await installSupabaseMock(page, { catalogs });
+  await page.goto('/order-settings?tab=flats&studio=1');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
+  await expect(page.getByText('Флэтов в справочнике: 3')).toBeVisible();
+  await shoot(page, 'studio-settings-flats', page.locator('#main-content'));
 });

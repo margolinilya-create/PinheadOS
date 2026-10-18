@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installSupabaseMock, type MockCall, type MockExtras } from './support/mockSupabase';
+import { seedCounts, seedFlatsCatalog } from './support/flatsFixture';
 import {
   axeSerious, draftOrder, hoodieItem, orderCatalogs, setProfile, staffFx,
 } from './support/orderCatalogFx';
@@ -232,6 +233,60 @@ test.describe('доступ к настройкам продаж', () => {
   });
 });
 
+/**
+ * «Флэты и зоны» (веха 5а): кнопка «Загрузить типовые флэты» — сид дизайн-мейкера.
+ * Каждый SVG — в бакет `garment-flats` по версионному пути, справочник — ОДНОЙ записью
+ * `catalog_put` ПОСЛЕ всех файлов (справочник не ссылается на файл, которого нет).
+ * Число файлов и флэтов берётся из самого сида, а не из спеки.
+ */
+test.describe('флэты и зоны: типовые флэты кнопкой', () => {
+  test.skip(({ viewport }) => (viewport?.width ?? 1280) <= 760, 'На телефоне справочники только для просмотра');
+
+  test('admin: «Загрузить типовые флэты» — все SVG сида в бакет, затем один catalog_put', async ({ page }) => {
+    const calls: MockCall[] = [];
+    await installSupabaseMock(page, { calls, catalogs: orderCatalogs(), storageObjects: {} });
+    await page.goto('/order-settings?tab=flats&studio=1');
+    await expect(page.getByRole('tab', { name: 'Флэты и зоны' })).toHaveAttribute('aria-selected', 'true');
+    const { flats, files } = seedCounts();
+    await expect(page.getByText(`Типовых силуэтов пока нет. Загрузите ${flats} моделей одной кнопкой`)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Загрузить типовые флэты' }).click();
+    await expect(page.getByText(`Типовые флэты загружены: ${flats} моделей`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(`Флэтов в справочнике: ${flats}`)).toBeVisible();
+
+    const flatUploads = calls.filter((c) => c.kind === 'storage').map((c) => c.name);
+    expect(flatUploads).toHaveLength(files);
+    for (const name of flatUploads) expect(name).toMatch(/^garment-flats\/flats\/[a-z0-9-]+\/v1\/(front|back)\.svg$/);
+    expect(new Set(flatUploads).size).toBe(files);
+
+    const puts = rpcCalls(calls, 'catalog_put');
+    expect(puts).toHaveLength(1);
+    expect(puts[0].body).toMatchObject({ p_table: 'app_config', p_key: 'garmentFlats', p_base: null });
+    // Справочник — последним: после него ни одной загрузки
+    const putAt = calls.indexOf(puts[0]);
+    expect(calls.slice(putAt).filter((c) => c.kind === 'storage')).toEqual([]);
+    const value = (puts[0].body as { p_value: { flats: { id: string }[] } }).p_value;
+    expect(value.flats).toHaveLength(flats);
+  });
+
+  test('rop видит флэты, но кнопки загрузки нет', async ({ page }) => {
+    const calls: MockCall[] = [];
+    const catalogs = orderCatalogs() as MockExtras['catalogs'] & { app_config: Record<string, unknown> };
+    catalogs.app_config.garmentFlats = seedFlatsCatalog(['tshirt-freefit', 'hoodie-classic']);
+    await installSupabaseMock(page, { calls, catalogs });
+    await openSales(page);
+    await setProfile(page, { role: 'rop', is_sales: false, is_ms: false });
+    await nav(page).getByRole('link', { name: 'Справочники заказа' }).click();
+    await page.getByRole('tab', { name: 'Флэты и зоны' }).click();
+    await expect(page).toHaveURL(/tab=flats/);
+    await expect(page.getByText('Флэтов в справочнике: 2')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Загрузить типовые флэты' })).toHaveCount(0);
+    await expect(page.getByText('Флэты меняет администратор или директор')).toBeVisible();
+    expect(calls.filter((c) => c.kind === 'storage')).toEqual([]);
+    expect(rpcCalls(calls, 'catalog_put')).toEqual([]);
+  });
+});
+
 test('телефон: справочники только для просмотра, сохранения нет', async ({ page }) => {
   test.skip(!isCompact(page), 'Проверка раскладки ≤ 760 px');
   await installSupabaseMock(page, { catalogs: orderCatalogs() });
@@ -243,8 +298,11 @@ test('телефон: справочники только для просмот�
 
 test.describe('доступность', () => {
   test('справочники заказа: нет нарушений axe уровня serious/critical на всех вкладках', async ({ page }) => {
-    await installSupabaseMock(page, { catalogs: orderCatalogs() });
-    for (const tab of ['suppliers', 'labels', 'packaging', 'pricing', 'tz']) {
+    // «Флэты и зоны» — с таблицей: два флэта сида
+    const catalogs = orderCatalogs() as MockExtras['catalogs'] & { app_config: Record<string, unknown> };
+    catalogs.app_config.garmentFlats = seedFlatsCatalog(['tshirt-freefit', 'hoodie-classic']);
+    await installSupabaseMock(page, { catalogs });
+    for (const tab of ['suppliers', 'labels', 'packaging', 'pricing', 'tz', 'flats']) {
       await page.goto(`/order-settings?tab=${tab}&studio=1`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
       await expect(page.getByRole('tabpanel')).toBeVisible();

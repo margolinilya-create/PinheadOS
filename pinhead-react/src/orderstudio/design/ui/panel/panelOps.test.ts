@@ -30,6 +30,19 @@ describe('panelOps — геометрия инспектора', () => {
     expect(next[0].height_mm).toBe(40);
   });
 
+  it('Ш с замком: пропорция — файла, а не округлённых до мм сторон (e2e 18.10: 51 × 25 → 200 × 98)', () => {
+    // Логотип 600 × 300 px при 300 dpi — 50,8 × 25,4 мм; в нанесении мм целые: 51 × 25
+    const asset = { ...ASSET, intrinsic_w_mm: 50.8, intrinsic_h_mm: 25.4 };
+    const pl = { ...plOf(placed()), width_mm: 51, height_mm: 25, asset };
+    expect(resized(pl, { width: 200 }, true).height_mm).toBeCloseTo(100);
+    expect(resized(pl, { height: 100 }, true).width_mm).toBeCloseTo(200);
+  });
+
+  it('Ш с замком после свободной правки — держит нынешнюю пропорцию, а не файла', () => {
+    const pl = { ...plOf(placed()), width_mm: 120, height_mm: 40 };
+    expect(resized(pl, { width: 60 }, true).height_mm).toBeCloseTo(20);
+  });
+
   it('Ш без замка — В прежняя', () => {
     const g = resized(plOf(placed()), { width: 60 }, false);
     expect(g.height_mm).toBe(80);

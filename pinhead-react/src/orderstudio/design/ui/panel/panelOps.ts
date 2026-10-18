@@ -38,9 +38,31 @@ export function placeGeometry(prints: SalesPrint[], key: string, geometry: Geome
   return applyCanvasChange(prints, { kind: 'place', key, geometry, label: '' }, ctx);
 }
 
-/** Ш или В с центром на месте; `locked` — вторая сторона по пропорции */
-export function resized(pl: Geometry, size: { width?: number; height?: number }, locked: boolean): Geometry {
-  const ratio = pl.height_mm / pl.width_mm || 1;
+/** Мм нанесения целые (стандартные поля): пропорция сторон может уйти от файла на округление */
+const ROUNDING_SLACK_MM = 1;
+
+/**
+ * Пропорция «В / Ш» для замка. Стороны нанесения хранятся целыми мм, и логотип
+ * 50,8 × 25,4 мм стоит как 51 × 25: пропорция сторон (0,49) дала бы при Ш 200
+ * высоту 98 — логотип сплющен на 2 % (e2e 18.10). Если стороны отличаются от
+ * пропорции файла не больше, чем на округление, берётся пропорция файла; если
+ * человек развязал замок и сплющил нарочно — его нынешняя.
+ */
+function lockRatio(pl: Geometry & { asset?: Pick<Placement['asset'], 'intrinsic_w_mm' | 'intrinsic_h_mm'> }): number {
+  const own = pl.height_mm / pl.width_mm || 1;
+  const a = pl.asset;
+  if (!a || !(a.intrinsic_w_mm > 0) || !(a.intrinsic_h_mm > 0)) return own;
+  const file = a.intrinsic_h_mm / a.intrinsic_w_mm;
+  return Math.abs(pl.width_mm * file - pl.height_mm) <= ROUNDING_SLACK_MM ? file : own;
+}
+
+/** Ш или В с центром на месте; `locked` — вторая сторона по пропорции (файла, если стороны — его округление) */
+export function resized(
+  pl: Geometry & { asset?: Pick<Placement['asset'], 'intrinsic_w_mm' | 'intrinsic_h_mm'> },
+  size: { width?: number; height?: number },
+  locked: boolean,
+): Geometry {
+  const ratio = lockRatio(pl);
   let w = pl.width_mm;
   let h = pl.height_mm;
   if (size.width !== undefined) {

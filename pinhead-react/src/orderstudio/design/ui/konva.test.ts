@@ -70,6 +70,17 @@ describe('сторож konva', () => {
     expect(config).toContain("./src/orderstudio/design/ui/konvaCore.ts");
   });
 
+  it('vite.config.js вырезает ветку `global` konva (иначе помощник CommonJS едет в vendor-react — вход растёт)', () => {
+    const config = readFileSync(join(SRC_DIR, '..', 'vite.config.js'), 'utf8');
+    expect(config).toMatch(/plugins: \[[^\]]*konvaWithoutNodeGlobal\(\)/);
+    const literal = /const KONVA_NODE_GLOBAL = ("(?:[^"\\]|\\.)*");/.exec(config)?.[1];
+    expect(literal).toBeDefined();
+    const needle = JSON.parse(literal!) as string;
+    // Текст сверяется с установленной konva: обновление, сменившее Global.js, краснеет здесь, а не только в сборке
+    const global = readFileSync(join(SRC_DIR, '..', 'node_modules', 'konva', 'lib', 'Global.js'), 'utf8');
+    expect(global.split(needle).length - 1).toBe(1);
+  });
+
   it('проверка ловит то, что должна (мутация на строке)', () => {
     expect(specifiers("import Konva from 'konva';").filter(isKonva)).toEqual(['konva']);
     expect(specifiers("import { Stage } from 'react-konva';").filter((s) => !ALLOWED.has(s))).toEqual(['react-konva']);

@@ -74,3 +74,43 @@ export function flatStorageObjects(): Record<string, { type: string; body: Buffe
     [`garment-flats/${svgPath('back')}`]: { type: 'image/svg+xml', body: fixtureSvg('back') },
   };
 }
+
+// ── Флэты сида (веха 5а, задача 8): то же, что кладёт кнопка «Загрузить типовые флэты» ──
+
+type SeedView = { kind: 'front' | 'back'; svg_path: string };
+type SeedFlat = { id: string; views: SeedView[] };
+type SeedCatalog = { version: number; flats: SeedFlat[] };
+
+const SEED_DIR = new URL('../../src/orderstudio/design/seed/', import.meta.url);
+const seedCatalog = (): SeedCatalog => JSON.parse(readFileSync(new URL('garmentFlats.seed.json', SEED_DIR), 'utf8'));
+
+/** Справочник `garmentFlats` из сида: только названные флэты, как есть (новая копия на вызов) */
+export function seedFlatsCatalog(ids: string[]): SeedCatalog {
+  const all = seedCatalog();
+  const flats = ids.map((id) => {
+    const f = all.flats.find((x) => x.id === id);
+    if (!f) throw new Error(`флэта ${id} нет в сиде`);
+    return f;
+  });
+  return { version: all.version, flats };
+}
+
+/** Объекты бакета `garment-flats` для флэтов сида (`flats/<id>/v<N>/<вид>.svg`) */
+export function seedFlatObjects(ids: string[]): Record<string, { type: string; body: Buffer }> {
+  const out: Record<string, { type: string; body: Buffer }> = {};
+  for (const f of seedFlatsCatalog(ids).flats) {
+    for (const v of f.views) {
+      out[`garment-flats/${v.svg_path}`] = {
+        type: 'image/svg+xml',
+        body: readFileSync(new URL(`flats/${f.id}-${v.kind}.svg`, SEED_DIR)),
+      };
+    }
+  }
+  return out;
+}
+
+/** Число флэтов и файлов сида — сверка сценария сида с самим сидом, а не с числом в спеке */
+export function seedCounts(): { flats: number; files: number } {
+  const all = seedCatalog();
+  return { flats: all.flats.length, files: all.flats.reduce((n, f) => n + f.views.length, 0) };
+}

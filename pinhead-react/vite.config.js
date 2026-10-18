@@ -60,9 +60,38 @@ function jspdfWithoutOptional() {
   };
 }
 
+/**
+ * konva без ссылки на `global` Node (веха 5а, задача 8; бюджет «вход и оболочка ERP не растут»).
+ *
+ * `konva/lib/Global.js` (CommonJS) выбирает глобальный объект так: `typeof global !== 'undefined'
+ * ? global : window …`. Плагин commonjs Rollup подменяет `global` своим помощником
+ * `commonjsGlobal`, а помощники CommonJS живут в чанке, который затребовал их первым, —
+ * `vendor-react`. Тогда КАЖДЫЙ человек, открывший «Производство», скачивал бы определение
+ * помощника и его экспорт для холста, которого не увидит (замер 18.10: +64 Б gzip входа
+ * и оболочки ERP вместе с привязкой `scheduler`). В браузере ветка `global` не нужна —
+ * konva и так берёт `window`, поэтому ветка вырезается ещё до разбора модуля. Счётчик
+ * замен строгий, как у jsPDF ниже: обновление konva, сменившее текст, роняет сборку,
+ * а не возвращает помощник в `vendor-react` молча. В dev и vitest konva идёт через
+ * предсборку esbuild — замены там нет, и она там не нужна (`global` в браузере не определён).
+ */
+const KONVA_NODE_GLOBAL = "exports.glob = typeof global !== 'undefined'\n    ? global\n    : typeof window";
+function konvaWithoutNodeGlobal() {
+  return {
+    name: 'pinhead-konva-without-node-global',
+    apply: 'build',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!/node_modules\/konva\/lib\/Global\.js$/.test(id)) return null;
+      const hits = code.split(KONVA_NODE_GLOBAL).length - 1;
+      if (hits !== 1) this.error(`konva: ожидалась одна ветка \`typeof global\` в Global.js, найдено ${hits} — сверьте vite.config.js`);
+      return { code: code.replace(KONVA_NODE_GLOBAL, 'exports.glob = typeof window'), map: null };
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), buildVersionFile(), jspdfWithoutOptional(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
+  plugins: [react(), buildVersionFile(), jspdfWithoutOptional(), konvaWithoutNodeGlobal(), ...(process.env.QA_SB_BRIDGE ? [qaSupabaseBridge()] : [])],
   base: '/',
   resolve: {
     // Ядро konva без Tween/Animation/FastLayer (≈ 3 кБ gzip холста «Дизайн»):
