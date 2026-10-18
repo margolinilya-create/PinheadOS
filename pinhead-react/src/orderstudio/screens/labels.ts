@@ -50,6 +50,7 @@ export const ISSUE_LABELS: Record<PriceIssue, string> = {
   print_too_big: 'DTF: макет не помещается в плёнку 55 см — расчёт заблокирован',
   fabric_not_found: 'Ткань не найдена или без цены — выберите ткань из каталога',
   emb_low_qty: 'Вышивка меньше 50 шт. — тариф согласовать отдельно',
+  screen_low_qty: 'Шелкография — тираж от 50 шт. Меньший тираж согласуйте с производством',
 };
 
 export const rub = (v: number | null | undefined): string =>

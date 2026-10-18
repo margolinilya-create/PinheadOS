@@ -74,7 +74,8 @@ export type PriceIssue =
   | 'print_oversize'    // макет больше A3 — посчитано по A3
   | 'print_too_big'     // DTF: макет не помещается в плёнку — расчёт заблокирован
   | 'fabric_not_found'  // ткань не найдена или без цены — не ноль, а ошибка
-  | 'emb_low_qty';      // вышивка меньше 50 шт. — тариф согласовать отдельно
+  | 'emb_low_qty'       // вышивка меньше 50 шт. — тариф согласовать отдельно
+  | 'screen_low_qty';   // шелкография меньше 50 шт. — тираж согласовать отдельно
 
 export interface PrintPrice {
   key: string;
@@ -180,7 +181,8 @@ function printUnitPrice(
   switch (print.method) {
     case 'silkscreen': {
       const sf = screenFormat(print.width_mm, print.height_mm);
-      return { unit: core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode), issue: sf.issue };
+      const unit = core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode);
+      return { unit, issue: sf.issue ?? (qty < printRules.SCREEN_MIN_QTY ? 'screen_low_qty' : undefined) };
     }
     case 'heat_transfer':
       return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };

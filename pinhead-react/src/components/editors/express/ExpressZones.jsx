@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Icon } from '../../../erp/components/Icon';
 import { ZONE_LABELS } from '../../../data';
 import { fmtPerUnit } from '../../../utils/displayNames';
+import { SCREEN_MIN_QTY } from '../../../utils/printRules';
 import OptionGroup from './OptionGroup';
 import ExpressSilk from './ExpressSilk';
 import ExpressFlex from './ExpressFlex';
@@ -12,7 +13,6 @@ import { TECH_OPTIONS, activeCount, zoneSurcharge } from './expressModel';
 import s from '../ExpressCalc.module.css';
 
 const PARAMS = { screen: ExpressSilk, flex: ExpressFlex, dtf: ExpressDtf, dtg: ExpressDtg, embroidery: ExpressEmbroidery };
-const SCREEN_MOQ = 50;
 
 const zoneName = (id) => ZONE_LABELS[id] || id;
 
@@ -56,7 +56,7 @@ export default function ExpressZones({ zones, data, qty, fabricCode, onToggle, o
           id={id}
           entry={data[id]}
           surcharge={zoneSurcharge(data[id], qty, fabricCode)}
-          screenWarn={data[id].tech === 'screen' && qty > 0 && qty < SCREEN_MOQ}
+          screenWarn={data[id].tech === 'screen' && qty > 0 && qty < SCREEN_MIN_QTY}
           onTech={(tech) => onTech(id, tech)}
           onParam={(key, val) => onParam(id, key, val)}
         />
@@ -77,7 +77,7 @@ function ZoneBlock({ id, entry, surcharge, screenWarn, onTech, onParam }) {
       <div className={s.zoneBody}>
         <OptionGroup label="Техника" options={TECH_OPTIONS} value={entry.tech} onChange={onTech} />
         {Params && <Params entry={entry} onParam={onParam} />}
-        {screenWarn && <p className={s.warn}>Шелкография — тираж от {SCREEN_MOQ} шт</p>}
+        {screenWarn && <p className={s.warn}>Шелкография — тираж от {SCREEN_MIN_QTY} шт</p>}
       </div>
     </section>
   );
