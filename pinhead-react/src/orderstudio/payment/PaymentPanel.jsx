@@ -69,7 +69,7 @@ export default function PaymentPanel({ order, user }) {
 
   async function mark(kind) {
     if (asMs) {
-      const { ok } = await confirm({
+      const ok = await confirm({
         title: `Отметить ${KIND_LABEL[kind]}?`,
         message: 'Снять отметку сможет только руководитель',
         confirmLabel: 'Отметить',
