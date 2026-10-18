@@ -197,6 +197,9 @@ describe('миграция J: что в ней нет и как закрыто',
     expect(helper).toMatch(/d\.file_path like 'tz\/v4-%'/);
     // путь документа ТЗ не привязан к другому заказу ERP (старая копия того же МС — не подлинная)
     expect(helper).toMatch(/not exists \(\s*select 1 from public\.erp_tz_documents d2\s+where d2\.file_path = d\.file_path and d2\.order_id <> p_erp\)/);
+    // возраст объекта: окно 30 минут до метки заказа v4 (давняя копия того же МС — не подлинная;
+    // без запаса ломается настоящий запуск — recheck продлевает метку после files)
+    expect(helper).toMatch(/o\.created_at >= \(\s*select v\.launch_started_at - interval '30 minutes'\s+from public\.erp_orders e\s+join public\.orders v on v\.id = e\.tz_order_id\s+where e\.id = p_erp\)/);
   });
 
   it('разделение обязанностей: переход в production повторяет проверки launch_check (находка 2)', () => {
@@ -255,7 +258,7 @@ describe('пробы J: тексты, файлы, мутации', () => {
     for (const name of ['msw_no_label', 'ms2_after_3min', 'fake_check', 'fake_empty_check', 'ms2_return_race',
       'msa_own_check', 'rop_override_self_check', 'rop_self_ms', 'rop_rop2_ms', 'seq_unchanged', 'helper_closed',
       'oldcopy_check', 'oldcopy_prod', 'toctou_pay_fresh', 'toctou_label_cleared', 'toctou_prod', 'toctou_pay_erp',
-      'race_override_prod', 'race_own_prod']) {
+      'race_override_prod', 'race_own_prod', 'agedcopy_check', 'agedcopy_prod', 'agedfresh_prod']) {
       expect(probeNames.has(name), name).toBe(true);
     }
   });

@@ -158,6 +158,17 @@ export const MUTATIONS = [
       '                  where d2.file_path = d.file_path and d2.order_id <> p_erp)',
     replace: '',
     kills: 'oldcopy_check / oldcopy_prod (старая копия ТЗ того же МС у другого заказа ERP)' },
+  // Финальное ревью: окно по возрасту объекта Storage — 30 минут до метки запуска заказа v4
+  { name: 'authentic-no-age-window', fn: 'order_v4_erp_authentic',
+    find: "               and o.created_at >= (\n                 select v.launch_started_at - interval '30 minutes'\n" +
+      '                   from public.erp_orders e\n                   join public.orders v on v.id = e.tz_order_id\n' +
+      '                  where e.id = p_erp)\n',
+    replace: '',
+    kills: 'agedcopy_check / agedcopy_prod (давняя непривязанная копия ТЗ того же МС)' },
+  { name: 'authentic-window-no-margin', fn: 'order_v4_erp_authentic',
+    find: "                 select v.launch_started_at - interval '30 minutes'\n",
+    replace: '                 select v.launch_started_at\n',
+    kills: 'agedfresh_prod (копия шага files до метки, продлённой recheck)' },
 ];
 
 /** Границы тела функции `fn` в тексте J: [начало, конец) между `$$` */

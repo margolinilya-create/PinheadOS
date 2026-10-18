@@ -26,8 +26,9 @@
 --     объектом в бакете `order-artworks` (К18); возврат во время чужого
 --     свежего запуска запрещён (К17); `production` — только заказ ERP,
 --     id которого вернул createOrder этого запуска, с документами ТЗ из
---     объектов, загруженных тем, кто ставил метку, и не привязанных к другому
---     заказу ERP (находка 1), и снова разделение обязанностей (К16, находка 2);
+--     объектов, загруженных тем, кто ставил метку не раньше чем за 30 минут
+--     до неё, и не привязанных к другому заказу ERP (находка 1), и снова
+--     разделение обязанностей (К16, находка 2);
 --   · launch_check: права ERP (`erp_is_member`, `order.manage`, `tz.manage`)
 --     до метки (К14), чужая метка 10 минут от последнего продления (К15),
 --     разделение обязанностей (К16), подлинность сироты (находка 1);
@@ -69,8 +70,14 @@
 -- Путь документа не должен встречаться у ДРУГОГО заказа ERP: копия ТЗ прошлого
 -- запуска того же МС (ключи видны списком публичного бакета любому члену ERP)
 -- уже привязана к своему заказу ERP и подлинности не даёт (ревью задачи 1,
--- раунд 2). Свежесть объекта (`o.created_at >= launch_started_at`) не годится:
--- шаг recheck продлевает метку уже ПОСЛЕ загрузки копий на шаге files.
+-- раунд 2). Свежесть объекта — окном 30 минут до метки запуска заказа v4
+-- (`orders.id = erp_orders.tz_order_id`): `o.created_at >= launch_started_at -
+-- interval '30 minutes'` (финальное ревью). Без запаса нельзя: шаг recheck
+-- продлевает метку уже ПОСЛЕ загрузки копий на шаге files. Окно отсекает остаток
+-- давней неудачной попытки того же МС (agedcopy_*); метки нет — не подлинный.
+-- Оба вызывающих зовут хелпер при стоящей метке (переход — после проверки
+-- «Сначала проверка запуска», сиротская ветка launch_check — под условием
+-- `launch_started_at is not null`), до любой записи в orders.
 
 create or replace function public.order_v4_erp_authentic(p_erp uuid, p_launch_by uuid)
 returns boolean
@@ -91,6 +98,11 @@ as $$
              where d.order_id = p_erp and d.item_id = i.id
                and d.file_path like 'tz/v4-%'
                and coalesce(o.owner_id, o.owner::text) = p_launch_by::text
+               and o.created_at >= (
+                 select v.launch_started_at - interval '30 minutes'
+                   from public.erp_orders e
+                   join public.orders v on v.id = e.tz_order_id
+                  where e.id = p_erp)
                and not exists (
                  select 1 from public.erp_tz_documents d2
                   where d2.file_path = d.file_path and d2.order_id <> p_erp)));

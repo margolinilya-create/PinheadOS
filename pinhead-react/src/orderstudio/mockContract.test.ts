@@ -108,7 +108,9 @@ describe.skipIf(!HAS_J)('мок e2e = миграция J', () => {
   });
 
   it('окно метки запуска и запрета возврата — одно, в минутах J', () => {
-    const windows = [...bodies(sql).matchAll(/interval\s+'(\d+) minutes'/g)].map((m) => Number(m[1]));
+    // окна метки — от now(); окно возраста копии ТЗ в order_v4_erp_authentic
+    // (`launch_started_at - interval '30 minutes'`) — другая величина, мок её не знает
+    const windows = [...bodies(sql).matchAll(/now\(\)\s*-\s*interval\s+'(\d+) minutes'/g)].map((m) => Number(m[1]));
     expect(windows.length).toBeGreaterThanOrEqual(2);
     expect(new Set(windows)).toEqual(new Set([LAUNCH_WINDOW_MINUTES]));
   });
