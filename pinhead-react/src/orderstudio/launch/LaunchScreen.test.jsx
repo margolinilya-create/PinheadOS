@@ -170,6 +170,19 @@ describe('LaunchScreen', () => {
     expect(screen.getByRole('button', { name: 'Отметить: заказ сдан' })).toBeInTheDocument();
   });
 
+  it('после запуска «Следующий к запуску» открывает форму следующего, а не итог прежнего', async () => {
+    bridge.launchToErp.mockResolvedValue({ ok: true, erpOrderId: 'erp-1', alreadyLaunched: false, warnings: [] });
+    api.fetchSalesOrders.mockResolvedValue([{ id: 'n-2', status: 'ready_to_launch', due_date: '2026-11-01', updated_at: 'x' }]);
+    renderScreen(MS);
+    await waitFor(() => expect(launchBtn()).not.toHaveAttribute('aria-disabled'));
+    fireEvent.click(launchBtn());
+    api.fetchSalesOrder.mockResolvedValue(order({ id: 'n-2', number: 'PH-2' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Следующий к запуску (осталось 1)' }));
+    expect(await screen.findByRole('heading', { name: 'К запуску: PH-2' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Заказ запущен в производство' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Запустить в производство' })).toBeInTheDocument();
+  });
+
   it('«Следующий к запуску» — следующий по сроку, без текущего', async () => {
     api.fetchSalesOrders.mockResolvedValue([
       { id: 'n-late', status: 'ready_to_launch', due_date: '2026-12-01', updated_at: 'x' },

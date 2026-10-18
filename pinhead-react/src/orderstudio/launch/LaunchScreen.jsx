@@ -94,9 +94,11 @@ export default function LaunchScreen() {
       <p className={styles.sub}>{[order.customer, order.title].filter(Boolean).join(' · ')} · <Link to={`/sales/${order.id}`}>Открыть заказ</Link></p>
     </div>
   );
-  const kind = outcome?.kind ?? (order.status === 'ready_to_launch' ? null : order.status);
+  // Итог — только своего заказа: «Следующий к запуску» меняет id, а экран тот же
+  const mine = outcome?.id === order.id ? outcome : null;
+  const kind = mine?.kind ?? (order.status === 'ready_to_launch' ? null : order.status);
   if (kind) {
-    return <div className={styles.page}>{head}<LaunchOutcome order={order} user={user} kind={kind} warnings={outcome?.warnings} /></div>;
+    return <div className={styles.page}>{head}<LaunchOutcome order={order} user={user} kind={kind} warnings={mine?.warnings} /></div>;
   }
 
   const tzState = tz.key === tzKey ? tz : { ok: null, reason: '' };
@@ -119,7 +121,7 @@ export default function LaunchScreen() {
       return;
     }
     if (r.patch) useSalesStore.getState().applyServer(r.patch);
-    setOutcome({ kind: 'launched', warnings: r.warnings });
+    setOutcome({ id: order.id, kind: 'launched', warnings: r.warnings });
   };
 
   const sendBack = async (reason) => {
@@ -128,7 +130,7 @@ export default function LaunchScreen() {
     setReturning(false);
     useSalesStore.getState().applyServer({ ...res, id: order.id });
     toast.success(`Заказ ${order.number} возвращён менеджеру`);
-    setOutcome({ kind: 'returned', warnings: [] });
+    setOutcome({ id: order.id, kind: 'returned', warnings: [] });
     return true;
   };
 

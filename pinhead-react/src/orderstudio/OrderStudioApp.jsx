@@ -97,7 +97,8 @@ function RoleGuard({ allowed, children }) {
 function LaunchGuard({ allowed, children }) {
   const { id } = useParams();
   if (!allowed) return <Navigate to={`/sales/${id}`} replace />;
-  return children;
+  // Ключ — id заказа: «Следующий к запуску» открывает экран заново, без итога и ошибки прежнего
+  return <React.Fragment key={id}>{children}</React.Fragment>;
 }
 
 function LoadingScreen() {
