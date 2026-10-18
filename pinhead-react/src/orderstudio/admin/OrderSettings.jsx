@@ -39,6 +39,9 @@ const PANELS = {
   flats: FlatsTab,
 };
 
+/** Адрес режимов «Флэтов и зон»: флэт, вид, «Зоны нанесения» — снимаются при смене вкладки */
+const FLATS_PARAMS = ['flat', 'view', 'part'];
+
 /** Телефон: справочники только для просмотра, правка — с компьютера */
 const COMPACT = '(max-width: 760px)';
 
@@ -75,6 +78,8 @@ export default function OrderSettings() {
     setParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', id);
+      // Режимы вкладки «Флэты и зоны» (веха 5б) другим вкладкам не нужны
+      for (const key of FLATS_PARAMS) next.delete(key);
       return next;
     }, { replace: true });
   };

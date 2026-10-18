@@ -5,7 +5,9 @@ import { DESIGN_ICONS, DESIGN_ICON_NAMES } from './designIcons';
 
 /** Набор плана (решение 9) — его ждёт панель задачи 6б */
 const PLAN_SET = ['upload', 'redo', 'flipH', 'flipV', 'rotateCw', 'rotateCcw', 'copy', 'layers',
-  'zoomIn', 'zoomOut', 'fit', 'lock', 'unlock', 'eyeOff'];
+  'zoomIn', 'zoomOut', 'fit', 'lock', 'unlock', 'eyeOff',
+  // Редактор флэта (веха 5б, задача 6б)
+  'plus', 'trash', 'arrowUp', 'arrowDown', 'anchor', 'ruler'];
 
 describe('DesignIcon', () => {
   it('svg 24×24 с заданным размером, цвет — currentColor', () => {
