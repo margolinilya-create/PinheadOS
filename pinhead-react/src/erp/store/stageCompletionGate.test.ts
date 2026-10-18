@@ -315,3 +315,33 @@ describe('незавершённая программа вышивки держ�
     expect(await s().setStageStatus('st1', 'done', { qty_done: 100 })).toBe(true);
   });
 });
+
+/**
+ * ФАЗА ПРОГРАММЫ (правки 19.10, Р3): одиночная строка вышивки в фазе
+ * «Разработка программы» не закрывается и не пропускается ни одним писателем —
+ * даже с приложенным файлом. Путь вперёд один: «Программа готова».
+ */
+describe('фаза программы вышивки не закрывается', () => {
+  const EMB_DEPT = { ...OPEN_DEPT, id: 'd-emb', code: 'embroidery', name: 'Вышивка' };
+  const phased = () => {
+    seed({ deptId: EMB_DEPT.id, qtyDone: 0, materials: [] });
+    useErpStore.setState((st) => ({
+      departments: [...st.departments, EMB_DEPT] as never,
+      orders: st.orders.map((o) => ({
+        ...o,
+        attachments: [{ id: 'a1', kind: 'stage_result', stage_id: 'st1', file_path: 'x' }],
+        items: o.items.map((it) => ({
+          ...it,
+          stages: it.stages.map((x) => ({ ...x, result_kind: 'embroidery_program' })),
+        })),
+      })) as never,
+    }));
+  };
+
+  it('«Завершить этап» и «Пропустить» — отказ, записи нет', async () => {
+    phased();
+    expect(await s().setStageStatus('st1', 'done')).toBe(false);
+    expect(await s().setStageStatus('st1', 'skipped')).toBe(false);
+    expect(h.updateCalls).toHaveLength(0);
+  });
+});

@@ -13,6 +13,7 @@
  */
 
 import type { ErpItemStage } from '../types';
+import { isProgramPhase, type PhaseSibling, type PhaseStage } from './embroideryPhase';
 
 /** Минимум этапа для расчёта входа */
 export type InputStage = Pick<ErpItemStage, 'id' | 'status' | 'depends_on'> & {
@@ -21,7 +22,18 @@ export type InputStage = Pick<ErpItemStage, 'id' | 'status' | 'depends_on'> & {
   qty_passthrough?: boolean | null;
   origin?: string | null;
   result_kind?: string | null;
+  item_id?: string | null;
+  department_id?: string;
 };
+
+/**
+ * Строка вышивки в фазе программы (правки 19.10, Р3) стоит в маршруте на месте
+ * вышивки: она входит в выпуск с нулём, а не выпадает как файловый этап.
+ */
+function inProgramPhase(stage: InputStage, stages: readonly InputStage[]): boolean {
+  return Boolean(stage.department_id)
+    && isProgramPhase(stage as PhaseStage, stages.filter((s) => s.department_id) as PhaseSibling[]);
+}
 
 /**
  * ПРОЗРАЧНЫЙ ЭТАП (правка 05.10, п. 1) — изделий не выпускает и передаёт
@@ -128,14 +140,15 @@ export function stageRemainingQty(
 /**
  * ВЫПУЩЕНО ПО ПОЗИЦИИ (правка 05.10, п. 1): минимум выходов терминальных
  * этапов маршрута — на которые никто не ссылается. Этапы образца и файловые
- * не считаются. Маршрута нет — тираж. Предел приёмки склада готовой продукции
+ * не считаются; строка вышивки в фазе программы считается — с нулём (19.10). Маршрута нет — тираж. Предел приёмки склада готовой продукции
  * и отгрузки: «отгрузить можно не больше фактического остатка». Зеркало
  * серверной `erp_item_produced_qty`.
  */
 export function itemProducedQty(item: { qty: number; stages?: InputStage[] | null }): number {
   const total = Math.max(item.qty ?? 0, 0);
   const stages = item.stages ?? [];
-  const serial = stages.filter((s) => (s.origin ?? 'production') === 'production' && !s.result_kind);
+  const serial = stages.filter((s) => (s.origin ?? 'production') === 'production'
+    && (!s.result_kind || inProgramPhase(s, stages)));
   const referenced = new Set(stages.flatMap((s) => s.depends_on ?? []));
   const terminal = serial.filter((s) => !referenced.has(s.id));
   if (terminal.length === 0) return total;

@@ -37,6 +37,20 @@ describe('loadDays / weekStart', () => {
 });
 
 describe('buildDeptLoad', () => {
+  /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, Р4): строка вышивки одна, в фазе
+   * программы штук у неё ноль — загрузка цеха на плановый день вышивки равна
+   * тиражу, а не удвоена второй строкой.
+   */
+  it('строка вышивки одна, плановые даты — вышивки', () => {
+    const depts = [...DEPTS, { id: 'd4', code: 'embroidery', name: 'Вышивка', sort_order: 40 }];
+    const emb = { ...stage('d4', '2026-08-06', 'in_progress'), result_kind: 'embroidery_program' };
+    const { rows } = buildDeptLoad([order(10, [emb])], depts, DAYS, TODAY);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cells.find((c) => c.date === '2026-08-06')).toMatchObject({ qty: 10, stages: 1 });
+    expect(rows[0].total).toBe(10);
+  });
+
   it('раскладывает остаток позиции по дню планового завершения', () => {
     const { rows } = buildDeptLoad([order(10, [stage('d1', '2026-08-05')])], DEPTS, DAYS, TODAY);
     expect(rows).toHaveLength(1);

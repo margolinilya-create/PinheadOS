@@ -259,6 +259,28 @@ describe('подписи строки', () => {
     });
   });
 
+  /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, Р4): плановые даты строки — даты
+   * вышивки, а `started_at` в фазе программы — начало программы, а не вышивки.
+   * Фактом начала полосы вышивки он не служит.
+   */
+  it('строка вышивки одна, плановые даты — вышивки', () => {
+    const emb = {
+      id: 'emb', department_id: 'd-emb', status: 'in_progress', result_kind: 'embroidery_program',
+      started_at: '2026-09-07T06:00:00Z', planned_end: '2026-09-11',
+    };
+    const { bars } = ganttBars(
+      [order([emb] as never, { launch_date: '2026-09-08' })],
+      DEPARTMENTS, WEEK,
+    );
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toMatchObject({ start: '2026-09-08', end: '2026-09-11', startSource: 'order', endSource: 'planned' });
+    const planned = ganttBars(
+      [order([{ ...emb, planned_start: '2026-09-09' }] as never)], DEPARTMENTS, WEEK,
+    ).bars;
+    expect(planned[0]).toMatchObject({ start: '2026-09-09', startSource: 'planned' });
+  });
+
   it('неизвестный участок не роняет строку', () => {
     // Цех деактивирован либо справочник ещё не приехал: показать этап важнее
     const { bars } = ganttBars(

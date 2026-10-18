@@ -5,6 +5,7 @@ import { currentActor } from '../../store/shared';
 import { deptShortName } from '../../data/departments';
 import { confirmStageDone } from '../../utils/stageDone';
 import { isFileResultStage } from '../../utils/stageResult';
+import { PROGRAM_PHASE_BLOCK, isProgramPhase } from '../../utils/embroideryPhase';
 import { stageDonePatch, stageUnaccounted } from '../../utils/stageRemaining';
 import { materialsForItem } from '../../utils/routes';
 import { materialsAfterBypass } from '../../utils/bypass';
@@ -106,6 +107,12 @@ export function useStageActions() {
    * и открывало следующий цех на количество, которого физически нет.
    */
   const onDone = useCallback(async (entry) => {
+    // Фаза программы вышивки (19.10, Р3) не закрывается: путь — «Программа
+    // готова». Отказ звучит до диалога «Завершить не полностью?»
+    if (isProgramPhase(entry.stage, entry.item.stages)) {
+      toast.error(PROGRAM_PHASE_BLOCK);
+      return false;
+    }
     const ok = await confirmStageDone({
       stage: entry.stage,
       qty: entry.item.qty,

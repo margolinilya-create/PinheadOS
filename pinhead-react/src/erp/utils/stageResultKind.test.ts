@@ -31,17 +31,17 @@ describe('расчёт маршрута помечает этап разрабо
     const route = buildItemRoute(item);
     const marked = route.filter((r) => r.resultKind === 'embroidery_program');
     expect(marked).toHaveLength(1);
-    // Он же standalone: программу пишут параллельно, крой её не ждёт
-    expect(marked[0].standalone).toBe(true);
-    expect(marked[0].cycle).toBe(0);
+    // С 19.10 это и есть строка вышивки: на своём месте после кроя,
+    // признак — фаза программы (Р1)
+    expect(marked[0].dependsOnCodes).toEqual(['cutting']);
+    expect(marked[0].cycle ?? 0).toBe(0);
   });
 
-  it('САМА вышивка признака не получает — у неё штуки и брак', () => {
+  it('отдельной строки вышивки нет — фазы у одной строки', () => {
     const route = buildItemRoute(item);
-    const real = route.filter(
-      (r) => r.departmentCode === 'embroidery' && r.resultKind === undefined);
-    expect(real).toHaveLength(1);
-    expect(real[0].cycle).toBe(1);
+    const emb = route.filter((r) => r.departmentCode === 'embroidery');
+    expect(emb).toHaveLength(1);
+    expect(emb[0].resultKind).toBe('embroidery_program');
   });
 
   it('без вышивки признака нет ни у кого', () => {
@@ -71,14 +71,16 @@ describe('признак доезжает до сервера и обратно'
     const steps = linearize(draftFromRoute(buildItemRoute(item)));
     const program = steps.find((s) => s.step.resultKind === 'embroidery_program');
     expect(program).toBeTruthy();
-    // Вне цепочки: не ждёт никого и никого не держит
-    expect(program!.dependsOn).toEqual([]);
+    // В цепочке, как обычная ветка нанесения: зависит от кроя (Р2 — фазу
+    // программы зависимость не держит, держит уже «Вышивку»)
+    const cutIdx = steps.findIndex((s) => s.step.departmentCode === 'cutting');
+    expect(program!.dependsOn).toEqual([cutIdx]);
   });
 
   /**
-   * ОБРАТНЫЙ ПУТЬ — САМОЕ ТИХОЕ МЕСТО. `standalone` из существующего этапа
-   * НЕ выводится (связи уже записаны в `depends_on`), и признак результата
-   * напрашивалось обнулить рядом с ним. Потеряй мы его — открытие
+   * ОБРАТНЫЙ ПУТЬ — САМОЕ ТИХОЕ МЕСТО. Связи существующего этапа уже
+   * записаны в `depends_on`, и признак результата напрашивалось обнулить
+   * вместе с ними. Потеряй мы его — открытие
    * конструктора маршрута и сохранение без единой правки вернуло бы
    * разработке программы поля «Вышито» и «Брак».
    */

@@ -568,6 +568,15 @@ export interface StagesSlice {
    */
   forceCompleteStage: (stageId: string, reason: string) => Promise<boolean>;
   /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). «Программа готова»: строка
+   * в фазе программы становится «Вышивкой» (RPC `erp_embroidery_program_finish`,
+   * файл программы обязан лежать в бакете). Не оптимистично; после ответа
+   * заказ перечитывается. Отказ — тост и `null`.
+   */
+  finishEmbroideryProgram: (stageId: string) => Promise<ErpItemStage | null>;
+  /** «Без программы» (`order.manage`, причина обязательна) — тот же переход без файла */
+  skipEmbroideryProgram: (stageId: string, reason: string) => Promise<ErpItemStage | null>;
+  /**
    * Отчёт цеха по схеме участка (правки 10.08, P2): журнал + приращение
    * счётчиков одной транзакцией. `qtyIn` — снимок входа, считает
    * `utils/stageInput` на клиенте (обход `depends_on` живёт там).

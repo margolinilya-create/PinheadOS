@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { StageActionsPanel } from './StageActionsPanel';
 import { useErpStore } from '../../store/useErpStore';
 import { attachDomainSlices } from '../../store/domainSlices';
+import { useConfirmStore } from '../../../store/useConfirmStore';
 
 /**
  * Действия цеха над заданием — общий компонент строки очереди и страницы
@@ -412,6 +413,163 @@ describe('StageActionsPanel — вышивка ждёт разработку п�
     renderCard(entryWith('done'));
     expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeEnabled();
     expect(screen.queryByText(/Сначала завершите задачу/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). Одиночная строка вышивки
+ * в фазе «Разработка программы» сдаётся кнопкой «Программа готова»: та же
+ * строка становится «Вышивкой» (RPC `erp_embroidery_program_finish`), а не
+ * закрывается. Без файла кнопка — `aria-disabled` с видимой причиной.
+ */
+describe('StageActionsPanel — фаза программы вышивки', () => {
+  const PROGRAM_FILE = {
+    id: 'a1', kind: 'stage_result', stage_id: 's1', file_name: 'logo.dst', file_path: 'p/logo.dst',
+  };
+  const CUT = (status) => ({ id: 's2', department_id: 'd2', status, depends_on: [], result_kind: null });
+  const phaseEntry = ({ files = [PROGRAM_FILE], cut = 'in_progress', patch = {}, extra = [] } = {}) => {
+    const stage = {
+      id: 's1', department_id: 'd1', status: 'in_progress', qty_done: 0, qty_rework: 0,
+      planned_end: null, block_reason: null, overdue_ack_at: null, depends_on: ['s2'],
+      result_kind: 'embroidery_program', operation: 'Разработка программы вышивки', ...patch,
+    };
+    const item = { id: 'i1', product_type: 'Худи', variant: null, qty: 10, stages: [CUT(cut), stage, ...extra] };
+    return { order: { ...ORDER, attachments: files }, item, stage, reason: null, group: 'in_progress' };
+  };
+  let finish;
+  let skip;
+  let setStatus;
+
+  beforeEach(() => {
+    attachDomainSlices();
+    finish = vi.fn(async () => ({ id: 's1', result_kind: null, status: 'waiting' }));
+    skip = vi.fn(async () => ({ id: 's1', result_kind: null, status: 'waiting' }));
+    setStatus = vi.fn(async () => true);
+    useErpStore.setState({
+      orders: [],
+      departments: [
+        { id: 'd1', code: 'embroidery', name: 'Вышивка', result_fields: [] },
+        { id: 'd2', code: 'cutting', name: 'Закройный цех', result_fields: [] },
+      ],
+      finishEmbroideryProgram: finish,
+      skipEmbroideryProgram: skip,
+      setStageStatus: setStatus,
+    });
+    useConfirmStore.setState({ open: false, _resolver: null });
+  });
+
+  const renderPhase = (entry, perms = { ...ALL_PERMS, skip: true, forceComplete: true }) => {
+    const handlers = {
+      onStart: vi.fn(), onDone: vi.fn(), onProgress: vi.fn(), onBlock: vi.fn(), onUnblock: vi.fn(),
+      onDefect: vi.fn(), onAckOverdue: vi.fn(), onSkip: vi.fn(), onForceComplete: vi.fn(),
+    };
+    render(
+      <MemoryRouter>
+        <h1 id="stage-title-s1" tabIndex={-1}>Разработка программы вышивки</h1>
+        <StageActionsPanel entry={entry} perms={perms} deptShortById={DEPT_SHORT} actions={handlers} showTz={false} />
+      </MemoryRouter>,
+    );
+    return handlers;
+  };
+
+  it('фаза программы: «Программа готова» → подтверждение «Программа готова?» с текстом «Этап станет «Вышивка». Файлы программы закроются для правки.» → finishEmbroideryProgram, не setStageStatus(done)', async () => {
+    const handlers = renderPhase(phaseEntry());
+    // Закрыть, пропустить и завершить принудительно фазу программы нельзя (Р3)
+    for (const name of [/Завершить этап/, /Пропустить этап/, /Завершить принудительно/]) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Программа готова' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    expect(useConfirmStore.getState().title).toBe('Программа готова?');
+    expect(useConfirmStore.getState().message).toBe('Этап станет «Вышивка». Файлы программы закроются для правки.');
+    useConfirmStore.getState()._close(true);
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('s1'));
+    expect(setStatus).not.toHaveBeenCalled();
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it('отказ в подтверждении — ничего не уходит', async () => {
+    renderPhase(phaseEntry());
+    fireEvent.click(screen.getByRole('button', { name: 'Программа готова' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(false);
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(false));
+    expect(finish).not.toHaveBeenCalled();
+  });
+
+  it('без файла — aria-disabled и описание «Приложите файл программы»', () => {
+    renderPhase(phaseEntry({ files: [] }));
+    const btn = screen.getByRole('button', { name: 'Программа готова' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription(/Приложите файл программы/);
+    fireEvent.click(btn);
+    expect(useConfirmStore.getState().open).toBe(false);
+    expect(finish).not.toHaveBeenCalled();
+  });
+
+  it('после перехода фокус на заголовке этапа, status «Программа готова — этап «Вышивка»», при несданном крое — «Вышивка ждёт сдачи кроя»', async () => {
+    renderPhase(phaseEntry({ cut: 'in_progress' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Программа готова' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(true);
+    const status = await screen.findByRole('status');
+    await waitFor(() => expect(status).toHaveTextContent('Программа готова — этап «Вышивка»'));
+    expect(status).toHaveTextContent('Вышивка ждёт сдачи кроя');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
+  });
+
+  it('при сданном крое — без «ждёт сдачи кроя»', async () => {
+    renderPhase(phaseEntry({ cut: 'done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Программа готова' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(true);
+    const status = await screen.findByRole('status');
+    await waitFor(() => expect(status).toHaveTextContent('Программа готова — этап «Вышивка»'));
+    expect(status).not.toHaveTextContent('ждёт');
+  });
+
+  it('сбой RPC — фокус и статус не меняются', async () => {
+    finish.mockResolvedValueOnce(null);
+    renderPhase(phaseEntry());
+    fireEvent.click(screen.getByRole('button', { name: 'Программа готова' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    useConfirmStore.getState()._close(true);
+    await waitFor(() => expect(finish).toHaveBeenCalled());
+    expect(screen.getByRole('status')).toHaveTextContent('');
+  });
+
+  it('«Без программы» — только с order.manage, с причиной', async () => {
+    renderPhase(phaseEntry(), { ...ALL_PERMS, skip: false });
+    expect(screen.queryByRole('button', { name: 'Без программы' })).toBeNull();
+  });
+
+  it('«Без программы» спрашивает причину и зовёт skipEmbroideryProgram', async () => {
+    renderPhase(phaseEntry({ files: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Без программы' }));
+    await waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    expect(useConfirmStore.getState().prompt).toMatchObject({ required: true });
+    useConfirmStore.getState()._close(true, 'клиент дал готовую программу');
+    await waitFor(() => expect(skip).toHaveBeenCalledWith('s1', 'клиент дал готовую программу'));
+    expect(setStatus).not.toHaveBeenCalled();
+  });
+
+  it('в фазе вышивки файлы программы только для чтения', () => {
+    renderPhase(phaseEntry({ patch: { result_kind: null, operation: null } }));
+    expect(screen.getByText('logo.dst')).toBeInTheDocument();
+    expect(screen.getByText(/только для просмотра/)).toBeInTheDocument();
+    for (const name of [/Приложить программу/, /Добавить версию/, /Убрать последний/, /Программа готова/]) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    // Обычная работа цеха вернулась
+    expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeInTheDocument();
+  });
+
+  it('старая строка программы — прежняя «Завершить этап», без «Программа готова»', () => {
+    const work = { id: 's3', department_id: 'd1', status: 'waiting', depends_on: ['s2'], result_kind: null };
+    renderPhase(phaseEntry({ patch: { depends_on: [] }, extra: [work] }));
+    expect(screen.getByRole('button', { name: /Завершить этап/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Программа готова' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Приложить программу|Добавить версию/ })).toBeInTheDocument();
   });
 });
 

@@ -614,8 +614,39 @@ describe('linearize — повторный проход цеха получае�
   });
 
   it('программа вышивки и вышивка с разными циклами не меняются', () => {
-    const program = { ...emptyStep('embroidery'), cycle: 1, standalone: true, resultKind: 'embroidery_program' as const };
+    const program = { ...emptyStep('embroidery'), cycle: 1, resultKind: 'embroidery_program' as const };
     const draft = [[program], [emptyStep('embroidery')]];
     expect(linearize(draft).map((l) => l.step.cycle)).toEqual([1, 0]);
+  });
+});
+
+/**
+ * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). Признака «этап вне цепочки»
+ * больше нет: строка вышивки в фазе программы стоит в маршруте на своём
+ * месте и связи получает как любая ветка нанесения.
+ */
+describe('шаг программы вышивки — обычный шаг цепочки', () => {
+  it('у шага нет признака standalone', () => {
+    expect('standalone' in emptyStep('embroidery')).toBe(false);
+  });
+
+  it('шаг с признаком программы зависит от предыдущей группы и держит следующую', () => {
+    const program = { ...emptyStep('embroidery'), resultKind: 'embroidery_program' as const };
+    const linear = linearize([[emptyStep('cutting')], [program], [emptyStep('sewing')]]);
+    expect(linear.map((l) => l.dependsOn)).toEqual([[], [0], [1]]);
+  });
+
+  /**
+   * Старый заказ с парой строк (Р1): правка его маршрута не ставит крой
+   * ждать отдельную программу — она по-прежнему вне цепочки.
+   */
+  it('старая отдельная программа рядом с вышивкой остаётся вне цепочки', () => {
+    const program = { ...emptyStep('embroidery'), resultKind: 'embroidery_program' as const };
+    const linear = linearize([
+      [emptyStep('supply'), program], [emptyStep('cutting')], [{ ...emptyStep('embroidery'), cycle: 1 }],
+    ]);
+    const progIdx = linear.findIndex((l) => l.step.resultKind === 'embroidery_program');
+    expect(linear[progIdx].dependsOn).toEqual([]);
+    for (const l of linear) expect(l.dependsOn).not.toContain(progIdx);
   });
 });

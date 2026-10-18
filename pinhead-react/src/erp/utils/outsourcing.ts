@@ -1,4 +1,5 @@
 import type { ErpItemStage } from '../types';
+import { phaseOperation } from './embroideryPhase';
 
 /**
  * Подряд как ЭТАП МАРШРУТА — единственный источник правды.
@@ -187,11 +188,11 @@ export function currentStage(item: ItemLike | null | undefined): ErpItemStage | 
  * то есть человек не понял бы, какую задачу берёт.
  */
 export function stageLabel(
-  stage: Pick<ErpItemStage, 'executor' | 'operation'>,
+  stage: Pick<ErpItemStage, 'executor' | 'operation'> & { result_kind?: string | null },
   departmentName: string,
 ): string {
-  if (stage.operation?.trim()) return stage.operation.trim();
-  return departmentName;
+  // В фазе вышивки старая подпись программы не печатается (правки 19.10)
+  return phaseOperation(stage) ?? departmentName;
 }
 
 /**

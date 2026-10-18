@@ -15,6 +15,21 @@ import {
 } from '../../utils/stageRemaining';
 import type { InputStage } from '../../utils/stageInput';
 import { sizeInputCells, sizeKey, stageAncestors } from '../../utils/stageSizes';
+import { PROGRAM_PHASE_BLOCK, isProgramPhase } from '../../utils/embroideryPhase';
+
+/**
+ * Почему строку нельзя закрыть или пропустить, — если она в фазе программы
+ * вышивки (правки 19.10, Р3), иначе `null`. Зеркало серверного
+ * `erp_item_stages_embroidery_route_gate`; принудительное завершение фазу
+ * тоже не закрывает. Читают закрытие (`completionBlockFor`) и пропуск
+ * (`setStageStatus('skipped')`).
+ */
+export function programPhaseBlock(
+  stage: Parameters<typeof isProgramPhase>[0],
+  siblings: Parameters<typeof isProgramPhase>[1],
+): string | null {
+  return isProgramPhase(stage, siblings) ? PROGRAM_PHASE_BLOCK : null;
+}
 
 /**
  * «M — 60 шт, L · чёрный — 44 шт»: не учтено по размерам, в порядке
@@ -86,6 +101,10 @@ export function completionBlockFor(
   batch = false,
 ): string | null {
   const { stage, item, order } = found;
+  // Фаза программы вышивки (правки 19.10, Р3) не закрывается и штуками
+  // не сдаётся никогда — даже с файлом: путь один, «Программа готова»
+  const phaseBlock = programPhaseBlock(stage, item.stages);
+  if (phaseBlock) return phaseBlock;
   /**
    * ФАЙЛОВЫЙ РЕЗУЛЬТАТ ПРОВЕРЯЕТСЯ ПЕРВЫМ И БЕЗ ОГЛЯДКИ НА ТИРАЖ
    * (правка 13.09, п. 9). У «Разработки программы вышивки» `qty_done`
