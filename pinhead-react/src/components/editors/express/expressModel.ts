@@ -10,7 +10,7 @@
  * `salesLabelPrice` по библиотеке, отдельной копии здесь не заводим.
  */
 import { calcZonePriceDirect, getMarkup, getPrices } from '../../../utils/pricing';
-import { skuCost, garmentSellPrice, overheadOf } from '../../../utils/costRules';
+import { skuCost, garmentSellPrice, overheadOf, ceilToStep, UNIT_PRICE_STEP } from '../../../utils/costRules';
 import type { ExtraItem, Fabric, SkuItem, Trim } from '../../../types/catalog';
 
 export type Tech = 'screen' | 'flex' | 'dtf' | 'dtg' | 'embroidery';
@@ -125,6 +125,9 @@ export interface Quote {
   extrasCost: number;
   techTotal: number;
   zoneCount: number;
+  /** Изделие + нанесения до округления — суммы старого экрана */
+  unitRaw: number;
+  /** Цена за штуку ВВЕРХ до 5 ₽, как на рабочем месте (обход, M-3) */
   unitPrice: number;
   total: number;
 }
@@ -144,7 +147,8 @@ export function quote(input: QuoteInput): Quote {
   const base = Math.round(garmentSellPrice(P, c.base, markupPct, 0));
   const active = Object.values(zones).filter((d) => d.active);
   const techTotal = active.reduce((sum, d) => sum + zoneSurcharge(d, qty, fabric?.code), 0);
-  const unitPrice = base + techTotal;
+  const unitRaw = base + techTotal;
+  const unitPrice = ceilToStep(unitRaw, UNIT_PRICE_STEP);
   return {
     baseRaw: Math.round(c.base),
     base,
@@ -153,6 +157,7 @@ export function quote(input: QuoteInput): Quote {
     extrasCost: c.extras,
     techTotal,
     zoneCount: active.length,
+    unitRaw,
     unitPrice,
     total: unitPrice * qty,
   };

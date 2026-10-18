@@ -63,7 +63,7 @@ export interface PriceRules {
   minMarginPct: number | null;
 }
 
-export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: 5, prepFees: {}, minMarginPct: null };
+export const DEFAULT_PRICE_RULES: PriceRules = { roundTo: cost.UNIT_PRICE_STEP, prepFees: {}, minMarginPct: null };
 
 export type PriceIssue =
   | 'no_qty'            // сетка пуста
@@ -158,7 +158,6 @@ export function embroideryExtras(special: string): string[] {
   return (special || '').split('+').filter((x) => x === 'metallic' || x === 'puff');
 }
 
-const ceilTo = (v: number, step: number): number => (step > 0 ? Math.ceil(v / step) * step : Math.round(v));
 
 /**
  * Нанесение по карману (веха 8, К5): с кодом зоны — строка ТЗ зоны справочника
@@ -320,7 +319,7 @@ export function priceItem(
   const labelsUnit = item.labels.reduce((sum, l) => sum + salesLabelPrice(l, cat.labelLibrary), 0);
   const packUnit = core.packPrice(P, itemPackaging(item, orderPackaging));
   const rawUnit = garment + printsPerUnit + labelsUnit + packUnit;
-  const calcUnit = qty > 0 ? ceilTo(rawUnit, rules.roundTo) : 0;
+  const calcUnit = qty > 0 ? cost.ceilToStep(rawUnit, rules.roundTo) : 0;
 
   const manual = item.manual_unit_price != null;
   const unit = manual ? item.manual_unit_price! : calcUnit;

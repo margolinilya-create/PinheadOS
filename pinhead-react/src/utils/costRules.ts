@@ -219,6 +219,17 @@ export function garmentSellPrice(P: CostPrices, base: number, markup: number, ur
   return round2(base * (1 + oh) * (1 + markup) * (1 + urgent));
 }
 
+/**
+ * Шаг округления цены за штуку ВВЕРХ, ₽ — один для рабочего места
+ * (`priceOrder`, `PriceRules.roundTo` по умолчанию) и экспресса (обход, M-3)
+ */
+export const UNIT_PRICE_STEP = 5;
+
+/** Вверх до шага; шаг 0 — до рубля */
+export function ceilToStep(v: number, step: number): number {
+  return step > 0 ? Math.ceil(v / step) * step : Math.round(v);
+}
+
 /** До копеек. Через toFixed: 0,9 × 324,45 = 292,005 в double — 292,00499…, а не 292,01 */
 export function round2(v: number): number {
   return Math.round(Number((v * 100).toFixed(6))) / 100;

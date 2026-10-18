@@ -23,12 +23,26 @@ function calc(skuCode: string, fabricCode: string | null, qty: number, zones: Zo
 const on = (z: ZoneData, id: string) => toggleZone(z, id);
 const set = (z: ZoneData, id: string, patch: object) => ({ ...z, [id]: { ...z[id], ...patch } });
 
+describe('экспресс: цена за штуку округляется, как на рабочем месте (обход, M-3)', () => {
+  it('ВВЕРХ до 5 ₽ (`ceilTo(roundTo)` в priceOrder); итог — округлённая цена × тираж', () => {
+    const tee = initZoneData(zonesOf(sku('T-003')));
+    expect(calc('T-003', 'medas-kulirnaya-100-160', 100, tee)).toMatchObject({ unitRaw: 1267, unitPrice: 1270, total: 127_000 });
+    const z = initZoneData(zonesOf(sku('SW-001')));
+    const sw = set(on(z, 'back'), 'back', { fmt: 'A3', col: 2, textile: 'color', fx: 'puff' });
+    const q = calc('SW-001', 'medas-futher-petlya-65-320', 300, sw);
+    expect(q.unitPrice % 5).toBe(0);
+    expect(q.unitPrice - q.unitRaw).toBeGreaterThanOrEqual(0);
+    expect(q.unitPrice - q.unitRaw).toBeLessThan(5);
+    expect(q.total).toBe(q.unitPrice * 300);
+  });
+});
+
 describe('экспресс: суммы равны снятым со старого экрана', () => {
   const tee = initZoneData(zonesOf(sku('T-003')));
 
   it('футболка, кулирка, 100 шт, шелкография A4 на груди', () => {
     const q = calc('T-003', 'medas-kulirnaya-100-160', 100, tee);
-    expect(q).toMatchObject({ baseRaw: 399, base: 1152, techTotal: 115, unitPrice: 1267, total: 126_700, zoneCount: 1 });
+    expect(q).toMatchObject({ baseRaw: 399, base: 1152, techTotal: 115, unitRaw: 1267, zoneCount: 1 });
     expect(Math.round(q.overheadPct * 100)).toBe(70);
     expect(Math.round(q.markupPct * 100)).toBe(70);
   });
@@ -36,9 +50,9 @@ describe('экспресс: суммы равны снятым со старог
   it('+ спина DTF A3; затем обработки и 40 шт', () => {
     const z = set(on(tee, 'back'), 'back', withTech(undefined, 'dtf'));
     const two = { ...z, back: { ...z.back, active: true, fmt: 'A3' } };
-    expect(calc('T-003', 'medas-kulirnaya-100-160', 100, two)).toMatchObject({ techTotal: 607, unitPrice: 1759, total: 175_900, zoneCount: 2 });
+    expect(calc('T-003', 'medas-kulirnaya-100-160', 100, two)).toMatchObject({ techTotal: 607, unitRaw: 1759, zoneCount: 2 });
     const q = calc('T-003', 'medas-kulirnaya-100-160', 40, two, ['hanger-loop', 'double-stitch']);
-    expect(q).toMatchObject({ extrasCost: 45, baseRaw: 444, base: 1433, techTotal: 668, unitPrice: 2101, total: 84_040 });
+    expect(q).toMatchObject({ extrasCost: 45, baseRaw: 444, base: 1433, techTotal: 668, unitRaw: 2101 });
     expect(Math.round(q.markupPct * 100)).toBe(90);
   });
 
@@ -48,9 +62,9 @@ describe('экспресс: суммы равны снятым со старог
     z = set(on(z, 'back'), 'back', { fmt: 'A3', col: 2, textile: 'color', fx: 'puff' });
     z = set(on(z, 'sleeve-l'), 'sleeve-l', { ...withTech(z['sleeve-l'], 'flex'), active: true, col: 2 });
     const three = calc('SW-001', 'medas-futher-petlya-65-320', 300, z);
-    expect(three).toMatchObject({ baseRaw: 892, base: 2274, techTotal: 724.5, unitPrice: 2998.5, total: 899_550, zoneCount: 3 });
+    expect(three).toMatchObject({ baseRaw: 892, base: 2274, techTotal: 724.5, unitRaw: 2998.5, zoneCount: 3 });
     z = set(on(z, 'sleeve-r'), 'sleeve-r', { ...withTech(z['sleeve-r'], 'dtg'), active: true });
-    expect(calc('SW-001', 'medas-futher-petlya-65-320', 300, z)).toMatchObject({ techTotal: 1024.5, unitPrice: 3298.5, total: 989_550, zoneCount: 4 });
+    expect(calc('SW-001', 'medas-futher-petlya-65-320', 300, z)).toMatchObject({ techTotal: 1024.5, unitRaw: 3298.5, zoneCount: 4 });
   });
 });
 

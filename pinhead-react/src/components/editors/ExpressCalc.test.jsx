@@ -52,17 +52,17 @@ describe('ExpressCalc — шапка и поля', () => {
   });
 });
 
-describe('ExpressCalc — суммы равны старому экрану', () => {
-  it('футболка, кулирка, спина DTF A3, две обработки, 40 шт → 84 040 ₽', () => {
+describe('ExpressCalc — суммы старого экрана, цена за штуку вверх до 5 ₽ (обход, M-3)', () => {
+  it('футболка, кулирка, спина DTF A3, две обработки, 40 шт → 84 200 ₽', () => {
     renderExpress();
     pick('Изделие', 'T-003');
     pick('Ткань', 'medas-kulirnaya-100-160');
-    expect(within(total()).getByText('126 700 ₽')).toBeInTheDocument();
+    expect(within(total()).getByText('127 000 ₽')).toBeInTheDocument();
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Зоны нанесения' })).getByRole('button', { name: 'Спина' }));
     fireEvent.click(radio(zone('Спина'), 'Техника', 'DTF'));
     fireEvent.click(radio(zone('Спина'), 'Формат', 'A3'));
-    expect(within(total()).getByText('175 900 ₽')).toBeInTheDocument();
+    expect(within(total()).getByText('176 000 ₽')).toBeInTheDocument();
 
     const extras = screen.getByRole('group', { name: 'Обработки' });
     fireEvent.click(within(extras).getByRole('button', { name: /Петля для вешалки/ }));
@@ -70,9 +70,9 @@ describe('ExpressCalc — суммы равны старому экрану', ()
     pick('Тираж, шт', '40');
 
     expect(total()).toHaveTextContent('Итого за 40 шт');
-    expect(within(total()).getByText('84 040 ₽')).toBeInTheDocument();
+    expect(within(total()).getByText('84 200 ₽')).toBeInTheDocument();
     expect(screen.getByText('Нанесение × 2 зоны')).toBeInTheDocument();
-    expect(screen.getByText('2 101 ₽')).toBeInTheDocument();
+    expect(screen.getByText('2 105 ₽')).toBeInTheDocument();
   });
 });
 
