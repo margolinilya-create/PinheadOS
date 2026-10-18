@@ -8,15 +8,16 @@ import { confirm } from '../../store/useConfirmStore';
 import { useErpStore } from '../store/useErpStore';
 import { SizeReportSection } from './SizeReportSection';
 import { useStageReports } from './useStageReports';
-import { CutRollsSection } from '../screens/queue/CutRollsSection';
+import { CutResultTable } from '../screens/queue/CutResultTable';
+import { CutUsageSection } from '../screens/queue/CutUsageSection';
+import { CutTotalsBar } from '../screens/queue/CutTotalsBar';
+import { useCutReport } from '../screens/queue/useCutReport';
 import { useForeignRolls } from './useForeignRolls';
 import {
   sizeInputCells, sizeInputFor, sizeInputRows, sizeLedger, sizeReportBlock, sizeTotals,
   sizeReportPayload,
 } from '../utils/stageSizes';
-import {
-  cutBlock, cutRollsPayload, cutSizesPayload, cutTotals, rollsForItem,
-} from '../utils/cutRolls';
+import { rollsForItem } from '../utils/cutRolls';
 import { reportedSizesOf } from '../utils/cutExtras';
 import styles from '../erp.module.css';
 
@@ -106,7 +107,6 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     if (needsDetail && !hasDetail) loadOne(order.id);
   }, [needsDetail, hasDetail, loadOne, order.id]);
 
-  const [rollEntries, setRollEntries] = useState([]);
   const [sizeValues, setSizeValues] = useState({});
   /**
    * Стоимость сборки стартует ЗАПИСАННОЙ (правка 05.10, п. 3: «должна
@@ -174,10 +174,12 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
   const { rolls: foreignRolls, reload: reloadForeign } = useForeignRolls(order.id, byRolls);
   const rollOptions = useMemo(
     () => (byRolls
-      ? rollsForItem(fullOrder?.materials, fullItem?.id, rollEntries.map((e) => e.rollId), foreignRolls)
+      ? rollsForItem(fullOrder?.materials, fullItem?.id, [], foreignRolls)
       : []),
-    [byRolls, fullOrder, fullItem, rollEntries, foreignRolls],
+    [byRolls, fullOrder, fullItem, foreignRolls],
   );
+  /** Закрой (правки 19.10): «Результат кроя» один раз + режимы рулонов «Расхода ткани» */
+  const cut = useCutReport({ stage, order: fullOrder, item: fullItem, options: rollOptions, reported: reportedSizes });
 
   /**
    * Поля, пишущие в БРАК и ПЕРЕДЕЛКУ, требуют своего права.
@@ -268,18 +270,13 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields, values]);
 
-  /** Выход раскроя считается из таблиц рулонов — это и есть «скроено» */
-  const rollTotals = useMemo(() => cutTotals(rollEntries), [rollEntries]);
-  const rollBlock = byRolls && rollEntries.length > 0
-    ? cutBlock(rollEntries, rollOptions)
-    : null;
   /**
    * Числа берутся из размерной таблицы, только когда она РИСУЕТСЯ
    * (`useSizeTable`). У участка с `result_detail = 'sizes'`, но без строк
    * таблицы, суммы по ней нулевые — и сдать результат стало бы нечем:
    * обычные поля при этом остаются на месте (см. `fields`).
    */
-  const goodQty = byRolls ? rollTotals.qty : (useSizeTable ? sizeSums.good : totals.qty_good);
+  const goodQty = byRolls ? cut.goodTotal : (useSizeTable ? sizeSums.good : totals.qty_good);
   const defectQty = useSizeTable ? sizeSums.defect : totals.qty_defect;
   const reworkQty = useSizeTable ? sizeSums.rework : totals.qty_rework;
 
@@ -290,21 +287,40 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
 
   // Двойной тап до перерисовки видит прежний `busy` — не спишет метры дважды
   const inFlight = useRef(false);
+  /** Вопросы перед сдачей: `true` сразу, если спрашивать нечего; `false` — есть что поправить */
+  const confirmed = () => {
+    // Закрой: ошибки рулонов — сводкой и фокусом на первое поле, не молчаливой серой кнопкой
+    if (byRolls && cut.attempt() > 0) { cut.firstErrorRef.current?.focus(); return false; }
+    /** Р7: выпуск без отмеченного рулона — подтверждение, не блок */
+    if (byRolls && goodQty > 0 && rollOptions.length > 0 && cut.payload.rolls.length === 0) {
+      return confirm({
+        title: 'Сдать без списания ткани?',
+        message: 'Ни один рулон не отмечен как использованный — метры не спишутся со склада.',
+        confirmLabel: 'Сдать без списания',
+        cancelLabel: 'Отметить рулоны',
+      }).then((ok) => {
+        // После закрытия диалог возвращает фокус на кнопку — переводим его следом
+        if (!ok) setTimeout(() => cut.firstGroupRef.current?.focus(), 0);
+        return ok && overPlanAsked();
+      });
+    }
+    return overPlanAsked();
+  };
+  /**
+   * ПРЕВЫШЕНИЕ НА ЗАКРОЕ СПРАШИВАЕТ ПОДТВЕРЖДЕНИЕ (решение владельца):
+   * потолка у закроя нет, но опечатка «1000» вместо «100» поднимает потолок
+   * всем последующим этапам и снимает защиту, ради которой правка делается.
+   * Разница называется числом — «превышение» без цифры проверить нечем.
+   */
+  const overPlanAsked = () => {
+    const warn = overPlanConfirm(goodQty, stage, item.qty, dept);
+    return !warn || confirm({ title: 'Сдать больше тиража?', message: warn, confirmLabel: 'Сдать' });
+  };
   const submit = async () => {
     if (inFlight.current) return;
-    /**
-     * ПРЕВЫШЕНИЕ НА ЗАКРОЕ СПРАШИВАЕТ ПОДТВЕРЖДЕНИЕ (решение владельца):
-     * потолка у закроя нет, но опечатка «1000» вместо «100» поднимает потолок
-     * всем последующим этапам и снимает защиту, ради которой правка делается.
-     * Разница называется числом — «превышение» без цифры проверить нечем.
-     */
-    const warn = overPlanConfirm(goodQty, stage, item.qty, dept);
-    if (warn && !(await confirm({
-      title: 'Сдать больше тиража?',
-      message: warn,
-      confirmLabel: 'Сдать',
-    }))) return;
-    inFlight.current = true;
+    inFlight.current = true; // и на время вопросов: второй тап не откроет второй диалог
+    const asked = confirmed();
+    if (asked !== true && !(await asked)) { inFlight.current = false; return; }
     const ok = await onSubmit({
       qtyIn,
       qtyGood: goodQty,
@@ -314,20 +330,11 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
       comment,
       extra: totals.extra,
       /**
-       * Рулоны и размеры уезжают вместе: сервер по ним же считает
-       * заголовочное `qty_good`, поэтому число выше и эти строки не могут
-       * разойтись — оно из них и выведено.
+       * Закрой (правки 19.10, Р5): годные — таблицей «Результат кроя» один
+       * раз, рулоны — только отмеченные, без размеров. `qty_good` выше
+       * выведен из той же таблицы — разойтись им не с чего.
        */
-      ...(byRolls && rollEntries.length > 0
-        ? {
-          rolls: cutRollsPayload(rollEntries, rollOptions),
-          // Разбивка считается по ВВЕДЁННЫМ строкам рулонов (правка 20.09,
-          // п. 7). Прежде она собиралась по ячейкам сетки позиции — и у
-          // позиции без сетки выходила пустой, то есть размерный факт закроя
-          // не сохранялся вовсе.
-          sizes: cutSizesPayload(rollEntries),
-        }
-        : {}),
+      ...(byRolls ? cut.payload : {}),
       ...(bySizes
         ? {
           // Строки уезжают, только если таблица рисовалась: пустой список
@@ -347,6 +354,20 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
     if (ok && byRolls) reloadForeign();
   };
 
+  const actions = (
+    <>
+      <Button
+        variant="primary"
+        disabled={busy || !anything || missingRequired || Boolean(overBlock)
+          || Boolean(sizeBlock) || needsCost || (needsComment && !comment.trim())}
+        onClick={submit}
+      >
+        <Icon name="check" size={14} /> Сдать результат
+      </Button>
+      <Button variant="ghost" disabled={busy} onClick={onCancel}>Отмена</Button>
+    </>
+  );
+
   return (
     <div className={styles.queueBlockForm}>
       <span className={styles.queueReason}>
@@ -362,20 +383,7 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         Секция ждёт ДОЗАГРУЗКУ заказа: до неё рулонов нет ни одного, и
         «Склад ещё не принял рулоны» было бы неправдой о живой поставке
       */}
-      {byRolls && (hasDetail ? (
-        <CutRollsSection
-          order={fullOrder}
-          item={fullItem}
-          stage={stage}
-          entries={rollEntries}
-          onChange={setRollEntries}
-          extraRolls={foreignRolls}
-          onFinishRoll={finishRoll}
-          onRollParams={setRollParams}
-          reported={reportedSizes}
-          disabled={busy}
-        />
-      ) : (
+      {byRolls && (hasDetail ? <CutResultTable cut={cut} disabled={busy} /> : (
         <p className={styles.queueReason} role="status">Подтягиваем принятые рулоны…</p>
       ))}
 
@@ -459,17 +467,18 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         />
       </label>
 
+      {byRolls && hasDetail && (
+        <CutUsageSection
+          cut={cut} options={rollOptions} order={fullOrder} item={fullItem} stage={stage}
+          extraRolls={foreignRolls} onFinishRoll={finishRoll} onRollParams={setRollParams} disabled={busy}
+        />
+      )}
+
       {/* Причина отказа названа ДО отправки: узнать о потолке из ответа
           сервера хуже, чем прочитать его рядом с полем */}
       {sizeBlock && (
         <p className={styles.queueReason} role="status">
           <Icon name="alert" size={13} /> {sizeBlock}
-        </p>
-      )}
-
-      {rollBlock && (
-        <p className={styles.queueReason} role="status">
-          <Icon name="alert" size={13} /> {rollBlock}
         </p>
       )}
 
@@ -479,18 +488,8 @@ export function StageReportForm({ entry, dept, busy, onSubmit, onCancel, canDefe
         </p>
       )}
 
-      <div className={styles.queueActions}>
-        <Button
-          variant="primary"
-          disabled={busy || !anything || missingRequired || Boolean(overBlock)
-            || Boolean(rollBlock) || Boolean(sizeBlock) || needsCost
-            || (needsComment && !comment.trim())}
-          onClick={submit}
-        >
-          <Icon name="check" size={14} /> Сдать результат
-        </Button>
-        <Button variant="ghost" disabled={busy} onClick={onCancel}>Отмена</Button>
-      </div>
+      {byRolls && hasDetail ? <CutTotalsBar cut={cut} options={rollOptions}>{actions}</CutTotalsBar>
+        : <div className={styles.queueActions}>{actions}</div>}
     </div>
   );
 }

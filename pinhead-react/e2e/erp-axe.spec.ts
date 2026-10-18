@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { installSupabaseMock } from './support/mockSupabase';
+import { CUT_DEPT_PATCH, CUT_ORDER } from './support/cutFormFx';
 
 /**
  * АВТОМАТИЧЕСКИЙ АУДИТ ДОСТУПНОСТИ ПО ВСЕМУ РАЗДЕЛУ.
@@ -84,3 +85,36 @@ for (const screen of SCREENS) {
     expect(report, `${screen.name} — нарушения:\n${report.join('\n')}`).toEqual([]);
   });
 }
+
+/**
+ * ФОРМА СДАЧИ ЗАКРОЯ ОТКРЫТОЙ, 375 px (правки 19.10). Экран «Очередь цеха»
+ * выше снимается с закрытыми карточками, а форма — самое плотное место
+ * раздела: таблица выпуска, плитки режимов, вложенные группы радио и липкая
+ * полоса итогов. Ширина задана в самом тесте: на телефоне строки рулонов —
+ * карточками, и проверять надо именно эту раскладку. Мок ставится второй
+ * раз — со своим заказом и схемой отчёта закроя; поздний маршрут главнее.
+ */
+test('Очередь закроя с открытой формой сдачи (375 px): нет нарушений WCAG 2.1 A/AA', async ({ page }) => {
+  await installSupabaseMock(page, { orders: [CUT_ORDER], deptPatch: CUT_DEPT_PATCH });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/queue/cutting?studio=0');
+  const card = page.locator('[class*="queueCard"]', { hasText: 'Свитшоты закрой-тест' }).first();
+  await card.getByRole('button', { name: /Записать результат/ }).click();
+  await expect(page.getByRole('heading', { name: 'Расход ткани' })).toBeVisible();
+  await page.getByRole('radiogroup', { name: 'Рулон №2 — использование' }).getByText('Частично').click();
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const report = violations.filter((v) => !(v.id in KNOWN)).map((v) => {
+    const nodes = v.nodes.slice(0, 3)
+      .map((n) => `      ${n.target.join(' ')}\n        ${(n.failureSummary ?? '').replace(/\s+/g, ' ').trim()}`)
+      .join('\n');
+    return `${v.id} (${v.impact}): ${v.help}\n${nodes}`;
+  });
+  expect(report, `форма закроя — нарушения:\n${report.join('\n')}`).toEqual([]);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+});
