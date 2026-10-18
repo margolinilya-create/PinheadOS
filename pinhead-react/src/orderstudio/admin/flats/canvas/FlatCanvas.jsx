@@ -38,9 +38,15 @@ import styles from './FlatCanvas.module.css';
  */
 
 const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
-/** Пальцем: ручка трансформера 20 px + невидимая обводка попадания 24 px = 44 px */
-const TR_ANCHOR = { fine: 10, coarse: 20 };
+/** Ручка трансформера 20 px (план: anchorSize ≥ 20); пальцем + невидимая обводка попадания 24 px = 44 px */
+const TR_ANCHOR = { fine: 20, coarse: 20 };
 const TR_HIT_COARSE = 24;
+/**
+ * После `tap` браузер шлёт совместимые mousedown/mouseup, и konva зовёт ещё и `click`
+ * (касание мимо фигур она не гасит `preventDefault`). Такой «призрачный» click в течение
+ * этого окна после tap отбрасывается: иначе одно касание в калибровке ставило бы две точки.
+ */
+const GHOST_CLICK_MS = 800;
 
 export function FlatCanvas({
   markup, flatMm, view, accessory = false, selectedAreaId = null, readOnly = false, mode = 'select',
@@ -112,7 +118,11 @@ export function FlatCanvas({
     return () => clearTimeout(id);
   }, [liveText]);
 
+  const lastTapAt = useRef(-Infinity);
   const onStagePointer = (e) => {
+    const now = Date.now();
+    if (e.type === 'tap') lastTapAt.current = now;
+    else if (now - lastTapAt.current < GHOST_CLICK_MS) return;
     const stage = e.target.getStage?.();
     if (mode === 'calibrate' && !readOnly) {
       const p = stage?.getPointerPosition?.();

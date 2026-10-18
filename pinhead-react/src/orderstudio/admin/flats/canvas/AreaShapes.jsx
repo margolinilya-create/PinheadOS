@@ -18,7 +18,7 @@ import { nodeToRect, rectToNode, toMmTenth, toPx } from './canvasMath';
  * `readOnly` — без перетаскивания и обработчиков правки; выбор остаётся.
  */
 
-const VERTEX_PX = 12;
+const VERTEX_PX = 16;
 const VERTEX_HIT_PX = 28;
 const VERTEX_HIT_COARSE_PX = 44;
 const LABEL_FONT_PX = 12;

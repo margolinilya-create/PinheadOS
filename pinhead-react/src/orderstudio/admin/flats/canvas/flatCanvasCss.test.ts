@@ -9,8 +9,10 @@ import { DEFAULT_TOKENS, TOKEN_NAMES, type CanvasTokens } from './useCanvasToken
  * доступность: «контраст ≥ 3:1 с тестом, обе темы»).
  *
  * Палитра холста — токены `--flat-*` в `.root` модуля; значения `var(--x)`
- * разворачиваются по НАСТОЯЩЕМУ `index.css` отдельно для светлой и тёмной темы,
- * затем считаются пары WCAG: обводки зон, safe-зоны, якорей и отмера — к бумаге
+ * разворачиваются по НАСТОЯЩЕЙ цепочке каскада отдельно для светлой и тёмной темы
+ * и для двух мест холста: сам по себе (`index.css`) и внутри оболочки Order Studio —
+ * снимок палитры `.shell` в `OrderLayout.module.css` перекрывает токены `index.css`
+ * (в тёмной теме — светлыми …-ink: ревью 6а, раунд 1). Затем считаются пары WCAG: обводки зон, safe-зоны, якорей и отмера — к бумаге
  * и к силуэту (≥ 3:1, графика), подпись ручки — к её подложке (≥ 4,5:1, текст).
  * Плюс: значения по умолчанию хука (среда без CSS) совпадают с модулем, диктор — sr-only,
  * кольцо фокуса и жесты пальцем у области холста.
@@ -18,26 +20,47 @@ import { DEFAULT_TOKENS, TOKEN_NAMES, type CanvasTokens } from './useCanvasToken
 const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const MODULE = strip(readSource(join(SRC_DIR, 'orderstudio', 'admin', 'flats', 'canvas', 'FlatCanvas.module.css')));
 const INDEX = readSource(join(SRC_DIR, 'index.css'));
+const SHELL = strip(readSource(join(SRC_DIR, 'orderstudio', 'layout', 'OrderLayout.module.css')));
 
 const rule = (css: string, selector: string) => css.match(new RegExp(`${selector.replace(/[.[\]']/g, '\\$&')}\\s*\\{[^}]*\\}`))?.[0] ?? '';
 
-function themeBlock(theme: 'light' | 'dark'): string {
-  const start = INDEX.indexOf(theme === 'light' ? ':root {' : 'html[data-theme="dark"] {');
-  return INDEX.slice(start, INDEX.indexOf('\n}', start));
+type Theme = 'light' | 'dark';
+type Place = 'index' | 'shell';
+
+function block(css: string, head: string): string {
+  const start = css.indexOf(head);
+  if (start < 0) throw new Error(`блок ${head} не найден`);
+  return css.slice(start, css.indexOf('}', start));
 }
 
-function tokenValue(block: string, name: string): string | null {
-  return block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? null;
+const INDEX_LIGHT = block(INDEX, ':root {');
+const INDEX_DARK = block(INDEX, 'html[data-theme="dark"] {');
+const SHELL_LIGHT = block(SHELL, ':global(html) .shell {');
+const SHELL_DARK = block(SHELL, ":global(html[data-theme='dark']) .shell {");
+
+/** Блоки, где ищется токен, — от ближайшего к холсту (выигрывает первый найденный) */
+function cascade(theme: Theme, place: Place): string[] {
+  const index = theme === 'dark' ? [INDEX_DARK, INDEX_LIGHT] : [INDEX_LIGHT];
+  if (place === 'index') return index;
+  return [...(theme === 'dark' ? [SHELL_DARK] : []), SHELL_LIGHT, ...index];
 }
 
-/** Значение токена холста в теме: `var(--x)` — по блоку темы, затем по светлому `:root` */
-function resolve(value: string, theme: 'light' | 'dark', depth = 0): string {
+function tokenValue(css: string, name: string): string | null {
+  return css.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? null;
+}
+
+/** Значение токена холста: `var(--x)` — по каскаду места и темы */
+function resolve(value: string, theme: Theme, place: Place = 'index', depth = 0): string {
   const m = value.match(/^var\(\s*(--[\w-]+)\s*\)$/);
   if (!m) return value;
   if (depth > 5) throw new Error(`цепочка var() слишком длинная: ${value}`);
-  const next = tokenValue(themeBlock(theme), m[1]) ?? tokenValue(themeBlock('light'), m[1]);
+  let next: string | null = null;
+  for (const b of cascade(theme, place)) {
+    next = tokenValue(b, m[1]);
+    if (next) break;
+  }
   if (!next) throw new Error(`токен ${m[1]} не найден`);
-  return resolve(next, theme, depth + 1);
+  return resolve(next, theme, place, depth + 1);
 }
 
 function luminance(hex: string): number {
@@ -56,12 +79,12 @@ function contrast(a: string, b: string): number {
 }
 
 const root = rule(MODULE, '.root');
-const palette = (theme: 'light' | 'dark'): CanvasTokens => {
+const palette = (theme: Theme, place: Place = 'index'): CanvasTokens => {
   const out = {} as CanvasTokens;
   for (const [key, name] of Object.entries(TOKEN_NAMES) as [keyof CanvasTokens, string][]) {
     const raw = tokenValue(root, name);
     if (!raw) throw new Error(`в .root нет ${name}`);
-    out[key] = resolve(raw, theme);
+    out[key] = resolve(raw, theme, place);
   }
   return out;
 };
@@ -70,8 +93,10 @@ const STROKES: (keyof CanvasTokens)[] = ['zone', 'safe', 'axis', 'neck', 'calibr
 const GRAPHIC = 3;
 const TEXT = 4.5;
 
-describe.each(['light', 'dark'] as const)('палитра холста флэта — %s', (theme) => {
-  const p = palette(theme);
+const PLACES: [Theme, Place][] = [['light', 'index'], ['dark', 'index'], ['light', 'shell'], ['dark', 'shell']];
+
+describe.each(PLACES)('палитра холста флэта — тема %s, каскад %s', (theme, place) => {
+  const p = palette(theme, place);
 
   it('все токены — hex', () => {
     for (const v of Object.values(p)) expect(v).toMatch(/^#[0-9a-f]{6}$/i);
@@ -105,6 +130,10 @@ describe('FlatCanvas.module.css', () => {
     expect(contrast('#5B5BFF', '#d9d9d9')).toBeGreaterThanOrEqual(GRAPHIC);
     expect(contrast('#cccccc', '#FDFAF3')).toBeLessThan(GRAPHIC);
     expect(resolve('var(--paper)', 'dark')).not.toBe(resolve('var(--paper)', 'light'));
+    // Тёмная `.shell` перекрашивает …-ink: такой токен в палитре холста уронил бы контраст
+    const ink = resolve('var(--color-success-ink)', 'dark', 'shell');
+    expect(ink).not.toBe(resolve('var(--color-success-ink)', 'dark', 'index'));
+    expect(contrast(ink, '#FDFAF3')).toBeLessThan(GRAPHIC);
   });
 
   it('диктор и подсказка — sr-only, а не display: none', () => {

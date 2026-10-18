@@ -257,6 +257,37 @@ describe('FlatCanvas — калибровка, просмотр, готовно�
     expect(canvas()).toHaveAttribute('data-mode', 'calibrate');
   });
 
+  it('калибровка пальцем: tap и затем click в одной точке — одна точка отмера, не onMeasured(0)', () => {
+    const onMeasured = vi.fn();
+    render(<Harness mode="calibrate" onMeasured={onMeasured} />);
+    const touch = (mm) => {
+      const stage = { getPointerPosition: () => toPx(F, mm) };
+      const target = { getStage: () => stage };
+      act(() => h.stage.props.onTap({ type: 'tap', target }));
+      // совместимый click от браузера после касания — та же точка
+      act(() => h.stage.props.onClick({ type: 'click', target }));
+    };
+    touch({ x: 100, y: 100 });
+    expect(onMeasured).not.toHaveBeenCalled();
+    touch({ x: 400, y: 500 });
+    expect(onMeasured).toHaveBeenCalledTimes(1);
+    expect(onMeasured.mock.calls[0][0]).toBeCloseTo(500, 6);
+  });
+
+  it('Esc со сбросом отмера гасит событие (не закрывает модалку-родителя)', () => {
+    render(<Harness mode="calibrate" onMeasured={vi.fn()} />);
+    const stage = { getPointerPosition: () => toPx(F, { x: 100, y: 100 }) };
+    act(() => h.stage.props.onClick({ type: 'click', target: { getStage: () => stage } }));
+    expect(fireEvent.keyDown(canvas(), { key: 'Escape' })).toBe(false);
+    // отмер сброшен — следующий Esc без выбора событие не трогает
+    expect(fireEvent.keyDown(canvas(), { key: 'Escape' })).toBe(true);
+  });
+
+  it('мышью: ручки трансформера тоже ≥ 20 px (план)', () => {
+    render(<Harness initial="chest" />);
+    expect(h.tr.props.anchorSize).toBeGreaterThanOrEqual(20);
+  });
+
   it('readOnly: без ручек и трансформера, у зон нет обработчиков правки', () => {
     const onAreaRect = vi.fn();
     render(<Harness initial="chest" readOnly onAreaRect={onAreaRect} />);

@@ -21,7 +21,7 @@ import { anchorPatch } from './sceneText';
 const HIT_PX = 28;
 const HIT_COARSE_PX = 44;
 const BAR_LONG = 24;
-const BAR_SHORT = 8;
+const BAR_SHORT = 16;
 const KNOB = 16;
 const LABEL_FONT_PX = 12;
 

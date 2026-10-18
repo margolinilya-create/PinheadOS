@@ -47,7 +47,10 @@ export function useFlatCanvasKeys(o: CanvasKeysOpts): (e: KeyboardEvent) => void
       return;
     }
     if (e.key === 'Escape') {
-      if (clearMeasure()) return;
+      if (clearMeasure()) {
+        e.preventDefault();
+        return;
+      }
       if (selected) {
         e.preventDefault();
         onSelectArea(null);
