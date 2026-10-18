@@ -126,6 +126,41 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   }
 }
 
+// ── PDF ТЗ группы (веха 6+7, К1) ────────────────────────────────────────
+
+/** Порог сервера при отправке (миграция J: `size <= 8388608`) — больше не уйдёт в работу */
+export const TZ_PDF_MAX_BYTES = 8 * 1024 * 1024;
+
+const PDF_SIG = [0x25, 0x50, 0x44, 0x46, 0x2d]; // %PDF-
+
+/**
+ * PDF ТЗ группы → `orders/<id>/tz/<uuid>-<имя>`. Имя (`tzFileName`) несёт хэши
+ * группы и содержимого в начале — `asciiFileName` режет только хвост. Тип —
+ * только `application/pdf` и только по сигнатуре `%PDF-`; `upsert: false`:
+ * новая версия получает новый ключ (снимок не меняется задним числом).
+ */
+export async function uploadTzPdf(orderId: string, blob: Blob, fileName: string): Promise<string | null> {
+  const context = 'ТЗ не загружено';
+  const path = artworkPath(orderId, 'tz', fileName);
+  if (!isArtworkPath(orderId, path)) return fail(context, 'неверный заказ');
+  if (blob.size === 0) return fail(context, 'файл пустой');
+  if (blob.size > TZ_PDF_MAX_BYTES) return fail(context, 'PDF больше 8 МБ — уменьшите картинки в заказе');
+  try {
+    const head = new Uint8Array(await blob.slice(0, PDF_SIG.length).arrayBuffer());
+    if (!PDF_SIG.every((v, i) => head[i] === v)) return fail(context, 'файл не PDF');
+    const body = new Blob([blob], { type: 'application/pdf' });
+    const { error } = await supabase.storage.from(ARTWORK_BUCKET).upload(path, body, { upsert: false, contentType: 'application/pdf' });
+    if (error) {
+      console.error('uploadTzPdf', error);
+      return fail(context, translateSupabaseError(error.message));
+    }
+    return path;
+  } catch (e) {
+    console.error('uploadTzPdf', e);
+    return fail(context, networkFailureMessage(e));
+  }
+}
+
 // ── Превью PDF/AI и чтение для холста (веха 5а) ─────────────────────────
 
 /** Суффикс превью: `<исходник>.preview.png` (решение 3 плана вехи 5а) */

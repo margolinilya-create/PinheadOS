@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SALES_CLIENT_REV, packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
+import { LIST_COLUMNS, SALES_CLIENT_REV, packagingKind, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
 import { newSalesItem, newSalesLabel, newSalesNoteCard, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**
@@ -175,7 +175,7 @@ describe('salesOrderToPayload', () => {
   it('служебные поля шапки не уходят в order_v4_save — их ставят RPC', () => {
     const p = salesOrderToPayload(fullOrder());
     for (const k of ['status', 'erp_order_id', 'paid_at', 'paid_kind', 'paid_override_reason',
-      'sent_at', 'launch_started_at', 'launch_by', 'launched_at', 'launched_by', 'number']) {
+      'sent_at', 'launch_started_at', 'launch_by', 'launched_at', 'launched_by', 'number', 'created_by']) {
       expect(p).not.toHaveProperty(k);
     }
   });
@@ -277,5 +277,19 @@ describe('packagingKind — упаковка видами ERP', () => {
     for (const k of ['none', 'bopp', 'zip', 'other', 'inherit']) expect(packagingKind(k, 'none')).toBe(k);
     expect(packagingKind('', 'inherit')).toBe('inherit');
     expect(packagingKind('пакет', 'none')).toBe('none');
+  });
+});
+
+describe('список заказов — колонки вехи 6+7', () => {
+  it('оплата, причина «без оплаты», отправка и связь с ERP читаются списком', () => {
+    const cols = LIST_COLUMNS.split(',').map((c) => c.trim());
+    for (const c of ['paid_kind', 'paid_override_reason', 'sent_at', 'erp_order_id', 'created_by', 'due_date', 'status']) {
+      expect(cols).toContain(c);
+    }
+  });
+
+  it('автор заказа читается карточкой (гейты «свой заказ»), по умолчанию — null', () => {
+    expect(rowToSalesOrder({ id: 'o-1', created_by: 'u-1' }).created_by).toBe('u-1');
+    expect(rowToSalesOrder({ id: 'o-1' }).created_by).toBeNull();
   });
 });

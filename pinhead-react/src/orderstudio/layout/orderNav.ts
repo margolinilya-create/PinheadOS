@@ -7,8 +7,12 @@
  * переключаются в «Производство» (`OrderStudioApp`).
  */
 
+import type { SalesOrderStatus } from '../model/types';
+
 /** Профиль учётной записи — сколько нужно для доступа и меню */
 export interface SalesProfile {
+  /** `auth.uid()` — для гейтов «свой заказ» (автор, разделение обязанностей) */
+  id?: string | null;
   role?: string | null;
   is_sales?: boolean | null;
   /** МС: запускает заказы в производство (миграция F) */
@@ -64,6 +68,83 @@ export function canManageSalesStaff(p: SalesProfile | null | undefined): boolean
  */
 export function canManageOrderCatalogs(p: SalesProfile | null | undefined): boolean {
   return isSalesLead(p);
+}
+
+// ── Гейты отправки, оплаты и запуска (веха 6+7) ────────────────────────────
+//
+// Зеркало миграции J (`order_v4_transition`, `_launch_check`, `_set_payment`);
+// сторож паритета — `orderV4Launch.test.ts` (задача 1). Гейт экрана —
+// подсказка: окончательно решает сервер (права ERP `order.manage`/`tz.manage`
+// МС, оплата, метка запуска), его отказ экран показывает текстом.
+
+/** Заказ — сколько нужно гейтам */
+export interface GateOrder {
+  status: SalesOrderStatus;
+  created_by?: string | null;
+}
+
+/** Руководство производства: admin, director (`v_boss` в J) */
+const BOSS_ROLES = ['admin', 'director'];
+
+/** МС (`sales_is_ms()`): активный, одобренный, признак `is_ms` */
+export function isMs(p: SalesProfile | null | undefined): boolean {
+  return !!p && isLive(p) && p.is_ms === true;
+}
+
+/** Руководство производства: admin, director */
+export function isProductionBoss(p: SalesProfile | null | undefined): boolean {
+  return !!p && isLive(p) && BOSS_ROLES.includes(p.role ?? '');
+}
+
+/** Автор заказа (К20): `sales_is_seller() and created_by = auth.uid()` — по признаку, а не по роли */
+function isAuthor(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  return !!p && isLive(p) && p.is_sales === true && !!p.id && order.created_by === p.id;
+}
+
+/** МС или руководство производства — запуск, возврат, «сдан», очередь «К запуску» */
+function isLauncher(p: SalesProfile | null | undefined): boolean {
+  return isMs(p) || isProductionBoss(p);
+}
+
+/** «Отправить в работу»: черновик, автор (по `is_sales`) или руководство продаж */
+export function canSendToWork(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  return order.status === 'draft' && (isSalesLead(p) || isAuthor(p, order));
+}
+
+/**
+ * Отметка оплаты (К16): автор и руководство продаж — в `draft` и `ready_to_launch`;
+ * МС — только в `ready_to_launch` и не на своём заказе. Право ERP `order.manage`
+ * у МС проверяет сервер (отказ показывается текстом)
+ */
+export function canSetPayment(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  const open = order.status === 'draft' || order.status === 'ready_to_launch';
+  if (open && (isSalesLead(p) || isAuthor(p, order))) return true;
+  return order.status === 'ready_to_launch' && isMs(p) && !!p?.id && order.created_by !== p.id;
+}
+
+/** «Снять отметку» и «Разрешить запуск без оплаты» — только руководство продаж */
+export function canSetPaymentOverride(p: SalesProfile | null | undefined): boolean {
+  return isSalesLead(p);
+}
+
+/** «Запустить в производство»: ждёт запуска, МС или admin/director */
+export function canLaunch(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  return order.status === 'ready_to_launch' && isLauncher(p);
+}
+
+/** «Вернуть менеджеру»: МС или admin/director; rop не возвращает (К17) */
+export function canReturn(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  return order.status === 'ready_to_launch' && isLauncher(p);
+}
+
+/** «Отметить: заказ сдан»: в производстве, МС или admin/director */
+export function canFinish(p: SalesProfile | null | undefined, order: GateOrder): boolean {
+  return order.status === 'production' && isLauncher(p);
+}
+
+/** Пункт меню и пресет «К запуску»: МС или admin/director */
+export function canSeeLaunchQueue(p: SalesProfile | null | undefined): boolean {
+  return isLauncher(p);
 }
 
 /**

@@ -27,6 +27,17 @@
  * Текст отказа сервера показывается тостом один раз — конечное состояние
  * не даёт второй записи. Флаг «первый сбой уже показан» — только у `error`.
  *
+ * Ответы RPC переходов и оплаты (веха 6+7, К19) кладёт `applyServer`: статус,
+ * оплата и НОВАЯ версия строки — иначе следующее сохранение ушло бы со старым
+ * `expected_updated_at` и получило ложный `conflict`. Не черновик — `locked`;
+ * возврат в черновик снимает только `locked` (`outdated`/`conflict` остаются).
+ * Ответ без версии (сервер старше миграции J) полей не кладёт — заказ
+ * перечитывается.
+ *
+ * Отправка в работу (`beginSend` … `endSend`): на всё время цепочки правка
+ * закрыта (`edit` — no-op), путь PDF ТЗ пишет только держатель знака отправки
+ * через `editDuringSend` — правка человека не перемешается с отправляемым ТЗ.
+ *
  * Выход (`runAppResets`) обнуляет всё: таймер, полёт, карточку и список —
  * следующий пользователь той же вкладки не видит чужого заказа, а отложенное
  * сохранение прежнего не уходит под новой сессией.
@@ -62,6 +73,15 @@ const TERMINAL_FALLBACK: Record<TerminalState, string> = {
   conflict: 'Заказ изменён в другой вкладке — обновите страницу',
 };
 
+/** Поля, которые возвращают RPC переходов и оплаты (миграция J) */
+export type ServerPatch = Partial<Pick<SalesOrder,
+  'status' | 'updated_at' | 'erp_order_id' | 'sent_at' | 'paid_kind' | 'paid_at' | 'paid_override_reason' | 'launched_at'
+>> & { id: string };
+
+const SERVER_FIELDS = [
+  'status', 'updated_at', 'erp_order_id', 'sent_at', 'paid_kind', 'paid_at', 'paid_override_reason', 'launched_at',
+] as const;
+
 export interface OpenOptions {
   /** Перечитать заказ, даже если он уже открыт (после отказа сервера) */
   force?: boolean;
@@ -73,6 +93,8 @@ interface SalesState {
   current: SalesOrder | null;
   currentLoading: boolean;
   saveState: SaveState;
+  /** Идёт «Отправить в работу»: правка закрыта (`edit` — no-op) */
+  sending: boolean;
   loadList: () => Promise<void>;
   open: (id: string, opts?: OpenOptions) => Promise<SalesOrder | null>;
   close: () => Promise<void>;
@@ -86,6 +108,17 @@ interface SalesState {
   /** Сохранить немедленно (уход с карточки, тесты) */
   flush: () => Promise<void>;
   setPricer: (fn: ((o: SalesOrder) => OrderPrice | null) | null) => void;
+  /**
+   * Ответ RPC перехода или оплаты. Чужой id — no-op; нет `updated_at` —
+   * заказ перечитывается вместо полей
+   */
+  applyServer: (patch: ServerPatch) => void;
+  /** Начало отправки открытого заказа: знак для `editDuringSend` либо `null` (не тот заказ, уже идёт) */
+  beginSend: (id: string) => number | null;
+  /** Конец отправки (успех или отказ): правка снова открыта */
+  endSend: () => void;
+  /** Правка во время отправки — только держателю знака; `false` — не записано */
+  editDuringSend: (token: number, fn: (o: SalesOrder) => SalesOrder) => boolean;
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -117,6 +150,9 @@ let reopened = 0;
 let epoch = 0;
 /** Прошлое сохранение упало обычным сбоем (`error`) — повторный тоста не даёт */
 let lastFailed = false;
+/** Знак текущей отправки (0 — отправки нет); растёт, чтобы старый знак не подошёл */
+let sendSeq = 0;
+let sendToken = 0;
 
 const clearTimer = () => {
   if (timer) clearTimeout(timer);
@@ -207,12 +243,24 @@ export const useSalesStore = create<SalesState>((set, get) => {
     return myFlight;
   }
 
+  /** Правка карточки и таймер сохранения — общее у `edit` и `editDuringSend` */
+  function applyEdit(cur: SalesOrder, fn: (o: SalesOrder) => SalesOrder): void {
+    set({ current: fn(cur), saveState: 'dirty' });
+    if (inFlight) {
+      dirtyDuringFlight = true;
+      return;
+    }
+    clearTimer();
+    timer = setTimeout(() => { void runSave(); }, SAVE_DEBOUNCE_MS);
+  }
+
   return {
     list: [],
     listLoading: false,
     current: null,
     currentLoading: false,
     saveState: 'clean',
+    sending: false,
 
     loadList: async () => {
       const myEpoch = epoch;
@@ -230,7 +278,8 @@ export const useSalesStore = create<SalesState>((set, get) => {
       await get().close();
       session += 1;
       const mySession = session;
-      set({ currentLoading: true, current: null, saveState: 'clean' });
+      sendToken = 0;
+      set({ currentLoading: true, current: null, saveState: 'clean', sending: false });
       const order = await fetchSalesOrder(id);
       // Пока шёл запрос, карточку закрыли или открыли другую — ответ устарел
       if (mySession !== session) return null;
@@ -249,7 +298,8 @@ export const useSalesStore = create<SalesState>((set, get) => {
       } else if (inFlight) await inFlight;
       if (mark !== reopened) return;
       session += 1;
-      set({ current: null, currentLoading: false, saveState: 'clean' });
+      sendToken = 0;
+      set({ current: null, currentLoading: false, saveState: 'clean', sending: false });
     },
 
     createNew: async (seed) => {
@@ -266,15 +316,9 @@ export const useSalesStore = create<SalesState>((set, get) => {
     },
 
     edit: (fn) => {
-      const { current: cur, saveState } = get();
-      if (!cur || isTerminalSaveState(saveState) || !isEditable(cur)) return;
-      set({ current: fn(cur), saveState: 'dirty' });
-      if (inFlight) {
-        dirtyDuringFlight = true;
-        return;
-      }
-      clearTimer();
-      timer = setTimeout(() => { void runSave(); }, SAVE_DEBOUNCE_MS);
+      const { current: cur, saveState, sending } = get();
+      if (!cur || sending || isTerminalSaveState(saveState) || !isEditable(cur)) return;
+      applyEdit(cur, fn);
     },
 
     flush: async () => {
@@ -284,6 +328,54 @@ export const useSalesStore = create<SalesState>((set, get) => {
     },
 
     setPricer: (fn) => { pricer = fn; },
+
+    applyServer: (patch) => {
+      const cur = get().current;
+      if (!cur || !cur.id || cur.id !== patch.id) return;
+      if (!patch.updated_at) {
+        // Сервер старше J: версии нет — класть поля нельзя (следующее
+        // сохранение ушло бы со старой версией), перечитываем заказ целиком
+        void get().open(cur.id, { force: true });
+        return;
+      }
+      const fields: Partial<SalesOrder> = {};
+      for (const k of SERVER_FIELDS) {
+        if (k in patch) (fields as Record<string, unknown>)[k] = patch[k];
+      }
+      const next = { ...cur, ...fields };
+      const prev = get().saveState;
+      let saveState = prev;
+      if (!isEditable(next)) {
+        clearTimer();
+        dirtyDuringFlight = false;
+        saveState = 'locked';
+      } else if (prev === 'locked') {
+        saveState = 'clean';
+      }
+      set({ current: next, saveState });
+    },
+
+    beginSend: (id) => {
+      const { current: cur, sending } = get();
+      if (!cur || cur.id !== id || sending) return null;
+      sendSeq += 1;
+      sendToken = sendSeq;
+      set({ sending: true });
+      return sendToken;
+    },
+
+    endSend: () => {
+      sendToken = 0;
+      set({ sending: false });
+    },
+
+    editDuringSend: (token, fn) => {
+      const { current: cur, saveState, sending } = get();
+      if (!cur || !sending || token === 0 || token !== sendToken) return false;
+      if (isTerminalSaveState(saveState) || !isEditable(cur)) return false;
+      applyEdit(cur, fn);
+      return true;
+    },
   };
 });
 
@@ -297,9 +389,12 @@ function resetSalesStore(): void {
   inFlight = null;
   dirtyDuringFlight = false;
   lastFailed = false;
+  sendToken = 0;
   session += 1;
   epoch += 1;
-  useSalesStore.setState({ list: [], listLoading: false, current: null, currentLoading: false, saveState: 'clean' });
+  useSalesStore.setState({
+    list: [], listLoading: false, current: null, currentLoading: false, saveState: 'clean', sending: false,
+  });
 }
 
 registerAppReset(resetSalesStore);
@@ -311,4 +406,5 @@ export function __resetSalesStoreForTests(): void {
   session = 0;
   epoch = 0;
   reopened = 0;
+  sendSeq = 0;
 }

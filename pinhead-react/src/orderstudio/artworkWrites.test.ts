@@ -80,15 +80,23 @@ describe('запись в order-artworks — только api/artworks.ts', () =
     expect(files.filter((f) => f.name !== WRITER && mentionsAndWrites(f.text)).map((f) => f.name)).toEqual([]);
   });
 
-  it('писатель на месте: загрузки без upsert, удаление одно', () => {
+  it('писатель на месте: загрузки без upsert (макет, превью, PDF ТЗ), удаление одно', () => {
     const w = files.find((f) => f.name === WRITER);
     expect(w).toBeDefined();
     const writes = bucketWrites(w!.text);
-    expect(writes.filter((x) => x === 'upload').length).toBe(2);
+    expect(writes.filter((x) => x === 'upload').length).toBe(3);
     expect(writes.filter((x) => x === 'remove').length).toBe(1);
     expect(writes.every((x) => x === 'upload' || x === 'remove')).toBe(true);
-    expect(w!.text.match(/\.upload\([^;]*?\{\s*upsert: false/g)?.length).toBe(2);
+    expect(w!.text.match(/\.upload\([^;]*?\{\s*upsert: false/g)?.length).toBe(3);
     expect(w!.text).not.toMatch(/upsert: true/);
+  });
+
+  it('PDF ТЗ (веха 6+7) — свой писатель: вид tz, тип application/pdf, проверка сигнатуры', () => {
+    const w = files.find((f) => f.name === WRITER)!.text;
+    const fn = /export async function uploadTzPdf[\s\S]*?\n}\n/.exec(w)?.[0] ?? '';
+    expect(fn).toMatch(/artworkPath\(orderId, 'tz', fileName\)/);
+    expect(fn).toMatch(/upload\(path, body, \{ upsert: false, contentType: 'application\/pdf' \}\)/);
+    expect(fn).toMatch(/PDF_SIG\.every/);
   });
 
   it('самопроверка: образцы ловятся, чтение — нет', () => {
