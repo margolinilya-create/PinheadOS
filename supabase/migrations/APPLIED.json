@@ -2516,6 +2516,13 @@
       "files": [
         "20261018090000_flats_admin.sql"
       ]
+    },
+    {
+      "version": "20261018120000",
+      "name": "order_v4_launch",
+      "files": [
+        "20261018120000_order_v4_launch.sql"
+      ]
     }
   ]
 }
