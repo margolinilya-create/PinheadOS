@@ -5,6 +5,7 @@ import { buildPreviewSvg } from '../export/buildPreviewSvg';
 import { svgToDataUrl } from '../export/flatMarkup';
 import { placementOf } from '../model/layout';
 import { VIEW_NAMES } from './canvas/canvasText';
+import { viewsOf } from './useItemFlat';
 import styles from './DesignTab.module.css';
 
 /** Сторона растра логотипа в превью, px — для экрана телефона хватает */
@@ -51,7 +52,8 @@ async function buildView(orderId, view, placements, colorHex) {
 export default function DesignPreview({ orderId, item, flat, colorHex }) {
   const groups = useMemo(() => {
     const placed = item.prints.map((p) => placementOf(p, flat)).filter(Boolean);
-    const views = flat.views.filter((v) => v.kind === 'front' || v.kind === 'back');
+    // Все виды флэта по порядку холста, рукава тоже (5б); `flat` — флэт версии позиции
+    const views = viewsOf(flat).map((kind) => flat.views.find((v) => v.kind === kind));
     const withPrints = views.filter((v) => placed.some((pl) => pl.view === v.kind));
     return (withPrints.length ? withPrints : views.slice(0, 1)).map((v) => ({ view: v, placements: placed.filter((pl) => pl.view === v.kind) }));
   }, [item.prints, flat]);

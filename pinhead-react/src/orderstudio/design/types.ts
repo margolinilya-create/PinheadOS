@@ -30,8 +30,8 @@ export type GarmentType = (typeof GARMENT_TYPES)[number];
 export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
 export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
 
-/** Виды холста вехи 5а — только перед и спина (решение владельца 3) */
-export const DESIGN_VIEWS = ['front', 'back'] as const;
+/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → левый → правый рукав */
+export const DESIGN_VIEWS = FLAT_VIEW_KINDS;
 export type DesignView = (typeof DESIGN_VIEWS)[number];
 
 /** Именованная вертикальная ось изделия (выточка, рельеф, шов) */

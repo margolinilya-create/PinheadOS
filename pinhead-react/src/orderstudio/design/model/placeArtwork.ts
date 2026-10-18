@@ -8,18 +8,20 @@
  *   (`STANDARD_PLACEMENT`: центр груди, центр спины) либо точка сброса при
  *   перетаскивании файла на холст (центр в точке, рамка внутри зоны);
  * - **без задвоения** (проверка скиллами, архитектура): если в зоне уже есть
- *   строка нанесения с тем же именем зоны, НЕ видная на этом холсте, раскладка,
- *   файл, мм и отступ дописываются ей — новое нанесение не создаётся, цена
- *   та же. Техника и прочие поля строки (Pantone, цвета, комментарий) — её.
- *   «Не видна на холсте» = `placementOf(…, flat) === null`: раскладки нет,
- *   она битая или стоит на другом/снятом флэте (5б: снятие и версии флэтов) —
- *   такая строка в слияние холста не попадает, и новый логотип рядом с ней
- *   задвоил бы цену.
+ *   строка нанесения с тем же именем зоны, НЕ размещённая на этом флэте,
+ *   раскладка, файл, мм и отступ дописываются ей — новое нанесение не
+ *   создаётся, цена та же. Техника и прочие поля строки (Pantone, цвета,
+ *   комментарий) — её. «Не размещена на этом флэте» = нет раскладки по форме
+ *   с этим `flat_id` ЛЮБОЙ версии (веха 5б, задача 5): раскладки нет, она
+ *   битая или стоит на другом/снятом флэте. Раскладка прежней версии этого
+ *   флэта, чья зона пропала в новой, — своё нанесение, а не свободная строка:
+ *   иначе она приняла бы чужой логотип.
  */
 import type { SalesPrint } from '../../model/types';
 import type { AssetMeta, DesignView, GarmentFlat } from '../types';
 import { viewZone } from '../geometry/view';
 import { applyPlacement, newPlacedPrint, placementOf, zoneNameOf, type NewPlacedCtx } from './layout';
+import { hasPlacedLayout } from './layoutMark';
 
 export type PlaceArtworkCtx = NewPlacedCtx;
 
@@ -39,9 +41,9 @@ export { defaultAreaId } from '../geometry/view';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(Math.max(lo, hi), v));
 
-/** Строка той же зоны, не видная на этом флэте: сначала без файла или с тем же файлом */
+/** Строка той же зоны без раскладки на этом флэте (любой версии): сначала без файла или с тем же файлом */
 function unplacedRow(prints: SalesPrint[], zone: string, artworkPath: string, flat: GarmentFlat): SalesPrint | undefined {
-  const free = prints.filter((p) => !placementOf(p, flat) && p.zone.trim() === zone);
+  const free = prints.filter((p) => !hasPlacedLayout(p.layout, flat.id) && p.zone.trim() === zone);
   return free.find((p) => !p.artwork_path || p.artwork_path === artworkPath) ?? free[0];
 }
 

@@ -78,10 +78,20 @@ export function resized(
   return { ...pl, width_mm: w, height_mm: h, x_mm: cx - w / 2, y_mm: cy - h / 2 };
 }
 
+const isSleeve = (view: FlatView) => view.kind === 'sleeve_left' || view.kind === 'sleeve_right';
+
+/** Рукав со связью со справочником зон: отступ — от низа рукава вверх (`part_seam`, веха 5б) */
+const fromSleeveBottom = (view: FlatView, area: PrintArea) => isSleeve(view) && area.zone_id !== null;
+
+function sleeveBottomY(view: FlatView, area: PrintArea): number {
+  const { zone } = viewZone(view, undefined, area.id);
+  return view.anchors.sleeve_bottom_y ?? zone.zy + zone.zh;
+}
+
 /**
  * Опора вертикального отступа: служебная зона (этикетка) — верх зоны, иначе
  * горловина (у штанов это пояс), у изделия без горловины — верх зоны
- * (как `model/offset.offsetFor`).
+ * (как `model/offset.offsetFor`). Рукав — отдельно: от низа рукава вверх.
  */
 function refY(view: FlatView, area: PrintArea): number {
   const { zone } = viewZone(view, undefined, area.id);
@@ -89,19 +99,28 @@ function refY(view: FlatView, area: PrintArea): number {
   return view.anchors.neckline_point?.y ?? zone.zy;
 }
 
-/** Ось горизонтального отступа: ось изделия или центр зоны */
+/** Ось горизонтального отступа: ось изделия (у рукава — ось рукава) или центр зоны */
 function axisX(view: FlatView, area: PrintArea): number {
   const { zone } = viewZone(view, undefined, area.id);
-  return view.anchors.center_axis_x ?? zone.zx + zone.zw / 2;
+  const axis = isSleeve(view) ? view.anchors.sleeve_center_x : view.anchors.center_axis_x;
+  return axis ?? zone.zx + zone.zw / 2;
 }
 
-/** Отступ верха нанесения (с поворотом) от опоры, мм; минус — выше опоры */
+/**
+ * Отступ нанесения (с поворотом) от опоры, мм: верх нанесения от опоры
+ * (минус — выше опоры); у рукава — низ нанесения от низа рукава вверх
+ * (как `verticalFromBottom` и `offset_mm` нанесения)
+ */
 export function verticalOffset(view: FlatView, area: PrintArea, pl: Geometry): number {
-  return rotatedAabb(bboxOf(pl), pl.rotation_deg).y - refY(view, area);
+  const aabb = rotatedAabb(bboxOf(pl), pl.rotation_deg);
+  if (fromSleeveBottom(view, area)) return sleeveBottomY(view, area) - (aabb.y + aabb.h);
+  return aabb.y - refY(view, area);
 }
 
 export function withVerticalOffset(view: FlatView, area: PrintArea, pl: Geometry, mm: number): Geometry {
-  return { ...pl, y_mm: pl.y_mm + (refY(view, area) + mm - rotatedAabb(bboxOf(pl), pl.rotation_deg).y) };
+  const aabb = rotatedAabb(bboxOf(pl), pl.rotation_deg);
+  if (fromSleeveBottom(view, area)) return { ...pl, y_mm: pl.y_mm + (sleeveBottomY(view, area) - mm - (aabb.y + aabb.h)) };
+  return { ...pl, y_mm: pl.y_mm + (refY(view, area) + mm - aabb.y) };
 }
 
 /** Смещение центра нанесения от оси, мм; плюс — вправо на рисунке */
@@ -115,6 +134,7 @@ export function withHorizontalOffset(view: FlatView, area: PrintArea, pl: Geomet
 
 /** Подпись опоры вертикального отступа */
 export function verticalLabel(view: FlatView, area: PrintArea, category: string): string {
+  if (fromSleeveBottom(view, area)) return 'От низа рукава, мм';
   if (area.zone_id === null || !view.anchors.neckline_point) return 'От верха зоны, мм';
   return category === 'pants' ? 'От пояса, мм' : 'От горловины, мм';
 }

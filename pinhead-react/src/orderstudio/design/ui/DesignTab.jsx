@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { EditorCanvas } from './canvas/EditorCanvas';
 import { DesignIcon } from './DesignIcon';
 import ExportPdfButton from './panel/ExportPdfButton';
+import FlatNotices from './FlatNotices';
 import FlatPicker from './panel/FlatPicker';
 import UnplacedList from './panel/UnplacedList';
 import ViewTabs from './panel/ViewTabs';
@@ -36,14 +37,16 @@ const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель д
  * позиции и пишут через стор дизайна (`commit` → `useSalesStore.edit`).
  * Открытие вкладки ничего не пишет — ни нанесений, ни `flat_id`.
  *
- * - шапка: силуэт, «Перед / Спина», отмена и возврат, «Скачать PDF макета»;
+ * - шапка: силуэт, виды (перед, спина, рукава — 5б), отмена и возврат, «Скачать PDF макета»;
+ * - плашки силуэта (`FlatNotices`): модель сменилась, силуэт обновлён до новой
+ *   версии, появился точный силуэт; холст — по флэту версии позиции (`useItemFlat`);
  * - холст (`EditorCanvas`) и панель справа (`DesignSide`, своим чанком);
  * - ≤ 760 px (`compact`) — только просмотр: статичное превью `<img>`;
  * - только чтение (не черновик) — холст без правки, PDF доступен.
  */
 export default function DesignTab({ order, item, price, readOnly, compact = false, onOpenItem }) {
   const d = useDesignTab({ order, item, readOnly: readOnly || compact });
-  const { flats, pick, flat } = d;
+  const { flats, flat } = d;
   const ro = readOnly || compact;
   const choices = useMemo(() => flats.catalog.flats.filter((f) => f.active), [flats.catalog]);
   const { select, undo, redo } = useDesignStore.getState();
@@ -113,18 +116,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
           onRelease={d.releaseLayout}
         />
       )}
-      {flat && pick.modelChanged && (
-        <p className={`${styles.notice} ${styles.warn}`}>
-          Модель сменилась — перенесите нанесения на новый силуэт.
-          {pick.suggested && !ro && (
-            <button type="button" className={styles.btn} onClick={() => d.switchFlat(pick.suggested)}>
-              Перенести на «{pick.suggested.name}»
-            </button>
-          )}
-        </p>
-      )}
-      {flat?.typical && <p className={styles.muted}>Силуэт типовой, не лекало модели: размеры и отступы — ориентир для цеха.</p>}
-      {d.switchNote && <p className={styles.notice} role="status">{d.switchNote}</p>}
+      <FlatNotices d={d} readOnly={ro} />
 
       {flat && compact && (
         <Suspense fallback={<p className={styles.muted} role="status">Готовлю превью…</p>}>
