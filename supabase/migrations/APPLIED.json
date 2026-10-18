@@ -2502,6 +2502,13 @@
       "files": [
         "20261017150000_order_catalogs.sql"
       ]
+    },
+    {
+      "version": "20261017185435",
+      "name": "garment_flats",
+      "files": [
+        "20261017185435_garment_flats.sql"
+      ]
     }
   ]
 }
