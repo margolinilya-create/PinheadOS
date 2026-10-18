@@ -3,6 +3,7 @@ import { ZONES_CATALOG_DEFAULT } from '../../../../data/constants';
 import { newSalesPrint } from '../../../model/factory';
 import { flat as makeFlat, CENTER_X, NECKLINE_Y } from '../../fixtures.testutil';
 import { newPlacedPrint, placementOf } from '../../model/layout';
+import { SLEEVE_BOTTOM_Y, SLEEVE_CENTER_X, sleevedFlat } from '../../fixtures5b.testutil';
 import {
   duplicateLayer, horizontalOffset, moveLayer, patchPrint, placeGeometry, presetsFor, resized, rotated,
   verticalLabel, verticalOffset, viewPlacements, whereOf, withHorizontalOffset, withPreset, withVerticalOffset,
@@ -121,5 +122,31 @@ describe('panelOps — слои', () => {
     expect(patchPrint([a], a.key, { method: a.method })).toBeNull();
     expect(patchPrint([a], a.key, { method: 'dtg' })![0].method).toBe('dtg');
     expect(patchPrint([a], 'nope', { method: 'dtg' })).toBeNull();
+  });
+});
+
+describe('panelOps — рукав (веха 5б): опора — низ рукава, ось — ось рукава', () => {
+  const SLEEVED = sleevedFlat();
+  const sctx = { ...ctx, flat: SLEEVED };
+  const p = newPlacedPrint(ASSET, `orders/${ORDER}/logo/s.png`, 'sleeve-l', { ...sctx, view: 'sleeve_left', itemKind: 'sku', method: 'dtf' })!;
+  const pl = placementOf(p, SLEEVED)!;
+  const { view, area } = whereOf(pl, sctx)!;
+
+  it('отступ — от низа рукава вверх до низа нанесения, как в нанесении (part_seam)', () => {
+    expect(verticalLabel(view, area, 'tshirts')).toBe('От низа рукава, мм');
+    expect(verticalOffset(view, area, pl)).toBeCloseTo(SLEEVE_BOTTOM_Y - (pl.y_mm + pl.height_mm));
+    expect(verticalOffset(view, area, pl)).toBe(p.offset_mm);
+    const g = withVerticalOffset(view, area, pl, 50);
+    expect(SLEEVE_BOTTOM_Y - (g.y_mm + g.height_mm)).toBeCloseTo(50);
+  });
+
+  it('горизонталь — от оси рукава', () => {
+    expect(horizontalOffset(view, area, pl)).toBeCloseTo(pl.x_mm + pl.width_mm / 2 - SLEEVE_CENTER_X);
+    const g = withHorizontalOffset(view, area, pl, 10);
+    expect(g.x_mm + g.width_mm / 2).toBeCloseTo(SLEEVE_CENTER_X + 10);
+  });
+
+  it('пресеты рукава — только центр зоны', () => {
+    expect(presetsFor(view, area).map((x) => x.key)).toEqual(['center-zone']);
   });
 });

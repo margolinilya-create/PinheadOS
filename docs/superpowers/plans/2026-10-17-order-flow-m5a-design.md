@@ -744,6 +744,7 @@ Critical нет. Принято:
 - **M4 (T2)** тексты `catalog_put`/`catalog_value_check` — сверка с боем `pg_get_functiondef` в dryrun; пробы регресса (admin `sku_catalog` OK, rop `suppliers`/`labelLibrary` OK, rop `zonesCatalog` 42501).
 - **M5 (T3, T5)** клиент не доверяет справочнику (прямая запись admin в `app_config` мимо RPC): `flatsSchema` сверяет формулу `svg_path`, `downloadFlatSvg` — `isFlatPath`.
 - **L1** политику delete у `garment-flats` в 5а НЕ заводить (неизменяемость версий); в 5б — delete только неупомянутых версий.
+  **Отменён решением К5 вехи 5б (18.10):** в 5б DELETE версий не заводится (ни политики, ни RPC «версия не упомянута») — старые версии нужны заказам, PDF и вехе 6, открытые вкладки держат справочник до 10 минут. Уборка ничьих версий `garment-flats` — в бэклоге с условиями К5: возрастной гейт и проверка ссылок (`history`, `layout`, `order_items.flat_id`) на сервере; туда же — сироты сохранений, сорвавшихся на P0001 после загрузки. Правило — `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`.
 - **L2** пробы += отключённый admin, `copy` из чужого бакета, `move` наружу, `upsert:true`, путь с `\n`, верхний регистр, `v10000`; `catalog_value_check` += `version` 1…9999, `scale_mm_per_unit` ≤ 10, |коорд.| ≤ 5000, ≤ 256 точек, `name` ≤ 200.
 - **L3** CHECK `order_items.flat_id` (`'' или ^[a-z0-9][a-z0-9-]{0,62}$`, not valid → validate); CHECK `layout->>'v' = '1'`.
 - **L4** удаление `sales_set_staff(uuid,boolean)` безопасно; дописать README проб, SESSION-STATE, мок отвечает 404 PGRST202 на двухаргументный вызов.

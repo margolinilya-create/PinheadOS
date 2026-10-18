@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { newSalesPrint } from '../model/factory';
+import { useStore } from '../../store/useStore';
 import PrintRow from './PrintRow';
 
 const base = { index: 0, itemSizes: [], zones: ['Грудь'], unitPrice: null, qty: 0 };
@@ -13,8 +14,8 @@ function setup(over = {}) {
     onRemove: vi.fn(),
     ...over,
   };
-  render(<PrintRow {...props} />);
-  return props;
+  const view = render(<PrintRow {...props} />);
+  return { ...props, container: view.container };
 }
 
 describe('PrintRow — нанесение на холсте (веха 5а)', () => {
@@ -63,5 +64,28 @@ describe('PrintRow — нанесение на холсте (веха 5а)', () 
     expect(screen.queryByLabelText('Ширина, мм')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Удалить' })).toBeNull();
     expect(screen.getByLabelText('Pantone (через запятую)')).toBeInTheDocument();
+  });
+});
+
+describe('PrintRow — снятая зона (веха 5б, задача 4)', () => {
+  const ZONES = [
+    { id: 'front', name: 'Грудь', forCategories: null, sortOrder: 1 },
+    { id: 'hood', name: 'Капюшон', forCategories: null, sortOrder: 5, active: false },
+  ];
+  beforeEach(() => useStore.setState({ zonesCatalog: ZONES }));
+
+  it('выбранная снятая зона — в списке с пометкой «снята» и подписью у поля', () => {
+    const { container } = setup({ print: newSalesPrint({ zone: 'капюшон ' }) });
+    const options = [...container.querySelectorAll('datalist option')];
+    expect(options.map((o) => [o.value, o.label])).toContainEqual(['Капюшон', 'Капюшон (снята)']);
+    const note = screen.getByText('Зона «Капюшон» снята — новым позициям не предлагается, в этом заказе остаётся');
+    expect(screen.getByLabelText('Зона')).toHaveAttribute('aria-describedby', note.id);
+  });
+
+  it('живая зона — без пометки; снятая, но не выбранная, в список не попадает', () => {
+    const { container } = setup();
+    expect(screen.queryByText(/снята/)).toBeNull();
+    expect([...container.querySelectorAll('datalist option')].map((o) => o.value)).toEqual(['Грудь']);
+    expect(screen.getByLabelText('Зона')).not.toHaveAttribute('aria-describedby');
   });
 });

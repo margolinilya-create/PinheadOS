@@ -12,13 +12,16 @@ import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
 import { patchPrint } from './panel/panelOps';
 import { useArtworkActions } from './useArtworkActions';
+import { transferToCurrent, useItemFlat } from './useItemFlat';
 
 /**
  * Данные и действия вкладки «Дизайн» (веха 5а, задача 6б) — всё, что
  * `DesignTab` и панель читают о позиции, без разметки.
  *
  * - флэт позиции — `pickFlat` (открытие ничего не пишет, `flat_id` пишет
- *   первое размещение или явный выбор силуэта);
+ *   первое размещение или явный выбор силуэта); холст, панель, превью и PDF
+ *   работают с флэтом ВЕРСИИ ПОЗИЦИИ (`useItemFlat`, веха 5б, К15), перенос
+ *   на текущую версию — только по кнопке (`transferVersion`);
  * - привязка стора дизайна к позиции — `bind` в эффекте; уход с вкладки —
  *   `reset` ОТЛОЖЕННО: смена позиции перемонтирует вкладку (`ErrorBoundary
  *   key`), и новый монтаж отменяет сброс — картинки заказа не скачиваются
@@ -39,6 +42,7 @@ export function useDesignTab({ order, item, readOnly }) {
     zonesCatalog: s.zonesCatalog,
     categoryRules: s.categoryRules,
     suppliers: s.suppliers,
+    extrasCatalog: s.extrasCatalog,
   })));
   const ds = useDesignStore(useShallow((s) => ({
     view: s.view,
@@ -69,23 +73,24 @@ export function useDesignTab({ order, item, readOnly }) {
     () => pickFlat(item, sku, flats.catalog),
     [item, sku, flats.catalog],
   );
-  const flat = pick.flat;
+  const zonesCatalog = useMemo(() => cat.zonesCatalog ?? [], [cat.zonesCatalog]);
+  const extrasCatalog = useMemo(() => cat.extrasCatalog ?? [], [cat.extrasCatalog]);
+  const itemFlat = useItemFlat({ item, current: pick.flat, sku, catalog: flats.catalog, zonesCatalog, extrasCatalog });
+  const { flat, views } = itemFlat;
   const rules = useMemo(() => (sku ? getEffectiveRules(sku, cat.categoryRules ?? []) : null), [sku, cat.categoryRules]);
   const category = sku?.category ?? '';
-  const zonesCatalog = useMemo(() => cat.zonesCatalog ?? [], [cat.zonesCatalog]);
   const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category } : null), [flat, zonesCatalog, category]);
   const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? []), [item, cat.suppliers]);
 
-  // Вида нет на этом силуэте — первый, что есть
-  const views = useMemo(() => (flat ? flat.views.filter((v) => v.kind === 'front' || v.kind === 'back').map((v) => v.kind) : []), [flat]);
+  // Вида нет на этом силуэте — первый, что есть (порядок: перед → спина → левый → правый рукав)
   const view = views.includes(ds.view) ? ds.view : (views[0] ?? 'front');
   useEffect(() => {
     if (view !== ds.view) useDesignStore.getState().setView(view);
   }, [view, ds.view]);
 
   const target = useMemo(() => (ctx && !readOnly ? {
-    orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules,
-  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules]);
+    orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules, areaAllowed: itemFlat.areaAllowed,
+  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed]);
   const art = useArtworkActions(target);
 
   /** Правка нанесений через историю; `fn(prints) → prints | null` */
@@ -136,8 +141,25 @@ export function useDesignTab({ order, item, readOnly }) {
       : '');
   }, [flat, item.prints, readOnly, zonesCatalog, category]);
 
+  /** «Перенести на версию M»: раскладки прежних версий — на текущую (только черновик, по кнопке) */
+  const current = itemFlat.current;
+  const transferVersion = useCallback(() => {
+    if (!current || readOnly) return;
+    let dropped = 0;
+    const ok = useDesignStore.getState().commit('Перенос на новую версию силуэта', (it) => {
+      const res = transferToCurrent(it.prints, current, { zonesCatalog, category });
+      dropped = res?.dropped ?? 0;
+      return res ? { prints: res.prints } : null;
+    });
+    if (ok) {
+      setSwitchNote(dropped > 0
+        ? `Сняты с холста: ${dropped} — в версии ${current.version} силуэта нет таких зон, нанесения остались строками`
+        : `Нанесения перенесены на версию ${current.version} силуэта`);
+    }
+  }, [current, readOnly, zonesCatalog, category]);
+
   return {
-    flats, sku, pick, flat, ctx, rules, category, colorHex, views, view,
+    flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
     art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,

@@ -82,3 +82,17 @@ export function pickFlat(item: ItemRef, sku: SkuRef, catalog: GarmentFlatsCatalo
   const auto = autoPickFlat(item, sku, catalog);
   return { flat: auto?.flat ?? null, source: auto?.source ?? null, modelChanged: false, suggested: null };
 }
+
+/**
+ * Точный силуэт для позиции на типовом (веха 5б, Р12): у позиции записан
+ * типовой флэт (`item.flat_id`), а автоподбор по коду модели даёт точный
+ * (`sku_codes`) — его и предложить: «Для модели появился точный силуэт».
+ * Флэт не записан, снят, уже точный или точного нет — `null`. Ничего не пишет:
+ * перенос — по кнопке (`remapToFlat`)
+ */
+export function exactUpgrade(item: ItemRef, sku: SkuRef, catalog: GarmentFlatsCatalog): GarmentFlat | null {
+  const stored = item.flat_id ? catalog.flats.find((f) => f.id === item.flat_id) : undefined;
+  if (!stored || !stored.active || !stored.typical) return null;
+  const auto = autoPickFlat(item, sku, catalog);
+  return auto && auto.source === 'exact' && auto.flat.id !== stored.id ? auto.flat : null;
+}

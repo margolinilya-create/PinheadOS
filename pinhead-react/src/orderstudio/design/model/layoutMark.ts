@@ -14,7 +14,7 @@
  * попасть ни туда, ни туда (Review Focus 5). Один разбор на всех — строка
  * на «Изделии» и холст не расходятся во мнении, что размещено.
  */
-import type { AssetMeta, PrintLayoutV1 } from '../types';
+import { DESIGN_VIEWS, type AssetMeta, type DesignView, type PrintLayoutV1 } from '../types';
 import { AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_PX_SIDE, MAX_SOURCE_FILE_LEN } from '../limits';
 
 const MAX_ROTATION_DEG = 360;
@@ -58,7 +58,7 @@ export function parseLayout(raw: unknown): PrintLayoutV1 | null {
   if (!isObj(raw) || raw.v !== 1) return null;
   if (typeof raw.flat_id !== 'string' || !FLAT_ID_RE.test(raw.flat_id)) return null;
   if (!int(raw.flat_version, 1, MAX_FLAT_VERSION)) return null;
-  if (raw.view !== 'front' && raw.view !== 'back') return null;
+  if (!(DESIGN_VIEWS as readonly unknown[]).includes(raw.view)) return null;
   if (typeof raw.area_id !== 'string' || !AREA_ID_RE.test(raw.area_id)) return null;
   if (!coord(raw.x_mm) || !coord(raw.y_mm)) return null;
   if (!num(raw.rotation_deg, -MAX_ROTATION_DEG, MAX_ROTATION_DEG)) return null;
@@ -69,7 +69,7 @@ export function parseLayout(raw: unknown): PrintLayoutV1 | null {
     v: 1,
     flat_id: raw.flat_id,
     flat_version: raw.flat_version,
-    view: raw.view,
+    view: raw.view as DesignView,
     area_id: raw.area_id,
     x_mm: raw.x_mm,
     y_mm: raw.y_mm,

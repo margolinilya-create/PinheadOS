@@ -13,6 +13,9 @@
  *     заменяет правки, их вносят заново поверх неё;
  *   · не загрузилось (сбой или строки нет) — `fallback`: показ значения стора
  *     (сиды кода), сохранение заблокировано — сиды поверх базы не пишутся;
+ *   · отказ права, формы записи (22023, вид `invalid` — веха 5б) или сети —
+ *     состояние `error`, правки на месте, повтор возможен; текст отказа
+ *     (у формы — текст сервера дословно) — в `errorText`;
  *   · успех — стор обновлён, кэш сброшен (`putCatalog`/`patchPrices`);
  *   · несохранённые правки отмечаются в `leaveGuard` — уход со страницы
  *     и смену вкладки экран подтверждает.
@@ -55,6 +58,8 @@ export interface CatalogEditor<V> {
   /** Свежая версия из базы; правки на экране заменяются ею */
   reload: () => void;
   state: CatalogEditorState;
+  /** Текст последнего отказа записи (у формы записи — текст сервера); успех и загрузка снимают */
+  errorText: string | null;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -100,6 +105,7 @@ interface Loaded {
   value: unknown;
   base: unknown;
   state: CatalogEditorState;
+  errorText?: string | null;
 }
 
 const LOADING: Loaded = { value: null, base: null, state: 'loading' };
@@ -162,7 +168,7 @@ export function useCatalogEditor<V = unknown, T extends CatalogTable = CatalogTa
     if (res.ok) {
       applyToStore(key, value);
       // База — записанное; правки, сделанные во время записи, остаются правками
-      setData((d) => ({ ...d, base: value, state: 'ready' }));
+      setData((d) => ({ ...d, base: value, state: 'ready', errorText: null }));
       return true;
     }
     if (res.kind === 'conflict') {
@@ -170,9 +176,10 @@ export function useCatalogEditor<V = unknown, T extends CatalogTable = CatalogTa
       setData((d) => ({ ...d, state: 'conflict' }));
       return false;
     }
-    setData((d) => ({ ...d, state: 'error' }));
+    // `invalid` (форма записи) показывается так же, как прежний `other`: текст сервера
+    setData((d) => ({ ...d, state: 'error', errorText: res.message }));
     return false;
   }, [data, dirty, key, table]);
 
-  return { value: data.value as V, setValue, dirty, save, reload, state: data.state };
+  return { value: data.value as V, setValue, dirty, save, reload, state: data.state, errorText: data.errorText ?? null };
 }

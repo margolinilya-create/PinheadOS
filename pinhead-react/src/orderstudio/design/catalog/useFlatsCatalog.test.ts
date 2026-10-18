@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { runAppResets } from '../../../store/appReset';
 import { catalog, clone, flat } from '../fixtures.testutil';
-import { FLATS_CACHE_MS, MSG_FLATS_FAILED, __resetFlatsCatalogForTests, loadFlatsCatalog, useFlatsCatalog } from './useFlatsCatalog';
+import { FLATS_CACHE_MS, FLATS_SAVED_EVENT, MSG_FLATS_FAILED, __resetFlatsCatalogForTests, invalidateFlatsCatalog, loadFlatsCatalog, useFlatsCatalog } from './useFlatsCatalog';
 
 const lib = vi.hoisted(() => ({ fetchCatalogKey: vi.fn() }));
 vi.mock('../../../lib/catalogs', () => lib);
@@ -23,6 +23,26 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('loadFlatsCatalog', () => {
+  it('invalidateFlatsCatalog (сохранение флэта, веха 5б) — следующий запрос мимо кэша', async () => {
+    lib.fetchCatalogKey.mockResolvedValue(row(catalog()));
+    await loadFlatsCatalog();
+    await loadFlatsCatalog();
+    expect(lib.fetchCatalogKey).toHaveBeenCalledTimes(1);
+    invalidateFlatsCatalog();
+    await loadFlatsCatalog();
+    expect(lib.fetchCatalogKey).toHaveBeenCalledTimes(2);
+  });
+
+  it('событие «справочник флэтов записан» (редактор флэта, без импорта модуля) — следующий запрос мимо кэша', async () => {
+    lib.fetchCatalogKey.mockResolvedValue(row(catalog()));
+    await loadFlatsCatalog();
+    await loadFlatsCatalog();
+    expect(lib.fetchCatalogKey).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event(FLATS_SAVED_EVENT));
+    await loadFlatsCatalog();
+    expect(lib.fetchCatalogKey).toHaveBeenCalledTimes(2);
+  });
+
   it('свежий запрос app_config.garmentFlats и терпимый разбор', async () => {
     const broken = clone(flat({ id: 'broken' }));
     broken.views[0].svg_path = 'flats/other/v1/front.svg';

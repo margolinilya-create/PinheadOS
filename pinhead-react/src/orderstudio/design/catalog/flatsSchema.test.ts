@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod/mini';
-import { flatSchema, parseFlatsCatalog, printAreaSchema } from './flatsSchema';
+import { catalogIssues, flatIssues, flatSchema, flatSchemaIssues, parseFlatsCatalog, printAreaSchema } from './flatsSchema';
+import { parseFlatsCatalog as parse5a } from './fixtures/flatSchema5a';
 import { FLATS_CASES, validFlatsCatalog } from './flatsCases';
-import { flat } from '../fixtures.testutil';
+import { releaseFlat } from './flatVersion';
+import { area, flat } from '../fixtures.testutil';
 
 describe('flatsSchema — общий набор случаев (flatsCases)', () => {
   it('имена случаев уникальны (на них ссылаются пробы)', () => {
@@ -93,5 +95,53 @@ describe('printAreaSchema — инварианты DM', () => {
   it('NaN и бесконечность в координатах — отказ', () => {
     expect(z.safeParse(printAreaSchema, { ...base, polygon_mm: [[0, 0], [Infinity, 0], [100, 100]] }).success).toBe(false);
     expect(z.safeParse(printAreaSchema, { ...base, polygon_mm: [[0, 0], [NaN, 0], [100, 100]] }).success).toBe(false);
+  });
+});
+
+describe('веха 5б — история, строки ТЗ, коды моделей', () => {
+  const sleeve = () => ({
+    kind: 'sleeve_left' as const, svg_path: 'flats/tshirt-test/v1/sleeve_left.svg', scale_mm_per_unit: 1,
+    anchors: { sleeve_bottom_y: 500, sleeve_center_x: 150 },
+    print_areas: [area({ id: 'sleeve', name: 'Левый рукав', zone_id: 'sleeve-l', tz_row: 'sleeve_l', polygon_mm: [[100, 100], [200, 100], [200, 300], [100, 300]], safe_inset_mm: 5 })],
+  });
+  const catalog5b = () => {
+    const base = flat();
+    const draft = { ...base, views: [...base.views, sleeve()] };
+    draft.views[0] = { ...draft.views[0], print_areas: [area({ tz_row: 'front_l' })] };
+    return { version: 1, flats: [releaseFlat(base, draft, 2), flat({ id: 'polo-test' })] };
+  };
+
+  it('справочник 5б проходит схему 5б целиком', () => {
+    expect(parseFlatsCatalog(catalog5b()).issues).toEqual([]);
+  });
+
+  it('страж К16: клиент 5а разбирает справочник 5б без падения и без потери флэтов', () => {
+    const r = parse5a(catalog5b());
+    expect(r.issues).toEqual([]);
+    expect(r.catalog.flats.map((f) => f.id)).toEqual(['tshirt-test', 'polo-test']);
+    expect('history' in r.catalog.flats[0]).toBe(false);
+  });
+
+  it('путь вида истории — по формуле с версией записи', () => {
+    const f = catalog5b().flats[0];
+    const bad = { ...f, history: [{ version: 1, views: f.views }] };
+    expect(flatIssues(bad).join('\n')).toContain('flats/tshirt-test/v1/front.svg');
+  });
+
+  it('flatSchemaIssues — путь поля и текст; корректный флэт — пусто', () => {
+    expect(flatSchemaIssues(flat())).toEqual([]);
+    const bad = flat();
+    bad.views[0].print_areas[0] = { ...bad.views[0].print_areas[0], safe_inset_mm: -1 };
+    const issues = flatSchemaIssues(bad);
+    expect(issues[0].path).toEqual(['views', 0, 'print_areas', 0, 'safe_inset_mm']);
+    expect(issues[0].text).toMatch(/^views\.0\.print_areas\.0\.safe_inset_mm: /);
+  });
+
+  it('catalogIssues — код модели у двух активных; снятый код не занимает', () => {
+    const a = { ...flat({ id: 'a' }), sku_codes: ['T-006'] };
+    const b = { ...flat({ id: 'b' }), sku_codes: ['T-006'] };
+    expect(catalogIssues([a, b])).toEqual(['Флэт «b»: модель T-006 уже у флэта «a»']);
+    expect(catalogIssues([a, { ...b, active: false }])).toEqual([]);
+    expect(catalogIssues([{ ...a, sku_codes: ['T-006', 'T-006'] }])).toEqual([]);
   });
 });

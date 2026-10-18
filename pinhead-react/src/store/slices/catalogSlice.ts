@@ -108,8 +108,11 @@ export const catalogSlice = (set: SetFn, _get: () => Record<string, unknown>) =>
       patch.labelsCatalog = LABELS_CATALOG_DEFAULT;
       const lsCategoryRules = storageGet<CategoryRules[]>('ph_category_rules');
       patch.categoryRules = lsCategoryRules || [];
-      const lsZones = storageGet<ZoneDefinition[]>('ph_zones');
-      patch.zonesCatalog = lsZones || ZONES_CATALOG_DEFAULT;
+      // Зеркало `ph_zones` больше не читается (веха 5б, решение 24): его писал
+      // только `/sku`, а справочник зон теперь правится во «Флэтах и зонах» —
+      // устаревшее зеркало отдавало бы старые зоны. Ключ остаётся в списке
+      // очистки при выходе (`lib/storage.ts`)
+      patch.zonesCatalog = ZONES_CATALOG_DEFAULT;
       Object.assign(patch, orderCatalogsFrom({}));
       toast.warning('Каталоги загружены из локального кэша');
     }

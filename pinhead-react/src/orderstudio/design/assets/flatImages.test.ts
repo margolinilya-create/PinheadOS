@@ -4,7 +4,7 @@ import type { Supplier } from '../../catalog/types';
 import { NEUTRAL_GARMENT_HEX, garmentHexOf, loadFlatImage, loadFlatMarkup, releaseFlatImages } from './flatImages';
 
 const api = vi.hoisted(() => ({ downloadFlatSvg: vi.fn() }));
-vi.mock('../../api/garmentFlats', async (orig) => ({ ...(await orig<typeof import('../../api/garmentFlats')>()), ...api }));
+vi.mock('../../api/garmentFlatsRead', async (orig) => ({ ...(await orig<typeof import('../../api/garmentFlatsRead')>()), ...api }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 vi.mock('../../../store/useToastStore', () => ({ toast }));
 

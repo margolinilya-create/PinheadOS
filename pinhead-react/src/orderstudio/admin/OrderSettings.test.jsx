@@ -61,8 +61,18 @@ describe('OrderSettings — вкладки в адресе', () => {
     renderAt('/order-settings?tab=flats', 'rop');
     expect(tab('Флэты и зоны')).toHaveAttribute('aria-selected', 'true');
     const heading = await screen.findByRole('heading', { name: 'Флэты и зоны' });
-    expect(screen.getByRole('tabpanel')).toContainElement(heading);
+    // Внешняя панель — вкладки справочников; внутри — панель «Флэты | Зоны нанесения» (веха 5б)
+    expect(screen.getAllByRole('tabpanel')[0]).toContainElement(heading);
+    expect(screen.getAllByRole('tabpanel')[0]).toHaveAttribute('aria-labelledby', tab('Флэты и зоны').id);
     expect(screen.getByText('Флэты меняет администратор или директор')).toBeInTheDocument();
+  });
+
+  it('смена вкладки снимает режимы «Флэтов и зон» (flat, view, part)', async () => {
+    const router = renderAt('/order-settings?tab=flats&part=zones&flat=x&view=back', 'rop');
+    fireEvent.click(tab('Подвал ТЗ'));
+    await waitFor(() => expect(tabParam(router)).toBe('tz'));
+    const q = new URLSearchParams(router.state.location.search);
+    expect(['flat', 'view', 'part'].map((k) => q.get(k))).toEqual([null, null, null]);
   });
 
   it('неизвестная вкладка — первая', () => {

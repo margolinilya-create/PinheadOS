@@ -18,6 +18,7 @@ import type { ZoneDefinition } from '../../../types/catalog';
 import { getZoneName } from '../../../utils/skuRules';
 import { type AssetMeta, type DesignView, type FlatView, type GarmentFlat, type Placement, type PrintArea, type PrintLayoutV1 } from '../types';
 import { parseLayout } from './layoutMark';
+import { flatAtVersion } from '../catalog/flatVersion';
 import { fitToZone, placementInfo, presetPosition, viewZone, yForNecklineOffset } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { offsetFor } from './offset';
@@ -28,6 +29,17 @@ import { offsetFor } from './offset';
  */
 export { parseLayout };
 
+/**
+ * Геометрия флэта, по которой стоит раскладка (веха 5б, К1, К15): версия
+ * раскладки из истории (`flatAtVersion`); версии у флэта нет — текущая
+ * (пометка `stale`, как в 5а)
+ */
+function geometryFor(flat: GarmentFlat, flatVersion: number): GarmentFlat {
+  return flatAtVersion(flat, flatVersion) ?? flat;
+}
+
+const isSleeveView = (view: FlatView) => view.kind === 'sleeve_left' || view.kind === 'sleeve_right';
+
 /** Вид и зона флэта по раскладке; нет — `null` */
 function locate(flat: GarmentFlat, view: DesignView, areaId: string): { view: FlatView; area: PrintArea } | null {
   const v = flat.views.find((x) => x.kind === view);
@@ -35,10 +47,16 @@ function locate(flat: GarmentFlat, view: DesignView, areaId: string): { view: Fl
   return v && a ? { view: v, area: a } : null;
 }
 
-/** Размещение нанесения на этом флэте; не размещено, другой флэт или битая раскладка — `null` */
+/**
+ * Размещение нанесения на этом флэте; не размещено, другой флэт или битая
+ * раскладка — `null`. Зона ищется в геометрии версии раскладки (`flatAtVersion`):
+ * нанесение на v1 после выпуска v2 стоит по v1 (`stale`), даже если в v2 его
+ * зоны нет
+ */
 export function placementOf(print: SalesPrint, flat: GarmentFlat): Placement | null {
   const layout = parseLayout(print.layout);
-  if (!layout || layout.flat_id !== flat.id || !locate(flat, layout.view, layout.area_id)) return null;
+  if (!layout || layout.flat_id !== flat.id) return null;
+  if (!locate(geometryFor(flat, layout.flat_version), layout.view, layout.area_id)) return null;
   const width = print.width_mm && print.width_mm > 0 ? print.width_mm : layout.asset.intrinsic_w_mm;
   const height = print.height_mm && print.height_mm > 0 ? print.height_mm : layout.asset.intrinsic_h_mm;
   return {
@@ -61,6 +79,11 @@ export function placementOf(print: SalesPrint, flat: GarmentFlat): Placement | n
 
 /** Что нужно знать о заказе, чтобы записать размещение в нанесение */
 export interface PlaceCtx {
+  /**
+   * Флэт, на который пишется размещение, — флэт ВЕРСИИ ПОЗИЦИИ
+   * (`flatAtVersion(flat, itemFlatVersion(...).version)`, К15): его `version`
+   * уходит в `layout.flat_version`
+   */
   flat: GarmentFlat;
   /** Справочник зон: имя зоны нанесения берётся по `zone_id` (его читает цена) */
   zonesCatalog: ZoneDefinition[];
@@ -163,43 +186,71 @@ export interface RemapResult {
   dropped: string[];
 }
 
-/** Опора отсчёта по вертикали: горловина (пояс) или верх зоны */
+/** Опора отсчёта по вертикали: горловина (пояс) или верх зоны; у рукава — низ рукава */
 function anchorY(view: FlatView, areaId: string): number {
-  return view.anchors.neckline_point?.y ?? viewZone(view, undefined, areaId).zone.zy;
+  const { zone } = viewZone(view, undefined, areaId);
+  if (isSleeveView(view)) return view.anchors.sleeve_bottom_y ?? zone.zy + zone.zh;
+  return view.anchors.neckline_point?.y ?? zone.zy;
 }
 
-/** Ось отсчёта по горизонтали: ось изделия или центр зоны (как `placementInfo`) */
+/** Ось отсчёта по горизонтали: ось изделия (у рукава — ось рукава) или центр зоны (как `placementInfo`) */
 function axisX(view: FlatView, areaId: string): number {
   const { zone } = viewZone(view, undefined, areaId);
-  return view.anchors.center_axis_x ?? zone.zx + zone.zw / 2;
+  const axis = isSleeveView(view) ? view.anchors.sleeve_center_x : view.anchors.center_axis_x;
+  return axis ?? zone.zx + zone.zw / 2;
 }
 
 /**
- * Перенос размещений на другой флэт (смена силуэта): по `zone_id` зоны в том же
- * виде; размер и отступы от опоры (вертикаль) и оси (горизонталь) сохраняются.
- * Зоны нет — `layout = null`, нанесение остаётся строкой.
+ * Зона на целевом виде: сначала та же зона (тот же `id` и `zone_id`), затем —
+ * по `zone_id`. Служебная зона (`zone_id = null`) переносится только по `id`
+ * и только внутри того же флэта (новая версия): на чужом силуэте — не наугад
+ */
+function targetArea(src: PrintArea, toView: FlatView, sameFlat: boolean): PrintArea | undefined {
+  const same = toView.print_areas.find((a) => a.id === src.id && a.zone_id === src.zone_id);
+  if (same && (src.zone_id !== null || sameFlat)) return same;
+  return src.zone_id ? toView.print_areas.find((a) => a.zone_id === src.zone_id) : undefined;
+}
+
+/** Новый y рамки: отступ от опоры сохранён (горловина — `yForNecklineOffset`, рукав — от низа рамки) */
+function remappedY(src: FlatView, srcArea: PrintArea, toView: FlatView, toArea: PrintArea, pl: Placement): number {
+  const bbox = { x: pl.x_mm, y: pl.y_mm, w: pl.width_mm, h: pl.height_mm };
+  const aabb = rotatedAabb(bbox, pl.rotation_deg);
+  if (isSleeveView(src) && isSleeveView(toView)) {
+    const fromBottom = anchorY(src, srcArea.id) - (aabb.y + aabb.h);
+    return bbox.y + (anchorY(toView, toArea.id) - fromBottom - (aabb.y + aabb.h));
+  }
+  const vertical = aabb.y - anchorY(src, srcArea.id);
+  return toView.anchors.neckline_point && !isSleeveView(toView)
+    ? yForNecklineOffset(toView, bbox, pl.rotation_deg, vertical, undefined, toArea.id)
+    : bbox.y + (anchorY(toView, toArea.id) + vertical - aabb.y);
+}
+
+/**
+ * Перенос размещений на другой флэт (смена силуэта) или на новую версию того же
+ * флэта (`ctx.flat` — флэт версии M): та же зона по `id` и `zone_id`, иначе по
+ * `zone_id` в том же виде; размер и отступы от опоры (вертикаль: горловина,
+ * у рукава — низ рукава) и оси (горизонталь) сохраняются. Исходная геометрия —
+ * версии раскладки (`placementOf`). Зоны нет — `layout = null`, нанесение
+ * остаётся строкой.
  */
 export function remapToFlat(prints: SalesPrint[], from: GarmentFlat, ctx: PlaceCtx): RemapResult {
   const moved: string[] = [];
   const dropped: string[] = [];
   const next = prints.map((print) => {
     const pl = placementOf(print, from);
-    if (!pl) return print;
-    const src = locate(from, pl.view, pl.area_id)!;
+    const layout = pl ? parseLayout(print.layout) : null;
+    if (!pl || !layout) return print;
+    const src = locate(geometryFor(from, layout.flat_version), pl.view, pl.area_id)!;
     const toView = ctx.flat.views.find((v) => v.kind === pl.view);
-    const toArea = src.area.zone_id ? toView?.print_areas.find((a) => a.zone_id === src.area.zone_id) : undefined;
+    const toArea = toView ? targetArea(src.area, toView, from.id === ctx.flat.id) : undefined;
     if (!toView || !toArea) {
       dropped.push(print.key);
       return { ...print, layout: null };
     }
-    const bbox = { x: pl.x_mm, y: pl.y_mm, w: pl.width_mm, h: pl.height_mm };
-    const aabb = rotatedAabb(bbox, pl.rotation_deg);
-    const vertical = aabb.y - anchorY(src.view, src.area.id);
+    const aabb = rotatedAabb({ x: pl.x_mm, y: pl.y_mm, w: pl.width_mm, h: pl.height_mm }, pl.rotation_deg);
     const horizontal = aabb.x + aabb.w / 2 - axisX(src.view, src.area.id);
-    const y = toView.anchors.neckline_point
-      ? yForNecklineOffset(toView, bbox, pl.rotation_deg, vertical, undefined, toArea.id)
-      : bbox.y + (anchorY(toView, toArea.id) + vertical - aabb.y);
-    const x = axisX(toView, toArea.id) + horizontal - bbox.w / 2;
+    const y = remappedY(src.view, src.area, toView, toArea, pl);
+    const x = axisX(toView, toArea.id) + horizontal - pl.width_mm / 2;
     moved.push(print.key);
     return applyPlacement(print, { ...pl, area_id: toArea.id, x_mm: x, y_mm: y }, ctx);
   });

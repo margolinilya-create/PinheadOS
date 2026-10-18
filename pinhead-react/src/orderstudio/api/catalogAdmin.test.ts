@@ -6,10 +6,11 @@ import { putCatalog, patchPrices, CONFLICT_MESSAGE } from './catalogAdmin';
 
 /**
  * Запись справочников — только RPC миграции G: `catalog_put` и `prices_patch`.
- * Ответ различает три вида отказа, по ним редактор решает, что показать:
+ * Ответ различает четыре вида отказа, по ним редактор решает, что показать:
  *   · conflict (P0001) — справочник изменили, правки остаются на экране;
  *   · forbidden (42501) — нет права;
- *   · other — форма записи (22023), сеть, прочее.
+ *   · invalid (22023) — форма записи, текст сервера дословно (веха 5б);
+ *   · other — сеть и прочее.
  * Каждая ошибка Supabase — `toast.error` (правило проекта).
  */
 const rpc = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
@@ -57,11 +58,22 @@ describe('catalogAdmin', () => {
     expect(err).toHaveBeenCalledWith(msg);
   });
 
-  it('22023 — other с текстом сервера (форма записи)', async () => {
-    vi.spyOn(toast, 'error').mockImplementation(() => {});
+  it('22023 — invalid с текстом сервера дословно (форма записи, веха 5б)', async () => {
+    const err = vi.spyOn(toast, 'error').mockImplementation(() => {});
+    const clear = vi.spyOn(catalogs, 'clearCatalogsCache');
     rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'Код цвета повторяется: 5001' } });
     const res = await putCatalog('catalog_config', 'suppliers', [], []);
-    expect(res).toEqual({ ok: false, kind: 'other', message: 'Код цвета повторяется: 5001' });
+    expect(res).toEqual({ ok: false, kind: 'invalid', message: 'Код цвета повторяется: 5001' });
+    expect(err).toHaveBeenCalledWith('Код цвета повторяется: 5001');
+    // Форма — не конфликт: кэш не сбрасывается
+    expect(clear).not.toHaveBeenCalled();
+  });
+
+  it('прочий код ошибки — other', async () => {
+    vi.spyOn(toast, 'error').mockImplementation(() => {});
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    const res = await putCatalog('app_config', 'tzSettings', { footerText: '' }, null);
+    expect(res).toMatchObject({ ok: false, kind: 'other' });
   });
 
   it('отказ сети — other, тост, без исключения', async () => {

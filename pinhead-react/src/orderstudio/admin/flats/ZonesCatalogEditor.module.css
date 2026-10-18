@@ -1,0 +1,208 @@
+/* Режим «Зоны нанесения» вкладки «Флэты и зоны» (веха 5б, задача 4).
+   Поля и подписи — из Sales.module.css, плашки — из OrderSettings.module.css. */
+
+.root { min-width: 0; }
+
+.intro,
+.hint {
+  margin: 0 0 var(--space-md);
+  color: var(--text-dim);
+  font-size: var(--type-body-sm);
+  max-width: 72ch;
+}
+
+.fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Подпись набора — для чтения с экрана; видимый заголовок — у вкладки */
+.legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Таблица шире окна 761–1100 px — прокрутка таблицы, а не страницы.
+   Область в порядке Tab (прокрутка с клавиатуры) — кольцо фокуса видно */
+.scroll { overflow-x: auto; }
+.scroll:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: var(--type-body);
+}
+
+.table th,
+.table td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.order { white-space: nowrap; }
+
+.icon {
+  font: inherit;
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.icon + .icon { margin-left: var(--space-xs); }
+.icon:disabled { opacity: 0.4; cursor: default; }
+.icon:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.id {
+  display: block;
+  margin-top: var(--space-xs);
+  font-family: var(--mono);
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  max-width: 320px;
+}
+
+.chip {
+  font: inherit;
+  font-size: var(--type-label);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--card);
+}
+
+.chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body-sm);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.flag input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.flag input:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+/* Снятая зона: приглушена и подписана словом «снята» — не только цветом */
+.off { color: var(--text-dim); }
+.off input:not([type='checkbox']) { border-style: dashed; }
+
+.add {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: var(--space-sm) var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+
+.error:empty { display: none; }
+
+.problems {
+  margin: var(--space-md) 0 0;
+  padding-left: var(--space-lg);
+  color: var(--color-error-ink);
+  font-size: var(--type-body-sm);
+}
+
+/* Телефон: карточки вместо таблицы, без горизонтальной прокрутки */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.card {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-md);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.card.off { border-style: dashed; }
+
+.cardTitle {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--type-body-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.card p { margin: 0; }
+
+/* Тач-цель ≥ 44 px: кнопки, чипы, подписи флажков, списки */
+@media (pointer: coarse) {
+  .icon,
+  .chip,
+  .flag,
+  .table select,
+  .add :global(.btn) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .flag input { width: 24px; height: 24px; }
+}
+
+@media (max-width: 760px) {
+  .add { grid-template-columns: 1fr; }
+}

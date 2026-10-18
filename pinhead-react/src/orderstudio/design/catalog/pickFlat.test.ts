@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoPickFlat, flatFitsModel, pickFlat } from './pickFlat';
+import { autoPickFlat, exactUpgrade, flatFitsModel, pickFlat } from './pickFlat';
 import { catalog, flat } from '../fixtures.testutil';
 
 const TEE = { code: 'T-001', category: 'tshirts', fit: 'regular' as const };
@@ -114,5 +114,22 @@ describe('flatFitsModel', () => {
     expect(flatFitsModel(exact, item({ sku_code: 'T-002' }), TEE)).toBe(false);
     expect(flatFitsModel(regular, item(), null)).toBe(false);
     expect(flatFitsModel(hoodie, item(), TEE)).toBe(false);
+  });
+});
+
+describe('exactUpgrade — «появился точный силуэт» (5б, Р12)', () => {
+  it('у позиции типовой, точный есть — предложить точный', () => {
+    expect(exactUpgrade(item({ flat_id: 'tshirt-regular' }), TEE, catalog([regular, exact]))?.id).toBe('tshirt-exact');
+  });
+
+  it('уже точный, флэт не записан, точного нет, точный снят — null', () => {
+    expect(exactUpgrade(item({ flat_id: 'tshirt-exact' }), TEE, catalog([regular, exact]))).toBeNull();
+    expect(exactUpgrade(item(), TEE, catalog([regular, exact]))).toBeNull();
+    expect(exactUpgrade(item({ flat_id: 'tshirt-regular' }), TEE, catalog([regular, oversize]))).toBeNull();
+    expect(exactUpgrade(item({ flat_id: 'tshirt-regular' }), TEE, catalog([regular, { ...exact, active: false }]))).toBeNull();
+  });
+
+  it('записанный типовой снят — не предлагать (холст его и так не покажет)', () => {
+    expect(exactUpgrade(item({ flat_id: 'tshirt-regular' }), TEE, catalog([{ ...regular, active: false }, exact]))).toBeNull();
   });
 });
