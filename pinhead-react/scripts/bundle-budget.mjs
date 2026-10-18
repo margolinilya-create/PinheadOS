@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { createBaseline, checkFlatsAdmin } from './bundle-budget-5b.mjs';
 import { checkTzLaunch } from './bundle-budget-m67.mjs';
+import { checkRestyle } from './bundle-budget-m8.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
@@ -541,7 +542,6 @@ if (pdfjsKey) {
   pdfjsTotal = report('pdfjs — JS (loadPdf минус холст, картинки и оболочка Order)', files).total;
   check('pdfjs, JS', pdfjsTotal, BUDGETS.designPdfjs);
 }
-console.log(`  оболочка Order: ${orderJs.total} Б gzip (справочно, без потолка)`);
 
 // ── Веха 5б: konva вне списка флэтов, редактор флэта, разница с базой ───────
 const flats = checkFlatsAdmin({ manifest, root: ROOT, findKey, staticGraph, report, check, fail, minus, orderJs: order.js, canvasJs });
@@ -550,6 +550,8 @@ const m67 = checkTzLaunch({
   manifest, root: ROOT, dist: DIST, findKey, staticGraph, report, check, fail, minus,
   entryKey, orderAppKey, workplaceKey, orderJs: order.js,
 });
+// ── Веха 8: потолки оболочки Order, «Справочник моделей» и «Экспресс» (К11) ──
+checkRestyle({ manifest, staticGraph, report, check, fail, findKey, entryKey, orderAppKey, workplaceKey });
 const konvaFile = Object.values(manifest).find((v) => v.name === 'vendor-konva')?.file;
 console.log('\nРазница с базой (справочно, потолки — выше)');
 baseline.reference('orderShell', 'Оболочка Order', orderJs.total);

@@ -142,3 +142,43 @@ MCP `execute_sql` для проб не годится, пока он ждёт р
 Пробы ссылаются на реальные профили боя (uuid в шапке файла). Сменилась роль
 или `active` у такого профиля — пробы покажут `FAIL`; правьте данные пробы,
 а не ожидания.
+
+## Веха 8 — замеры задачи 0 (18.10, только SELECT)
+
+Литералы для предусловий миграций L (`20261018150000`) и K (`20261018160000`) — живая
+база после J. Тела функций в репозитории (последнее определение в миграциях) дают те же
+md5: `order_v4_save` и `order_v4_save_full` — `20261017101513_order_v4_client_rev.sql`,
+три стража — `20261017062110_order_v4_rights.sql`.
+
+| Функция | md5(`prosrc`) | `security definer` |
+|---|---|---|
+| `order_v4_guard()` | `8dab43ebfb6d773f9c223844abb494fd` | нет |
+| `order_v4_delete_guard()` | `328e9df158071c55cbec4e655686d9b7` | да |
+| `order_v4_child_guard()` | `75051f6f7d964b8be7b8888e0bb826ff` | да |
+| `order_v4_save(p_order jsonb)` | `06a632efc09bf431c0c3c861960c22d9` | нет |
+| `order_v4_save_full(p_order jsonb)` | `6be40fb03b7eec70b76bf5de08b57c83` | нет |
+
+- Журнал: 338 записей, md5 `a15fb99125b21b69010bc101f2b894d6` (= `APPLIED.json`); H, I, J есть.
+- Триггеры `orders`: `orders_v4_guard` — `BEFORE INSERT OR UPDATE` → `order_v4_guard()`;
+  DELETE ловит `orders_v4_delete_guard` — `BEFORE DELETE` → `order_v4_delete_guard()`
+  (первой строкой `if old.schema_version is distinct from 4 then return old`);
+  `orders_audit_trigger` — `AFTER UPDATE` → `log_order_changes()`.
+- **Лексика файлов контроллера.** В теле `order_v4_save` вне строк и комментариев есть
+  `delete from` (4 раза: `order_item_prints`, `order_item_labels`, `order_items`,
+  `order_notes_cards`). K пересоздаёт `order_v4_save` — по правилу Global Constraints эта
+  функция уходит в файл владельца (или сторож лексики разрешает `delete` внутри тела
+  `$$…$$` именно этой функции — решает контроллер). В остальных четырёх телах слово
+  встречается только в строке `'DELETE'`, комментарии и в составе `order_v4_delete_guard`.
+- `orders.notes` — `text`, непустых 0; CHECK на длину нет. `order_item_prints.zone_id` нет.
+- Колонок `file_path` у `orders`/`order_*` нет (ERP-сторож `storageGc.test.ts` не задет).
+  Колонки путей: `orders.sticker_preview_path`, `order_items.tz_pdf_path`,
+  `order_item_prints.artwork_path`, `order_item_labels.preview_paths`,
+  `order_item_labels.attach_image_path`, `order_notes_cards.image_path`.
+- CHECK формы `allowedColors` в `catalog_value_check` нет (ни одна функция не упоминает
+  `allowedColors`); у моделей `sku_catalog` и в `categoryRules` поле не задано.
+- Старые ключи `catalog_config` (`prices`, `labels`, `extras`, `fabrics`) — снимок
+  `supabase/snapshots/catalog_config_legacy_2026-10-18.json` с md5 `value::text`.
+- `get_advisors(security)` — исходный список для пункта 11 чек-листа: ERROR 0; WARN —
+  `anon_security_definer_function_executable` 1 (`erp_invite_preview`),
+  `authenticated_security_definer_function_executable` 40,
+  `auth_leaked_password_protection` 1.
