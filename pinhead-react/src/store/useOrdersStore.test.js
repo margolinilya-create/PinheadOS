@@ -1,7 +1,7 @@
+// @vitest-environment node
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock supabase
-const mockRpc = vi.fn().mockResolvedValue({ data: 'PH-0001', error: null });
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
@@ -14,7 +14,6 @@ vi.mock('../lib/supabase', () => ({
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
-    rpc: (...args) => mockRpc(...args),
   },
 }));
 
@@ -29,7 +28,6 @@ const { useOrdersStore, STATUS_LIST, STATUS_LABELS, STATUS_COLORS } = await impo
 
 beforeEach(async () => {
   useOrdersStore.setState({ orders: [], loading: false, filter: 'all', search: '' });
-  mockRpc.mockReset().mockResolvedValue({ data: 'PH-0001', error: null });
   // Restore default from() mock chain
   const { supabase } = await import('../lib/supabase');
   supabase.from.mockReturnValue({
@@ -127,126 +125,37 @@ describe('useOrdersStore — getFiltered', () => {
   });
 });
 
-describe('useOrdersStore — deleteOrder', () => {
-  it('removes order after Supabase success (non-optimistic)', async () => {
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    });
-    useOrdersStore.setState({
-      orders: [
-        { id: 1, status: 'draft' },
-        { id: 2, status: 'draft' },
-      ],
-    });
-    await useOrdersStore.getState().deleteOrder(1);
-    expect(useOrdersStore.getState().orders).toHaveLength(1);
-    expect(useOrdersStore.getState().orders[0].id).toBe(2);
+describe('useOrdersStore — старые заказы только для чтения (веха 8, К6)', () => {
+  it('у стора нет записи v3: сохранения, правки, статуса, удаления, дубля', () => {
+    const st = useOrdersStore.getState();
+    for (const k of ['saveOrder', 'updateOrder', 'patchOrderData', 'updateStatus', 'deleteOrder', 'duplicateOrder']) {
+      expect(st, k).not.toHaveProperty(k);
+    }
   });
 
-  it('keeps order in list when Supabase delete fails', async () => {
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: { message: 'fail' } }),
-      }),
-    });
-    useOrdersStore.setState({
-      orders: [
-        { id: 1, status: 'draft' },
-        { id: 2, status: 'draft' },
-      ],
-    });
-    const result = await useOrdersStore.getState().deleteOrder(1);
-    expect(result).toBe(false);
-    expect(useOrdersStore.getState().orders).toHaveLength(2);
-  });
-});
-
-describe('useOrdersStore — generateOrderNumber via RPC', () => {
-  it('saveOrder uses supabase.rpc for order number', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'PH-0042', error: null });
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockResolvedValue({
-          data: [{ id: 99, order_number: 'PH-0042', status: 'draft' }],
-          error: null,
-        }),
-      }),
-    });
-
-    const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
-    expect(mockRpc).toHaveBeenCalledWith('generate_order_number');
-    expect(result.order_number).toBe('PH-0042');
+  it('в исходнике стора нет insert/update/delete/rpc по orders', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { cwd } = await import('node:process');
+    const src = readFileSync(join(cwd(), 'src', 'store', 'useOrdersStore.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(src).not.toMatch(/\.(insert|update|upsert|delete)\(|\.rpc\(/);
   });
 
-  it('returns null when rpc and insert both fail', async () => {
-    mockRpc.mockRejectedValueOnce(new Error('network'));
+  it('ошибка загрузки — тост и признак loadError, список пуст', async () => {
     const { supabase } = await import('../lib/supabase');
+    const { toast } = await import('./useToastStore');
+    const spy = vi.spyOn(toast, 'error');
     supabase.from.mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockResolvedValue({ data: null, error: { message: 'fail' } }),
-      }),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: null, error: { message: 'нет прав' } }),
     });
-
-    const result = await useOrdersStore.getState().saveOrder({ type: 'tee' });
-    expect(result).toBeNull();
-  });
-});
-
-describe('useOrdersStore — updateStatus', () => {
-  it('updates status optimistically on Supabase success', async () => {
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    });
-    useOrdersStore.setState({
-      orders: [{ id: 1, status: 'draft' }],
-    });
-    await useOrdersStore.getState().updateStatus(1, 'approved');
-    expect(useOrdersStore.getState().orders[0].status).toBe('approved');
-  });
-
-  it('rolls back to previous status on Supabase failure', async () => {
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: { message: 'fail' } }),
-      }),
-    });
-    useOrdersStore.setState({
-      orders: [{ id: 1, status: 'draft' }],
-    });
-    await useOrdersStore.getState().updateStatus(1, 'approved');
-    expect(useOrdersStore.getState().orders[0].status).toBe('draft');
-  });
-});
-
-describe('useOrdersStore — duplicateOrder dev-mode', () => {
-  it('filters dev user id to null in created_by', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'PH-9999', error: null });
-    let capturedRow;
-    const { supabase } = await import('../lib/supabase');
-    supabase.from.mockReturnValue({
-      insert: vi.fn((row) => {
-        capturedRow = row;
-        return {
-          select: vi.fn().mockResolvedValue({
-            data: [{ id: 77, order_number: 'PH-9999', status: 'draft', ...row }],
-            error: null,
-          }),
-        };
-      }),
-    });
-
-    const order = { id: 1, order_number: 'PH-0001', status: 'draft', data: { name: 'Test' }, total_sum: 100, total_qty: 10, item_type: 'tee' };
-    await useOrdersStore.getState().duplicateOrder(order);
-    expect(capturedRow.created_by).toBeNull();
+    await useOrdersStore.getState().fetchOrders();
+    expect(useOrdersStore.getState()).toMatchObject({ loading: false, loadError: true, orders: [] });
+    expect(spy).toHaveBeenCalledWith('Не удалось загрузить заказы');
+    spy.mockRestore();
   });
 });
 
