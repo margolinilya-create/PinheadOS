@@ -89,6 +89,18 @@ describe('catalogSlice — справочники заказа', () => {
     expect(sl.get().prices).toBe(PRICES);
   });
 
+  it('загрузка упала — зоны из ZONES_CATALOG_DEFAULT, зеркало ph_zones не читается (веха 5б, решение 24)', async () => {
+    vi.spyOn(toast, 'warning').mockImplementation(() => {});
+    const { ZONES_CATALOG_DEFAULT } = await import('../../data');
+    const { storageSet, storageGet } = await import('../../lib/storage');
+    storageSet('ph_zones', [{ id: 'stale', name: 'Устаревшая' }]);
+    expect(storageGet('ph_zones')).toEqual([{ id: 'stale', name: 'Устаревшая' }]);
+    loadAllCatalogs.mockRejectedValue(new Error('down'));
+    const sl = makeSlice();
+    await sl.load();
+    expect(sl.get().zonesCatalog).toBe(ZONES_CATALOG_DEFAULT);
+  });
+
   it('прайс не пришёл (нет права) — расчёт по PRICES кода, без падения', async () => {
     loadAllCatalogs.mockResolvedValue({
       suppliers: DB_SUPPLIERS, labelLibrary: DB_LABELS, tzSettings: DB_TZ, skuCatalog: [{ code: 'T1' }],

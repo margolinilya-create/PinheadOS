@@ -17,6 +17,13 @@ export interface ZoneDefinition {
   requiresHood?: boolean;
   /** Зона только при кармане в конструкции или выбранной обработке «карман» */
   requiresPocket?: boolean;
+  /**
+   * Строка матрицы ТЗ (веха 5б, К8) — код из `TZ_ROW_CODES`
+   * (`orderstudio/catalog/tzRows.ts`); нет — умолчание по id зоны
+   */
+  tz_row?: string;
+  /** `false` — зона снята: новым позициям не предлагается, в старых заказах остаётся */
+  active?: boolean;
 }
 
 /** Category-level rules for wizard filtering and defaults */

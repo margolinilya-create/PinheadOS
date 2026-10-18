@@ -244,6 +244,14 @@ describe('getAvailableZonesForSku', () => {
     expect(getAvailableZonesForSku([], 'tshirts')).toEqual([]);
   });
 
+  it('снятая зона (active: false) не предлагается, имя по-прежнему находится (веха 5б)', () => {
+    const withOff = zonesCatalog.map((z) => (z.id === 'back' ? { ...z, active: false } : z));
+    const ids = getAvailableZonesForSku(withOff, 'tshirts').map((z) => z.id);
+    expect(ids).not.toContain('back');
+    expect(ids).toContain('front');
+    expect(getZoneName('back', withOff)).toBe('Спина');
+  });
+
   it('handles unknown category', () => {
     const result = getAvailableZonesForSku(zonesCatalog, 'unknown');
     // Should return only zones with forCategories: null (universal)
