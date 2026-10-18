@@ -45,6 +45,9 @@ export const J_TEXTS = {
   returnRights: 'Вернуть заказ может МС или руководитель производства',
   returnReason: 'Укажите причину возврата',
   launchingNow: 'Заказ сейчас запускает ',
+  /** Имя запускающего, если профиль без имени и почты (`coalesce` в J) */
+  someoneElse: 'другой сотрудник',
+  paymentWait: ' — оплату меняют после итога запуска',
   returnWait: ' — дождитесь итога или обновите карточку',
   checkWait: ' — подождите или попросите коллегу закрыть экран запуска, затем обновите карточку',
   erpExists: 'Заказ уже создан в производстве — сначала завершите запуск',
@@ -302,6 +305,14 @@ function setPayment(body: Row, extra: Extras, ctx: V4Ctx): unknown {
   }
   if (!['draft', 'ready_to_launch'].includes(o.status)) return fail(J_TEXTS.paymentLate);
   if (reason && !lead) return fail(J_TEXTS.overrideLead, '42501');
+  // J (pay_label): при метке запуска оплату не меняет никто — заказ ERP создан
+  // или метка свежая (у мока нет часов: любая метка свежая)
+  const foreign = extra.v4?.foreignLaunch;
+  if (o.launchAt || foreign) {
+    if (o.erp) return fail(J_TEXTS.erpExists);
+    const name = foreign?.name ?? (o.launchBy === c.id ? c.name : J_TEXTS.someoneElse);
+    return fail(`${J_TEXTS.launchingNow}${name}${J_TEXTS.paymentWait}`);
+  }
   o.paid_at = kind ? MOCK_LAUNCH_STARTED : null;
   o.paid_kind = kind;
   if (reason) Object.assign(o, { override: reason, overrideBy: c.id });

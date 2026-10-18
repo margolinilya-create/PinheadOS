@@ -96,7 +96,7 @@ describe.skipIf(!HAS_J)('мок e2e = миграция J', () => {
 
   it('виды оплаты МС — как в J', () => {
     const list = MS_PAYMENT_KINDS.map((k) => `'${k}'\\s*`).join(',\\s*');
-    expect(bodies(sql)).toMatch(new RegExp(`p_kind\\s+in\\s*\\(\\s*${list}\\)`));
+    expect(bodies(sql)).toMatch(new RegExp(`p_kind\\s+(?:not\\s+)?in\\s*\\(\\s*${list}\\)`));
   });
 
   it('условия отправки — как в J: PDF в /tz/, тип, предел; макет у всех, кроме «прочее»', () => {
