@@ -115,12 +115,15 @@ export function buildDefaultCategoryRules(categoryId: string): CategoryRules {
 /**
  * Get zones available for a given SKU category from the dynamic zones catalog.
  * Filters by zone.forCategories (null = available for all categories).
+ * Снятая зона (`active: false`, веха 5б) не предлагается; в старых заказах
+ * она остаётся, и `getZoneName` её по-прежнему находит.
  */
 export function getAvailableZonesForSku(
   zonesCatalog: ZoneDefinition[],
   skuCategory: string,
 ): ZoneDefinition[] {
   return zonesCatalog
+    .filter(z => z.active !== false)
     .filter(z => !z.forCategories || z.forCategories.includes(skuCategory))
     .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
 }

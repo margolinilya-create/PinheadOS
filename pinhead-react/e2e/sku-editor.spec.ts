@@ -93,22 +93,24 @@ test.describe('SKU Editor — Правила категорий', () => {
 });
 
 test.describe('SKU Editor — Зоны нанесения', () => {
-  test('Zones table renders with existing zones', async ({ page }) => {
+  test('Zones table renders with existing zones (только просмотр)', async ({ page }) => {
     await page.goto('/sku?tab=zones');
     await expect(page.locator('.zones-catalog-table')).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Глобальный каталог зон')).toBeVisible();
+    await expect(page.getByText('Справочник зон нанесения — только просмотр')).toBeVisible();
 
     // Зоны по умолчанию: 8 прежних + левая и правая штанина (правка 13.10)
     // + штанина перед/зад (веха 5а)
     await expect(page.locator('.zones-catalog-table tbody tr')).toHaveCount(12, { timeout: 5000 });
   });
 
-  test('Add zone button is disabled with empty ID', async ({ page }) => {
+  test('правка зон — ссылкой на «Справочники заказа» → «Флэты и зоны» (веха 5б)', async ({ page }) => {
     await page.goto('/sku?tab=zones');
     await expect(page.locator('.zones-catalog-table')).toBeVisible({ timeout: 10000 });
 
-    // Button should be disabled when ID is empty
-    await expect(page.locator('.zones-add-row .pe-btn-primary')).toBeDisabled();
+    // Ни добавления, ни удаления: справочник зон правится в одном месте
+    await expect(page.locator('.zones-catalog-table input, .zones-catalog-table button')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Флэты и зоны/ }))
+      .toHaveAttribute('href', '/order-settings?tab=flats&part=zones');
   });
 });
 

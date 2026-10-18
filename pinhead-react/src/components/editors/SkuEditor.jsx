@@ -79,7 +79,6 @@ export default function SkuEditor() {
   const [changedHardware, setChangedHardware] = useState(new Set());
   const [pricingDirty, setPricingDirty] = useState(false);
   const [rulesDirty, setRulesDirty] = useState(false);
-  const [zonesDirty, setZonesDirty] = useState(false);
 
   // No useEffect to reload SKU — catalogSlice.loadCatalogs() already handles this at app startup.
   // Previously this useEffect was overwriting store with stale Supabase data (without photos).
@@ -94,7 +93,6 @@ export default function SkuEditor() {
       else if (f === 'extrasCatalog') setChangedExtras(empty);
       else if (f === 'hardwareCatalog') setChangedHardware(empty);
       else if (f === 'categoryRules') setRulesDirty(false);
-      else if (f === 'zonesCatalog') setZonesDirty(false);
     }
   }, []);
   // Только изменённые справочники, с базой от открытия (веха 4: без затирания)
@@ -372,7 +370,7 @@ export default function SkuEditor() {
       <div className="pe-tabs">
         {TABS.map(t => {
           const dirtyMap = { items: changedItems, fabrics: changedFabrics, trims: changedTrims, extras: changedExtras, hardware: changedHardware };
-          const dirty = t.id === 'pricing' ? pricingDirty : t.id === 'rules' ? rulesDirty : t.id === 'zones' ? zonesDirty : dirtyMap[t.id]?.size > 0;
+          const dirty = t.id === 'pricing' ? pricingDirty : t.id === 'rules' ? rulesDirty : dirtyMap[t.id]?.size > 0;
           return (
             <button key={t.id} className={`pe-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
               {t.name}{dirty && <span className="pe-tab-dot" />}
@@ -444,11 +442,8 @@ export default function SkuEditor() {
       )}
 
       {tab === 'zones' && (
-        <ZonesCatalogTab
-          zonesCatalog={zonesCatalog}
-          skuCatalog={skuCatalog}
-          onUpdate={(zones) => { setField('zonesCatalog', zones); setZonesDirty(true); }}
-        />
+        // Только просмотр: справочник зон правится во «Флэтах и зонах» (веха 5б)
+        <ZonesCatalogTab zonesCatalog={zonesCatalog} />
       )}
 
       {showAddModal && (

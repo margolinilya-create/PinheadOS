@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { useStore } from '../../store/useStore';
 import { FLEX_MAX_COLORS, SCREEN_MAX_COLORS } from '../../utils/pricingCore';
 import { METHOD_LABELS, METHOD_ORDER, SCREEN_EFFECTS, EMBROIDERY_EFFECTS, rub } from './labels';
 import BufferedInput from './BufferedInput';
@@ -9,6 +10,16 @@ const toInt = (v) => {
   const n = Math.floor(Number(v));
   return Number.isFinite(n) && n > 0 ? n : null;
 };
+
+/**
+ * Снятая зона справочника (`active: false`, веха 5б), выбранная в нанесении:
+ * название сравнивается без регистра и пробелов по краям; нет — `null`
+ */
+function retiredZoneOf(zonesCatalog, zone) {
+  const key = (zone || '').trim().toLowerCase();
+  if (!key || !Array.isArray(zonesCatalog)) return null;
+  return zonesCatalog.find((z) => z.active === false && (z.name || '').trim().toLowerCase() === key) ?? null;
+}
 
 const OFFSET_FROM = { neck_seam: 'шва горловины', top_edge: 'верхнего края', part_seam: 'шва' };
 
@@ -31,11 +42,17 @@ function offsetText(p) {
  *   холсте «Открыть на холсте», у остальных ссылки нет — действия не будет;
  * - `embedded` — строка под инспектором холста: техники, зоны, мм и кнопки
  *   удаления нет (они в инспекторе; удаление строки — только на «Изделии»).
+ *
+ * Веха 5б (задача 4): зона, снятая в справочнике, новым позициям
+ * не предлагается (`zonesForSku`), но выбранная в этом нанесении остаётся —
+ * в списке с пометкой «снята» и с подписью у поля (как снятый цвет вехи 4).
  */
 export default function PrintRow({
   print, index, itemSizes, zones, unitPrice, qty, onChange, onRemove, placed = false, embedded = false, onOpenDesign, designViewOnly = false,
 }) {
   const id = useId();
+  const zonesCatalog = useStore((s) => s.zonesCatalog);
+  const retired = retiredZoneOf(zonesCatalog, print.zone);
   const m = print.method;
   const needsColors = m === 'silkscreen' || m === 'heat_transfer';
   // Потолок — тот же, что у формулы: больше цветов в ТЗ, чем в цене, не уходит
@@ -75,8 +92,19 @@ export default function PrintRow({
               </select>
             </label>
             <label className={styles.field}>Зона
-              <input className={styles.input} list={`${id}-zones`} value={print.zone} readOnly={placed} onChange={(e) => onChange({ zone: e.target.value })} placeholder="Грудь, спина, рукав…" />
-              <datalist id={`${id}-zones`}>{zones.map((z) => <option key={z} value={z} />)}</datalist>
+              <input
+                className={styles.input}
+                list={`${id}-zones`}
+                value={print.zone}
+                readOnly={placed}
+                onChange={(e) => onChange({ zone: e.target.value })}
+                placeholder="Грудь, спина, рукав…"
+                aria-describedby={retired ? `${id}-retired` : undefined}
+              />
+              <datalist id={`${id}-zones`}>
+                {zones.map((z) => <option key={z} value={z} />)}
+                {retired && !zones.includes(retired.name) && <option value={retired.name} label={`${retired.name} (снята)`} />}
+              </datalist>
             </label>
             <label className={styles.field}>Ширина, мм
               <input className={styles.input} type="number" min="1" value={print.width_mm ?? ''} readOnly={placed} onChange={(e) => onChange({ width_mm: toInt(e.target.value) })} />
@@ -134,6 +162,11 @@ export default function PrintRow({
           <input className={styles.input} value={print.artwork_url} onChange={(e) => onChange({ artwork_url: e.target.value })} placeholder="https://…" />
         </label>
       </div>
+      {retired && !embedded && (
+        <p id={`${id}-retired`} className={styles.muted}>
+          Зона «{retired.name}» снята — новым позициям не предлагается, в этом заказе остаётся
+        </p>
+      )}
       {itemSizes.length > 0 && (
         <div className={styles.row}>
           <span className={styles.muted}>Размеры нанесения:</span>
