@@ -13,7 +13,6 @@ import styles from '../App.module.css'
    специфичностью — порядок внутри чанка держит это как раньше */
 import '../styles/forms-buttons.css'
 import '../styles/wizard.css'
-import '../styles/garment.css'
 import '../styles/extras-zones.css'
 /* kanban.css — остаток канбана v3: `.kanban-page` нужен ExpressCalc */
 import '../styles/kanban.css'
