@@ -3,7 +3,7 @@
 -- До применения миграции — только сухим прогоном вместе с ней (миграция, затем этот файл
 -- в одной транзакции). Боевую базу файл не меняет: всё откатывается исключением итога.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=34 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=38 {…}
 --
 -- Роли — профили боя (как в order_v3_readonly.sql), внутри транзакции:
 --   W_EMB  05bbc552-bca2-490d-b275-46a3084dca7c  production, сотрудник ERP worker цеха вышивки
@@ -13,7 +13,10 @@
 -- Данные: заказ ERP с тремя позициями —
 --   A  крой → вышивка (одна строка, фаза программы) → пошив;
 --   L  крой → вышивка последним этапом (фаза программы);
---   B  старая пара: отдельная программа (вне цепочки) и вышивка после кроя.
+--   B  старая пара: отдельная программа (вне цепочки) и вышивка после кроя;
+--   S  крой → вышивка у подрядчика (одна строка, фаза программы, executor = contractor).
+-- Приёмку от подрядчика проба изображает меткой erp.subcontract_rollup (её ставит триггер
+-- erp_subcontract_moves_rollup_trg, 20260823100000) и тем же обновлением штук и статуса.
 
 begin;
 set local lock_timeout = '3s';
@@ -68,7 +71,8 @@ insert into public.erp_order_items (id, order_id, product_type, qty, branding_me
 values
   ('00000000-0000-4000-8000-0000191000a1', '00000000-0000-4000-8000-000019100000', 'PROBE', 10, '{embroidery}'),
   ('00000000-0000-4000-8000-0000191000c1', '00000000-0000-4000-8000-000019100000', 'PROBE', 10, '{embroidery}'),
-  ('00000000-0000-4000-8000-0000191000b1', '00000000-0000-4000-8000-000019100000', 'PROBE', 10, '{embroidery}');
+  ('00000000-0000-4000-8000-0000191000b1', '00000000-0000-4000-8000-000019100000', 'PROBE', 10, '{embroidery}'),
+  ('00000000-0000-4000-8000-0000191000d1', '00000000-0000-4000-8000-000019100000', 'PROBE', 10, '{embroidery}');
 
 insert into public.erp_item_stages (id, item_id, department_id, depends_on, status, sort_order, operation, result_kind)
 values
@@ -95,7 +99,15 @@ values
    'Разработка программы вышивки', 'embroidery_program'),
   ('00000000-0000-4000-8000-0000191000b4', '00000000-0000-4000-8000-0000191000b1',
    (select id from public.erp_departments where code = 'embroidery'),
-   '{00000000-0000-4000-8000-0000191000b2}', 'waiting', 3, null, null);
+   '{00000000-0000-4000-8000-0000191000b2}', 'waiting', 3, null, null),
+  -- S: крой → вышивка у подрядчика (фаза программы)
+  ('00000000-0000-4000-8000-0000191000d2', '00000000-0000-4000-8000-0000191000d1',
+   (select id from public.erp_departments where code = 'cutting'), '{}', 'waiting', 1, null, null),
+  ('00000000-0000-4000-8000-0000191000d3', '00000000-0000-4000-8000-0000191000d1',
+   (select id from public.erp_departments where code = 'embroidery'),
+   '{00000000-0000-4000-8000-0000191000d2}', 'waiting', 2, 'Разработка программы вышивки', 'embroidery_program');
+update public.erp_item_stages set executor = 'contractor'
+ where id = '00000000-0000-4000-8000-0000191000d3';
 
 select pg_temp.p('pass_phase', 'OK false', $q$select qty_passthrough::text from public.erp_item_stages where id = '00000000-0000-4000-8000-0000191000a3'$q$);
 select pg_temp.p('pass_old_program', 'OK true', $q$select qty_passthrough::text from public.erp_item_stages where id = '00000000-0000-4000-8000-0000191000b3'$q$);
@@ -188,6 +200,19 @@ select pg_temp.p('m_skip_no_reason', '22023', $q$select (public.erp_embroidery_p
 select pg_temp.p('m_skip_rpc', 'OK 00000000-0000-4000-8000-0000191000c3', $q$select (public.erp_embroidery_program_skip('00000000-0000-4000-8000-0000191000c3', 'программа клиента')).id::text$q$);
 select pg_temp.p('m_skip_event', 'OK Без программы: программа клиента', $q$select comment from public.erp_stage_events where stage_id = '00000000-0000-4000-8000-0000191000c3' order by created_at desc limit 1$q$);
 select pg_temp.p('m_skip_state', 'OK null/waiting/false', $q$select coalesce(result_kind, 'null') || '/' || status || '/' || public.erp_embroidery_is_phased(id) from public.erp_item_stages where id = '00000000-0000-4000-8000-0000191000c3'$q$);
+reset role;
+
+-- ── Подрядная вышивка: приёмка от подрядчика не встаёт на фазе ──────────
+-- Крой позиции S открыт. Без метки приёмки фаза держит штуки, под меткой —
+-- строка становится «Вышивкой» с фактом подрядчика и закрывается
+select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
+set local role authenticated;
+select pg_temp.p('sub_no_flag', '23514 Сначала сдайте программу', $q$update public.erp_item_stages set qty_done = 4 where id = '00000000-0000-4000-8000-0000191000d3'$q$);
+select set_config('erp.subcontract_rollup', 'on', true);
+select pg_temp.p('sub_rollup_partial', 'OK rows=1', $q$update public.erp_item_stages set qty_done = 4 where id = '00000000-0000-4000-8000-0000191000d3'$q$);
+select pg_temp.p('sub_rollup_state', 'OK null/null/4/false/false', $q$select coalesce(result_kind, 'null') || '/' || coalesce(operation, 'null') || '/' || qty_done || '/' || qty_passthrough || '/' || public.erp_embroidery_is_phased(id) from public.erp_item_stages where id = '00000000-0000-4000-8000-0000191000d3'$q$);
+select pg_temp.p('sub_rollup_done', 'OK rows=1', $q$update public.erp_item_stages set qty_done = 10, status = 'done', finished_at = now() where id = '00000000-0000-4000-8000-0000191000d3'$q$);
+select set_config('erp.subcontract_rollup', 'off', true);
 reset role;
 
 -- ── Права на функции ─────────────────────────────────────────────────────

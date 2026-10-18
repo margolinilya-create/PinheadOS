@@ -449,7 +449,7 @@
     "erp/utils/devWithoutOrder.test.ts": "da27b4a4c9641f05f3ab8b1be0970e75529045eb814cb70467922ee4a7d30827",
     "erp/utils/dictionaryKinds.test.ts": "530005a4a274a60c2be93d8a265e08aa777e7181f0a64e4358b7a0cd4c36721e",
     "erp/utils/droppedObjects.test.ts": "2ef1b45a3cc577558ae85a5eeeeddec8e40a74d99458705e69fab9aa1e0be114",
-    "erp/utils/embroideryOneStage.test.ts": "7cde1dc9dbacb4ca6037f849926c0770f0cb1a6d6cbeebc27d968da43389f5be",
+    "erp/utils/embroideryOneStage.test.ts": "38024386403649b15c9c371d89e6b8d1531a3cf354f766f1a28bb893db557d4a",
     "erp/utils/experimentalBoard.test.ts": "2f801e0c5a949d02349ca160ce3fdf31c641909862862a0bd2db7612d4dd14e9",
     "erp/utils/experimentalBoard.ts": "ccdd6f6dce85c10a2d6fdb84f7bfc57f22792fdd3c63905231a5216addfaf24d",
     "erp/utils/experimentalQueue.js": "57173e6009740498390f6f914c3d8e4a3166e0175c5f220bda1714b043226531",
@@ -638,7 +638,7 @@
     "erp/utils/tzFile.js": "bc2d93a6753c7ff2df29c28b3ab5cfe62a0cc008e0830bba6b485dd05f34e7ce",
     "erp/utils/tzFilePath.fuzz.test.ts": "b4367ed8c8fea4c717a31e74e5ab9705075e82c649cd623b69296355f5b5e0bc",
     "erp/utils/upsertConflict.test.ts": "6dca0e4165820fd6372c7c733fe652ee360c07df8e2503a6e71a7b9de2a9351b",
-    "erp/utils/warehouseGate.test.ts": "e44f6fb853523652c77fe04426d6346e580c64db4be7a950151c79606f5e2aef",
+    "erp/utils/warehouseGate.test.ts": "d4243a868f7ebadc6b32553020dab2f2a9aed73ba69d6bbecc01348d1d59fd62",
     "erp/utils/warehouseStep.test.ts": "8ddc1bac9dee1f4cceedafd81603f230dc1aea7bd193439eddb8e5344c08b830",
     "erp/utils/warehouseStep.ts": "24e97f56d7535e3aca6f41ff8ff64468b8ff294ef142a9fd791afdf934e4cf10",
     "erp/utils/warehouseTaskUniqueness.test.ts": "bf83bcf0a16738256711de1885ca35e209a529b4fbd768532d1ce7cf45f7b4c9"
@@ -940,6 +940,6 @@
     "20261018120000_order_v4_launch.sql": "ffea4926ea159ea5caad510e68671e8a825b28423c0d9f64163164ee788f7609",
     "20261018150000_order_v3_readonly_staff_audit.sql": "ee9c294feb251871f11b4b18cba46af8a42eb908f9a694df04e136c96249795e",
     "20261018160000_order_v4_zone_notes.sql": "122cb36a5715cc4047605acd8474a17785298fe72bc14485a480ab7c25b7ba1c",
-    "20261019100000_erp_embroidery_one_stage.sql": "2e8e3f8eb9d3854290886c1c17a5e6b1ab270faaa39d6f883d986bc21d080f3c"
+    "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196"
   }
 }

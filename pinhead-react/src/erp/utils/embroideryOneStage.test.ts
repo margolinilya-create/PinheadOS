@@ -121,6 +121,25 @@ describe('страж запуска вышивки', () => {
     expect(fn).toMatch(/new\.status in \('done', 'skipped'\)/);
     expect(fn).toContain('Сначала сдайте программу — задача станет «Вышивкой»');
   });
+
+  it('приёмка от подрядчика (erp.subcontract_rollup) не встаёт на фазе: строка становится «Вышивкой»', () => {
+    const fn = body('erp_item_stages_embroidery_route_gate');
+    // Пропуск метки стоит ДО запрета фазы: иначе 23514 откатил бы всю приёмку
+    const rollup = fn.indexOf("current_setting('erp.subcontract_rollup', true)");
+    const phase = fn.indexOf('erp_embroidery_is_phased(old.id)');
+    expect(rollup).toBeGreaterThan(0);
+    expect(rollup).toBeLessThan(phase);
+    const branch = fn.slice(rollup, fn.indexOf('end if;', fn.indexOf('return new;', rollup)) + 'end if;'.length);
+    expect(branch).toMatch(/new\.result_kind := null;/);
+    expect(branch).toMatch(/new\.operation := null;/);
+    expect(branch).toMatch(/return new;/);
+    // Страж этапов пропускает метку только у подрядной строки — гейт на неё опирается
+    const guard = body('erp_stage_guard');
+    expect(guard).toMatch(/erp\.subcontract_rollup[\s\S]{0,120}coalesce\(new\.executor, 'internal'\) = 'contractor'/);
+    // Триггер гейта идёт раньше стража и прозрачности: новая форма строки видна им
+    expect('erp_item_stages_dep_gate' < 'erp_item_stages_guard').toBe(true);
+    expect('erp_item_stages_dep_gate' < 'erp_item_stages_passthrough').toBe(true);
+  });
 });
 
 describe('гейт завершения', () => {

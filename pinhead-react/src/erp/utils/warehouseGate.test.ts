@@ -210,7 +210,9 @@ describe('предусловия упаковки — одно выражени�
  */
 describe('приёмка подряда складом проходит страж этапов', () => {
   const ROLLUP = latestDefining('erp_subcontract_moves_rollup');
-  const GUARD = latestDefining('erp_stage_guard');
+  // Тело функции, а не файл миграции: в одном файле со стражем живут и другие
+  // функции с той же меткой (гейт вышивки 19.10), и порядок по файлу врал бы
+  const GUARD = functionBody(latestDefining('erp_stage_guard'), 'erp_stage_guard');
 
   it('rollup помечает свой update и снимает метку за собой', () => {
     expect(ROLLUP).toMatch(/set_config\('erp\.subcontract_rollup', 'on', true\)/);
