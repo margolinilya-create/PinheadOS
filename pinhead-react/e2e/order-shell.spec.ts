@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { installSupabaseMock, FX_CREATED, type MockCall } from './support/mockSupabase';
+import { draftOrder, hoodieItem, orderCatalogs } from './support/orderCatalogFx';
 
 /**
  * Оболочка раздела ТЗ (Order Studio): сайдбар, «Заказы v4», старые адреса
@@ -146,3 +147,152 @@ test('старые адреса', async ({ page }) => {
   await page.goto('/print?studio=1');
   await expect(page).toHaveURL(/\/sales(\?|$)/);
 });
+
+// ─── Выбор оболочки по профилю (веха 8, задача 5, К1) ───────────────────────
+//
+// Профиль вошедшего — подменой в сторе входа поверх dev-автологина (admin).
+// Другой `id` — это «другой человек»: `ShellGate` (ключ `user.id`) выбирает
+// оболочку заново по ТЕКУЩЕМУ адресу, ровно как после входа. До подмены
+// профиля в dev-моке (`pinhead_dev_profile`, задача 9) F5 возвращает админа —
+// поэтому после каждой перезагрузки профиль ставится снова.
+
+const LIVE = { active: true, approved: true };
+const SELLER = { id: 'e2e-seller', role: 'manager', name: 'Анна Продавец', is_sales: true, is_ms: false, ...LIVE };
+const DESIGNER = { id: 'e2e-designer', role: 'designer', name: 'Дина Дизайнер', is_sales: false, is_ms: false, ...LIVE };
+const ORDER_NAV_NAME = 'Разделы заказа';
+const ERP_HOME = 'Обзор производства';
+
+/**
+ * Войти «другим человеком» в этой вкладке (оболочка выбирается заново).
+ * Сначала — дождаться оболочки: dev-автологин ставит админа ПОСЛЕ события
+ * `load`, и ранняя подмена была бы им перезаписана
+ */
+async function signInAs(page: Page, profile: Record<string, unknown>) {
+  await expect(page.locator('main#main-content')).toBeAttached();
+  await page.evaluate(async (p) => {
+    const { useAuthStore } = await import('/src/store/useAuthStore.ts');
+    useAuthStore.setState({ user: { email: `${p.id}@pinhead.ru`, ...p }, profileStatus: 'active' });
+  }, profile);
+}
+
+const storedChoice = (page: Page) => page.evaluate(() => localStorage.getItem('pinhead_feature_orderStudio'));
+
+test.describe('выбор оболочки по профилю', () => {
+  test('продавец: F5 на /sales/:id с записанным «0» остаётся в разделе', async ({ page }) => {
+    await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
+    await page.addInitScript(() => localStorage.setItem('pinhead_feature_orderStudio', '0'));
+    for (let i = 0; i < 2; i += 1) {
+      if (i === 0) await page.goto('/sales/sales-1');
+      else await page.reload();
+      await signInAs(page, SELLER);
+      await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toBeVisible();
+      await expect(page).toHaveURL(/\/sales\/sales-1/);
+    }
+  });
+
+  test('дизайнер на /sales уходит в «Производство» один раз, без петли', async ({ page }) => {
+    await installSupabaseMock(page);
+    await page.goto('/sales');
+    await signInAs(page, DESIGNER);
+    // LeaveToProduction: страница ушла на /, «0» записан
+    await expect(page.getByRole('heading', { name: ERP_HOME })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/');
+    expect(await storedChoice(page)).toBe('0');
+    // Тот же человек снова — оболочка «Производство», уходов больше нет
+    await signInAs(page, DESIGNER);
+    await page.waitForTimeout(300);
+    expect(new URL(page.url()).pathname).toBe('/');
+    await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toHaveCount(0);
+  });
+
+  test('?studio=0 — «Производство» на этот заход', async ({ page }) => {
+    await installSupabaseMock(page);
+    await page.goto('/?studio=0');
+    await expect(page.getByRole('heading', { name: ERP_HOME })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toHaveCount(0);
+  });
+
+  test('продавец: «Производство» — один заход без записи; следующий / — снова раздел', async ({ page }) => {
+    await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
+    await page.goto('/sales');
+    await signInAs(page, SELLER);
+    // Адрес ухода ловится навигацией: ERP после загрузки может переписать адрес сам
+    const went = page.waitForEvent('framenavigated', (f) => f === page.mainFrame() && new URL(f.url()).pathname === '/');
+    await page.getByRole('button', { name: 'Перейти в раздел Производство' }).click();
+    expect(new URL((await went).url()).search).toBe('?studio=0');
+    await expect(page.getByRole('heading', { name: ERP_HOME })).toBeVisible();
+    expect(await storedChoice(page)).toBeNull();
+
+    await page.goto('/');
+    await signInAs(page, SELLER);
+    await expect(page).toHaveURL(/\/sales(\?|$)/);
+    await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toBeVisible();
+  });
+
+  test('refreshProfile того же человека на /sku оболочку не меняет', async ({ page }) => {
+    await installSupabaseMock(page);
+    await page.goto('/sku');
+    await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toBeVisible();
+    await page.evaluate(async () => {
+      const { useAuthStore } = await import('/src/store/useAuthStore.ts');
+      const user = useAuthStore.getState().user;
+      useAuthStore.setState({ checkingProfile: true });
+      useAuthStore.setState({ checkingProfile: false, user: { ...user } });
+    });
+    await expect(page.getByRole('navigation', { name: ORDER_NAV_NAME })).toBeVisible();
+    await expect(page.getByRole('heading', { name: ERP_HOME })).toHaveCount(0);
+  });
+
+  test('выход стирает выбор раздела', async ({ page }) => {
+    await installSupabaseMock(page);
+    await page.goto('/sales');
+    await page.evaluate(() => localStorage.setItem('pinhead_feature_orderStudio', '1'));
+    await page.getByRole('button', { name: 'Выйти' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Выйти' }).click();
+    await expect.poll(() => storedChoice(page)).toBeNull();
+  });
+});
+
+test.describe('оболочка на 375 px', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('«ТЗ и цена» видна целиком при неразмещённом нанесении и пустом клиенте; шапка без переполнения', async ({ page }) => {
+    const ORDER = '6f1c2d3e-0000-4000-8000-0000000005a1';
+    const order = draftOrder(ORDER, [hoodieItem('6f1c2d3e-0000-4000-8000-0000000005a2', 'Чёрный (40-01)', [
+      { id: '6f1c2d3e-0000-4000-8000-0000000005a3', method: 'dtf', zone: 'Спина', sort_order: 0 },
+    ])]);
+    await installSupabaseMock(page, { catalogs: orderCatalogs(), salesOrders: [{ ...order, customer: '' }] });
+    await page.goto(`/sales/${ORDER}?tab=summary`);
+
+    const summary = page.getByRole('tab', { name: /^ТЗ и цена/ });
+    await expect(summary).toBeVisible();
+    await expect(page.getByRole('tab', { name: /^Клиент — не заполнено/ })).toBeAttached();
+    const box = await summary.boundingBox();
+    expect(box).not.toBeNull();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(375);
+
+    const header = await page.locator('header').first().evaluate((h) => [h.scrollWidth, h.clientWidth]);
+    expect(header[0]).toBeLessThanOrEqual(header[1]);
+    const doc = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    expect(doc[0]).toBeLessThanOrEqual(doc[1]);
+    // Заголовок раздела скрыт, «Производство» — иконкой с подписью для читалки
+    await expect(page.getByText('Оформление заказа', { exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Перейти в раздел Производство' })).toBeVisible();
+  });
+});
+
+// Подпись «Производство» видна с 481 px — шапка не переполняется и там
+for (const width of [481, 520, 760]) {
+  test(`шапка раздела на ${width} px без переполнения`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await installSupabaseMock(page, { salesOrders: [SALES_ROW] });
+    await page.goto('/sales');
+    const btn = page.getByRole('button', { name: 'Перейти в раздел Производство' });
+    await expect(btn).toBeVisible();
+    await expect(btn.getByText('Производство', { exact: true })).toBeVisible();
+    const header = await page.locator('header').first().evaluate((h) => [h.scrollWidth, h.clientWidth]);
+    expect(header[0]).toBeLessThanOrEqual(header[1]);
+    const box = await btn.boundingBox();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+  });
+}

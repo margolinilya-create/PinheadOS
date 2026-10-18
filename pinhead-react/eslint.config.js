@@ -106,7 +106,7 @@ const TYPE_AWARE_RULES = {
 export default defineConfig([
   // dist-e2e — сборка для офлайн-спека (`playwright.config.ts`): линтовать
   // минифицированный вывод бессмысленно, а без игнора он даёт 347 ошибок
-  globalIgnores(['dist', 'dist-e2e']),
+  globalIgnores(['dist', 'dist-e2e', 'dist-e2e-killswitch']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

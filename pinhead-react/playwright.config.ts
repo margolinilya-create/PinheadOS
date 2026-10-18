@@ -26,6 +26,16 @@ import { defineConfig } from '@playwright/test';
 const MOCK_SUPABASE_ENV = 'VITE_SUPABASE_URL=https://e2e.invalid'
   + ' VITE_SUPABASE_ANON_KEY=e2e-anon-key';
 
+/**
+ * Аварийный выключатель раздела «Оформление заказа» (веха 8, задача 5):
+ * своя preview-сборка с `VITE_FEATURE_ORDER_STUDIO=0` на 4174 и проект
+ * `killswitch`. Только в CI (или явно `E2E_KILLSWITCH=1`): лишняя сборка
+ * локальному прогону ни к чему. Визуальная джоба (`E2E_SKIP_PREVIEW=1`)
+ * её тоже не собирает.
+ */
+const KILLSWITCH = (process.env.CI === 'true' || process.env.E2E_KILLSWITCH === '1')
+  && process.env.E2E_SKIP_PREVIEW !== '1';
+
 export default defineConfig({
   testDir: './e2e',
   // {projectName} обязателен: desktop и mobile снимают разные вьюпорты,
@@ -82,6 +92,18 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
     }]),
+    ...(KILLSWITCH ? [{
+      // Выключатель «0»: dev-автологина под админом достаточно — подмена профиля
+      // в preview-сборке недоступна (`import.meta.env.DEV` ложен), случай
+      // продавца покрыт App.test.jsx
+      command: `${MOCK_SUPABASE_ENV} VITE_FEATURE_ORDER_STUDIO=0 VITE_DEV_AUTOLOGIN=1`
+        + ' VITE_AGENTATION=0'
+        + ' npx vite build --outDir dist-e2e-killswitch'
+        + ' && npx vite preview --outDir dist-e2e-killswitch --port 4174 --strictPort',
+      url: 'http://localhost:4174',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    }] : []),
   ],
   /**
    * Воркеры на CI заданы явно (обзор 26.09, п. 16): по умолчанию Playwright
@@ -107,6 +129,8 @@ export default defineConfig({
       // offline идёт против собранного приложения на другом порту
       testIgnore: [
         /erp-mobile\.spec\.ts/, /erp-tablet\.spec\.ts/, /offline\.spec\.ts/,
+        // выключатель — своя сборка на своём порту (проект `killswitch`)
+        /killswitch\.spec\.ts/,
         // erp-cls меряет раскладку СОБРАННОГО приложения на своём порту
         // (проект `perf`): dev раздаёт неминифицированные модули со своим
         // водопадом, и числа, снятые на нём, к продакшену отношения не имеют
@@ -182,6 +206,7 @@ export default defineConfig({
         /offline\.spec\.ts/,
         // erp-cls — свой проект против собранного приложения
         /erp-cls\.spec\.ts/,
+        /killswitch\.spec\.ts/,
       ],
     },
     {
@@ -200,5 +225,10 @@ export default defineConfig({
       use: { baseURL: 'http://localhost:4173', viewport: { width: 1280, height: 800 } },
       testMatch: [/erp-cls\.spec\.ts/],
     },
+    ...(KILLSWITCH ? [{
+      name: 'killswitch',
+      use: { baseURL: 'http://localhost:4174', viewport: { width: 1280, height: 800 } },
+      testMatch: [/killswitch\.spec\.ts/],
+    }] : []),
   ],
 });

@@ -4,7 +4,8 @@ import appStyles from '../../App.module.css';
 import { useAuthStore } from '../../store/useAuthStore';
 import { confirm } from '../../store/useConfirmStore';
 import { useTheme } from '../../hooks/useTheme';
-import { setFeature } from '../../config/features';
+import { switchToProduction } from '../switchToProduction';
+import { canUseSales } from './orderNav';
 import { OrderSidebar } from './OrderSidebar';
 import styles from './OrderLayout.module.css';
 
@@ -20,7 +21,9 @@ import styles from './OrderLayout.module.css';
  */
 
 export default function OrderLayout({ user, children }) {
-  const isAdmin = ['admin', 'director'].includes(user?.role);
+  // «в Производство» — всем с доступом к разделу (веха 8, К1). Помнит ли выбор,
+  // решает `switchToProduction`: admin/director — да, продавец/МС/rop — один заход
+  const canLeave = canUseSales(user);
   const { theme, toggleTheme } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
 
@@ -52,18 +55,17 @@ export default function OrderLayout({ user, children }) {
           <span className={styles.sectionTitle}>Оформление заказа</span>
           <div className={styles.spacer} />
 
-          {isAdmin && (
+          {canLeave && (
             <button
               type="button"
-              className={styles.iconBtn}
-              title="Перейти в Производство"
-              aria-label="Перейти в Производство"
-              onClick={() => {
-                setFeature('orderStudio', false);
-                window.location.href = '/';
-              }}
+              className={styles.prodBtn}
+              title="Перейти в раздел Производство"
+              aria-label="Перейти в раздел Производство"
+              onClick={() => switchToProduction('/', user)}
             >
               <Icon name="board" size={19} />
+              {/* На ≤ 480 px подпись только для читалки — кнопка иконкой 44 px */}
+              <span className={styles.prodLabel}>Производство</span>
             </button>
           )}
 

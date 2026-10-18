@@ -60,4 +60,67 @@ describe('OrderLayout.module.css', () => {
       ).toEqual(erp);
     });
   }
+
+  /** Тело блоков `@media (<условие>) { … }` подряд — грубо, но без вложенных @media в этом файле */
+  function mediaBody(css: string, condition: string): string {
+    const clean = stripComments(css);
+    let out = '';
+    let at = clean.indexOf(condition);
+    while (at >= 0) {
+      const open = clean.indexOf('{', at);
+      let depth = 1;
+      let i = open + 1;
+      for (; i < clean.length && depth > 0; i += 1) {
+        if (clean[i] === '{') depth += 1;
+        else if (clean[i] === '}') depth -= 1;
+      }
+      out += clean.slice(open + 1, i - 1);
+      at = clean.indexOf(condition, i);
+    }
+    return out;
+  }
+
+  /**
+   * Доступ к разделу читает входной чанк (`config/shellChoice.ts`, веха 8, К1)
+   * из `salesAccess.ts`, а не из `orderNav.ts`: модуль попадает в чанк целиком,
+   * и меню с гейтами раздела уехали бы во вход (замер задачи 5: +3428 Б).
+   * В `salesAccess.ts` нет рантайм-импортов (`import type` стирается при сборке)
+   */
+  const runtimeImports = (src: string) => [
+    ...[...src.matchAll(/^\s*import\s+(?!type\b)[^;]*;?/gm)].map((m) => m[0].trim()),
+    ...[...src.matchAll(/^\s*export\s+(?!type\b)[^;]*\bfrom\s[^;]*;?/gm)].map((m) => m[0].trim()),
+    ...(/\bimport\s*\(/.test(src) ? ['import()'] : []),
+  ];
+
+  it('salesAccess.ts без рантайм-импортов — его читает входной чанк', () => {
+    const access = readSource(join(SRC_DIR, 'orderstudio', 'layout', 'salesAccess.ts'));
+    expect(runtimeImports(access)).toEqual([]);
+    // Сторож видит импорт (мутация)
+    expect(runtimeImports("import { x } from './orderNav';")).toHaveLength(1);
+    expect(runtimeImports("import type { x } from './orderNav';")).toEqual([]);
+  });
+
+  it('выбор оболочки берёт доступ из salesAccess, а не из orderNav', () => {
+    const shell = readSource(join(SRC_DIR, 'config', 'shellChoice.ts'));
+    expect(shell).toMatch(/from '\.\.\/orderstudio\/layout\/salesAccess'/);
+    expect(shell).not.toMatch(/layout\/orderNav/);
+  });
+
+  // Веха 8, задача 5: шапка и сайдбар на 375 px
+  it('тень у сайдбара — только у открытого (.sidebarOpen), у закрытого её нет', () => {
+    const overlay = mediaBody(ORDER_CSS, '@media (max-width: 1024px), (pointer: coarse)');
+    expect(block(overlay, '.sidebar')).not.toMatch(/box-shadow/);
+    expect(block(ORDER_CSS, '.sidebar')).not.toMatch(/box-shadow/);
+    expect(overlay).toMatch(/\.sidebarOpen\s*\{[^}]*box-shadow:\s*var\(--shadow-modal\)/);
+  });
+
+  it('на ≤ 480 px заголовок раздела скрыт, «Производство» — иконкой 44 px', () => {
+    const narrow = mediaBody(ORDER_CSS, '@media (max-width: 480px)');
+    expect(block(narrow, '.sectionTitle')).toMatch(/display:\s*none/);
+    expect(block(narrow, '.prodBtn')).toMatch(/width:\s*44px/);
+    expect(block(narrow, '.prodBtn')).toMatch(/height:\s*44px/);
+    // Подпись не пропадает для читалки: клип, а не display: none
+    expect(block(narrow, '.prodLabel')).toMatch(/clip:/);
+    expect(block(narrow, '.prodLabel')).not.toMatch(/display:\s*none/);
+  });
 });
