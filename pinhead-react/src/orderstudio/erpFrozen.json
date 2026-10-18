@@ -449,6 +449,7 @@
     "erp/utils/devWithoutOrder.test.ts": "da27b4a4c9641f05f3ab8b1be0970e75529045eb814cb70467922ee4a7d30827",
     "erp/utils/dictionaryKinds.test.ts": "530005a4a274a60c2be93d8a265e08aa777e7181f0a64e4358b7a0cd4c36721e",
     "erp/utils/droppedObjects.test.ts": "2ef1b45a3cc577558ae85a5eeeeddec8e40a74d99458705e69fab9aa1e0be114",
+    "erp/utils/embroideryOneStage.test.ts": "7cde1dc9dbacb4ca6037f849926c0770f0cb1a6d6cbeebc27d968da43389f5be",
     "erp/utils/experimentalBoard.test.ts": "2f801e0c5a949d02349ca160ce3fdf31c641909862862a0bd2db7612d4dd14e9",
     "erp/utils/experimentalBoard.ts": "ccdd6f6dce85c10a2d6fdb84f7bfc57f22792fdd3c63905231a5216addfaf24d",
     "erp/utils/experimentalQueue.js": "57173e6009740498390f6f914c3d8e4a3166e0175c5f220bda1714b043226531",
@@ -927,6 +928,18 @@
     "20261008003410_erp_cut_batch_without_fate.sql": "06e734e58a2eeb18fb47635eaaf5cf1776465ba26771a66627c5176b4b9469d6",
     "20261008004814_erp_finish_tasks_without_order.sql": "867bec5256c3c3c6661db38b036e14cda15dadfa74509250ffd3096e2a51ceac",
     "20261008075225_erp_warehouse_route_gate.sql": "1d8cd94caf9e79ca1bba4629d59ad862e28085a93b1fe27aebe5c07a9fce5319",
-    "20261009223435_erp_roll_finish.sql": "fbaa54d0e135fb1af1311ace3613a317f2edbd7a89799afd824d60bba48c7210"
+    "20261009223435_erp_roll_finish.sql": "fbaa54d0e135fb1af1311ace3613a317f2edbd7a89799afd824d60bba48c7210",
+    "20261017053703_order_v4_tz_fields.sql": "4e23e94feeac7711e0d1966d2f5629cb5814e7870744a8f020dab5b6a019d7c1",
+    "20261017062110_order_v4_rights.sql": "c7128123e06729db5ace7b539e7fba811e7d42ac5902d790a9540a19089f6e82",
+    "20261017070826_order_artworks_bucket.sql": "8704c4be55706297f4e19733aa41d6740b2ce2f7b209e97f6136a1a0cfb82084",
+    "20261017101513_order_v4_client_rev.sql": "f9de635f94bae7f86387c34ace17b1f8958314e021fb068be0a88378b9b7a0e6",
+    "20261017142210_sales_ms_flag.sql": "211e53497e6e52ea459229a089b70e4ee7485de29ed87fb6ec4d660861499245",
+    "20261017150000_order_catalogs.sql": "84dbb0d63fd3b99d377d602fb7a3cbdc43a4ac4fb30c3cb015345c40798038d6",
+    "20261017185435_garment_flats.sql": "ef721542097cd811d9d141d6c755345e2a92219baf659671ec657f8b79e945b1",
+    "20261018090000_flats_admin.sql": "17be0f0d62a40563e085efa4d497cacd53baadc994cdd943affc4c52b3d3ab87",
+    "20261018120000_order_v4_launch.sql": "ffea4926ea159ea5caad510e68671e8a825b28423c0d9f64163164ee788f7609",
+    "20261018150000_order_v3_readonly_staff_audit.sql": "ee9c294feb251871f11b4b18cba46af8a42eb908f9a694df04e136c96249795e",
+    "20261018160000_order_v4_zone_notes.sql": "122cb36a5715cc4047605acd8474a17785298fe72bc14485a480ab7c25b7ba1c",
+    "20261019100000_erp_embroidery_one_stage.sql": "2e8e3f8eb9d3854290886c1c17a5e6b1ab270faaa39d6f883d986bc21d080f3c"
   }
 }
