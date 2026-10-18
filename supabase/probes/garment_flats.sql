@@ -2,11 +2,11 @@
 -- garment-flats (путь, чтение, запись, запрет UPDATE, нет DELETE), ключ
 -- app_config.garmentFlats в catalog_put (только admin и director) и его форма
 -- в catalog_value_check, регресс белого списка G, CHECK формы
--- order_item_prints.layout и order_items.flat_id, зоны штанов в zonesCatalog,
+-- order_item_prints.layout и order_items.flat_id, зоны штанов в zonesCatalog и sku_catalog,
 -- удаление перегрузки sales_set_staff(uuid, boolean).
 -- До применения H на бою — только сухим прогоном вместе с ней в одной транзакции.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=121 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=127 {…}
 --
 -- Как запускать — supabase/probes/README.md. Коротко: вставить файл ЦЕЛИКОМ
 -- в SQL Editor и выполнить, в тихое время. Файл сам открывает транзакцию,
@@ -138,6 +138,15 @@ select pg_temp.p('zones_pants', 'OK pants-back:Штанина зад,pants-front
   $q$select string_agg((z->>'id') || ':' || (z->>'name'), ',' order by z->>'id') from public.app_config c, jsonb_array_elements(c.value) z where c.key = 'zonesCatalog' and z->>'id' like 'pants-%'$q$);
 select pg_temp.p('zones_ids_unique', 'OK true',
   $q$select (count(*) = count(distinct z->>'id'))::text from public.app_config c, jsonb_array_elements(c.value) z where c.key = 'zonesCatalog'$q$);
+select pg_temp.p('zones_front_back_no_pants', 'OK 0',
+  $q$select count(*)::text from public.app_config c, jsonb_array_elements(c.value) z where c.key = 'zonesCatalog' and z->>'id' in ('front', 'back') and z->'forCategories' ? 'pants'$q$);
+select pg_temp.p('zones_front_back_shorts_kept', 'OK 2',
+  $q$select count(*)::text from public.app_config c, jsonb_array_elements(c.value) z where c.key = 'zonesCatalog' and z->>'id' in ('front', 'back') and z->'forCategories' ? 'shorts'$q$);
+-- На бою 18.10 у P-001…P-006 было [front, back, leg-l, leg-r]
+select pg_temp.p('sku_pants_zones', 'OK 6:["pants-front", "pants-back", "leg-l", "leg-r"]',
+  $q$select count(*) || ':' || string_agg(distinct (s->'zones')::text, '|') from public.app_config c, jsonb_array_elements(c.value) s where c.key = 'sku_catalog' and s->>'category' = 'pants'$q$);
+select pg_temp.p('sku_pants_no_front_back', 'OK 0',
+  $q$select count(*)::text from public.app_config c, jsonb_array_elements(c.value) s where c.key = 'sku_catalog' and s->>'category' = 'pants' and (s->'zones' ? 'front' or s->'zones' ? 'back')$q$);
 select pg_temp.p('old_set_staff_gone', 'OK true', $q$select (to_regprocedure('public.sales_set_staff(uuid, boolean)') is null)::text$q$);
 select pg_temp.p('set_staff3_kept', 'OK true', $q$select (to_regprocedure('public.sales_set_staff(uuid, text, boolean)') is not null)::text$q$);
 select pg_temp.p('flats_key_absent', 'OK 0', $q$select count(*)::text from public.app_config where key = 'garmentFlats'$q$);
@@ -239,6 +248,11 @@ select pg_temp.p('cp_coord_far', '22023 Флэты: неверная запис�
   $q$select public.catalog_put('app_config', 'garmentFlats', jsonb_set(pg_temp.fv(), '{flats,0,views,0,print_areas,0,polygon_mm}', '[[0, 0], [6000, 0], [0, 10]]'), pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
 select pg_temp.p('cp_coord_string', '22023 Флэты: неверная запись — зона',
   $q$select public.catalog_put('app_config', 'garmentFlats', jsonb_set(pg_temp.fv(), '{flats,0,views,0,print_areas,0,polygon_mm}', '[[0, 0], ["10", 0], [0, 10]]'), pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
+-- не число, которое не приводится к numeric: 22023, а не 22P02 (приведение только у числа)
+select pg_temp.p('cp_scale_text', '22023 Флэты: неверная запись — вид',
+  $q$select public.catalog_put('app_config', 'garmentFlats', jsonb_set(pg_temp.fv(), '{flats,0,views,0,scale_mm_per_unit}', '"abc"'), pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
+select pg_temp.p('cp_coord_text', '22023 Флэты: неверная запись — зона',
+  $q$select public.catalog_put('app_config', 'garmentFlats', jsonb_set(pg_temp.fv(), '{flats,0,views,0,print_areas,0,polygon_mm}', '[[0, 0], ["x", 0], [0, 10]]'), pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
 select pg_temp.p('cp_bad_method', '22023 Флэты: неверная запись — зона',
   $q$select public.catalog_put('app_config', 'garmentFlats', jsonb_set(pg_temp.fv(), '{flats,0,views,0,print_areas,0,methods}', '["screenprint"]'), pg_temp.cur('app_config', 'garmentFlats'))::text$q$);
 select pg_temp.p('cp_bad_default_method', '22023 Флэты: неверная запись — зона',

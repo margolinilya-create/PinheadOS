@@ -3,7 +3,7 @@
 План — `docs/superpowers/plans/2026-10-17-order-flow-m5a-design.md` (с разделами «Проверка
 безопасности», «Проверка скиллами», «Ответы владельца после проверки»). Миграция **H**
 `20261017185435_garment_flats` — на бой ДО мерджа, сухим прогоном с пробами в SQL Editor
-владельцем. Пробы — `supabase/probes/garment_flats.sql` (`total=121`) и
+владельцем. Пробы — `supabase/probes/garment_flats.sql` (`total=127`) и
 `supabase/probes/order_v4_rights.sql` (`total=155`, перегрузки `sales_set_staff(uuid, boolean)`
 больше нет). Код — `pinhead-react/src/orderstudio/design/` (карта модуля и замеры бюджета —
 `design/README.md`), API флэтов — `orderstudio/api/garmentFlats.ts`, файлы заказа —

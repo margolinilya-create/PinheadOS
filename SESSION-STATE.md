@@ -22,14 +22,19 @@
   чтение — одобренным, запись — admin/director, UPDATE запрещён restrictive, DELETE нет); ключ
   `app_config.garmentFlats` в `catalog_put` (admin, director) и его форма в `catalog_value_check`
   (тела функций — текст G, на бою md5 совпал); CHECK `order_item_prints.layout` (null или `v = '1'`
-  ≤ 8 КБ) и `order_items.flat_id`; зоны штанов `pants-front`/`pants-back` в живом `zonesCatalog`
-  (идемпотентно); перегрузка `sales_set_staff(uuid, boolean)` удалена. Пробы `garment_flats.sql` —
-  `total=121`, `order_v4_rights.sql` — `total=155` (локальный PG на заглушке — 0 провалов).
+  ≤ 8 КБ) и `order_items.flat_id`; зоны штанов в живых справочниках (идемпотентно): в `zonesCatalog`
+  дописаны `pants-front`/`pants-back`, у `front`/`back` из `forCategories` убран `pants` (шорты
+  остаются), у моделей штанов в `sku_catalog` `front`/`back` → `pants-front`/`pants-back` (на бою 18.10
+  у P-001…P-006 было `[front, back, leg-l, leg-r]`; без этого `zonesForSku` оставил бы штанам «Грудь»
+  и «Спину»); перегрузка `sales_set_staff(uuid, boolean)` удалена. Пробы `garment_flats.sql` —
+  `total=127`, `order_v4_rights.sql` — `total=155` (локальный PG на заглушке — 0 провалов в зонах и
+  справочнике; две пробы заглушки, `admin_upsert` и `save_layout_ok_effect`, падают на ней и до правки).
   SQL для владельца — `scratchpad/m5-sql/` (`H-dryrun.sql`, `H-dryrun-rights.sql`, `H-apply.sql`).
 - **Уборка (задача 1):** `designSlice` и мёртвый перенос визарда (`wizardToSalesItem` и др.) убраны;
   единый `orderstudio/model/printMethods.ts` (профили 8 техник, DPI, `TECH_TO_METHOD`/`METHOD_TO_TECH`,
-  `allowedMethods`, `defaultMethod`); зоны штанов в `ZONES_CATALOG_DEFAULT` (front/back штанам больше не
-  предлагаются, P-001…P-006 — `pants-front`/`pants-back`).
+  `allowedMethods`, `defaultMethod`); зоны штанов в сидах `ZONES_CATALOG_DEFAULT` и `SKU_CATALOG`
+  (front/back штанам больше не предлагаются, P-001…P-006 — `pants-front`/`pants-back`); живые
+  справочники на бою приводит к тому же миграция H (раздел 7).
 - **Ядро `orderstudio/design/`** (перенос DM): геометрия, `sanitizeSvg` (белый список, режим `scene`),
   `sniffArtwork` (тип и размеры по байтам, бомбы), `parseLayout` (строгий, `layoutMark` без zod),
   `placementOf`/`applyPlacement`/`remapToFlat`, отступ по опоре, `pickFlat`, `flatsSchema` (`zod/mini`),
@@ -79,7 +84,7 @@
 
 ### Выкатка вехи 5а (контроллер с владельцем; в задаче 9 не делалось)
 
-1. Сухой прогон `H-dryrun.sql` (`PROBE_RESULT fails=0 total=121`) и `H-dryrun-rights.sql`
+1. Сухой прогон `H-dryrun.sql` (`PROBE_RESULT fails=0 total=127`) и `H-dryrun-rights.sql`
    (`total=155`) → `H-apply.sql` в SQL Editor ДО мерджа → пробы `garment_flats.sql`
    и `order_v4_rights.sql` на бою → `APPLIED.json` + `npm run migrations:verify`.
 2. PR → CI зелёный → `update_snapshots` (`studio-design`, `studio-settings-flats`, `studio-settings` —
@@ -95,6 +100,11 @@
   знать `.preview.png`.
 - **Рукава и прочие виды, загрузка своих флэтов и версий, правка зон, delete неупомянутых версий,
   история геометрии флэта** — веха 5б (план готов).
+- **Техдолг: `scripts/bundle-budget.mjs` — 528 строк** (сторож `fileSizeRatchet` смотрит только `src/`,
+  файл растёт с каждой вехой): вынести проверки дизайна (холст, PDF макета, pdfjs) в отдельный модуль.
+- **Бюджет 5а принят контроллером:** вход 151 793 Б (T0 — 151 750), оболочка ERP 194 406 Б (T0 — 194 369;
+  +22 Б — `vendor-react`, остальное — длина хешей в именах чанков), запас оболочки ERP ≈ 594 Б. PDF макета
+  159 424 из 160 000 (99,6 %): любая правка движка PDF уронит проверку — поднимать потолок осознанно.
 - **Per-size флэты и ростовка** (`gradeRule`, `grading`) — геометрия DM перенесена частично, интерфейса нет.
 - DTF и шелкография без DPI-контроля в тексте плана — снято ответом владельца (300/150); сверить
   в обходе, что подсказки не мешают.

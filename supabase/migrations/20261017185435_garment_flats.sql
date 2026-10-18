@@ -22,9 +22,12 @@
 --   3. CHECK формы `order_item_prints.layout`: null или объект `v = 1`
 --      не больше 8 КБ; CHECK `order_items.flat_id`: '' или id флэта.
 --      На бою 17.10: layout не null — 0 строк, flat_id не пуст — 0 строк.
---   4. Две зоны штанов в живом `app_config.zonesCatalog` (решение владельца
---      17.10): `pants-front` «Штанина перед», `pants-back` «Штанина зад»,
---      только если зоны с таким id ещё нет (идемпотентно).
+--   4. Зоны штанов (решение владельца 17.10): в живом `app_config.zonesCatalog`
+--      дописываются `pants-front` «Штанина перед», `pants-back` «Штанина зад»
+--      (только если зоны с таким id ещё нет), у `front`/`back` из `forCategories`
+--      убирается `pants`; в `app_config.sku_catalog` у моделей категории `pants`
+--      в `zones` `front` → `pants-front`, `back` → `pants-back` (порядок сохранён,
+--      повторы схлопнуты). Всё идемпотентно: повторный прогон ничего не меняет.
 --   5. Удаление перегрузки `sales_set_staff(uuid, boolean)` (обёртка миграции F):
 --      клиент зовёт только трёхаргументную (`api/salesStaff.ts`).
 --
@@ -44,7 +47,8 @@
 --   4. alter table public.order_item_prints drop constraint order_item_prints_layout_check;
 --      alter table public.order_items drop constraint order_items_flat_id_check;
 --   5. drop function public.garment_flat_path_ok(text);
---   6. Зоны штанов можно оставить (прежний клиент их просто покажет).
+--   6. Зоны штанов можно оставить (прежний клиент их просто покажет). Вернуть
+--      штанам «Грудь (перед)»/«Спину» — вручную в /sku (вкладки зон и моделей).
 --   Перегрузку sales_set_staff(uuid, boolean) НЕ возвращать: клиент её не зовёт.
 
 -- ── 1. Бакет ─────────────────────────────────────────────────────────────
@@ -277,7 +281,10 @@ begin
         or coalesce(jsonb_typeof(v->'svg_path'), '') <> 'string'
         or (v->>'svg_path') <> 'flats/' || (f->>'id') || '/v' || (f->>'version') || '/' || (v->>'kind') || '.svg'
         or coalesce(jsonb_typeof(v->'scale_mm_per_unit'), '') <> 'number'
-        or (v->>'scale_mm_per_unit')::numeric <= 0 or (v->>'scale_mm_per_unit')::numeric > 10
+        -- приведение — только у числа: OR не обещает порядок, иначе 22P02 вместо 22023
+        or case when jsonb_typeof(v->'scale_mm_per_unit') = 'number'
+                then (v->>'scale_mm_per_unit')::numeric <= 0 or (v->>'scale_mm_per_unit')::numeric > 10
+           end
         or coalesce(jsonb_typeof(v->'print_areas'), '') <> 'array' or jsonb_array_length(v->'print_areas') = 0
         or (select count(*) <> count(distinct a->>'id') from jsonb_array_elements(v->'print_areas') a)
      limit 1;
@@ -303,7 +310,9 @@ begin
         or exists (select 1 from jsonb_array_elements(a->'polygon_mm') pt
                     where jsonb_typeof(pt) <> 'array' or jsonb_array_length(pt) <> 2
                        or exists (select 1 from jsonb_array_elements(pt) c
-                                   where jsonb_typeof(c) <> 'number' or abs((c #>> '{}')::numeric) > 5000))
+                                   where jsonb_typeof(c) <> 'number'
+                                      or case when jsonb_typeof(c) = 'number'
+                                              then abs((c #>> '{}')::numeric) > 5000 end))
         or (a ? 'methods'
             and (jsonb_typeof(a->'methods') <> 'array'
                  or exists (select 1 from jsonb_array_elements(a->'methods') m
@@ -428,8 +437,9 @@ alter table public.order_items drop constraint if exists order_items_flat_id_che
 alter table public.order_items add constraint order_items_flat_id_check
   check (flat_id = '' or flat_id ~ '^[a-z0-9][a-z0-9-]{0,62}$');
 
--- ── 7. Зоны штанов в живом справочнике зон ───────────────────────────────
--- Дописываются только отсутствующие по id; существующие зоны не меняются.
+-- ── 7. Зоны штанов в живых справочниках зон и моделей ───────────────────
+-- Новые зоны дописываются только отсутствующими по id; у front/back убирается
+-- только категория pants; у моделей штанов переписываются только front/back.
 -- Значения = ZONES_CATALOG_DEFAULT (`pinhead-react/src/data/constants.js`, задача 1)
 
 update public.app_config c
@@ -445,6 +455,44 @@ update public.app_config c
    and jsonb_typeof(c.value) = 'array'
    and exists (select 1 from jsonb_array_elements($zones$[{"id": "pants-front"}, {"id": "pants-back"}]$zones$::jsonb) z
                 where not exists (select 1 from jsonb_array_elements(c.value) e where e->>'id' = z->>'id'));
+
+-- «Грудь (перед)» и «Спина» штанам больше не предлагаются (у шорт остаются)
+update public.app_config c
+   set value = (select jsonb_agg(case when e->>'id' in ('front', 'back')
+                                           and jsonb_typeof(e->'forCategories') = 'array'
+                                           and e->'forCategories' ? 'pants'
+                                      then jsonb_set(e, '{forCategories}', (e->'forCategories') - 'pants')
+                                      else e end order by n)
+                  from jsonb_array_elements(c.value) with ordinality t(e, n)),
+       updated_at = now()
+ where c.key = 'zonesCatalog'
+   and jsonb_typeof(c.value) = 'array'
+   and exists (select 1 from jsonb_array_elements(c.value) e
+                where e->>'id' in ('front', 'back')
+                  and jsonb_typeof(e->'forCategories') = 'array' and e->'forCategories' ? 'pants');
+
+-- Модели штанов: front/back → pants-front/pants-back (иначе `zonesForSku`
+-- отфильтрует новые зоны по `sku.zones`, и у места два названия)
+update public.app_config c
+   set value = (select jsonb_agg(case when s->>'category' = 'pants'
+                                           and jsonb_typeof(s->'zones') = 'array'
+                                           and (s->'zones' ? 'front' or s->'zones' ? 'back')
+                                      then jsonb_set(s, '{zones}', (
+                                             select coalesce(jsonb_agg(to_jsonb(d.zid) order by d.first_n), '[]'::jsonb)
+                                               from (select m.zid, min(m.n) first_n
+                                                       from (select case q.z when 'front' then 'pants-front'
+                                                                             when 'back' then 'pants-back'
+                                                                             else q.z end zid, q.n
+                                                               from jsonb_array_elements_text(s->'zones') with ordinality q(z, n)) m
+                                                      group by m.zid) d))
+                                      else s end order by i)
+                  from jsonb_array_elements(c.value) with ordinality t(s, i)),
+       updated_at = now()
+ where c.key = 'sku_catalog'
+   and jsonb_typeof(c.value) = 'array'
+   and exists (select 1 from jsonb_array_elements(c.value) s
+                where s->>'category' = 'pants' and jsonb_typeof(s->'zones') = 'array'
+                  and (s->'zones' ? 'front' or s->'zones' ? 'back'));
 
 -- ── 8. Перегрузка sales_set_staff(uuid, boolean) ─────────────────────────
 
