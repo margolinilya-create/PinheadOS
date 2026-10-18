@@ -143,6 +143,16 @@ URL: https://pinhead-os.vercel.app
   вкладка «Флэты и зоны» `/order-settings?tab=flats` (`admin/tabs/FlatsTab`, кнопка «Загрузить
   типовые флэты» — admin/director). Техники — `model/printMethods.ts`. Карта модуля и бюджет —
   `src/orderstudio/design/README.md`; правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md`.
+  Веха 5б (18.10): админка «Флэты и зоны» — `admin/flats/` (ленивые `FlatEditor` с холстом konva
+  `canvas/` и `FlatPreview` без konva для ≤ 760 px; `saveFlat` + `useFlatEditor` — файлы всех видов
+  → `putCatalog` одного флэта; `ZonesCatalogEditor` + `zonesEdit` — справочник зон с `tz_row`
+  и «снять / вернуть»; свои иконки `flatIcons`), чистое ядро `design/edit/` (виды, зоны, якоря,
+  размеры, id, новый флэт из SVG, зеркальный рукав, калибровка, `validateFlat`), версии —
+  `design/catalog/flatVersion.ts` (`history[]`, `flatAtVersion`, `geometryOf`); строки ТЗ —
+  `catalog/tzRows.ts`. Адрес: `?tab=flats&flat=<id>&view=<вид>`, `flat=new`, `part=zones`.
+  Холст рабочего места — рукава и геометрия по версии позиции (`design/ui/useItemFlat`,
+  `FlatNotices`). Миграция I `20261018090000_flats_admin` — форма и триггер-страж справочников;
+  правила — `docs/rules/pravila-flety-i-zony-veha-5b-18-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
@@ -152,7 +162,7 @@ URL: https://pinhead-os.vercel.app
     ColorPicker, SizeTable (`readOnly`, `showPrice`), ExtrasAccordion — вкладка «Изделие» рабочего места
     (шаги визарда v3 убраны в вехе 3)
   - editors/ — SkuEditor (8 табов), ExpressCalc
-  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab, AddSkuModal, ZonesModal, SkuDetailModal
+  - editors/sku/ — SkuItemsTab, SkuFabricsTab, SkuTrimsTab, ExtrasEditor, SkuHardwareTab, PricingTabContent, CategoryRulesTab, ZonesCatalogTab (просмотр со ссылкой, веха 5б), AddSkuModal, ZonesModal, SkuDetailModal
   - auth/ — AuthScreen, AdminPanel
   - shared/ — ErrorBoundary, Toast, PageHeader, Skeleton, UpdateBanner, ConfirmDialog
   - шапка и сайдбар Order — orderstudio/layout/
@@ -172,7 +182,7 @@ URL: https://pinhead-os.vercel.app
 - Цены: getPrices() -> store -> localStorage -> DEFAULT_PRICES
 - Каталоги: Supabase (app_config + catalog_config) -> localStorage -> defaults
 - Все каталоги в Zustand store (catalogSlice): skuCatalog, fabricsCatalog, trimCatalog, extrasCatalog, hardwareCatalog, labelsCatalog
-- app_config хранит: sku_catalog, prices (+ `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, labelLibrary, tzSettings (веха 4), garmentFlats (веха 5а: флэты изделий; в `loadAllCatalogs` не входит — вкладка «Дизайн» читает сама)
+- app_config хранит: sku_catalog, prices (+ `packOptions`/`prepFees`/`minMarginPct`, `flexMatrix`), extrasCatalog, hardwareCatalog, categoryRules, zonesCatalog, labelLibrary, tzSettings (веха 4), garmentFlats (веха 5а: флэты изделий; в `loadAllCatalogs` не входит — вкладка «Дизайн» читает сама; веха 5б — `history[]` прежних версий, рукава, `tz_row` у зоны); zonesCatalog с вехи 5б — `tz_row`, `active` (правит только «Флэты и зоны»; `ph_zones` больше не читается)
 - catalog_config хранит: fabricsCatalog, trimCatalog, suppliers (веха 4: поставщики с палитрами)
 - Запись справочников — только `orderstudio/api/catalogAdmin.ts` (RPC с базой; сторож `catalogWrites.test.ts`); стор знает `catalogSource: 'db' | 'fallback'` — на запасном пути редактор не сохраняет
 - hex из справочника в стиль — только через `utils/sanitizeHex`
@@ -230,7 +240,12 @@ URL: https://pinhead-os.vercel.app
   холста = цена строки), layoutMark (эталон против zod), useDesignStore (запись только в черновике, undo),
   DesignTab (открытие ничего не пишет), export/pdfGuards (PDF только `import()`), seed/garmentFlatsSeed
   (сид проходит санитайзер, `zone_id` есть в справочнике зон), garmentFlatsBucket / flatsWrites /
-  artworkWrites (бакеты и единственные писатели), ui/konva (ядро konva без Tween, плагины сборки)
+  artworkWrites (бакеты и единственные писатели), ui/konva (ядро konva без Tween, плагины сборки);
+  веха 5б: catalog/flatVersion (классификация GEOMETRY_KEYS/META_KEYS по ключам схем, история),
+  designGuards (`edit/` без api/стора/тостов), admin/flats/saveFlat (файлы до справочника, «v2…v6 заняты →
+  v7», сбой переноса), zonesWrites (один писатель зон), flatsAdminGuards и canvas/canvasGuards (нет ERP,
+  HTML-строк, иконок без aria-label), catalogKeys (паритет FLATS_CASES ↔ пробы I, ZONE_ID_RE в SQL),
+  bundleBudget5b (konva не в OrderSettings/FlatsTab/FlatPreview)
 - store/slices/ — 796 тестов зависят от них
 - erp/utils/ progress · filterStages · queueOrder · stageMove · permissions — чистая логика
   волны 1, 88 тестов
