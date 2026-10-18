@@ -4,6 +4,7 @@
 (`node supabase/rollout/m8/build.mjs`); руками не правятся — сторож
 `pinhead-react/src/orderstudio/orderV4M8.test.ts` сверяет папку со сборкой.
 План — `docs/superpowers/plans/2026-10-18-order-flow-m8-polish-enable.md`, задачи 2 и 12.
+Порядок выкатки, триггеры отката и чек-лист включения раздела людям — `CHECKLIST.md`.
 
 | Миграция | Файл | Кто применяет | Когда |
 |---|---|---|---|

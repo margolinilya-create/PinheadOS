@@ -112,6 +112,17 @@ realtime.
 `erpGateway`), экран «К запуску» — `orderstudio/launch/`; фикстуры образцов — `orderstudio/fixtures/`.
 Сверка имён и замеры — `orderstudio/tz/README.md`. Правила — `../pravila-tz-i-zapuska-veha-6-7-18-10.md`.
 
+## Order v4: включение раздела, рестайл и хвосты (веха 8)
+
+Выбор оболочки — `config/shellChoice.ts` + `ShellGate` в `App.jsx`, доступ — `orderstudio/layout/salesAccess.ts`,
+флаги — `config/features.ts`, маркер сборки — `scripts/build-id.mjs`. Рестайл: `components/editors/SkuEditor.jsx`
+(+ `sku/`, `sku/skuDetail/`), `components/editors/ExpressCalc.jsx` (+ `express/`), панели `components/steps/garment/*`
+на модулях, `components/auth/AdminPanel.jsx`. Рабочее место: `workplace/TabMarker.jsx`, `tabState.ts`,
+`OrderNotesField.jsx`, `api/serverZoneNotes.ts`, `model/garmentTextile.ts`, `catalog/allowedColors.ts`,
+`ui/a11y.module.css`; журнал признаков — `admin/SalesStaffJournal.jsx`; подмена профиля — `store/devAutologin.ts`
+и `store/devProfiles.ts`; смены обхода — `e2e/walk/`. Уборка — `supabase/functions/order-files-gc/`,
+`scripts/lib/orderFileHolders.mjs`. Правила — `../pravila-vklyucheniya-i-restayla-veha-8-18-10.md`.
+
 ## Прочее
 
 - `pravila-erp-audit-po-skilam.md`
