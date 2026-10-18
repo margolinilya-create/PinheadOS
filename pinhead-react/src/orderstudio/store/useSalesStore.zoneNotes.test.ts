@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useSalesStore, __resetSalesStoreForTests, SAVE_DEBOUNCE_MS } from './useSalesStore';
-import { markServerZoneNotes } from '../api/salesOrders';
+import { markServerZoneNotes } from '../api/serverZoneNotes';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**

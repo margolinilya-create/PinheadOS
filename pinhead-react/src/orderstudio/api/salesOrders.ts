@@ -26,6 +26,7 @@ import type {
 import type { OrderPrice } from '../pricing/priceOrder';
 import { orderUrgentDays } from '../pricing/priceOrder';
 import { ZONE_ID_RE } from '../catalog/tzRows';
+import { markServerZoneNotes, rowKnowsZoneNotes } from './serverZoneNotes';
 
 
 /**
@@ -269,39 +270,6 @@ export function rowToSalesOrder(r: Row): SalesOrder {
  * «клиент + миграция»: порог K в `order_v4_save_full` равен ей (сторож orderV4M8).
  */
 export const SALES_CLIENT_REV = 4;
-
-// ── Сервер знает zone_id и notes (окно «фронт ревизии 4 → K», К5) ──────────
-
-/**
- * Старый `order_v4_save` читает поля явно и молча пропускает новые: форма
- * ответила бы успехом, а после F5 поле пустое. Поэтому клиент шлёт `zone_id`
- * и `notes` (и показывает «Комментарий для цехов») только когда сервер их
- * знает: ответ `order_v4_save_full` несёт ключ `notes` (его добавляет K) или
- * строки нанесений при чтении несут колонку `zone_id` (её заводит K).
- * Колонка `orders.notes` была и до K — по ней одной судить нельзя.
- * Метка — на вкладку: миграция действует для всех заказов сразу.
- */
-let serverZoneNotes = false;
-
-export function serverKnowsZoneNotes(): boolean {
-  return serverZoneNotes;
-}
-
-export function markServerZoneNotes(): void {
-  serverZoneNotes = true;
-}
-
-/** Только для тестов */
-export function __resetServerZoneNotesForTests(): void {
-  serverZoneNotes = false;
-}
-
-/** Строка заказа (вложенный select) пришла с колонкой `zone_id` у нанесений — сервер после K */
-export function rowKnowsZoneNotes(r: Row): boolean {
-  const items = Array.isArray(r?.order_items) ? r.order_items : [];
-  return items.some((it: Row) => (Array.isArray(it?.order_item_prints) ? it.order_item_prints : [])
-    .some((p: Row) => p && typeof p === 'object' && Object.prototype.hasOwnProperty.call(p, 'zone_id')));
-}
 
 export interface PayloadOpts {
   /** Сервер знает `zone_id` и `notes` (миграция K) — поля уходят в сохранение */

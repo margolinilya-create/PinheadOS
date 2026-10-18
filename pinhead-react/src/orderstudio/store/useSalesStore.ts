@@ -53,9 +53,9 @@ import { toast } from '../../store/useToastStore';
 import { registerAppReset } from '../../store/appReset';
 import { useAppUpdateStore } from '../../store/useAppUpdateStore';
 import {
-  fetchSalesOrder, fetchSalesOrders, markServerZoneNotes, saveSalesOrder, salesOrderToPayload,
-  serverKnowsZoneNotes, __resetServerZoneNotesForTests,
+  fetchSalesOrder, fetchSalesOrders, saveSalesOrder, salesOrderToPayload,
 } from '../api/salesOrders';
+import { markServerZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests } from '../api/serverZoneNotes';
 import type { SalesOrderListRow, SaveFailure } from '../api/salesOrders';
 import { newSalesOrder } from '../model/factory';
 import { isEditable } from '../model/editable';

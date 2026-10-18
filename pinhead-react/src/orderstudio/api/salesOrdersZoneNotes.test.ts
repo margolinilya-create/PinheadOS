@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { SALES_CLIENT_REV, rowToSalesOrder, salesOrderToPayload } from './salesOrders';
 import {
-  SALES_CLIENT_REV, rowKnowsZoneNotes, rowToSalesOrder, salesOrderToPayload,
-  serverKnowsZoneNotes, __resetServerZoneNotesForTests, markServerZoneNotes,
-} from './salesOrders';
+  rowKnowsZoneNotes, serverKnowsZoneNotes, __resetServerZoneNotesForTests, markServerZoneNotes,
+} from './serverZoneNotes';
 import { newSalesItem, newSalesOrder, newSalesPrint } from '../model/factory';
 
 /**
