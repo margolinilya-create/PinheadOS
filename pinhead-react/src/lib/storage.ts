@@ -1,6 +1,7 @@
 /* ── Centralized storage utilities ── */
 
 import { supabase } from './supabase';
+import { FEATURE_STORAGE_KEYS } from '../config/features';
 
 // ── localStorage ──
 
@@ -112,6 +113,14 @@ export const APP_KEYS = [
   'ph_zones',
   // Подсказки новичку — состояние конкретного человека, не устройства
   'ph_onboarding_done',
+  /*
+   * Выбор раздела «Оформление заказа» / «Производство» (веха 8, К1). Про
+   * человека, а не про устройство: на общем устройстве следующий получает
+   * умолчание СВОЕГО профиля, а не «0» дизайнера или «1» админа. Ключ собран
+   * динамически (`pinhead_feature_` + имя) — классифицирован отсюда, сторож
+   * в `storage.test.js` сверяет каждый `FeatureName`.
+   */
+  FEATURE_STORAGE_KEYS.orderStudio,
 ];
 
 /**
@@ -148,6 +157,8 @@ export const KEEP_ON_LOGOUT = [
    * вопрос владельцу (ERP заморожен, поведение очереди не меняем).
    */
   'erp_offline_queue',
+  // Витрина дизайн-системы (`?styleguide=1`) — инструмент разработки на устройстве
+  FEATURE_STORAGE_KEYS.styleguide,
 ];
 
 export function storageClearAll(): void {

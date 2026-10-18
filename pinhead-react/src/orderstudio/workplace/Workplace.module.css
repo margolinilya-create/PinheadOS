@@ -267,6 +267,14 @@
   border-bottom-color: var(--accent);
 }
 
+/* Маркеры готовности вкладки (TabMarker): текст шире 480 px, точка/бейдж — на ≤ 480 */
+.tabCheck {
+  vertical-align: -2px;
+  color: var(--color-success-ink);
+}
+.tabDot,
+.tabBadge { display: none; }
+
 .panel { min-width: 0; }
 
 /* ── Вкладка «Изделие» ── */
@@ -390,9 +398,39 @@
 }
 
 @media (max-width: 480px) {
-  /* Вкладки прокручиваются, а не сжимаются */
-  .tabs { overflow-x: auto; scrollbar-width: thin; }
-  .tab { flex: 0 0 auto; padding: 0 var(--space-sm); }
+  /* Вкладки прокручиваются, а не сжимаются; активную показывает revealTab */
+  .tabs { gap: 0; overflow-x: auto; scrollbar-width: thin; }
+  /* Узкие поля вкладок: четыре вкладки с маркерами помещаются в 375 px целиком */
+  .tab { position: relative; flex: 0 0 auto; padding: 0 var(--space-xs); }
+
+  /* Текст маркера — только читалке (та же форма, что `.srOnly` в ui/a11y.module.css) */
+  .tabMarkText {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .tabDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    vertical-align: 2px;
+    border-radius: 50%;
+    /* ink, а не --color-warning: у того в светлой палитре оболочки 2,2:1 к белому (нужно 3:1) */
+    background: var(--color-warning-ink);
+  }
+  .tabBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 var(--space-xs);
+    border-radius: var(--radius-pill);
+    background: var(--bg-warning);
+    color: var(--color-warning-ink);
+    font-size: var(--type-label);
+    font-weight: 700;
+    line-height: 1;
+  }
 
   /* Таблица позиций — карточками: подпись колонки рядом со значением */
   .summaryTable thead { display: none; }

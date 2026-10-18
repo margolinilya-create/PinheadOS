@@ -29,6 +29,7 @@ dist-ssr
 /playwright-report/
 /blob-report/
 dist-e2e
+dist-e2e-killswitch
 
 # Стенд снимков (npm run shots) — рабочий материал для ГЛАЗ, не эталоны.
 # В гит не кладётся намеренно: картинка рядом с e2e/visual.spec.ts-snapshots

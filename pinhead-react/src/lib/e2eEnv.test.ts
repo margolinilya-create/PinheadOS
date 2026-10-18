@@ -53,7 +53,8 @@ describe('e2e поднимает приложение со своими ключ
     const commands = [...BODY.matchAll(/command:\s*([`'"][\s\S]*?)\n\s*(?:url|\+ ')/g)]
       .map((m) => m[1]);
     const withKeys = [...BODY.matchAll(/command:/g)].length;
-    expect(withKeys, 'серверов в конфиге не два — сторож пора обновить').toBe(2);
+    // Три: dev, сборка для офлайна и сборка выключателя (веха 8, задача 5)
+    expect(withKeys, 'серверов в конфиге не три — сторож пора обновить').toBe(3);
     // Общая константа — законный способ передать ключи обоим: проверяем,
     // что каждая команда её подставляет, а не что строка написана дважды
     expect(commands.length).toBeGreaterThan(0);
@@ -100,7 +101,7 @@ describe('e2e не тащит в снимки виджет обратной св
   it('оба сервера поднимаются с VITE_AGENTATION=0', () => {
     const commands = [...BODY.matchAll(/command:\s*([`'"][\s\S]*?)\n\s*(?:url|reuseExisting)/g)]
       .map((m) => m[1]);
-    expect(commands.length, 'серверов в конфиге не два — сторож пора обновить').toBe(2);
+    expect(commands.length, 'серверов в конфиге не три — сторож пора обновить').toBe(3);
     for (const cmd of commands) {
       expect(
         /VITE_AGENTATION=0/.test(cmd),

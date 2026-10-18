@@ -280,8 +280,24 @@ describe('OrderWorkplace — вкладки', () => {
 
   it('маркеры готовности: изделие готово, клиент не заполнен', () => {
     renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
-    expect(screen.getByRole('tab', { name: 'Изделие ✓' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Изделие — готово' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Клиент — не заполнено' })).toBeInTheDocument();
+  });
+
+  /**
+   * 375 px (веха 8, задача 5): у каждого маркера есть точка-значок для глаза
+   * (`aria-hidden`, видна на ≤ 480 px), текст остаётся в имени вкладки;
+   * «готово» — иконкой, без глифа ✓
+   */
+  it('маркеры: точка-значок aria-hidden, текст в имени, «готово» — иконкой', () => {
+    renderWp(newSalesOrder({ id: 'o-1', items: [itemA()] }));
+    const dot = screen.getByTestId('tab-mark-client');
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(dot.textContent).toBe('');
+    const item = screen.getByRole('tab', { name: 'Изделие — готово' });
+    expect(item.textContent).not.toContain('✓');
+    expect(item.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByTestId('tab-mark-item')).toBeNull();
   });
 
   it('менеджер на вкладке клиента — только чтение', () => {
@@ -312,13 +328,17 @@ describe('OrderWorkplace — вкладка «Дизайн» (веха 5а)', ()
   it('маркер вкладки: «— не размещено N», когда строки без холста', () => {
     const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout }), newSalesPrint({ zone: 'Рукав' })] });
     renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
-    expect(screen.getByRole('tab', { name: 'Дизайн — не размещено 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Дизайн — не размещено: 1' })).toBeInTheDocument();
+    // На ≤ 480 px глазу — бейдж с числом, без слов (aria-hidden)
+    const badge = screen.getByTestId('tab-mark-design');
+    expect(badge.textContent).toBe('1');
+    expect(badge).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('все нанесения на холсте — ✓; нанесений нет — без маркера', () => {
+  it('все нанесения на холсте — «готово»; нанесений нет — без маркера', () => {
     const a = itemA({ flat_id: 'tshirt-test', prints: [newSalesPrint({ zone: 'Грудь', layout })] });
     const { unmount } = renderWp(newSalesOrder({ id: 'o-1', items: [a] }));
-    expect(screen.getByRole('tab', { name: 'Дизайн ✓' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Дизайн — готово' })).toBeInTheDocument();
     unmount();
     renderWp(newSalesOrder({ id: 'o-2', items: [itemA()] }));
     expect(screen.getByRole('tab', { name: 'Дизайн' })).toBeInTheDocument();

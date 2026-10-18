@@ -15,11 +15,10 @@ import { EmptyState } from '../../erp/components/ErpStates';
 import { ScreenSkeleton } from '../../erp/components/ErpSkeletons';
 import { useSalesStore, isTerminalSaveState } from '../store/useSalesStore';
 import { isEditable } from '../model/editable';
-import { gridQty, newSalesItem } from '../model/factory';
+import { newSalesItem } from '../model/factory';
 import { duplicateInColor, splitByColor } from '../model/itemOps';
 import { rulesFromPrices, useOrderPrice } from '../screens/useOrderPrice';
 import { STATUS_LABELS } from '../screens/labels';
-import { unplacedCount } from '../design/model/layoutMark';
 import { useTzCatalogs } from '../tz/tzCatalogs';
 import { useSendChecklist } from '../tz/useSendChecklist';
 import ReturnBanner from '../tz/ui/ReturnBanner';
@@ -29,6 +28,8 @@ import ItemTab from './ItemTab';
 import ClientTab from './ClientTab';
 import SummaryTab from './SummaryTab';
 import SaveIndicator from './SaveIndicator';
+import { TabMarker } from './TabMarker';
+import { revealTab } from './tabState';
 import { confirmSplit } from './confirmSplit';
 import sales from '../screens/Sales.module.css';
 import styles from './Workplace.module.css';
@@ -46,24 +47,6 @@ const TABS = [
   { key: 'summary', label: 'ТЗ и цена' },
 ];
 const TAB_KEYS = TABS.map((t) => t.key);
-
-/** Изделия готовы: есть хотя бы одно, у каждого модель и тираж */
-const itemsReady = (order) => order.items.length > 0
-  && order.items.every((it) => it.product_type.trim() && gridQty(it.size_grid) > 0);
-const clientReady = (order) => order.customer.trim() !== '';
-
-/** Маркер готовности вкладки (текстом — его прочтёт и читалка экрана) */
-function tabMarker(key, order) {
-  if (key === 'item') return itemsReady(order) ? ' ✓' : ' — не заполнено';
-  if (key === 'client') return clientReady(order) ? ' ✓' : ' — не заполнено';
-  if (key === 'design') {
-    const prints = order.items.reduce((n, it) => n + it.prints.length, 0);
-    const free = unplacedCount(order.items);
-    if (prints === 0) return '';
-    return free > 0 ? ` — не размещено ${free}` : ' ✓';
-  }
-  return '';
-}
 
 /**
  * Рабочее место заказа v4 `/sales/:id` (веха 3): список изделий и вкладки —
@@ -121,6 +104,10 @@ export default function OrderWorkplace() {
 
   const tab = TAB_KEYS.includes(params.get('tab')) ? params.get('tab') : 'item';
   const wantedItem = params.get('item');
+  // На ≤ 480 px ряд вкладок может прокручиваться: активная — всегда в видимой
+  // части; и после загрузки заказа (до неё вместо вкладок — скелет)
+  const hasOrder = !!order;
+  useEffect(() => { revealTab(tabRefs.current.get(tab)); }, [tab, hasOrder]);
 
   /** Сменить вкладку и/или позицию в адресе; прочие параметры остаются */
   const go = useCallback((next) => {
@@ -236,7 +223,7 @@ export default function OrderWorkplace() {
               onClick={() => go({ tab: t.key })}
               onKeyDown={(e) => onTabKey(e, i)}
             >
-              {t.label}{tabMarker(t.key, order)}
+              {t.label}<TabMarker tabKey={t.key} order={order} />
             </button>
           );
         })}
