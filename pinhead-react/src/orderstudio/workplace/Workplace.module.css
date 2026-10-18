@@ -460,6 +460,9 @@
   .saveReload,
   .itemPicker,
   .checkRow { min-height: 44px; }
+  /* Ссылки строки «Позиции» — цель пальца, а не строка текста (обход, W3) */
+  .summaryLink,
+  .issueLink { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
 /* Вкладка «Дизайн» (веха 5а): позиции — выпадающим списком над холстом */
