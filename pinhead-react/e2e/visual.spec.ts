@@ -368,7 +368,8 @@ test('visual: studio-settings-flats', async ({ page }) => {
   await installSupabaseMock(page, { catalogs });
   await page.goto('/order-settings?tab=flats&studio=1');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Справочники заказа');
-  await expect(page.getByText('Флэтов в справочнике: 3')).toBeVisible();
+  // Счётчик — подпись таблицы на десктопе и подпись списка карточек на ≤ 760 (веха 5б)
+  await expect(page.getByText('Флэтов в справочнике: 3').or(page.getByRole('list', { name: 'Флэтов в справочнике: 3' }))).toBeVisible();
   await shoot(page, 'studio-settings-flats', page.locator('#main-content'));
 });
 
