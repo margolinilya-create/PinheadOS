@@ -158,6 +158,16 @@ describe('order-artworks: носители', () => {
     expect(r.heldNotDraft).toBe(1);
   });
 
+  it('строки заказа нет (удалён, статус неизвестен) — жив, считается отдельно', async () => {
+    const db = fakeDb(baseTables({ orders: [], order_items: [], order_item_prints: [] }),
+      { 'order-artworks': [file('art/x.png')] });
+    const r = await orderArtworksReport(db, NOW);
+    expect(paths(r)).toEqual([]);
+    expect(r.heldNoOrder).toBe(1);
+    expect(r.heldNotDraft).toBe(0);
+    expect(reportNumbers({ buckets: [r] })[0].heldNoOrder).toBe(1);
+  });
+
   it('моложе 7 суток — жив', async () => {
     const db = fakeDb(baseTables(), { 'order-artworks': [file('art/x.png', YOUNG)] });
     const r = await orderArtworksReport(db, NOW);

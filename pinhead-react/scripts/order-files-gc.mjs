@@ -14,7 +14,10 @@
  *
  * В stdout и в `$GITHUB_STEP_SUMMARY` — ТОЛЬКО ЧИСЛА: пути `orders/<uuid>/<имя>` —
  * транслит клиентских файлов, часто бренд клиента; в логи Actions им нельзя.
- * Пути кандидатов — только в файл `--paths-out` (в Actions — артефакт на 7 дней).
+ * Пути кандидатов — только в файл `--paths-out` и только при РУЧНОМ локальном
+ * запуске. В Actions флага нет и артефакта путей нет: репозиторий публичный,
+ * артефакт скачивает любой вошедший в GitHub (урок storage-backup.yml, сессия 68).
+ * Пути для решения об удалении — в ответе edge-функции `order-files-gc` админу.
  *
  * Ошибка любой выборки — кандидатов нет, код выхода 1.
  */
@@ -52,9 +55,9 @@ const rows = reportNumbers(report);
 const lines = [
   '### Уборка файлов заказа — отчёт (ничего не удалено)',
   '',
-  '| Бакет | Объектов | Занятых | Кандидатов | кБ | Придержано по возрасту | Не черновик | По тексту заказа | Непонятный путь |',
-  '|---|---|---|---|---|---|---|---|---|',
-  ...rows.map((r) => `| ${r.bucket} | ${r.objects} | ${r.taken} | ${r.candidates} | ${kb(r.bytes)} | ${r.heldByAge} | ${r.heldNotDraft} | ${r.heldByText} | ${r.heldUnknown} |`),
+  '| Бакет | Объектов | Занятых | Кандидатов | кБ | Придержано по возрасту | Не черновик | Заказа нет | По тексту заказа | Непонятный путь |',
+  '|---|---|---|---|---|---|---|---|---|---|',
+  ...rows.map((r) => `| ${r.bucket} | ${r.objects} | ${r.taken} | ${r.candidates} | ${kb(r.bytes)} | ${r.heldByAge} | ${r.heldNotDraft} | ${r.heldNoOrder} | ${r.heldByText} | ${r.heldUnknown} |`),
 ];
 console.log(lines.join('\n'));
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);

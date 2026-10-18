@@ -176,6 +176,7 @@ const emptyReport = (bucket, objects) => ({
   taken: 0,
   heldByAge: 0,
   heldNotDraft: 0,
+  heldNoOrder: 0,
   heldByText: 0,
   heldUnknown: 0,
   candidates: [],
@@ -203,7 +204,10 @@ export async function orderArtworksReport(db, now) {
   }
   for (const [orderId, files] of byOrder) {
     const { order, rows } = await orderRows(db, orderId);
-    if (order && order.status !== 'draft') { r.heldNotDraft += files.length; continue; }
+    // Строки заказа нет — статус неизвестен (удалить можно и в обход стража:
+    // service_role, SQL Editor). Непонятное = ничего: придержать
+    if (!order) { r.heldNoOrder += files.length; continue; }
+    if (order.status !== 'draft') { r.heldNotDraft += files.length; continue; }
     const text = rows.map((row) => JSON.stringify(row)).join('\n');
     for (const o of files) {
       const base = o.path.endsWith(PREVIEW_SUFFIX) ? o.path.slice(0, -PREVIEW_SUFFIX.length) : o.path;
@@ -281,6 +285,7 @@ export function reportNumbers(report) {
     bytes: b.bytes,
     heldByAge: b.heldByAge,
     heldNotDraft: b.heldNotDraft,
+    heldNoOrder: b.heldNoOrder,
     heldByText: b.heldByText,
     heldUnknown: b.heldUnknown,
   }));

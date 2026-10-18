@@ -151,9 +151,10 @@ describe('order-files-gc: еженедельный отчёт не удаляе�
     expect(fileWrite).toBeGreaterThan(pathUses[0].index ?? Infinity);
   });
 
-  it('workflow: ключ из секретов, артефакт путей на 7 дней, секрета удаления нет', () => {
-    expect(WORKFLOW_SRC).toMatch(/node scripts\/order-files-gc\.mjs --paths-out/);
-    expect(WORKFLOW_SRC).toMatch(/retention-days: 7/);
+  it('workflow: ключ из секретов, путей нет ни в логе, ни в артефакте, секрета удаления нет', () => {
+    // Репозиторий публичный: артефакт скачивает любой вошедший (урок storage-backup.yml)
+    expect(WORKFLOW_SRC).toMatch(/node scripts\/order-files-gc\.mjs\s*\n/);
+    expect(WORKFLOW_SRC).not.toMatch(/upload-artifact|--paths-out|paths\.json|retention-days/);
     expect(WORKFLOW_SRC).toMatch(/secrets\.SUPABASE_SERVICE_KEY/);
     expect(WORKFLOW_SRC).not.toMatch(/ORDER_FILES_GC_DELETE|--apply|cat [^\n]*paths/);
   });

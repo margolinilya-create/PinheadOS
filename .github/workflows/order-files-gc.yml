@@ -7,9 +7,11 @@
 # `ORDER_FILES_GC_DELETE=1` — его ставит владелец после месяца отчётов.
 #
 # В summary — ТОЛЬКО ЧИСЛА. Пути `orders/<uuid>/<имя>` — транслит клиентских
-# файлов, часто бренд клиента: в лог Actions им нельзя. Список путей — артефакт
-# на 7 дней (тот же урок, что у storage-backup.yml: лог и артефакт видит больше
-# людей, чем бакет).
+# файлов, часто бренд клиента: в лог Actions им нельзя. И в артефакт тоже:
+# репозиторий ПУБЛИЧНЫЙ, артефакт скачивает любой вошедший в GitHub (урок
+# storage-backup.yml, сессия 68). Поэтому `--paths-out` здесь не передаётся и
+# артефакта нет; пути — только в ответе edge-функции `order-files-gc`
+# администратору (запасной вариант К8) или при ручном локальном запуске скрипта.
 #
 # ТРЕБУЕТ СЕКРЕТОВ (как storage-backup.yml):
 #   SUPABASE_URL          — https://<ref>.supabase.co
@@ -63,12 +65,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          node scripts/order-files-gc.mjs --paths-out "$RUNNER_TEMP/order-files-gc-paths.json"
-
-      - name: Пути кандидатов — артефакт на 7 дней
-        uses: actions/upload-artifact@v4
-        with:
-          name: order-files-gc-paths
-          path: ${{ runner.temp }}/order-files-gc-paths.json
-          retention-days: 7
-          if-no-files-found: ignore
+          node scripts/order-files-gc.mjs
