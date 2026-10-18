@@ -80,8 +80,7 @@ npm не добавлялся. Task 13 (кнопка в ERP) не делалас
   авто-«сдан», праздники, `pdf-lib`, прямая вставка `erp_orders`, цена бирки ≥ 0 на сервере, QR (новый пакет),
   Task 13 (нет «да»), удаление таблицы `order_comments` и откат `sales_staff_events` (с `drop`, у владельца),
   общий `catalogEditorState`, `DEV_AUTOLOGIN` в прод-сборке (не закрыт `DEV`; держит `dist-e2e`), замена 8
-  локальных `.srOnly` на общий `ui/a11y.module.css`, `lib/catalogs.ts` явно не грузит старые ключи
-  `catalog_config` (К7) + сторож, мёртвые правила в `responsive.css`, `wizard.css`, `extras-zones.css`, `utils.css`,
+  локальных `.srOnly` на общий `ui/a11y.module.css`, мёртвые правила в `responsive.css`, `wizard.css`, `extras-zones.css`, `utils.css`,
   `sticky-layers.test.js` про удалённые классы, `SortableTh` в таблицах каталога (сортировка — новая функция),
   `emb_low_qty` при пустом тираже. Пункт «цены бирок в экспрессе и визарде» закрыт записью К9.
 

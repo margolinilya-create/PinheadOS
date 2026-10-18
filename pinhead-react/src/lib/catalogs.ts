@@ -31,6 +31,13 @@ export function loadAllCatalogs(): Promise<Record<string, unknown>> {
   return inFlight;
 }
 
+/**
+ * Старые ключи `catalog_config` (веха 8, К7): их удаляет миграция M, а до неё
+ * загрузчик их пропускает — код их не читает, и `prices` руководства не
+ * подменяет `app_config.prices`, если тот не пришёл. Сторож — `catalogs.test.ts`
+ */
+export const LEGACY_CATALOG_CONFIG_KEYS: readonly string[] = ['prices', 'labels', 'extras', 'fabrics'];
+
 async function fetchAllCatalogs(): Promise<Record<string, unknown>> {
   // Загрузить из Supabase (catalog_config + app_config). Флэты изделий
   // (`app_config.garmentFlats`, веха 5а) — не сюда: справочник тяжёлый, нужен
@@ -44,7 +51,8 @@ async function fetchAllCatalogs(): Promise<Record<string, unknown>> {
   if (appRes.error) console.warn('[loadAllCatalogs] app_config failed:', appRes.error.message);
 
   const rows = [
-    ...((catalogRes.data || []) as Array<{ key: string; value: unknown }>),
+    ...((catalogRes.data || []) as Array<{ key: string; value: unknown }>)
+      .filter(r => !LEGACY_CATALOG_CONFIG_KEYS.includes(r.key)),
     ...((appRes.data || []) as Array<{ key: string; value: unknown }>),
   ];
   const raw: Record<string, unknown> = Object.fromEntries(

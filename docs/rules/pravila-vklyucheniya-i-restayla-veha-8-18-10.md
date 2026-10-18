@@ -17,7 +17,9 @@ ERP не менялся (сторожа `erpFrozen`, `erpImports`), npm не д�
   stored, env, profile })` (`src/config/shellChoice.ts`), единственный вызывающий — `ShellGate` в `App.jsx`
   с `useState(() => chooseShell(…))` и `key={user.id}`. Правила по порядку: выключатель (`env` `'0'`/`'false'`,
   `?studio=1` его не обходит) → `?studio=1|0` на заход → путь только раздела + `canUseSales` → выбор
-  устройства (`pinhead_feature_orderStudio`; продавцу/МС/rop записанный `'0'` не мешает) → умолчание профиля
+  устройства (`pinhead_feature_orderStudio`; продавцу/МС/rop записанный `'0'` не мешает — осознанное отступление
+  от текста К1: `'0'` пишут только `LeaveToProduction` и кнопка admin/director, а в «Производстве» у продавца
+  кнопки обратно нет, и чужой `'0'` запер бы его там) → умолчание профиля
   (`canUseSales` и роль не admin/director) → env `'1'`/`'true'` (dev, e2e) → ERP. Пересчёт на ходу
   размонтировал бы раздел посреди работы (автосохранение, буфер позиции, `locked`/`conflict`) — запрещён.
   `canUseSales` во входе — из `orderstudio/layout/salesAccess.ts` без рантайм-импортов (импорт из `orderNav`
@@ -55,8 +57,8 @@ ERP не менялся (сторожа `erpFrozen`, `erpImports`), npm не д�
   не пишет).
 - **К7. Старые ключи `catalog_config`** (`prices`, `labels`, `extras`, `fabrics`) удаляет M — файл владельца
   после снимка `supabase/snapshots/catalog_config_legacy_2026-10-18.json` (md5 каждой строки сверяется).
-  `lib/catalogs.ts` их по-прежнему грузит общим запросом (значения `app_config` перекрывают) — после M они
-  просто пропадут; явное «не грузить» и сторож — бэклог.
+  `lib/catalogs.ts` до M читает их общим запросом, но пропускает (`LEGACY_CATALOG_CONFIG_KEYS`, сторож —
+  `lib/catalogs.test.ts`): старый `prices` руководства не подменит `app_config.prices`, если тот не пришёл.
 - **К8. Уборка файлов заказа — отдельная функция `order-files-gc`, режим отчёта.** `storage-gc` и её сторож
   в замороженном ERP не трогаются. Ворота — `is_admin()` вызывающего; удаление — только `apply: true` **и**
   секрет `ORDER_FILES_GC_DELETE` = `'1'` (решение владельца). Носители — колонки `*_path(s)` таблиц заказа
