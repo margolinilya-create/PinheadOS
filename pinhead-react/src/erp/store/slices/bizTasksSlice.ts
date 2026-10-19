@@ -76,16 +76,12 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
     return row;
   };
 
-  /** Непрочитанное по задачам. Счётчик вторичен: сбой не стоит второго тоста поверх списка */
-  const loadUnread = async (ids: string[]) => {
-    if (ids.length === 0 || !currentUserId()) return;
-    const { data, error } = await erpRead(() => supabase.rpc('erp_chat_unread_tasks', { p_task_ids: ids }));
-    if (error || !data) return;
-    const next = { ...get().bizTaskUnread };
-    for (const id of ids) next[id] = 0;
-    for (const r of data as { task_id: string; unread: number }[]) next[r.task_id] = r.unread;
-    set({ bizTaskUnread: next });
-  };
+  /**
+   * Непрочитанное по задачам — одна реализация на стор, в чате
+   * (`loadChatUnreadTasks`): её же зовёт диалог задачи после прочтения.
+   * Счётчик вторичен: сбой не стоит второго тоста поверх списка.
+   */
+  const loadUnread = (ids: string[]) => get().loadChatUnreadTasks(ids);
 
   /** Версия, от которой идёт правка; нет строки — нечего сверять */
   const versionOf = (id: string): string | null => {

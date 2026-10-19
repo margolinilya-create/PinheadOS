@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { storageGet, storageSet } from '../../lib/storage';
 import { currentUserId } from '../store/shared';
-import { contextKey } from '../utils/chatContext';
+import { chatAnchorKey } from '../utils/chatContext';
 
 /**
  * ЧЕРНОВИК СООБЩЕНИЯ — «если пользователь закрыл окно чата, не отправив
@@ -28,15 +28,20 @@ function readAll() {
   return raw && typeof raw === 'object' ? raw : {};
 }
 
-export function chatDraftKey(orderId, context) {
-  return `${currentUserId() ?? 'anon'}|${orderId}|${contextKey(context)}`;
+/**
+ * У треда бизнес-задачи ключ — «человек × задача» (правки 19.10, п. 7):
+ * у задачи нет ни сделки, ни контекста, и общий с заказом ключ отдал бы
+ * текст для поставщика в общую ленту сделки.
+ */
+export function chatDraftKey(orderId, context, taskId = null) {
+  return `${currentUserId() ?? 'anon'}|${chatAnchorKey(orderId, context, taskId)}`;
 }
 
 /**
  * @returns {[string, (text: string) => void, () => void]} текст, запись, сброс
  */
-export function useChatDraft(orderId, context) {
-  const key = chatDraftKey(orderId, context);
+export function useChatDraft(orderId, context, taskId = null) {
+  const key = chatDraftKey(orderId, context, taskId);
   const [state, setState] = useState(() => ({ key, text: readAll()[key] ?? '' }));
 
   /**

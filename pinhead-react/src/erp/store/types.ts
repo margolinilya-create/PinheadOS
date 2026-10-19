@@ -1641,8 +1641,13 @@ export interface ChatSlice {
   /** Кого можно упомянуть и как называть автора; пусто — справочник не грузили */
   chatDirectory: ErpChatPerson[];
   chatDirectoryLoaded: boolean;
-  /** Открытое обсуждение: заказ и контекст. `null` — окно закрыто */
+  /**
+   * Открытое обсуждение — ЯКОРЬ «сделка ИЛИ задача» (правки 19.10, п. 7):
+   * `chatOrderId` + контекст у переписки сделки, `chatTaskId` у треда
+   * бизнес-задачи (заказ задачи сервер берёт сам). Оба `null` — окно закрыто.
+   */
   chatOrderId: string | null;
+  chatTaskId: string | null;
   chatContext: ChatContext;
   chatMessages: ErpChatMessage[];
   /** Есть ли что дочитывать ВВЕРХ (страница отдаёт последние N) */
@@ -1657,13 +1662,23 @@ export interface ChatSlice {
    * иначе видимость решалась бы дважды, фильтром подписки и функцией чтения.
    */
   chatPing: number;
+  /**
+   * Треды последнего звонка (`thread_id` событий серии; `'*'` — событие
+   * без треда, например реакция). Открытый тред задачи перечитывается,
+   * только если звонок про него (правки 19.10, п. 7).
+   */
+  chatPingThreads: string[];
 
   loadChatDirectory: () => Promise<void>;
-  openChat: (orderId: string, context?: ChatContext) => Promise<void>;
+  /** Сделка — `openChat(orderId, context)`; тред задачи — `openChat(null, {}, taskId)` */
+  openChat: (orderId: string | null, context?: ChatContext, taskId?: string | null) => Promise<void>;
   loadMoreChat: () => Promise<void>;
   refreshChat: () => Promise<void>;
   sendChatMessage: (input: {
-    orderId: string;
+    /** Сделка; у сообщения задачи — не передаётся (`p_order_id = null`) */
+    orderId?: string | null;
+    /** Тред бизнес-задачи: заказ и проверку участника делает сервер */
+    taskId?: string | null;
     body: string;
     /** Ключ попытки (`utils/attemptKey`): повтор не создаёт второго сообщения */
     clientKey: string;
@@ -1711,6 +1726,11 @@ export interface ChatSlice {
    * полсотни запросов.
    */
   loadChatUnreadMany: (orderIds: string[]) => Promise<void>;
+  /**
+   * Непрочитанное по задачам (`erp_chat_unread_tasks`) — в `bizTaskUnread`.
+   * Только читает: открытие списка задач ничего не отмечает прочитанным.
+   */
+  loadChatUnreadTasks: (taskIds: string[]) => Promise<void>;
   markChatRead: (orderId: string, stageId?: string | null) => Promise<void>;
   closeChat: () => void;
 }

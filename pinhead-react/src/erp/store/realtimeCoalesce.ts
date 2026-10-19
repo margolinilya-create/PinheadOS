@@ -69,11 +69,28 @@ export function scheduleExperimentalReload(
   });
 }
 
-/** Один «звонок» подписчикам чата на серию сообщений и реакций */
-export function schedulePing(fn: () => void, ms: number = CHAT_PING_DEBOUNCE_MS): void {
+/** Треды событий текущей серии звонка чата; `'*'` — событие без треда */
+const pingThreads = new Set<string>();
+
+/**
+ * Один «звонок» подписчикам чата на серию сообщений и реакций.
+ *
+ * Звонок НЕСЁТ ТРЕДЫ серии (правки 19.10, п. 7): «последнее событие
+ * выигрывает» потеряло бы тред раннего сообщения, поэтому треды копятся
+ * за серию и отдаются колбэку все. Лента задачи по ним решает, её ли это
+ * звонок; событие без треда (реакция) — `'*'`, касается всех.
+ */
+export function schedulePing(
+  fn: (threads: string[]) => void,
+  thread: string | null = null,
+  ms: number = CHAT_PING_DEBOUNCE_MS,
+): void {
+  pingThreads.add(thread ?? '*');
   pingTimer = restart(pingTimer, ms, () => {
     pingTimer = null;
-    fn();
+    const threads = [...pingThreads];
+    pingThreads.clear();
+    fn(threads);
   });
 }
 
@@ -97,6 +114,7 @@ export function clearRealtimeTimers(): void {
   if (pingTimer) clearTimeout(pingTimer);
   if (taskPingTimer) clearTimeout(taskPingTimer);
   for (const t of orderTimers.values()) clearTimeout(t);
+  pingThreads.clear();
   fullTimer = null;
   experimentalTimer = null;
   pingTimer = null;

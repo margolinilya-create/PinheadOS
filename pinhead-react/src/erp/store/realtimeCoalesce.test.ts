@@ -72,6 +72,19 @@ describe('realtimeCoalesce', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
+  it('звонок несёт треды ВСЕЙ серии, а не последнего события', () => {
+    const fn = vi.fn();
+    schedulePing(fn, 'thr-a');
+    schedulePing(fn, 'thr-b');
+    schedulePing(fn, 'thr-a');
+    vi.advanceTimersByTime(CHAT_PING_DEBOUNCE_MS);
+    expect(fn).toHaveBeenCalledWith(['thr-a', 'thr-b']);
+    // Следующая серия начинается с чистого списка; событие без треда — '*'
+    schedulePing(fn);
+    vi.advanceTimersByTime(CHAT_PING_DEBOUNCE_MS);
+    expect(fn).toHaveBeenLastCalledWith(['*']);
+  });
+
   it('звонок задач не глушится сообщением чата в той же серии', () => {
     const chat = vi.fn();
     const task = vi.fn();

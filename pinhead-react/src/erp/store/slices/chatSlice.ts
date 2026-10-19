@@ -25,7 +25,7 @@ import type {
   ChatContext, ErpChatMessage, ErpChatPerson,
 } from '../../types';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
-import { contextKey, isWholeDeal, unreadForContext } from '../../utils/chatContext';
+import { chatAnchorKey, isWholeDeal, unreadForContext } from '../../utils/chatContext';
 import type { ChatSlice, ErpStore } from '../types';
 import { chatReadActions } from './chatReadActions';
 import type { ChatReactionPerson, ChatSearchHit } from '../../types';
@@ -38,6 +38,24 @@ interface ChatPage {
   has_more: boolean;
 }
 
+/**
+ * Аргументы ленты по ЯКОРЮ (правки 19.10, п. 7). У треда задачи нет ни сделки,
+ * ни контекста: `p_order_id = null`, заказ сервер берёт из задачи. Передать
+ * сюда заказ значило бы спросить ленту СДЕЛКИ — тред задачи туда не входит.
+ */
+function pageArgs(orderId: string | null, context: ChatContext, taskId: string | null) {
+  if (taskId) return { p_order_id: null as unknown as string, p_task_id: taskId };
+  return {
+    p_order_id: orderId as string,
+    p_item_id: context.itemId ?? null,
+    p_stage_id: context.stageId ?? null,
+    p_experimental_id: context.experimentalId ?? null,
+  };
+}
+
+/** Якорь открытой ленты — им сверяется поздний ответ */
+const anchorOf = (s: ErpStore) => chatAnchorKey(s.chatOrderId, s.chatContext, s.chatTaskId);
+
 export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) => ({
   /**
    * Данные объявлены здесь, а стоят в ядре (`domainState.DOMAIN_INITIAL_STATE`).
@@ -47,6 +65,7 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
   chatDirectory: [],
   chatDirectoryLoaded: false,
   chatOrderId: null,
+  chatTaskId: null,
   chatContext: {},
   chatMessages: [],
   chatHasMore: false,
@@ -56,6 +75,7 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
   /** Граница «Непрочитанные сообщения» — снимок на момент открытия (20.09, п. 4) */
   chatUnreadAnchor: null,
   chatWindow: null,
+  chatPingThreads: [],
 
   /**
    * Открыть окно чата поверх ERP (правка 20.09, п. 4).
@@ -98,30 +118,30 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    * отбирает по контексту сам, и локальная фильтрация показала бы «ничего
    * не найдено» там, где сообщения просто не доехали.
    */
-  openChat: async (orderId, context = {}) => {
+  openChat: async (orderId, context = {}, taskId = null) => {
+    // Тред задачи — без сделки и контекста: якорь ровно один
+    const ctx: ChatContext = taskId ? {} : context;
+    const anchor0 = chatAnchorKey(taskId ? null : orderId, ctx, taskId);
     set({
       chatUnreadAnchor: null,
-      chatOrderId: orderId,
-      chatContext: context,
+      chatOrderId: taskId ? null : orderId,
+      chatTaskId: taskId,
+      chatContext: ctx,
       chatMessages: [],
       chatHasMore: false,
       chatLoading: true,
       chatError: null,
     });
-    const { data, error } = await erpRead(() => supabase.rpc('erp_chat_page', {
-      p_order_id: orderId,
-      p_item_id: context.itemId ?? null,
-      p_stage_id: context.stageId ?? null,
-      p_experimental_id: context.experimentalId ?? null,
-    }));
+    const { data, error } = await erpRead(() => supabase.rpc(
+      'erp_chat_page', pageArgs(orderId, ctx, taskId),
+    ));
     /**
      * Поздний ответ не затирает уже открытое другое обсуждение: человек
      * успел переключить контекст, пока летел запрос. Тот же приём, что
      * у `arrivedLate` в остальных разделах, — сравнение состояния ДО и ПОСЛЕ
      * ожидания, а не «загружено ли сейчас».
      */
-    const s = get();
-    if (s.chatOrderId !== orderId || contextKey(s.chatContext) !== contextKey(context)) return;
+    if (anchorOf(get()) !== anchor0) return;
     if (error) {
       set({ chatLoading: false, chatError: error.message });
       return;
@@ -142,9 +162,12 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
      * Непрочитанные — последние `count` ЧУЖИХ сообщений: сервер считает
      * их тем же правилом, свои в счётчик не входят.
      */
-    const unread = !isWholeDeal(context)
-      ? unreadForContext(get().chatUnread[orderId], context)
-      : (get().chatUnread[orderId]?.total ?? 0);
+    // У задачи — свой счётчик (`erp_chat_unread_tasks`), счётчик сделки не трогается
+    const unread = taskId
+      ? (get().bizTaskUnread[taskId] ?? 0)
+      : !isWholeDeal(ctx)
+        ? unreadForContext(get().chatUnread[orderId as string], ctx)
+        : (get().chatUnread[orderId as string]?.total ?? 0);
     const me = currentUserId();
     const others = unread > 0 ? rows.filter((m) => m.author_id !== me) : [];
     const anchor = others.length > 0
@@ -166,22 +189,21 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    * теряла бы соседей, отправленных в ту же миллисекунду.
    */
   loadMoreChat: async () => {
-    const { chatOrderId, chatContext, chatMessages, chatHasMore, chatLoading } = get();
-    if (!chatOrderId || !chatHasMore || chatLoading || chatMessages.length === 0) return;
+    const {
+      chatOrderId, chatTaskId, chatContext, chatMessages, chatHasMore, chatLoading,
+    } = get();
+    if ((!chatOrderId && !chatTaskId) || !chatHasMore || chatLoading
+      || chatMessages.length === 0) return;
     const oldest = chatMessages[0];
+    const anchor0 = anchorOf(get());
     set({ chatLoading: true });
     const { data, error } = await erpRead(() => supabase.rpc('erp_chat_page', {
-      p_order_id: chatOrderId,
-      p_item_id: chatContext.itemId ?? null,
-      p_stage_id: chatContext.stageId ?? null,
-      p_experimental_id: chatContext.experimentalId ?? null,
+      ...pageArgs(chatOrderId, chatContext, chatTaskId),
       p_before_at: oldest.created_at,
       p_before_id: oldest.id,
     }));
     const s = get();
-    if (s.chatOrderId !== chatOrderId || contextKey(s.chatContext) !== contextKey(chatContext)) {
-      return;
-    }
+    if (anchorOf(s) !== anchor0) return;
     if (error) {
       set({ chatLoading: false, chatError: error.message });
       return;
@@ -204,19 +226,15 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    * её второй раз, на клиенте. Событие говорит только «что-то пришло».
    */
   refreshChat: async () => {
-    const { chatOrderId, chatContext } = get();
-    if (!chatOrderId) return;
-    const { data, error } = await erpRead(() => supabase.rpc('erp_chat_page', {
-      p_order_id: chatOrderId,
-      p_item_id: chatContext.itemId ?? null,
-      p_stage_id: chatContext.stageId ?? null,
-      p_experimental_id: chatContext.experimentalId ?? null,
-    }));
+    const { chatOrderId, chatTaskId, chatContext } = get();
+    if (!chatOrderId && !chatTaskId) return;
+    const anchor0 = anchorOf(get());
+    const { data, error } = await erpRead(() => supabase.rpc(
+      'erp_chat_page', pageArgs(chatOrderId, chatContext, chatTaskId),
+    ));
     if (error) return;
     const s = get();
-    if (s.chatOrderId !== chatOrderId || contextKey(s.chatContext) !== contextKey(chatContext)) {
-      return;
-    }
+    if (anchorOf(s) !== anchor0) return;
     const page = (data ?? { messages: [], has_more: false }) as ChatPage;
     const fresh = page.messages ?? [];
     if (fresh.length === 0) {
@@ -246,16 +264,22 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
    * ни второго уведомления.
    */
   sendChatMessage: async ({
-    orderId, body, clientKey, context = {}, replyTo = null,
+    orderId = null, taskId = null, body, clientKey, context = {}, replyTo = null,
     mentions = [], attachments = [],
   }) => {
+    /**
+     * Сообщение задачи: `p_order_id = null` и без контекста сделки — сервер
+     * отвечает 22023 на тред задачи с адресом сделки (правки 19.10, п. 7).
+     */
+    const { p_order_id: pOrder, ...anchor } = pageArgs(orderId, context, taskId);
     const { data, error } = await erpQuery(() => supabase.rpc('erp_chat_send', {
-      p_order_id: orderId,
+      p_order_id: pOrder,
+      p_item_id: null,
+      p_stage_id: null,
+      p_experimental_id: null,
+      ...anchor,
       p_body: body,
       p_client_key: clientKey,
-      p_item_id: context.itemId ?? null,
-      p_stage_id: context.stageId ?? null,
-      p_experimental_id: context.experimentalId ?? null,
       p_reply_to: replyTo,
       p_mentions: mentions,
       p_attachments: attachments,
@@ -383,6 +407,7 @@ export const chatSlice: StateCreator<ErpStore, [], [], ChatSlice> = (set, get) =
 
   closeChat: () => set({
     chatOrderId: null,
+    chatTaskId: null,
     chatContext: {} as ChatContext,
     chatMessages: [],
     chatHasMore: false,

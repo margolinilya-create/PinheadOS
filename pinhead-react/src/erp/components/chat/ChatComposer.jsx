@@ -31,10 +31,16 @@ import styles from '../../styles';
  */
 export function ChatComposer({
   orderId, context, replyTo, onCancelReply, onSend, nameOf, directory = [],
+  /**
+   * Диалог бизнес-задачи (правки 19.10, п. 7): черновик «человек × задача»,
+   * файлы — под папкой чата заказа задачи (`att/<заказ>/chat/`, иначе сервер
+   * откажет), подсказка упоминаний — про участников задачи.
+   */
+  taskId = null, uploadScope = 'chat', mentionHint = null,
 }) {
-  const [text, setText, resetDraft] = useChatDraft(orderId, context);
+  const [text, setText, resetDraft] = useChatDraft(orderId, context, taskId);
   const [saving, setSaving] = useState(false);
-  const uploads = useAttachmentUploads('chat');
+  const uploads = useAttachmentUploads(uploadScope);
   const keeper = useRef(createAttemptKeeper());
   const inputRef = useRef(null);
 
@@ -195,9 +201,10 @@ export function ChatComposer({
               activeIndex={mentionAt}
               onPick={pickMention}
               emptyHint={
-                directory.length === 0
+                mentionHint
+                ?? (directory.length === 0
                   ? 'Справочник сотрудников ещё не загрузился'
-                  : 'Никого не нашли. Упомянуть можно только того, у кого есть доступ в систему'
+                  : 'Никого не нашли. Упомянуть можно только того, у кого есть доступ в систему')
               }
             />
           )}

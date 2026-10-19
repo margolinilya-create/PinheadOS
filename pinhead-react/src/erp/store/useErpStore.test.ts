@@ -1792,6 +1792,21 @@ describe('applyRealtimeEvent — коалесценция серий событ�
     await vi.advanceTimersByTimeAsync(CHAT_PING_DEBOUNCE_MS);
     expect(useErpStore.getState().chatPing).toBe(before + 1);
   });
+
+  it('звонок чата несёт тред сообщения — по нему лента задачи решает, её ли он', async () => {
+    vi.useFakeTimers();
+    seed();
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_chat_messages', eventType: 'INSERT',
+      new: { id: 'm1', thread_id: 'thr-task', body: 'x' }, old: null,
+    });
+    useErpStore.getState().applyRealtimeEvent({
+      table: 'erp_chat_reactions', eventType: 'INSERT',
+      new: { id: 'r1', message_id: 'm0', emoji: '👍' }, old: null,
+    });
+    await vi.advanceTimersByTimeAsync(CHAT_PING_DEBOUNCE_MS);
+    expect(useErpStore.getState().chatPingThreads).toEqual(['thr-task', '*']);
+  });
 });
 
 /**

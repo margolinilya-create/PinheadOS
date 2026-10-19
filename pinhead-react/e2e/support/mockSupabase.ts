@@ -17,6 +17,7 @@ import {
   RpcFailure, kSaveCheck, kSavedRow, v4Rpc, v4ServerColumns, v4Table, type V4Ctx, type V4MockOptions,
 } from './mock/orderV4Rpc';
 import { storageList, storageRead, storageWrite } from './mock/storageBuckets';
+import { bizTasksRpc, bizTasksTable, resetBizTasksMock } from './mock/bizTasksRpc';
 
 // Фиксированные метки времени — никаких «сегодня» в фикстурах.
 const CREATED = '2026-07-10T08:00:00Z';
@@ -941,6 +942,8 @@ function dataForTable(table: string, params: URLSearchParams, extra: MockExtras)
   // Журнал заказа v4 и вложения запуска — мок J
   const v4 = v4Table(table, params, extra);
   if (v4) return v4;
+  const biz = bizTasksTable(table, params);
+  if (biz) return biz;
   switch (table) {
     case 'erp_departments':
       return departmentsOf(extra);
@@ -1122,6 +1125,8 @@ interface ChatMsg {
 const chatState: { messages: ChatMsg[] } = { messages: [] };
 
 export function resetChatMock(): void {
+  // Треды бизнес-задач — своя лента (`mock/bizTasksRpc.ts`), сбрасываются вместе
+  resetBizTasksMock();
   chatState.messages = [
     {
       ...CHAT_BASE,
@@ -1149,6 +1154,9 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
    */
   const v4 = v4Rpc(fn, body, extra as Parameters<typeof v4Rpc>[2], v4Ctx(extra));
   if (v4 !== undefined) return v4;
+  // Тред бизнес-задачи и её писатели — до веток чата сделки: `p_task_id` решает ленту
+  const biz = bizTasksRpc(fn, body);
+  if (biz !== undefined) return biz;
   switch (fn) {
     /** Справочники с защитой от затирания — см. `MockExtras.catalogs` */
     case 'catalog_put':

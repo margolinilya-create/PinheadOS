@@ -15,7 +15,7 @@ type Get = () => ErpStore;
 
 export function chatReadActions(set: Set, get: Get): Pick<ChatSlice,
   'loadChatUnread' | 'markChatSeen' | 'loadChatReadReceipts' | 'loadChatMode'
-  | 'setChatMode' | 'loadChatUnreadMany' | 'markChatRead'> {
+  | 'setChatMode' | 'loadChatUnreadMany' | 'markChatRead' | 'loadChatUnreadTasks'> {
   return {
     loadChatUnread: async (orderId) => {
       if (!currentUserId()) return;
@@ -135,6 +135,26 @@ export function chatReadActions(set: Set, get: Get): Pick<ChatSlice,
         next[id] = { ...(next[id] ?? { byStage: {} }), total } as ChatUnread;
       }
       set({ chatUnread: next });
+    },
+
+    /**
+     * НЕПРОЧИТАННОЕ ПО ЗАДАЧАМ (правки 19.10, п. 7) — своя функция сервера:
+     * тред задачи без `order_id` не входит в счёт сделки и входить не должен.
+     * Только чтение: открытие списка задач ничего не отмечает прочитанным.
+     * Задача без строки в ответе — ноль (функция отдаёт только ненулевые).
+     */
+    loadChatUnreadTasks: async (taskIds) => {
+      const ids = (taskIds ?? []).filter(Boolean);
+      if (ids.length === 0 || !currentUserId()) return;
+      const { data, error } = await erpRead(
+        () => supabase.rpc('erp_chat_unread_tasks', { p_task_ids: ids }),
+      );
+      // Молча: счётчик в списке — подсказка, как у `loadChatUnreadMany`
+      if (error || !data) return;
+      const next = { ...get().bizTaskUnread };
+      for (const id of ids) next[id] = 0;
+      for (const r of data as { task_id: string; unread: number }[]) next[r.task_id] = r.unread;
+      set({ bizTaskUnread: next });
     },
 
     markChatRead: async (orderId, stageId = null) => {
