@@ -81,8 +81,12 @@ describe('лимит размера вложения не расходится �
     const sources = [
       'erp/hooks/useAttachmentUploads.js',
       'erp/store/slices/tzSlice.ts',
-      // ТЗ формы заказа — свой хук с 27.09 (правка 12)
-      'erp/screens/orders/create/useTzDocs.js',
+      /**
+       * ТЗ формы заказа и карточки (правка 19.10, п. 4): текст отказа живёт
+       * в `fileLimitText.ts` и считает МБ из ПАРАМЕТРА `maxBytes`; что туда
+       * приходит именно `TZ_MAX_BYTES`, проверяет соседняя спека ниже.
+       */
+      'erp/utils/fileLimitText.ts',
     ];
     for (const rel of sources) {
       /**
@@ -100,8 +104,33 @@ describe('лимит размера вложения не расходится �
         expect(
           msg,
           `${rel}: в сообщении «${msg}» число МБ вписано руками — оно переживёт смену лимита`,
-        ).toMatch(/MAX_BYTES/);
+        ).toMatch(/MAX_BYTES|maxBytes/);
+        expect(msg, `${rel}: в сообщении «${msg}» число МБ литералом`).not.toMatch(/\d\s*МБ/);
       }
+    }
+  });
+
+  /**
+   * ТЕКСТ ОТКАЗА ТЗ ПОЛУЧАЕТ ЛИМИТ ТЗ (правка 19.10, п. 4). Общий модуль
+   * считает число из аргумента, поэтому сторож выше его не ловит, если
+   * вызывающий передаст чужую величину или число руками. Проверяются оба
+   * писателя пачки ТЗ: форма создания и карточка/правка через `EditableFiles`.
+   */
+  it('отказ большому ТЗ считается из TZ_MAX_BYTES', () => {
+    const callers = [
+      'erp/screens/orders/create/useTzDocs.js',
+      'erp/screens/orders/create/TzSection.jsx',
+      'erp/screens/orderCard/TzDocsSection.jsx',
+      'erp/screens/orders/create/EditOrderFiles.jsx',
+    ];
+    for (const rel of callers) {
+      const text = withoutJsComments(readFileSync(join(SRC, rel), 'utf8'));
+      const calls = [...text.matchAll(/(?:tooBigText|fileLimitCaption)\(([^)]*)\)|maxBytes=\{([^}]*)\}/g)];
+      expect(calls.length, `${rel}: лимит ТЗ не передаётся`).toBeGreaterThan(0);
+      for (const c of calls) {
+        expect(c[1] ?? c[2], `${rel}: «${c[0]}» — лимит не из TZ_MAX_BYTES`).toBe('TZ_MAX_BYTES');
+      }
+      expect(text, `${rel}: число МБ в подписи вписано руками`).not.toMatch(/до \d+ МБ/i);
     }
   });
 

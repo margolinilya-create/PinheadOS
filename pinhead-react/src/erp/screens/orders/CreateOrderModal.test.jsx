@@ -41,6 +41,8 @@ const DEPARTMENTS = [
 /** Управляемый ответ Storage: тест решает, когда и чем завершится загрузка */
 let uploadCalls;
 let uploadResult;
+/** Ответ Storage по имени файла — для пачки, где падает только один */
+let uploadResultByName;
 
 function pdf(name) {
   return new File(['%PDF-1.4'], name, { type: 'application/pdf' });
@@ -100,11 +102,22 @@ function fillRequired() {
   fireEvent.click(screen.getByLabelText('Закупка не требуется'));
 }
 
-/** Выбор PDF через скрытый input рядом с кнопкой «+ ТЗ позиции (PDF)» */
-function pickItemPdf(file) {
+/**
+ * Выбор PDF через скрытый input рядом с кнопкой «+ ТЗ позиции (PDF)».
+ * Принимает файл или пачку (правка 19.10, п. 4: несколько файлов одним выбором).
+ */
+function pickItemPdf(fileOrFiles) {
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
   const btn = screen.getByRole('button', { name: '+ ТЗ позиции (PDF)' });
   const input = btn.parentElement.querySelector('input[type="file"]');
-  fireEvent.change(input, { target: { files: [file] } });
+  fireEvent.change(input, { target: { files } });
+}
+
+/** Файл заданного размера: содержимое не важно, проверяется `size` */
+function bigPdf(name, bytes) {
+  const f = pdf(name);
+  Object.defineProperty(f, 'size', { value: bytes });
+  return f;
 }
 
 const submitBtn = () => screen.getByRole('button', { name: /Создать заказ|Создание…/ });
@@ -112,10 +125,11 @@ const submitBtn = () => screen.getByRole('button', { name: /Создать за�
 beforeEach(() => {
   uploadCalls = [];
   uploadResult = { data: { path: 'ok' }, error: null };
+  uploadResultByName = {};
   vi.mocked(supabase.storage.from).mockImplementation((bucket) => ({
     upload: vi.fn(async (path, file, opts) => {
       uploadCalls.push({ bucket, path, name: file.name, opts });
-      return uploadResult;
+      return uploadResultByName[file.name] ?? uploadResult;
     }),
     remove: vi.fn().mockResolvedValue({ data: null, error: null }),
     getPublicUrl: vi.fn(() => ({ data: { publicUrl: 'https://cdn.test/f.pdf' } })),
@@ -174,13 +188,119 @@ describe('CreateOrderModal — ТЗ в PDF', () => {
     expect(screen.getByPlaceholderText('напр. BOX39 свитшоты')).toHaveValue('BOX39 футболки');
 
     uploadResult = { data: { path: 'ok' }, error: null };
-    fireEvent.click(screen.getByRole('button', { name: 'Загрузить заново' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить заново: tz.pdf' }));
 
     expect(await screen.findByText(/ТЗ загружено/)).toBeInTheDocument();
     expect(uploadCalls).toHaveLength(2);
     // Повтор пишет ТОТ ЖЕ путь — иначе в бакете копится мусор на каждую попытку
     expect(uploadCalls[1].path).toBe(uploadCalls[0].path);
     await waitFor(() => expect(submitBtn()).toBeEnabled());
+  });
+
+  /**
+   * ТЗ ПАЧКОЙ (правка 19.10, п. 4): «при одном открытии окна выбора выделить
+   * несколько файлов… каждый — отдельной строкой со своим состоянием; размер
+   * проверять отдельно для каждого файла; ошибка одного не удаляет успешно
+   * загруженные».
+   */
+  it('три файла одним выбором — три строки', async () => {
+    setup();
+    fillRequired();
+    pickItemPdf([pdf('tz-1.pdf'), pdf('tz-2.pdf'), pdf('tz-3.pdf')]);
+
+    await waitFor(() => expect(uploadCalls).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(3));
+    for (const name of ['tz-1.pdf', 'tz-2.pdf', 'tz-3.pdf']) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
+    // Каждому файлу — свой путь: одна группа на файл
+    expect(new Set(uploadCalls.map((c) => c.path)).size).toBe(3);
+  });
+
+  it('31 МБ в пачке — «не загрузилось: файл больше 30 МБ…», остальные загружены', async () => {
+    setup();
+    fillRequired();
+    pickItemPdf([bigPdf('big.pdf', 31 * 1024 * 1024), pdf('ok.pdf')]);
+
+    expect(await screen.findByText(
+      'не загрузилось: файл больше 30 МБ — уменьшите или разбейте PDF',
+    )).toBeInTheDocument();
+    // Имя отвергнутого файла видно — причина названа рядом с ним
+    expect(screen.getByText('big.pdf')).toBeInTheDocument();
+    expect(await screen.findAllByText(/ТЗ загружено/)).toHaveLength(1);
+    // Большой файл в бакет не ходил: Storage всё равно бы его отверг
+    expect(uploadCalls.map((c) => c.name)).toEqual(['ok.pdf']);
+    // Повтор бессмыслен: тот же файл снова окажется больше лимита
+    expect(screen.queryByRole('button', { name: 'Загрузить заново: big.pdf' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Убрать: big.pdf' })).toBeInTheDocument();
+  });
+
+  it('сбой одного не убирает загруженные; «Загрузить заново: <имя>» только у упавшего', async () => {
+    setup();
+    fillRequired();
+    uploadResultByName['tz-2.pdf'] = { data: null, error: { message: 'Invalid key' } };
+    pickItemPdf([pdf('tz-1.pdf'), pdf('tz-2.pdf')]);
+
+    expect(await screen.findByText(/не загрузилось: Invalid key/)).toBeInTheDocument();
+    expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Загрузить заново: tz-2.pdf' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Загрузить заново: tz-1.pdf' })).toBeNull();
+
+    uploadResultByName = {};
+    fireEvent.click(screen.getByRole('button', { name: 'Загрузить заново: tz-2.pdf' }));
+    await waitFor(() => expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(2));
+    // Повторно залит только упавший
+    expect(uploadCalls.map((c) => c.name)).toEqual(['tz-1.pdf', 'tz-2.pdf', 'tz-2.pdf']);
+  });
+
+  it('новая пачка добавляется к загруженным', async () => {
+    setup();
+    fillRequired();
+    pickItemPdf([pdf('tz-1.pdf')]);
+    expect(await screen.findAllByText(/ТЗ загружено/)).toHaveLength(1);
+
+    pickItemPdf([pdf('tz-2.pdf'), pdf('tz-3.pdf')]);
+    await waitFor(() => expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(3));
+    expect(screen.getByText('tz-1.pdf')).toBeInTheDocument();
+  });
+
+  it('один сводный status пачки', async () => {
+    setup();
+    fillRequired();
+    uploadResultByName['tz-2.pdf'] = { data: null, error: { message: 'Invalid key' } };
+    pickItemPdf([pdf('tz-1.pdf'), pdf('tz-2.pdf'), pdf('tz-3.pdf')]);
+
+    await waitFor(() => expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(2));
+    const summaries = screen.getAllByRole('status')
+      .filter((el) => /Загружено \d+ из \d+/.test(el.textContent));
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toHaveTextContent('Загружено 2 из 3 · не загрузилось 1');
+    // Чипы строк молчат: иначе читалка объявляла бы каждую строку отдельно
+    for (const chip of screen.getAllByText(/ТЗ загружено|не загрузилось: Invalid key/)) {
+      expect(chip.closest('[role="status"]')).toBeNull();
+    }
+  });
+
+  it('после «Убрать» фокус уходит на соседнюю строку, затем на кнопку выбора', async () => {
+    setup();
+    fillRequired();
+    pickItemPdf([pdf('tz-1.pdf'), pdf('tz-2.pdf')]);
+    await waitFor(() => expect(screen.getAllByText(/ТЗ загружено/)).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать: tz-1.pdf' }));
+    await waitFor(() => expect(document.activeElement)
+      .toBe(screen.getByRole('button', { name: 'Убрать: tz-2.pdf' })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать: tz-2.pdf' }));
+    await waitFor(() => expect(document.activeElement)
+      .toBe(screen.getByRole('button', { name: '+ ТЗ позиции (PDF)' })));
+  });
+
+  it('подпись у кнопок — «До 30 МБ на один файл»', () => {
+    setup();
+    fillRequired();
+    expect(screen.getAllByText('До 30 МБ на один файл').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/до 15 МБ/)).toBeNull();
   });
 
   it('payload RPC несёт секцию tz с реальным путём и без назначений цехам', async () => {

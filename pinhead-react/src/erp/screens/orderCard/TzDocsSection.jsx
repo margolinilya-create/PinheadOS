@@ -15,6 +15,12 @@ import {
 } from '../../utils/tz';
 import styles from '../../styles';
 import { Button } from '../../components/Button';
+import { TZ_MAX_BYTES } from '../../types';
+import { fileLimitCaption } from '../../utils/fileLimitText';
+import { EditableFiles } from '../orders/create/EditableFiles';
+
+/** Уже приложенные ТЗ показывает `TzViewer`; `EditableFiles` здесь — только новые */
+const NO_FILES = [];
 
 /**
  * Управление PDF-ТЗ позиции: загрузка общего ТЗ и файла позиции, замена файла новой
@@ -28,7 +34,9 @@ import { Button } from '../../components/Button';
  */
 
 /**
- * Кнопка выбора PDF: скрытый input + примитив `Button`.
+ * Кнопка «Заменить файл»: скрытый input + примитив `Button`. ОДИНОЧНАЯ
+ * (правка 19.10, п. 4): замена — один файл взамен одного; пачкой грузятся
+ * только новые ТЗ — через `EditableFiles` ниже.
  *
  * Здесь стоял глобальный `btn btn-secondary` — язык Order Studio с его
  * uppercase-типографикой, и это было ЕДИНСТВЕННОЕ такое место в разделе.
@@ -76,12 +84,11 @@ export function TzDocsSection({ order, item, deptById }) {
   const stages = (item.stages ?? []).filter(
     (st) => st.status !== 'skipped' && deptNeedsTz(deptById.get(st.department_id)));
 
-  const upload = async (file, itemId) => {
-    setBusy(true);
-    await uploadTzDocument({ orderId: order.id, itemId, file });
-    setBusy(false);
-  };
-
+  /**
+   * Замена держит секцию флагом `busy` — версия группы одна на всех цехов.
+   * Новые ТЗ (пачкой, 19.10) флага не трогают: каждый файл своей строкой
+   * в `EditableFiles`, соседи друг друга не ждут.
+   */
   const replace = async (groupId, file) => {
     setBusy(true);
     await replaceTzDocument(groupId, file);
@@ -90,23 +97,28 @@ export function TzDocsSection({ order, item, deptById }) {
 
   // Тот самый файл, который увидит каждый цех маршрута этой позиции
   const effective = itemTzDocument(order, item.id);
+  const uploadTo = (itemId) => (file) => uploadTzDocument({ orderId: order.id, itemId, file });
 
   return (
     <div className={styles.tzBlock}>
       {canManage && (
-        <div className={styles.checkRow}>
-          <PdfButton
-            label="+ Общее ТЗ заказа (PDF)"
-            disabled={busy}
-            onPick={(f) => upload(f, null)}
+        <>
+          <EditableFiles
+            files={NO_FILES}
+            uploadLabel="+ Общее ТЗ заказа (PDF)"
+            canUpload
+            onUpload={uploadTo(null)}
+            maxBytes={TZ_MAX_BYTES}
+            caption={fileLimitCaption(TZ_MAX_BYTES)}
           />
-          <PdfButton
-            label="+ ТЗ этой позиции (PDF)"
-            disabled={busy}
-            onPick={(f) => upload(f, item.id)}
+          <EditableFiles
+            files={NO_FILES}
+            uploadLabel="+ ТЗ этой позиции (PDF)"
+            canUpload
+            onUpload={uploadTo(item.id)}
+            maxBytes={TZ_MAX_BYTES}
           />
-          <span className={styles.subText}>Любой формат, до 15 МБ</span>
-        </div>
+        </>
       )}
 
       {options.length === 0 ? (
