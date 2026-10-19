@@ -109,7 +109,7 @@ describe('откат правок 19.10 (план B)', () => {
     expect(readme).toMatch(/notify pgrst, 'reload schema'/);
     expect(readme).toMatch(/нерабочее время/);
     // Ожидания проб — те же, что в файлах проб
-    for (const [probe, total] of [['erp_biz_tasks_schema.sql', 31], ['erp_biz_tasks.sql', 407], ['erp_biz_tasks_chat.sql', 55]] as const) {
+    for (const [probe, total] of [['erp_biz_tasks_schema.sql', 35], ['erp_biz_tasks.sql', 407], ['erp_biz_tasks_chat.sql', 55]] as const) {
       expect(readme).toContain(probe);
       expect(readme).toContain(`total=${total}`);
       const text = readFileSync(join(process.cwd(), '../supabase/probes', probe), 'utf8');

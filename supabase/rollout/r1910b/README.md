@@ -6,7 +6,7 @@
 
 | Код | Миграция | Что делает | Проба (ожидание) | Откат |
 |---|---|---|---|---|
-| T1 | `20261020090000_erp_biz_tasks_schema` | таблицы `erp_biz_task*` (только SELECT), `erp_orders.manager_id` и страж заказа, `erp_create_order` (менеджер заказа при подлинном запуске), якорь треда `task_id`, вложения `biz_task_id`, виды уведомлений `task_*`, publication, право `biz_task.manage` | `erp_biz_tasks_schema.sql` → `PROBE_RESULT fails=0 total=31` | только фронт (см. раздел 3) |
+| T1 | `20261020090000_erp_biz_tasks_schema` | таблицы `erp_biz_task*` (только SELECT), `erp_orders.manager_id` и страж заказа (теперь на INSERT и UPDATE), `erp_create_order` (менеджер заказа при подлинном запуске), якорь треда `task_id`, вложения `biz_task_id`, виды уведомлений `task_*`, publication, право `biz_task.manage` | `erp_biz_tasks_schema.sql` → `PROBE_RESULT fails=0 total=35` | только фронт (см. раздел 3) |
 | T2 | `20261020100000_erp_biz_tasks_rpc` | писатели задачи (`erp_biz_task_*`), **и T3 в том же файле**: `erp_chat_send`/`erp_chat_page` с `p_task_id` (`drop` + `create` в одной транзакции), `erp_chat_edit`/`erp_chat_delete`, `erp_chat_unread_tasks`, напоминания `erp_biz_task_reminders_run` и расписание `pg_cron` | `erp_biz_tasks.sql` → `PROBE_RESULT fails=0 total=407`; `erp_biz_tasks_chat.sql` → `PROBE_RESULT fails=0 total=55` | `20261020100000_erp_biz_tasks_rpc_rollback.sql` |
 
 Применяет **владелец в SQL Editor** (MCP `execute_sql` виснет на `drop`/`delete`); контроллер — только SELECT
@@ -108,7 +108,8 @@
 
 ## 5. Известные ограничения (не триггеры)
 
-- **Прямой INSERT в `erp_orders`** открыт любому участнику ERP старой политикой `erp_orders_insert`, а страж
-  менеджера заказа (`manager_id` — только сотрудник ERP) стоит на UPDATE. Закрыть — вместе с давней дырой
-  прямой вставки заказа ERP (бэклог).
+- **Прямой INSERT в `erp_orders`** по-прежнему открыт любому участнику ERP старой политикой `erp_orders_insert`
+  (давняя дыра, бэклог). Менеджера заказа он больше не ставит: страж `erp_orders_guard` с T1 стоит на INSERT
+  и UPDATE — непустой `manager_id` при вставке только подлинным запуском (то же значение, что вычисляет
+  `erp_create_order`) либо с `order.manage` и только сотрудник ERP.
 - Файлы задач лежат в публичном бакете `erp-attachments` (решение Р7): кто знает ссылку — открывает.

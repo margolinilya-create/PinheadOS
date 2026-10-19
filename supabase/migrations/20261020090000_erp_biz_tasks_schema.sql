@@ -302,7 +302,8 @@ comment on column public.erp_orders.manager_id is
   'Менеджер заказа — профиль (правки 19.10, п. 7, Р3). Ставит подлинный запуск из «Оформления заказа» (автор заказа v4) либо order.manage в карточке. Пусто — менеджер не наблюдатель задач и не получатель уведомлений. Текстовое manager — подпись из формы, другое поле.';
 
 -- Страж заказа: пересоздан ДОСЛОВНО по `20260924122634_erp_order_guard_
--- exceptions` плюс одна ветка — «родитель удалён». Удаление профиля обнуляет
+-- exceptions` плюс ветка INSERT (ревизия безопасности 19.10, ниже) и ветка
+-- «родитель удалён». Удаление профиля обнуляет
 -- `manager_id` UPDATE-ом строки заказа от имени удаляющего, и без ветки это
 -- падало бы 42501 у того, у кого нет `order.manage`: ошибка про заказ в ответ
 -- на удаление профиля. Ветка пропускает ровно этот случай — ссылка ушла
@@ -320,6 +321,55 @@ begin
   -- Пустой `auth.uid()` — это service_role: он и так минует RLS, и запирать
   -- починку через SQL нельзя (правило проекта)
   if (select auth.uid()) is null then
+    return new;
+  end if;
+
+  -- ── INSERT: менеджер заказа (ревизия безопасности 19.10) ──
+  -- Прямую вставку `erp_orders` старая политика открывает любому участнику
+  -- ERP, и без этой ветки он назначал бы себя (или кого угодно) менеджером:
+  -- наблюдателем бизнес-задач заказа и получателем их уведомлений. Пустой
+  -- менеджер — прежнее поведение вставки, страж её не трогает.
+  if tg_op = 'INSERT' then
+    if new.manager_id is null then
+      return new;
+    end if;
+
+    -- Подлинный запуск: ровно то значение, которое вычисляет
+    -- `erp_create_order` (автор заказа v4, который вызывающий сейчас
+    -- запускает своей свежей меткой, заказа ERP у него ещё нет). Совпадение
+    -- сверяется здесь заново, а не меткой сессии: подставить чужое значение
+    -- нельзя, а своё подлинное — то же, что поставила бы функция. Автор v4
+    -- не обязан иметь карточку ERP — карточку проверяет ветка ниже
+    if exists (
+      select 1
+        from public.orders v
+       where v.id = new.tz_order_id
+         and v.schema_version = 4
+         and v.status = 'ready_to_launch'
+         and v.erp_order_id is null
+         and v.launch_by = (select auth.uid())
+         and v.launch_started_at > now() - interval '10 minutes'
+         and v.created_by = new.manager_id
+    ) then
+      return new;
+    end if;
+
+    if not public.erp_has_permission('order.manage') then
+      raise exception 'erp_order_guard: менеджера заказа назначает право order.manage'
+        using errcode = '42501';
+    end if;
+
+    if not exists (
+      select 1
+        from public.erp_employees e
+        join public.profiles p on p.id = e.profile_id
+       where e.profile_id = new.manager_id
+         and e.active and p.active is true and p.approved is true
+    ) then
+      raise exception 'erp_order_guard: менеджером заказа можно назначить только сотрудника ERP'
+        using errcode = '22023';
+    end if;
+
     return new;
   end if;
 
@@ -383,6 +433,12 @@ begin
 end $function$;
 
 revoke execute on function public.erp_order_guard() from public, anon, authenticated;
+
+-- Страж стоял на UPDATE (`20260803280000_erp_order_guard`); теперь и на
+-- INSERT — ради ветки менеджера заказа выше. Имя триггера прежнее
+create or replace trigger erp_orders_guard
+  before insert or update on public.erp_orders
+  for each row execute function public.erp_order_guard();
 
 -- ── Создание заказа ставит менеджера при подлинном запуске ───────────────
 --

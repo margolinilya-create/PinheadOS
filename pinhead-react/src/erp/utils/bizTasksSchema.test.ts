@@ -201,4 +201,41 @@ describe('менеджер заказа (Р3)', () => {
     // Ветка «родитель удалён» идёт раньше: обнуление каскадом сюда не доходит
     expect(guard.indexOf('not exists (select 1 from public.profiles p where p.id = old.manager_id)')).toBeLessThan(at);
   });
+
+  /**
+   * Ревизия безопасности 19.10: прямой INSERT в `erp_orders` (старая политика
+   * открывает его любому участнику ERP) обходил стража, стоявшего только на
+   * UPDATE, — самоназначение менеджером давало чужие задачи и уведомления.
+   */
+  it('страж заказа стоит на INSERT и UPDATE', () => {
+    const triggers = [...SQL.matchAll(/create (?:or replace )?trigger erp_orders_guard\s+([^;]*);/g)];
+    expect(triggers).toHaveLength(1);
+    expect(triggers[0][1]).toMatch(/^before insert or update on public\.erp_orders\s+for each row execute function public\.erp_order_guard\(\)$/);
+  });
+
+  it('страж заказа: ветка INSERT — подлинный запуск, иначе order.manage и сотрудник ERP', () => {
+    const guard = withoutComments(functionBody(latestDefining('erp_order_guard'), 'erp_order_guard'));
+    const at = guard.indexOf("if tg_op = 'INSERT' then");
+    expect(at).toBeGreaterThan(-1);
+    // Ветка идёт сразу после пропуска service_role и до сравнения снимков с old
+    expect(guard.indexOf('(select auth.uid()) is null')).toBeLessThan(at);
+    expect(at).toBeLessThan(guard.indexOf('old.manager_id'));
+    // До первого обращения к old — ветка «родитель удалён» идёт после INSERT
+    const branch = guard.slice(at, guard.indexOf('old.manager_id'));
+    expect(branch).toMatch(/if new\.manager_id is null then\s+return new;/);
+    // Подлинный запуск — те же условия, что у erp_create_order, плюс совпадение значения
+    const authentic = branch.slice(branch.indexOf('from public.orders v'), branch.indexOf(') then'));
+    for (const cond of [
+      /v\.id = new\.tz_order_id/, /v\.schema_version = 4/, /v\.status = 'ready_to_launch'/,
+      /v\.erp_order_id is null/, /v\.launch_by = \(select auth\.uid\(\)\)/,
+      /v\.launch_started_at > now\(\) - interval '10 minutes'/, /v\.created_by = new\.manager_id/,
+    ]) expect(authentic).toMatch(cond);
+    const perm = branch.indexOf("if not public.erp_has_permission('order.manage') then");
+    expect(perm).toBeGreaterThan(branch.indexOf('from public.orders v'));
+    expect(branch.slice(perm)).toMatch(/errcode = '42501'/);
+    const staff = branch.slice(perm);
+    expect(staff).toMatch(/from public\.erp_employees e/);
+    expect(staff).toMatch(/e\.active and p\.active is true and p\.approved is true/);
+    expect(staff).toMatch(/errcode = '22023'/);
+  });
 });

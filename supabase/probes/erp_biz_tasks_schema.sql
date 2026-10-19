@@ -1,11 +1,11 @@
 -- Пробы миграции T1 правок 19.10, часть B (20261020090000_erp_biz_tasks_schema):
 -- таблицы бизнес-задач только на чтение, файл задачи только через RPC,
 -- якорь треда, виды уведомлений, publication, право biz_task.manage,
--- менеджер заказа при подлинном запуске (Р3).
+-- менеджер заказа при подлинном запуске (Р3), страж заказа на INSERT.
 -- Только после применения T1 (или сухим прогоном вместе с ней), ВЛАДЕЛЕЦ в SQL Editor.
 -- Регресс — `order_v4_launch.sql` тем же прогоном (его ожидание не меняется).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=31 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=35 {…}
 --
 -- Роли — профили боя: DIRECTOR 56ec3039-f326-42dd-b4de-870844b9468d (запускает
 -- заказ v4, видит все заказы, order.manage), HEAD 9285888e-4401-4b1b-b523-a3e6a9b90e82
@@ -105,6 +105,10 @@ select pg_temp.p('w_attach_kind', '42501', format($q$insert into public.erp_orde
 select pg_temp.p('w_attach_link', '42501', format($q$insert into public.erp_order_attachments (order_id, file_path, kind, biz_task_id) values (%L, 'att/x/a.pdf', 'attachment', %L)$q$, pg_temp.fx('order'), pg_temp.fx('task')));
 select pg_temp.p('w_attach_plain', 'OK rows=1', format($q$insert into public.erp_order_attachments (order_id, file_path, kind) values (%L, 'att/x/plain.pdf', 'attachment')$q$, pg_temp.fx('order')));
 select pg_temp.p('w_manager_id', '42501', format($q$update public.erp_orders set manager_id = 'cc9ed453-d3d7-4add-a361-8719a7701f97' where id = %L$q$, pg_temp.fx('order')));
+-- Прямой INSERT мимо erp_create_order (ревизия безопасности 19.10): страж
+-- стоит и на INSERT — себя менеджером не назначить, подлинный запуск не подделать
+select pg_temp.p('w_insert_manager_self', '42501', $q$insert into public.erp_orders (title, manager_id) values ('PROBE T1 сам себе менеджер', 'cc9ed453-d3d7-4add-a361-8719a7701f97')$q$);
+select pg_temp.p('w_insert_forged_launch', '42501', $q$insert into public.erp_orders (title, tz_order_id, manager_id) values ('PROBE T1 чужой запуск', '00000000-0000-4000-8000-0000b1000001', '9285888e-4401-4b1b-b523-a3e6a9b90e82')$q$);
 
 -- ── DIRECTOR запускает: менеджер — только при подлинном запуске ──────────
 reset role;
@@ -120,12 +124,14 @@ select pg_temp.p('launch_stale_mark', 'OK null', $q$select manager_id::text from
 -- с активной карточкой ставится, снятая карточка — 22023, снять (NULL) можно
 select pg_temp.p('d_manager_staff', 'OK rows=1', format($q$update public.erp_orders set manager_id = 'cc9ed453-d3d7-4add-a361-8719a7701f97' where id = %L$q$, pg_temp.fx('order')));
 select pg_temp.p('d_manager_clear', 'OK rows=1', format($q$update public.erp_orders set manager_id = null where id = %L$q$, pg_temp.fx('order')));
+select pg_temp.p('d_insert_staff', 'OK rows=1', $q$insert into public.erp_orders (title, manager_id) values ('PROBE T1 прямая вставка', 'cc9ed453-d3d7-4add-a361-8719a7701f97')$q$);
 reset role;
 select pg_temp.as_user(null);
 update public.erp_employees set active = false where full_name = 'Проба рабочий T1';
 select pg_temp.as_user('56ec3039-f326-42dd-b4de-870844b9468d');
 set local role authenticated;
 select pg_temp.p('d_manager_no_card', '22023', format($q$update public.erp_orders set manager_id = 'cc9ed453-d3d7-4add-a361-8719a7701f97' where id = %L$q$, pg_temp.fx('order')));
+select pg_temp.p('d_insert_no_card', '22023', $q$insert into public.erp_orders (title, manager_id) values ('PROBE T1 без карточки', 'cc9ed453-d3d7-4add-a361-8719a7701f97')$q$);
 reset role;
 select pg_temp.as_user(null);
 

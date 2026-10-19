@@ -463,7 +463,7 @@
     "erp/utils/bizTasksChat.test.ts": "d74bbb39c378f2e1fa074d047d9fc0553391c3dbcd8d8472a13bbab083b9de41",
     "erp/utils/bizTasksMock.test.ts": "2437845548755ce595adb81d900aaca507a3178ccd2dd0b446b80d1eb2220094",
     "erp/utils/bizTasksRpc.test.ts": "a31c82d67e4f6c7322e96754165f9ae7c91203951fce2f06fe1cd8a8948ae4c7",
-    "erp/utils/bizTasksSchema.test.ts": "6215603d0c21efd37656b094a7b57572f68ab75010fc7dce14c7e31efb943884",
+    "erp/utils/bizTasksSchema.test.ts": "4120e117ba700e12b64b810a4969389a6a82eab105fef38b64f1900ed0996342",
     "erp/utils/brandingMethods.test.ts": "40d46f7f5016074d0e323ef236d6418b592df3e4d5a02fc103b66dd5142022f1",
     "erp/utils/bypass.test.ts": "021d14afda73f3e8041a7b8b6a01b9ea7a2fbec451da14e74a520e454933ec63",
     "erp/utils/bypass.ts": "4c7e2d6e64ea7ed8f52125dd0ff7e069c6045531f28036eca9acc3fede4987bc",
@@ -625,7 +625,7 @@
     "erp/utils/rollParams.test.ts": "98f32318571821bc7214d2a17309073c00e73d238673f048269fba18af19f0fe",
     "erp/utils/rollParams.ts": "d529cc53332f4427e6e135caca99afe2aa8c310fddd212b92ebd3022ad7cb191",
     "erp/utils/rollout1910a.test.ts": "15fddb09c400f53039e9551a091377c69de584c0402006c4d870dbb382e778e1",
-    "erp/utils/rollout1910b.test.ts": "ac6d9ea0b4616855d12a7aacd4b28237c7d58a3f5d4bbbf72cc9741e3392ad04",
+    "erp/utils/rollout1910b.test.ts": "efa33a77ede9fc285650770080ac66401f468a0abd2157c7474fc70b8e54b427",
     "erp/utils/routeCycles.ts": "373428feb00bccb0c0da3638ae057ef992935b6e462d3edf788be1030d3fe710",
     "erp/utils/routeDraft.test.ts": "6099bae2db67f4139881a6da581416897f60560318be543cef845af00024a4cc",
     "erp/utils/routeDraft.ts": "c731440d56d456434323f1b6638d410e894cb8fdeaea06bdf63c0ba0f330905a",
@@ -1013,7 +1013,7 @@
     "20261019090000_erp_attach_30mb_passport_optional.sql": "12d3799c428451c7a06c5e1413477872b034bd38c6bca813e20087143c239083",
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
-    "20261020090000_erp_biz_tasks_schema.sql": "ed08014d1816e5c0363ee98625b1206fc735eecde444d21be4a551f90d4aae65",
+    "20261020090000_erp_biz_tasks_schema.sql": "4bc7776b1f942f36ff48d920a5b2b4c56e56faa75a21b769992bf63c5bc38647",
     "20261020100000_erp_biz_tasks_rpc.sql": "acc4deed81f7642b86a717a602cb8b3be01d9ef14b2a0b2f7ea6dc9ef07863e2"
   }
 }
