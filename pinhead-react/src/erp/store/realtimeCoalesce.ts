@@ -32,6 +32,7 @@ type Timer = ReturnType<typeof setTimeout>;
 let fullTimer: Timer | null = null;
 let experimentalTimer: Timer | null = null;
 let pingTimer: Timer | null = null;
+let taskPingTimer: Timer | null = null;
 const orderTimers = new Map<string, Timer>();
 
 function restart(current: Timer | null, ms: number, fn: () => void): Timer {
@@ -76,14 +77,29 @@ export function schedulePing(fn: () => void, ms: number = CHAT_PING_DEBOUNCE_MS)
   });
 }
 
+/**
+ * Звонок экранам бизнес-задач (правки 19.10, п. 7): строки задачи и её истории.
+ * Таймер СВОЙ, а не общий с чатом: «последнее событие серии выигрывает»,
+ * и сообщение чата в той же четверти секунды заменило бы колбэк задачи —
+ * открытая карточка не узнала бы о смене статуса.
+ */
+export function scheduleTaskPing(fn: () => void, ms: number = CHAT_PING_DEBOUNCE_MS): void {
+  taskPingTimer = restart(taskPingTimer, ms, () => {
+    taskPingTimer = null;
+    fn();
+  });
+}
+
 /** Снять все отложенные перечитывания — при отписке канала */
 export function clearRealtimeTimers(): void {
   if (fullTimer) clearTimeout(fullTimer);
   if (experimentalTimer) clearTimeout(experimentalTimer);
   if (pingTimer) clearTimeout(pingTimer);
+  if (taskPingTimer) clearTimeout(taskPingTimer);
   for (const t of orderTimers.values()) clearTimeout(t);
   fullTimer = null;
   experimentalTimer = null;
   pingTimer = null;
+  taskPingTimer = null;
   orderTimers.clear();
 }

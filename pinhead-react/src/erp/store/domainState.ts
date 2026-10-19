@@ -46,6 +46,7 @@ type DomainState = Pick<ErpStore,
   | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
   | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
   | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
+  | 'bizTasks' | 'bizTaskDetails' | 'bizTaskUnread' | 'bizTaskPing'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
@@ -130,6 +131,15 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   skuCardsLoaded: false,
   skuCardsError: null,
   skuPriceCodes: [],
+  /**
+   * bizTasksSlice — бизнес-задачи (правки 19.10, п. 7). В снимке сброса по той же
+   * причине, что чат: на общем планшете следующая смена не видит чужих поручений.
+   * `bizTaskPing` правит ядро (`realtimeSlice`), как `chatPing`.
+   */
+  bizTasks: {},
+  bizTaskDetails: {},
+  bizTaskUnread: {},
+  bizTaskPing: 0,
 };
 
 /**

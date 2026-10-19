@@ -3800,6 +3800,81 @@ export type Database = {
           rework: number
         }[]
       }
+      erp_biz_task_attach: {
+        Args: { p_files: Json; p_id: string }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_checklist_op: {
+        Args: { p_id: string; p_item: Json; p_op: string }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_create: {
+        Args: { p_client_key: string; p_task: Json }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_mark_seen: {
+        Args: { p_id: string }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_set_result: {
+        Args: { p_id: string; p_message_id: string | null; p_text: string | null }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_transition: {
+        Args: {
+          p_action: string
+          p_expected_updated_at: string
+          p_id: string
+          p_text: string | null
+        }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      erp_biz_task_update: {
+        Args: { p_expected_updated_at: string; p_id: string; p_patch: Json }
+        Returns: Database["public"]["Tables"]["erp_biz_tasks"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "erp_biz_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       erp_bootstrap: { Args: never; Returns: Json }
       erp_can_act_in_dept: { Args: { p_dept: string }; Returns: boolean }
       erp_can_pack_ship: { Args: { p_order_id: string }; Returns: boolean }
