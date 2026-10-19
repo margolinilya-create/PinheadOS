@@ -26,7 +26,7 @@ function guardScript(): string {
 }
 
 /** Временный репозиторий: эталоны, коммит базы, затем коммит пересъёмки с `changed` файлами */
-function runGuard(changed: string[]): number {
+function runGuard(changed: string[], env: Record<string, string> = {}): number {
   const dir = mkdtempSync(join(tmpdir(), 'ci-visual-guard-'));
   try {
     const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, stdio: 'pipe' });
@@ -35,13 +35,17 @@ function runGuard(changed: string[]): number {
     git('config', 'user.name', 'ci');
     const snaps = join(dir, 'e2e', 'visual.spec.ts-snapshots');
     mkdirSync(snaps, { recursive: true });
-    for (const f of ['erp-orders-desktop.png', 'studio-sku-desktop.png']) writeFileSync(join(snaps, f), 'base');
+    for (const f of ['erp-orders-desktop.png', 'studio-sku-desktop.png', 'order-x-desktop.png']) writeFileSync(join(snaps, f), 'base');
     git('add', '.');
     git('commit', '-qm', 'base');
     for (const f of changed) writeFileSync(join(snaps, f), 'new');
     git('add', '.');
     git('commit', '-qm', 'snapshots', '--allow-empty');
-    return spawnSync('bash', ['-e', '-c', guardScript()], { cwd: dir, stdio: 'pipe' }).status ?? -1;
+    return spawnSync('bash', ['-e', '-c', guardScript()], {
+      cwd: dir,
+      stdio: 'pipe',
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...env },
+    }).status ?? -1;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -67,6 +71,23 @@ describe('ci.yml: эталоны и смены обхода', () => {
 
   it('мутация: тронут erp-* — шаг красный', () => {
     expect(runGuard(['studio-sku-desktop.png', 'erp-orders-desktop.png'])).not.toBe(0);
+  });
+
+  it('флажок allow_erp_snapshots объявлен, по умолчанию выключен, и доходит до сторожа', () => {
+    expect(CI).toMatch(/allow_erp_snapshots:\n(?:\s+.*\n)*?\s+default: false/);
+    expect(CI).toContain('ALLOW_ERP: ${{ inputs.allow_erp_snapshots }}');
+  });
+
+  it('с флажком и snapshots_grep=erp- пересъёмка erp-* — шаг зелёный', () => {
+    expect(runGuard(['erp-orders-desktop.png'], { ALLOW_ERP: 'true', GREP: 'erp-' })).toBe(0);
+  });
+
+  it('без флажка snapshots_grep=erp- не спасает: тронут erp-* — шаг красный', () => {
+    expect(runGuard(['erp-orders-desktop.png'], { ALLOW_ERP: 'false', GREP: 'erp-' })).not.toBe(0);
+  });
+
+  it('с флажком эталон вне studio- и вне snapshots_grep — шаг красный', () => {
+    expect(runGuard(['erp-orders-desktop.png', 'order-x-desktop.png'], { ALLOW_ERP: 'true', GREP: 'erp-' })).not.toBe(0);
   });
 
   it('смены @walk — своим шагом на desktop, функциональная джоба их не гоняет', () => {

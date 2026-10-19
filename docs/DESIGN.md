@@ -393,7 +393,8 @@ CSS-модули `tz/ui/tz.module.css`, `payment/payment.module.css`, `launch/La
 - **Форма входа** — подпись «Производство и оформление заказов»; роль в шапке раздела — русской подписью
   («Менеджер продаж», «Менеджер сопровождения», «РОП»…).
 - Эталоны: `studio-sku`, `studio-express`, `studio-workplace` (+ `-dark`, мобильные) — пересъёмка
-  `update_snapshots` с `snapshots_grep=studio-`; `erp-*` меняться не должны (сторож шага в CI).
+  `update_snapshots` с `snapshots_grep=studio-`; `erp-*` меняться не должны (сторож шага в CI) — кроме
+  осознанной пересъёмки с флажком `allow_erp_snapshots` и `snapshots_grep=erp-` (правки 19.10).
 
 ## Редизайн ERP (сессия 20, 6 фаз) — по макетам заказчика + UI Kit
 
