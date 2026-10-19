@@ -123,6 +123,18 @@ realtime.
 и `store/devProfiles.ts`; смены обхода — `e2e/walk/`. Уборка — `supabase/functions/order-files-gc/`,
 `scripts/lib/orderFileHolders.mjs`. Правила — `../pravila-vklyucheniya-i-restayla-veha-8-18-10.md`.
 
+## ERP: бизнес-задачи (правки 19.10, план B)
+
+Модель и права — `erp/utils/bizTasks.ts` (`BIZ_TASK_TRANSITIONS`, `isBizTaskStaff`, `canManageBizTasks`,
+`bizTaskActions`, `isOverdue`), диалог — `erp/utils/bizTaskChat.ts` + `components/chat/useTaskChat.js` (тот же
+`ChatPanel` с `taskId`), стор — `store/slices/bizTasksSlice.ts` (+ ветка задачи в `chatSlice`, звонок в
+`realtimeSlice`/`realtimeCoalesce`), экраны — `screens/BizTasksScreen.jsx` (список и `BizTaskPage` одним ленивым
+входом), `screens/bizTasks/` (`BizTaskList`, `BizTaskCreateForm`, `PersonPicker`, `BizTaskCard`, `BizTaskActions`,
+диалоги, `BizTaskChecklist`, `BizTaskHistory`, `BizTaskFiles`, `bizTaskView`, `bizTaskCardView`), вкладка заказа —
+`screens/orderCard/OrderBizTasksTab.jsx` + `useOrderBizTasks.js`, менеджер заказа — `OrderManagerField.jsx`,
+отгрузка — `screens/useShipConfirm.js`, переход из уведомлений — `utils/noticeNav.ts`. Мок e2e —
+`e2e/support/mock/bizTasksRpc.ts`. Правила — `../pravila-biznes-zadach-19-10.md`.
+
 ## Прочее
 
 - `pravila-erp-audit-po-skilam.md`

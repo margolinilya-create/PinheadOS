@@ -54,6 +54,15 @@ admin/director — Производство. Подробно — корнево
   с экранов)/ChatNotifyMenu (режим подписки)/ChatReadReceipts («Прочитали N»);
   layout/NotificationCenter + layout/NoticePopups (центр и всплывающие под колоколом;
   очередь показа считает `utils/noticePopups`, первая загрузка сессии молчит);
+  «Бизнес-задачи» (правки 19.10, план B): screens/BizTasksScreen.jsx (`/biz-tasks` и `/biz-tasks/:taskId` —
+  один ленивый вход) + screens/bizTasks/ (BizTaskList, BizTaskCreateForm + PersonPicker, BizTaskCard — на ≤ 760 px
+  вкладки, BizTaskActions + диалоги перехода/срока/людей/описания, BizTaskChecklist, BizTaskHistory, BizTaskFiles,
+  bizTaskView/bizTaskCardView), вкладка заказа screens/orderCard/OrderBizTasksTab + useOrderBizTasks, менеджер
+  заказа OrderManagerField, предупреждение при отгрузке screens/useShipConfirm; модель и права — utils/bizTasks.ts
+  (`BIZ_TASK_TRANSITIONS`, `isBizTaskStaff`, `canManageBizTasks`, `bizTaskActions`, `isOverdue`), диалог задачи —
+  тот же ChatPanel с `taskId` (components/chat/useTaskChat + utils/bizTaskChat), стор — store/slices/bizTasksSlice.ts,
+  переход из уведомлений — utils/noticeNav (`inAppLink`). Пишут только RPC `erp_biz_task_*`; правила —
+  `docs/rules/pravila-biznes-zadach-19-10.md`;
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
   SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
