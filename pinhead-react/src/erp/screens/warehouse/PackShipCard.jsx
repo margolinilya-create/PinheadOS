@@ -6,6 +6,7 @@ import { createAttemptKeeper } from '../../utils/attemptKey';
 import { PACK_SHIP_STATUS_LABELS, SHIPPED_STATUS_LABELS, WAREHOUSE_OP_LABELS } from '../../types';
 import styles from '../../styles';
 import { Button } from '../../components/Button';
+import { useShipConfirm } from '../useShipConfirm';
 
 /**
  * Задача склада «Упаковка и отгрузка» — ОДНА карточка на весь остаток пути
@@ -81,9 +82,21 @@ export function PackShipCard({ order, task, onAdvance, onShip }) {
     .filter((l) => l.qty > 0);
   const sending = lines.reduce((s, l) => s + l.qty, 0);
 
+  const confirmShip = useShipConfirm();
   const ship = async () => {
     if (busy || lines.length === 0) return;
+    // Занято ДО вопроса: чтение задач и диалог асинхронны, второй клик
+    // поставил бы второй диалог поверх первого
     setBusy(true);
+    /**
+     * Открытые бизнес-задачи заказа — списком в вопросе (правки 19.10, п. 7).
+     * Без них склад отгружает без вопроса, как раньше; «Отгрузить» отгрузку
+     * продолжает — задача её не блокирует.
+     */
+    if (!(await confirmShip(order, { onlyIfTasks: true }))) {
+      setBusy(false);
+      return;
+    }
     const key = attempt.current.keyFor(JSON.stringify(lines));
     const ok = await onShip?.(order.id, lines, { clientKey: key });
     if (ok) {

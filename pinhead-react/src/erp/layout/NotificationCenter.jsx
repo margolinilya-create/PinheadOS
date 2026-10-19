@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { OrderLink } from '../components/OrderLink';
 import { groupNotices } from '../utils/notifications';
 import { askPermission, notifyPermission } from '../utils/desktopNotify';
+import { inAppLink } from '../utils/noticeNav';
 import styles from '../erp.module.css';
 import local from './noticeCenter.module.css';
 
@@ -45,12 +46,18 @@ const TABS = [
   { id: 'reply', label: 'Ответы' },
 ];
 
+/**
+ * Незнакомый `kind` (вид, заведённый сервером раньше клиента) не роняет
+ * центр: он просто не попадает в «Упоминания»/«Ответы» и виден во «Всех».
+ * Упоминание в бизнес-задаче (правки 19.10, п. 7) — тоже упоминание.
+ */
 function matches(tab, n) {
   if (tab === 'unread') return !n.read_at;
-  if (tab === 'mention') return n.kind === 'chat_mention';
+  if (tab === 'mention') return n.kind === 'chat_mention' || n.kind === 'task_mention';
   if (tab === 'reply') return n.kind === 'chat_reply';
   return true;
 }
+
 
 /** Сколько производственных поводов показывать в центре; остальное — на обзоре */
 const ALERTS_SHOWN = 8;
@@ -190,7 +197,8 @@ export function NotificationCenter({ alerts = [], onClose }) {
                        * Погасить здесь — объявить прочитанным то, до чего
                        * человек мог и не долистать.
                        */
-                      if (n.link) navigate(n.link);
+                      const to = inAppLink(n.link);
+                      if (to) navigate(to);
                       onClose();
                     }}
                   >

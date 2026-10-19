@@ -34,6 +34,7 @@ import { HistorySection } from './orderCard/HistorySection';
 import { EconomicsSection } from './orderCard/EconomicsSection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { OrderManagerField } from './orderCard/OrderManagerField';
 import { Button, ButtonLink } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
@@ -260,6 +261,7 @@ export default function OrderCard() {
           <span className={styles.subText}>Менеджер: </span>
           <InlineEdit value={order.manager} ariaLabel="Менеджер" onSave={(v) => saveOrderField({ manager: v })} disabled={!canManageOrder} />
         </span>
+        <OrderManagerField order={order} canManage={canManageOrder} onSave={saveOrderField} />
         <span>
           <span className={styles.subText}>Запуск: </span>
           <InlineEdit type="date" value={order.launch_date} format={fmt} ariaLabel="Дата запуска" onSave={(v) => saveOrderField({ launch_date: v })} disabled={!canManageOrder} />

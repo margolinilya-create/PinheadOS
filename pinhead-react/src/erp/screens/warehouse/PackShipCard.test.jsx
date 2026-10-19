@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PackShipCard } from './PackShipCard';
 import { PACK_SHIP_STATUS_LABELS } from '../../types';
+import { useErpStore } from '../../store/useErpStore';
+
+const confirm = vi.fn();
+vi.mock('../../../store/useConfirmStore', () => ({ confirm: (...a) => confirm(...a) }));
 
 /**
  * «Упаковка и отгрузка»: три статуса и ДВА действия (правка 23.08, п. 4).
@@ -91,5 +95,44 @@ describe('Подписи статусов', () => {
   it('перечисление ровно из трёх живых статусов', () => {
     expect(Object.keys(PACK_SHIP_STATUS_LABELS))
       .toEqual(['packing', 'ready_to_ship', 'shipped']);
+  });
+});
+
+/**
+ * ОТКРЫТЫЕ БИЗНЕС-ЗАДАЧИ ПРИ ОТГРУЗКЕ (правки 19.10, п. 7): склад видит
+ * список и решает сам — задача отгрузку не блокирует.
+ */
+describe('Отгрузка и бизнес-задачи', () => {
+  const ship = (tasks, answer) => {
+    confirm.mockReset().mockResolvedValue(answer);
+    useErpStore.setState({ loadOrderBizTasks: vi.fn(async () => tasks) });
+    const onShip = vi.fn(async () => true);
+    render(<PackShipCard order={{ ...ORDER, status: 'active' }} task={{ id: 'wt1', status: 'ready_to_ship' }} onAdvance={onAdvance} onShip={onShip} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Отгрузить' }));
+    return onShip;
+  };
+  const OPEN = [{ id: 't1', title: 'Заказать молнии', status: 'paused' }];
+
+  it('отгрузка с открытыми задачами — список, «Отгрузить» продолжает', async () => {
+    const onShip = ship(OPEN, true);
+    await waitFor(() => expect(onShip).toHaveBeenCalled());
+    const opts = confirm.mock.calls[0][0];
+    expect(opts.message).toContain('Открытые бизнес-задачи: 1');
+    expect(opts.message).toContain('«Заказать молнии»');
+    expect(opts.confirmLabel).toBe('Отгрузить');
+    expect(opts.cancelLabel).toBe('Не отгружать');
+  });
+
+  it('«Не отгружать» — отгрузки нет, кнопка снова доступна', async () => {
+    const onShip = ship(OPEN, false);
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Отгрузить' })).not.toBeDisabled());
+    expect(onShip).not.toHaveBeenCalled();
+  });
+
+  it('без открытых задач — без вопроса, как раньше', async () => {
+    const onShip = ship([{ id: 't2', title: 'Готово', status: 'done' }], true);
+    await waitFor(() => expect(onShip).toHaveBeenCalled());
+    expect(confirm).not.toHaveBeenCalled();
   });
 });

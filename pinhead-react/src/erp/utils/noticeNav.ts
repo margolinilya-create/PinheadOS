@@ -18,7 +18,18 @@ export function setNoticeNavigate(fn: (to: string) => void): () => void {
   return () => { if (go === fn) go = null; };
 }
 
+/**
+ * Ссылка уведомления — строка из базы. Переход — только внутри приложения
+ * (правки 19.10, п. 7): `https://…`, `//чужой.адрес` и `javascript:` не ведут
+ * никуда — ни из центра, ни из всплывающей карточки, ни из окна браузера.
+ */
+export function inAppLink(link: unknown): string | null {
+  return typeof link === 'string' && link.startsWith('/') && !link.startsWith('//') ? link : null;
+}
+
 export function openNoticeLink(link: string): void {
-  if (go) go(link);
-  else if (typeof window !== 'undefined') window.location.assign(link);
+  const to = inAppLink(link);
+  if (!to) return;
+  if (go) go(to);
+  else if (typeof window !== 'undefined') window.location.assign(to);
 }
