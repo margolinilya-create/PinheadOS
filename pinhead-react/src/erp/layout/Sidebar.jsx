@@ -54,6 +54,9 @@ const GROUPS = [
       // Видимость — по ПРАВУ (`utils/screenAccess`), общий список с маршрутами.
       // `admin: true` здесь стоял до 10.08 и делал выданные права недостижимыми:
       // кладовщик с `warehouse.manage` не видел «Склад» и не мог открыть адрес.
+      // Бизнес-задачи (правки 19.10, п. 7) — всем: поручения по заказам видит
+      // любой участник ERP (решение Р1), гейта в `screenAccess` нет
+      { to: '/biz-tasks', label: 'Бизнес-задачи', icon: 'checkCircle' },
       { to: '/purchasing', label: 'Закупка', icon: 'truck' },
       { to: '/warehouse', label: 'Склад', icon: 'box' },
       { to: '/leftovers', label: 'Остатки ткани', icon: 'scissors' },

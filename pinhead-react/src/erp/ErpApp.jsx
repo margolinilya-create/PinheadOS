@@ -42,6 +42,10 @@ const DevPage = lazyScreen(() => import('./screens/DevPage'));
 const DeptLoad = lazyScreen(() => import('./screens/DeptLoad'));
 const PlanScreen = lazyScreen(() => import('./screens/PlanScreen'));
 const GanttScreen = lazyScreen(() => import('./screens/GanttScreen'));
+// Бизнес-задачи к заказам (правки 19.10, п. 7): общий раздел и страница задачи —
+// ОДИН ленивый вход на оба адреса. Каждый `lazyScreen` везёт в оболочку свой
+// список предзагрузки чанков, а потолок оболочки на разделе — решение Р6
+const BizTasksScreen = lazyScreen(() => import('./screens/BizTasksScreen'));
 // Карточка модели (правка 14.09, п. 6). Отдельный экран, а не часть админки:
 // её открывает и вкладка «Каталог SKU», и вкладка SKU карточки разработки
 const SkuCardPage = lazyScreen(() => import('./screens/skuCard/SkuCardPage'));
@@ -159,6 +163,11 @@ export default function ErpApp({ user }) {
           <Route path="/queue/:deptCode" element={<DepartmentQueue />} />
           {/* Страница производственного задания (правка 5); key — свежий инстанс на задание */}
           <Route path="/task/:stageId" element={<ProductionTaskRoute />} />
+          {/* Бизнес-задачи (правки 19.10, п. 7). Гейта нет: читать задачи может
+              любой участник ERP (решение Р1), писать решают RPC. `/task` занят
+              производственным заданием — отсюда свой префикс */}
+          <Route path="/biz-tasks" element={<BizTasksScreen />} />
+          <Route path="/biz-tasks/:taskId" element={<BizTasksScreen />} />
           {/*
             АДМИНКА ОТКРЫТА И ПО ПРАВУ НА КАТАЛОГ (правка 14.09, п. 6):
             документ требует проверять доступ к вкладке каталога отдельно

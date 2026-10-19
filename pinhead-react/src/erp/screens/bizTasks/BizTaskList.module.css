@@ -1,0 +1,86 @@
+/* Список бизнес-задач (правки 19.10, п. 7): строка — ссылка на карточку */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title state"
+    "meta state";
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  min-height: var(--control-h-lg);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.row:hover { border-color: var(--border-mid); box-shadow: var(--shadow-card); }
+.row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.title {
+  grid-area: title;
+  min-width: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  min-width: 0;
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
+.who,
+.due,
+.unread {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.due { font-variant-numeric: tabular-nums; }
+.state {
+  grid-area: state;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.unread {
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--accent-light);
+  color: var(--text);
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+}
+
+/* Телефон: статус уходит под название, строка не распирает экран */
+@media (max-width: 760px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "meta"
+      "state";
+  }
+  .state { justify-content: flex-start; }
+}

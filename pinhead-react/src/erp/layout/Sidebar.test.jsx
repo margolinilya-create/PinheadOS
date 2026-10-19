@@ -57,4 +57,15 @@ describe('меню раздела', () => {
     expect(screen.getByRole('link', { name: /Обзор/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Заказы/ })).toBeInTheDocument();
   });
+  it('«Бизнес-задачи» — в «Операциях» у всех, без особого права (Р1)', () => {
+    useAuthStore.setState({
+      user: { id: 'w', email: 'w@b.c', name: 'W', role: 'production', approved: true, active: true },
+    });
+    useErpStore.setState({ myRole: 'worker', myDeptId: null, permissionMatrix: {} });
+    render(<MemoryRouter><Sidebar isAdmin={false} /></MemoryRouter>);
+    const link = screen.getByRole('link', { name: /Бизнес-задачи/ });
+    expect(link).toHaveAttribute('href', '/biz-tasks');
+    // Разделы под правом рядом не появились: гейт меню не сломан
+    expect(screen.queryByRole('link', { name: /Склад/ })).toBeNull();
+  });
 });

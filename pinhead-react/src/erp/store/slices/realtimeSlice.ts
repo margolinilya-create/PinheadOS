@@ -17,7 +17,7 @@ import {
   scheduleExperimentalReload,
   scheduleFullReload,
   scheduleOrderReload,
-  schedulePing,
+  schedulePing, scheduleTaskPing,
 } from '../realtimeCoalesce';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
 import { resyncRealtime } from './realtimeResync';
@@ -85,6 +85,7 @@ const REALTIME_TABLES = [
    * свои записи до перезагрузки страницы.
    */
   { table: 'erp_calendar_slots' },
+  { table: 'erp_biz_tasks' }, { table: 'erp_biz_task_events' }, // бизнес-задачи — звонок, как у чата
 ];
 
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
@@ -400,6 +401,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
       return;
     }
 
+    if (ev.table === 'erp_biz_tasks' || ev.table === 'erp_biz_task_events') return scheduleTaskPing(() => set({ bizTaskPing: get().bizTaskPing + 1 }));
     // Неизвестная таблица — старый путь
     fullReload();
   },

@@ -3,6 +3,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { columnsOf } from '../../types/schema.testutil';
+import {
+  BIZ_TASK_CHECKLIST_COLUMNS,
+  BIZ_TASK_EVENT_COLUMNS,
+  BIZ_TASK_FILE_COLUMNS,
+  BIZ_TASK_SELECT,
+} from './slices/bizTasksSlice';
 import { EMPLOYEE_COLUMNS } from './slices/employeesSlice';
 import { NOTIFICATION_COLUMNS } from './slices/notificationsSlice';
 import { PLAN_COMMENT_COLUMNS, PLAN_SLOT_COLUMNS } from './slices/planSlice';
@@ -34,6 +40,11 @@ const LISTS: [string, string, string][] = [
   ['SKU_CARD_COLUMNS', 'erp_sku_cards', SKU_CARD_COLUMNS],
   ['SKU_CARD_VERSION_COLUMNS', 'erp_sku_card_versions', SKU_CARD_VERSION_COLUMNS],
   ['SKU_CARD_FILE_COLUMNS', 'erp_sku_card_files', SKU_CARD_FILE_COLUMNS],
+  // Бизнес-задачи (правки 19.10, п. 7): строка без вложенных выборок наблюдателей и заказа
+  ['BIZ_TASK_SELECT', 'erp_biz_tasks', BIZ_TASK_SELECT.split(/,\s*watchers:/)[0]],
+  ['BIZ_TASK_CHECKLIST_COLUMNS', 'erp_biz_task_checklist', BIZ_TASK_CHECKLIST_COLUMNS],
+  ['BIZ_TASK_EVENT_COLUMNS', 'erp_biz_task_events', BIZ_TASK_EVENT_COLUMNS],
+  ['BIZ_TASK_FILE_COLUMNS', 'erp_order_attachments', BIZ_TASK_FILE_COLUMNS],
 ];
 
 describe('поимённые колонки слайсов', () => {

@@ -12,6 +12,8 @@ import { Icon } from '../components/Icon';
  */
 const CreateOrderModal = lazy(() => import('./orders/CreateOrderModal')
   .then((m) => ({ default: m.CreateOrderModal })));
+/** Бизнес-задачи заказа (правки 19.10, п. 7) — тем же доводом: открывают по требованию */
+const OrderBizTasksTab = lazy(() => import('./orderCard/OrderBizTasksTab'));
 import { formatDateShort } from '../utils/time';
 import { orderProgress } from '../utils/progress';
 import {
@@ -34,6 +36,7 @@ import { HistorySection } from './orderCard/HistorySection';
 import { EconomicsSection } from './orderCard/EconomicsSection';
 import { NotificationsSection } from './orderCard/NotificationsSection';
 import { useOrderDetail } from './orderCard/useOrderDetail';
+import { useOrderBizTasks } from './orderCard/useOrderBizTasks';
 import { Button, ButtonLink } from '../components/Button';
 import { useErpStore } from '../store/useErpStore';
 import { useErpAccess } from '../store/useErpAccess';
@@ -113,6 +116,9 @@ export default function OrderCard() {
     if (orderId) void loadChatUnread(orderId);
   }, [orderId, chatPing, loadChatUnread]);
 
+  /** Задачи заказа грузит карточка: число открытых стоит в подписи вкладки */
+  const bizTasks = useOrderBizTasks(orderId);
+
   const generatePurchaseListPdf = useErpStore((st) => st.generatePurchaseListPdf);
   /**
    * Локальный флаг занятости, а не общий `pending`: сборка PDF идёт секунды
@@ -164,6 +170,19 @@ export default function OrderCard() {
      */
     { id: 'chat', label: 'Чат', count: chatUnread || undefined },
     /**
+     * «Бизнес-задачи · 3»: число — ОТКРЫТЫЕ, и читалке оно называется словом
+     * («Бизнес-задачи, открытых: 3»), иначе «3» не отвечает, чего три.
+     */
+    {
+      id: 'tasks',
+      label: bizTasks.loaded ? (
+        <>
+          <span aria-hidden="true">Бизнес-задачи · {bizTasks.openCount}</span>
+          <span className={styles.visuallyHidden}>Бизнес-задачи, открытых: {bizTasks.openCount}</span>
+        </>
+      ) : 'Бизнес-задачи',
+    },
+    /**
      * ЭКОНОМИКА ПОЗИЦИИ (правка 20.09, п. 9) — под своим правом
      * `economics.view`. Без него вкладки нет вовсе: прятать содержимое,
      * оставляя заголовок, значит обещать то, чего человек не получит.
@@ -173,7 +192,7 @@ export default function OrderCard() {
      */
     ...(canSeeEconomics ? [{ id: 'economics', label: 'Экономика позиции' }] : []),
     { id: 'history', label: 'История', count: (events?.length ?? 0) + (audit?.length ?? 0) },
-  ], [order, comments, events, audit, chatUnread, canSeeEconomics]);
+  ], [order, comments, events, audit, chatUnread, canSeeEconomics, bizTasks.loaded, bizTasks.openCount]);
   const requested = params.get('tab');
   const tab = tabs.some((t) => t.id === requested) ? requested : 'items';
 
@@ -428,6 +447,12 @@ export default function OrderCard() {
             разговор общий — сужение по задаче открывается со страницы
             задания, где задача и выбрана */}
         {tab === 'chat' && <ChatPanel orderId={order.id} focusId={params.get('msg')} />}
+
+        {tab === 'tasks' && (
+          <Suspense fallback={null}>
+            <OrderBizTasksTab order={order} loaded={bizTasks.loaded} failed={bizTasks.failed} onRetry={bizTasks.reload} />
+          </Suspense>
+        )}
 
         {tab === 'economics' && <EconomicsSection order={order} />}
 

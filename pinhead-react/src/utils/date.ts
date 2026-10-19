@@ -169,3 +169,37 @@ export function parseDateLocal(d: string | null | undefined): Date | null {
   const dt = new Date(iso);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
+
+/**
+ * СРОК С ВРЕМЕНЕМ — момент, введённый и показанный по Москве (бизнес-задачи,
+ * правки 19.10, п. 7). Поле `datetime-local` отдаёт `YYYY-MM-DDTHH:mm` без пояса,
+ * и `new Date(value)` прочёл бы его в поясе БРАУЗЕРА: менеджер в Новосибирске
+ * поставил бы «18:00» четырьмя часами раньше цеха. Здесь пояс — производства.
+ *
+ * Сдвиг постоянный (`FACTORY_FALLBACK_OFFSET_MIN`): летнего времени в Москве
+ * нет с 2014-го, и `Intl` ради этого не нужен — модуль едет в оболочку.
+ * Мусор и пустота — пустая строка, а не `RangeError` из `toISOString`.
+ */
+const FACTORY_OFFSET_MS = FACTORY_FALLBACK_OFFSET_MIN * 60_000;
+const LOCAL_DATETIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/;
+
+/** `2026-10-20T18:00` по Москве → `2026-10-20T15:00:00.000Z` */
+export function factoryDateTimeToIso(local: string): string {
+  const m = LOCAL_DATETIME.exec(local);
+  if (!m) return '';
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  return new Date(Date.UTC(y, mo - 1, d, h, mi) - FACTORY_OFFSET_MS).toISOString();
+}
+
+/** Момент → значение поля `datetime-local` по Москве (`YYYY-MM-DDTHH:mm`) */
+export function isoToFactoryInput(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return '';
+  return new Date(ms + FACTORY_OFFSET_MS).toISOString().slice(0, 16);
+}
+
+/** Подпись срока: «до 20.10, 18:00 МСК» — пояс назван, чтобы не гадать */
+export function formatDue(iso: string): string {
+  const v = isoToFactoryInput(iso);
+  return v ? `до ${v.slice(8, 10)}.${v.slice(5, 7)}, ${v.slice(11, 16)} МСК` : '';
+}

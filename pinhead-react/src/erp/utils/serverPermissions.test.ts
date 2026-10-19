@@ -370,18 +370,28 @@ describe('страж заказа совпадает с интерфейсом',
     expect(body).toMatch(/is distinct from/);
   });
 
-  it('из сравнения вычтены ТОЛЬКО отгрузка и updated_at', () => {
+  /**
+   * Исключения читаются из ВЫРАЖЕНИЯ `v_rest`, а не из всего тела: с 19.10
+   * у стража есть ветка «родитель удалён» для `manager_id` (`on delete set
+   * null` к профилю), и её сравнение «всё, кроме manager_id, неизменно» —
+   * не исключение из охраны, а проверка, что обнуление пришло каскадом.
+   */
+  const restExclusions = (): Set<string> => {
     const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
+    const rest = body.slice(body.indexOf('v_rest :='));
+    return new Set([...rest.slice(0, rest.indexOf(';')).matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+  };
+
+  it('из сравнения вычтены ТОЛЬКО отгрузка и updated_at', () => {
     // Всё, что вычитается из снимка, — это то, что НЕ требует order.manage
-    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    const excluded = restExclusions();
     expect(excluded).toEqual(new Set([
       'status', 'shipped_status', 'shipped_at', 'shipped_by', 'updated_at',
     ]));
   });
 
   it('поля карточки заказа под order.manage — они не в исключениях', () => {
-    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
-    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    const excluded = restExclusions();
     for (const field of ['customer', 'manager', 'launch_date', 'due_date', 'notes']) {
       expect(excluded.has(field)).toBe(false);
       expect(ORDER_CARD).toContain(`saveOrderField({ ${field}:`);
@@ -394,9 +404,9 @@ describe('страж заказа совпадает с интерфейсом',
    * цеха возможность переписать отметку о сдаче через REST.
    */
   it('колонки, найденные открытыми, теперь охраняются', () => {
-    const body = withoutComments(functionBody(ORDER_SQL, 'erp_order_guard'));
-    const excluded = new Set([...body.matchAll(/-\s*'([a-z_]+)'/g)].map((m) => m[1]));
-    for (const field of ['purchase_required', 'delivered_at', 'tz_order_id', 'tz_number']) {
+    const excluded = restExclusions();
+    // `manager_id` (19.10, Р3) — менеджер заказа ставится только order.manage
+    for (const field of ['purchase_required', 'delivered_at', 'tz_order_id', 'tz_number', 'manager_id']) {
       expect(excluded.has(field)).toBe(false);
     }
   });

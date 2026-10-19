@@ -68,6 +68,8 @@ export const SHOTS: Shot[] = [
   { name: 'purchase-list', path: '/orders/ord-a/purchase-list', route: '/orders/:orderId/purchase-list' },
   { name: 'warehouse', path: '/warehouse', route: '/warehouse' },
   { name: 'leftovers', path: '/leftovers', route: '/leftovers' },
+  // Бизнес-задачи (правки 19.10, п. 7): в базовых фикстурах задач нет — снимается пустое «Мне»
+  { name: 'biz-tasks', path: '/biz-tasks', route: '/biz-tasks' },
   { name: 'subcontracting', path: '/subcontracting', route: '/subcontracting' },
   { name: 'experimental', path: '/experimental', route: '/experimental' },
   { name: 'experimental-board', path: '/experimental?view=board', route: '/experimental' },
@@ -116,5 +118,6 @@ export const ROUTES_NOT_SHOT: Record<string, string> = {
   '/employees': 'редирект на /admin?tab=users — своего вида нет',
   '/departments': 'редирект на /admin?tab=depts — своего вида нет',
   '/experimental/:devId': 'в базовых фикстурах нет ни одной разработки: экран показал бы «не найдено»',
+  '/biz-tasks/:taskId': 'в базовых фикстурах нет ни одной бизнес-задачи: экран показал бы «Не удалось открыть задачу»',
   '*': 'редирект на обзор',
 };

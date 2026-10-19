@@ -1,5 +1,5 @@
 {
-  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, «Замеры 8» — и 19.10 — рост оболочки ERP от правок плана A, решение Р6, «Замеры 19.10»; причины — design/README.md). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
+  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, «Замеры 8» — и 19.10 — рост оболочки ERP от правок плана A, решение Р6, «Замеры 19.10», и раздел «Бизнес-задачи» части B (раздел и карточка задачи), «Замеры 19.10, часть B»; причины — design/README.md). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
   "strict": {
     "entryJs": {
       "raw": 499839,
@@ -21,17 +21,17 @@
       }
     },
     "shellJs": {
-      "raw": 617322,
-      "gzip": 193544,
-      "sha256": "d67703657ee8fcd3a38a6014915ceef19b95f00a03a5cdd347a1e51839ca51ae",
+      "raw": 618795,
+      "gzip": 193988,
+      "sha256": "f1d9d2b55f63ea0e450793e5cab6459a9b887c008ca2cb0d0f8f595bb489d17f",
       "files": {
         "assets/date-HASH.js": {
-          "raw": 1375,
-          "gzip": 664
+          "raw": 1799,
+          "gzip": 837
         },
         "assets/ErpApp-HASH.js": {
-          "raw": 22880,
-          "gzip": 7757
+          "raw": 23485,
+          "gzip": 7903
         },
         "assets/ErpSkeletons-HASH.js": {
           "raw": 3713,
@@ -54,16 +54,16 @@
           "gzip": 857
         },
         "assets/statusUi-HASH.js": {
-          "raw": 47709,
-          "gzip": 16186
+          "raw": 48020,
+          "gzip": 16270
         },
         "assets/types-HASH.js": {
-          "raw": 10763,
-          "gzip": 3887
+          "raw": 10837,
+          "gzip": 3912
         },
         "assets/useErpAccess-HASH.js": {
-          "raw": 3045,
-          "gzip": 1006
+          "raw": 3104,
+          "gzip": 1022
         },
         "assets/useTheme-HASH.js": {
           "raw": 6848,
