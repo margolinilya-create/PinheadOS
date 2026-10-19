@@ -4,7 +4,8 @@
  * здесь только «что показать на экране».
  */
 
-import { BIZ_TASK_ACTIVE, isOverdue } from '../../utils/bizTasks';
+import { BIZ_TASK_ACTIVE, BIZ_TASK_STATUSES, isOverdue } from '../../utils/bizTasks';
+import type { BizTaskStatus } from '../../utils/bizTasks';
 import type { BizTaskRow } from '../../store/types';
 
 /** Фильтр вкладки заказа: по умолчанию — открытые; закрытые — по запросу */
@@ -112,6 +113,18 @@ function matchesDue(t: Row, due: string, now: Date): boolean {
   const span = due === 'day' ? DAY_MS : 7 * DAY_MS;
   // «Ближайшие» — ещё не истёкшие сроки открытых задач
   return isOpen(t) && left >= 0 && left <= span;
+}
+
+/**
+ * Статусы для запроса списка по фильтру «Статус» из адреса. Фильтр уходит
+ * на сервер, а не только на клиент: у списка потолок строк, и без фильтра
+ * старые закрытые задачи вытеснили бы из него новые активные.
+ * «Все» и неизвестное значение — без фильтра.
+ */
+export function statusesForQuery(status: string): readonly BizTaskStatus[] | undefined {
+  if (status === 'active') return BIZ_TASK_ACTIVE;
+  const one = BIZ_TASK_STATUSES.find((s) => s === status);
+  return one ? [one] : undefined;
 }
 
 function matchesStatus(t: Row, status: string): boolean {

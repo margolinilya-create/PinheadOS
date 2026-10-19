@@ -16,7 +16,7 @@ import {
 import { BizTaskList } from './bizTasks/BizTaskList';
 import BizTaskPage from './BizTaskPage';
 import { BizTaskCreateForm } from './bizTasks/BizTaskCreateForm';
-import { byDue, hasRole, matchesListFilters, orderLabel } from './bizTasks/bizTaskView';
+import { byDue, hasRole, matchesListFilters, orderLabel, statusesForQuery } from './bizTasks/bizTaskView';
 import styles from './bizTasks/BizTasksScreen.module.css';
 
 /** Умолчания адреса: значение, равное умолчанию, из адреса убирается (`useListParams`) */
@@ -60,12 +60,13 @@ function FilterSelect({ label, value, onChange, children }) {
 }
 
 /**
- * Строки вкладки: грузим по роли (`loadBizTasks`), показываем из стора —
- * одна строка на id, её же правят карточка и realtime. Перечитывание —
- * на смену вкладки и на звонок `bizTaskPing`; сбой перечитывания не стирает
- * уже показанное.
+ * Строки вкладки: грузим по роли и статусу (`loadBizTasks`), показываем из
+ * стора — одна строка на id, её же правят карточка и realtime. Статус уходит
+ * в запрос: у списка потолок строк, и старые закрытые задачи иначе вытеснили бы
+ * новые активные. Перечитывание — на смену вкладки или статуса и на звонок
+ * `bizTaskPing`; сбой перечитывания не стирает уже показанное.
  */
-function useTabRows(tab) {
+function useTabRows(tab, status) {
   const load = useErpStore((s) => s.loadBizTasks);
   const ping = useErpStore((s) => s.bizTaskPing);
   const [state, setState] = useState({ tab: null, loaded: false, failed: false, attempt: 0 });
@@ -73,7 +74,8 @@ function useTabRows(tab) {
   useEffect(() => {
     if (!load) return undefined;
     let alive = true;
-    load({ scope: tab }).then((rows) => {
+    const statuses = statusesForQuery(status);
+    load(statuses ? { scope: tab, statuses } : { scope: tab }).then((rows) => {
       if (!alive) return;
       setState((prev) => {
         const was = prev.tab === tab && prev.loaded;
@@ -81,7 +83,7 @@ function useTabRows(tab) {
       });
     });
     return () => { alive = false; };
-  }, [load, tab, ping, state.attempt]);
+  }, [load, tab, status, ping, state.attempt]);
 
   const mine = state.tab === tab;
   const retry = () => setState((prev) => ({ ...prev, attempt: prev.attempt + 1 }));
@@ -121,7 +123,7 @@ function BizTasksList() {
   const me = user?.id ?? '';
   useEffect(() => { void loadChatDirectory(); }, [loadChatDirectory]);
 
-  const { loaded, failed, retry } = useTabRows(tab);
+  const { loaded, failed, retry } = useTabRows(tab, filters.status);
   useListScroll(`biz-tasks:${tab}`, loaded);
   const [creating, setCreating] = useState(false);
   const [focusId, setFocusId] = useState(null);

@@ -20,11 +20,18 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import type { Json } from '../../../types/database.generated';
 import type { ErpBizTask } from '../../types';
+import { BIZ_TASK_ACTIVE } from '../../utils/bizTasks';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import type { BizTaskDetail, BizTaskRow, BizTasksSlice, ErpStore } from '../types';
 
 /** Потолок списка: экран показывает поручения людей завода, а не архив за годы */
 export const BIZ_TASK_LIST_LIMIT = 500;
+
+/**
+ * Наблюдаемые задачи читаются пачками id: `in.(…)` уходит в адрес запроса,
+ * и сотни uuid разом упёрлись бы в предел длины URL. 100 uuid — около 4 КБ.
+ */
+export const BIZ_TASK_ID_CHUNK = 100;
 
 /** Колонки строки + наблюдатели и заказ вложенными выборками (литерал — для типизированного клиента) */
 export const BIZ_TASK_SELECT = `id, order_id, title, kind, description, assignee_id, creator_id, due_at,
@@ -99,11 +106,16 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
     if (get().bizTaskDetails[id] || get().bizTasks[id]) await get().loadBizTask(id);
   };
 
+  /**
+   * `ascending` — ближайшие сроки первыми (активные). Иначе — поздние сроки
+   * первыми: в потолок строк попадают свежие задачи, а не архив за годы.
+   */
   const fetchRows = async (
     build: (q: ReturnType<typeof baseQuery>) => ReturnType<typeof baseQuery>,
+    ascending = true,
   ): Promise<BizTaskRow[] | null> => {
     const { data, error } = await erpRead(() => build(baseQuery())
-      .order('due_at')
+      .order('due_at', { ascending })
       .limit(BIZ_TASK_LIST_LIMIT));
     if (error) {
       erpError('Не удалось загрузить задачи', error);
@@ -125,25 +137,32 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
     loadBizTasks: async (filter) => {
       const me = currentUserId();
       if (filter.scope !== 'all' && !me) return [];
-      let ids: string[] | null = null;
-      if (filter.scope === 'watcher') {
-        const { data, error } = await erpRead(() => supabase
-          .from('erp_biz_task_watchers').select('task_id').eq('user_id', me as string));
-        if (error) {
-          erpError('Не удалось загрузить задачи', error);
-          return null;
-        }
-        ids = ((data ?? []) as { task_id: string }[]).map((r) => r.task_id);
-        if (ids.length === 0) return [];
-      }
-      return fetchRows((q) => {
+      const statuses = filter.statuses ?? [];
+      // Только активные — ближайшие сроки первыми; с закрытыми — свежие первыми
+      const ascending = statuses.length > 0 && statuses.every((st) => BIZ_TASK_ACTIVE.includes(st));
+      const query = (ids: string[] | null) => fetchRows((q) => {
         let out = q;
-        if (filter.statuses?.length) out = out.in('status', [...filter.statuses]);
+        if (statuses.length) out = out.in('status', [...statuses]);
         if (filter.scope === 'assignee') out = out.eq('assignee_id', me as string);
         if (filter.scope === 'creator') out = out.eq('creator_id', me as string);
         if (ids) out = out.in('id', ids);
         return out;
-      });
+      }, ascending);
+      if (filter.scope !== 'watcher') return query(null);
+
+      const { data, error } = await erpRead(() => supabase
+        .from('erp_biz_task_watchers').select('task_id').eq('user_id', me as string));
+      if (error) {
+        erpError('Не удалось загрузить задачи', error);
+        return null;
+      }
+      const ids = ((data ?? []) as { task_id: string }[]).map((r) => r.task_id);
+      if (ids.length === 0) return [];
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += BIZ_TASK_ID_CHUNK) chunks.push(ids.slice(i, i + BIZ_TASK_ID_CHUNK));
+      const parts = await Promise.all(chunks.map((c) => query(c)));
+      if (parts.some((p) => p === null)) return null;
+      return parts.flatMap((p) => p ?? []);
     },
 
     loadOrderBizTasks: (orderId) => fetchRows((q) => q.eq('order_id', orderId)),

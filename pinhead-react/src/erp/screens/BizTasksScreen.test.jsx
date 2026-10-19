@@ -100,7 +100,8 @@ describe('BizTasksScreen', () => {
     expect(screen.queryByRole('link', { name: /Отменённая/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /Чужая, поставил я/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /Наблюдаемая/ })).toBeNull();
-    expect(loadBizTasks).toHaveBeenCalledWith({ scope: 'assignee' });
+    // Статус уходит в запрос: под потолком строк старые закрытые не вытесняют активные
+    expect(loadBizTasks).toHaveBeenCalledWith({ scope: 'assignee', statuses: ['new', 'in_progress', 'paused', 'review'] });
 
     // Строка общего раздела — с заказом и постановщиком
     const row = screen.getByRole('link', { name: /Забрать ткань/ });

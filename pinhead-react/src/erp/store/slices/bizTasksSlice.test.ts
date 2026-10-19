@@ -205,6 +205,25 @@ describe('чтение', () => {
     expect(h.calls.some((c) => c.table === 'erp_biz_tasks')).toBe(false);
   });
 
+  it('активные — ближайшие сроки первыми; с закрытыми — поздние первыми', async () => {
+    h.tables.erp_biz_tasks = [];
+    await useErpStore.getState().loadBizTasks({ scope: 'assignee', statuses: ['new', 'review'] });
+    expect(h.calls).toContainEqual({ table: 'erp_biz_tasks', op: 'order', args: ['due_at', { ascending: true }] });
+    h.calls.length = 0;
+    await useErpStore.getState().loadBizTasks({ scope: 'assignee' });
+    expect(h.calls).toContainEqual({ table: 'erp_biz_tasks', op: 'order', args: ['due_at', { ascending: false }] });
+    expect(h.calls.some((c) => c.table === 'erp_biz_tasks' && c.op === 'in')).toBe(false);
+  });
+
+  it('«Наблюдаю» — id пачками по 100: длинный in.(…) не упрётся в предел адреса', async () => {
+    h.tables.erp_biz_task_watchers = Array.from({ length: 250 }, (_, i) => ({ task_id: `t${i}` }));
+    h.tables.erp_biz_tasks = [];
+    const rows = await useErpStore.getState().loadBizTasks({ scope: 'watcher', statuses: ['new'] });
+    expect(rows).toEqual([]);
+    const idCalls = h.calls.filter((c) => c.table === 'erp_biz_tasks' && c.op === 'in' && c.args[0] === 'id');
+    expect(idCalls.map((c) => (c.args[1] as string[]).length)).toEqual([100, 100, 50]);
+  });
+
   it('карточка — участники, чек-лист, история и файлы задачи', async () => {
     h.tables.erp_biz_tasks = [{ ...ROW(), watchers: [{ user_id: 'u3' }], order: null }];
     h.tables.erp_biz_task_checklist = [{ id: 'c1', task_id: 't1', text: 'Позвонить', done: false, sort: 0, done_by: null, done_at: null }];
