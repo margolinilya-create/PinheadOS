@@ -418,6 +418,7 @@
     "erp/utils/attemptKey.test.js": "716a3aaf0af5f82971ec960f454b1ed39fa17fc51fb964f08b360240f9dbcfb3",
     "erp/utils/auditCoverage.test.ts": "d63a2f44f50670f6341af9ec002fb0929d20764266d855b9398d8b66c2d3c56e",
     "erp/utils/bizTasks.ts": "a8ff5393d3969b47c7cfec02d07e6dcc1f9fb35c499c5fb2247831131638e158",
+    "erp/utils/bizTasksRpc.test.ts": "b95161307df3ddbeea563a825f61d4b83aa0868673f579c8cdfdb9d8c8f9ba8c",
     "erp/utils/bizTasksSchema.test.ts": "82ec0dc7e8c8eeceee50b9c3d574b987462d90b4c321f7535410b171641c54c6",
     "erp/utils/brandingMethods.test.ts": "40d46f7f5016074d0e323ef236d6418b592df3e4d5a02fc103b66dd5142022f1",
     "erp/utils/bypass.test.ts": "021d14afda73f3e8041a7b8b6a01b9ea7a2fbec451da14e74a520e454933ec63",
@@ -966,6 +967,7 @@
     "20261019090000_erp_attach_30mb_passport_optional.sql": "12d3799c428451c7a06c5e1413477872b034bd38c6bca813e20087143c239083",
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
-    "20261020090000_erp_biz_tasks_schema.sql": "72abbe5c31ddb9690905f35e92738ca92e896154956f1745a65a79b6d3371e5c"
+    "20261020090000_erp_biz_tasks_schema.sql": "72abbe5c31ddb9690905f35e92738ca92e896154956f1745a65a79b6d3371e5c",
+    "20261020100000_erp_biz_tasks_rpc.sql": "e25fb388c3b3370c6d2a187c89a48c45edce1d5bf77034e01384daf909370834"
   }
 }
