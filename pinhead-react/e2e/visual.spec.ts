@@ -192,6 +192,34 @@ test('visual: erp-admin-roles', async ({ page }) => {
   await shoot(page, 'erp-admin-roles');
 });
 
+/**
+ * Бизнес-задачи (правки 19.10, п. 7): общий раздел и карточка фикстурной задачи
+ * `bt-1` (мок `support/mock/bizTasksRpc.ts`). Эталоны снимает владелец: имя
+ * начинается с `erp-`, а CI по умолчанию переснимает только `studio-` (К13 вехи 8).
+ */
+test('visual: erp-biz-tasks', async ({ page }) => {
+  skipUntilBaseline('erp-biz-tasks');
+  await page.goto('/biz-tasks?studio=0');
+  await expect(page.getByRole('heading', { level: 1, name: 'Бизнес-задачи' })).toBeVisible();
+  // Фильтры и вкладки; список «Мне» у dev-автологина пуст (`currentUserId()` гасит id `dev`)
+  await expect(page.getByRole('tablist', { name: 'Мои задачи' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Статус' })).toBeVisible();
+  await shoot(page, 'erp-biz-tasks');
+});
+
+test('visual: erp-biz-tasks-card', async ({ page }) => {
+  skipUntilBaseline('erp-biz-tasks-card');
+  await page.goto('/biz-tasks/bt-1?studio=0');
+  await expect(page.getByRole('heading', { level: 1, name: 'Заказать молнии' })).toBeVisible();
+  // На ≤ 760 px диалог — за вкладкой «Обсуждение»: снимается вкладка «Задача»
+  if ((page.viewportSize()?.width ?? 1280) > 760) {
+    await expect(page.getByText('Уточни срок у поставщика')).toBeVisible();
+  } else {
+    await expect(page.getByRole('tablist', { name: 'Разделы задачи' })).toBeVisible();
+  }
+  await shoot(page, 'erp-biz-tasks-card');
+});
+
 // ─── Order Studio (каталог) — флаг включён (?studio=1) ───
 // Визард (/) сюда не включён: его fullPage-скриншот нестабилен из-за
 // ленивой подгрузки картинок SKU на длинной странице.

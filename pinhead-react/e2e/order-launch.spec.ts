@@ -148,7 +148,12 @@ test('запуск с ТЗ и макетами: tz.documents по числу п�
   expect([...erpUploadsByAttempt(extra).values()]).toEqual([4]);
 });
 
-test('файл макета больше 30 МБ — отказ шага files, заказ ERP не создан', async ({ page }) => {
+/**
+ * Правки 19.10 подняли лимит `erp-attachments` до 30 МБ, а бакет макетов `order-artworks` остался 25 МБ
+ * (`ARTWORK_MAX_BYTES`): макет больше 30 МБ до правила «больше 30 МБ» не доходит — его отвергает уже
+ * скачивание (`downloadArtwork`). Ветку `tooBig` копии держит юнит `bridge/launchFiles.test.ts`.
+ */
+test('файл макета больше лимита бакета — не скачивается, отказ шага files, заказ ERP не создан', async ({ page }) => {
   const calls: MockCall[] = [];
   const extra = { calls, storageObjects: {} as Objects };
   const files = await start(page, extra, { items: 1, withArtwork: true });
@@ -156,7 +161,7 @@ test('файл макета больше 30 МБ — отказ шага files, 
 
   const r = await launch(page);
   expect(r).toMatchObject({ ok: false, stage: 'files' });
-  expect((r as { reason: string }).reason).toMatch(/больше 30 МБ/);
+  expect((r as { reason: string }).reason).toMatch(/не загружен из хранилища/);
   expect(rpcs(calls).map((c) => c.name)).not.toContain('erp_create_order');
 });
 

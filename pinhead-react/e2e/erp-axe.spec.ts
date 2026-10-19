@@ -40,6 +40,9 @@ const SCREENS = [
   { name: 'Подряд', url: '/subcontracting?studio=0' },
   { name: 'Экспериментальный цех', url: '/experimental?studio=0' },
   { name: 'Админка', url: '/admin?studio=0' },
+  // Правки 19.10, п. 7: общий раздел и карточка бизнес-задачи (фикстура `bt-1`, мок `bizTasksRpc`)
+  { name: 'Бизнес-задачи', url: '/biz-tasks?studio=0' },
+  { name: 'Карточка бизнес-задачи', url: '/biz-tasks/bt-1?studio=0' },
 ];
 
 /**
@@ -117,4 +120,28 @@ test('Очередь закроя с открытой формой сдачи (3
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+/**
+ * ФОРМА «НОВАЯ ЗАДАЧА» ОТКРЫТОЙ (правки 19.10, п. 7): вкладка «Задачи» заказа,
+ * раскрытый блок «Дополнительно» — комбобоксы людей, радио типа, чек-лист.
+ * Экраны выше снимаются с закрытой формой, а она — самое плотное место раздела.
+ */
+test('Форма новой бизнес-задачи: нет нарушений WCAG 2.1 A/AA', async ({ page }) => {
+  await page.goto('/orders/ord-a?studio=0&tab=tasks');
+  await page.getByRole('button', { name: 'Создать задачу' }).click();
+  const form = page.getByRole('form', { name: 'Новая задача' });
+  await form.getByRole('button', { name: /Дополнительно/ }).click();
+  await form.getByRole('button', { name: 'Добавить пункт' }).click();
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const report = violations.filter((v) => !(v.id in KNOWN)).map((v) => {
+    const nodes = v.nodes.slice(0, 3)
+      .map((n) => `      ${n.target.join(' ')}\n        ${(n.failureSummary ?? '').replace(/\s+/g, ' ').trim()}`)
+      .join('\n');
+    return `${v.id} (${v.impact}): ${v.help}\n${nodes}`;
+  });
+  expect(report, `форма задачи — нарушения:\n${report.join('\n')}`).toEqual([]);
 });

@@ -16,9 +16,14 @@
  * Возвращает `undefined`, если вызов не его: тогда отвечает общий мок.
  */
 import { RpcFailure } from './orderV4Rpc';
+import { BIZ_TASK_TRANSITIONS, type BizTaskTransitionAction } from '../../../src/erp/utils/bizTasks';
 
-/** Вызывающий в e2e — dev-автологин; участник фикстурной задачи */
-const ME = 'dev-user';
+/**
+ * Вызывающий в e2e — dev-автологин (`devAutologin.ts`: id `dev`, профиль admin);
+ * участник фикстурной задачи. Карточка сравнивает роли с `user.id`, поэтому
+ * id здесь — тот же, что у стора авторизации.
+ */
+const ME = 'dev';
 const OTHER = 'u-maria';
 const AT = '2026-07-20T09:00:00Z';
 
@@ -30,7 +35,12 @@ export const BIZ_TASK_TEXTS = {
   resultStatus: 'Результат фиксируется в работе или на проверке',
   resultMessage: 'Результатом отмечается своё сообщение из обсуждения этой задачи',
   notFound: 'Задача не найдена',
+  stale: 'Задача изменена — обновите карточку',
 } as const;
+
+/** Часы мока: каждая запись двигает `updated_at` — версия для `p_expected_updated_at` */
+let tick = 0;
+const nextAt = () => new Date(Date.parse('2026-07-20T09:10:00Z') + (tick += 1) * 1000).toISOString();
 
 interface TaskMsg {
   id: string;
@@ -68,6 +78,7 @@ const state = {
 };
 
 export function resetBizTasksMock(): void {
+  tick = 0;
   state.tasks = seedTasks();
   state.watchers = new Map([['bt-1', []]]);
   state.threads = new Map([['bt-1', [{
@@ -142,9 +153,69 @@ export function bizTasksRpc(fn: string, body: Record<string, unknown>): unknown 
       state.tasks.set(task.id, next);
       return { ...next };
     }
+    case 'erp_biz_task_create':
+      return createTask(body);
+    case 'erp_biz_task_transition':
+      return transition(body);
+    case 'erp_biz_task_mark_seen': {
+      const task = state.tasks.get(String(body.p_id ?? ''));
+      return task ? { ...task } : new RpcFailure('P0002', BIZ_TASK_TEXTS.notFound);
+    }
     default:
       return undefined;
   }
+}
+
+/**
+ * `erp_biz_task_create` — постановщик = вызывающий; наблюдатели — переданные
+ * минус постановщик и ответственный; повтор `client_key` — прежняя строка.
+ */
+function createTask(body: Record<string, unknown>): unknown {
+  const key = String(body.p_client_key ?? '');
+  const known = [...state.tasks.values()].find((t) => t.client_key === key);
+  if (known) return { ...known };
+  const input = (body.p_task ?? {}) as Record<string, unknown>;
+  const at = nextAt();
+  const row: TaskRow = {
+    id: `bt-new-${state.tasks.size + 1}`, order_id: String(input.order_id), title: String(input.title ?? ''),
+    kind: input.kind ?? 'other', description: input.description ?? null,
+    assignee_id: String(input.assignee_id), creator_id: ME, due_at: input.due_at ?? null, status: 'new',
+    review_required: Boolean(input.review_required),
+    pause_reason: null, cancel_reason: null, return_reason: null, result_text: null, result_message_id: null,
+    submitted_at: null, reviewed_at: null, completed_at: null, cancelled_at: null,
+    client_key: key, created_at: at, updated_at: at,
+  };
+  state.tasks.set(row.id, row);
+  const watchers = ((input.watchers ?? []) as string[]).filter((u) => u !== ME && u !== row.assignee_id);
+  state.watchers.set(row.id, [...new Set(watchers)]);
+  state.threads.set(row.id, []);
+  return { ...row };
+}
+
+/** `erp_biz_task_transition` — таблица `BIZ_TASK_TRANSITIONS`, версия, роль, текст */
+function transition(body: Record<string, unknown>): unknown {
+  const task = state.tasks.get(String(body.p_id ?? ''));
+  if (!task) return new RpcFailure('P0002', BIZ_TASK_TEXTS.notFound);
+  const action = String(body.p_action) as BizTaskTransitionAction;
+  const t = BIZ_TASK_TRANSITIONS[action];
+  if (!t || !t.from.includes(task.status as never)) return new RpcFailure('22023', 'Такой переход недоступен');
+  if (action === 'submit' && !task.review_required) return new RpcFailure('22023', 'Такой переход недоступен');
+  if (action === 'complete' && task.review_required) return new RpcFailure('22023', 'Такой переход недоступен');
+  if (body.p_expected_updated_at !== task.updated_at) return new RpcFailure('P0001', BIZ_TASK_TEXTS.stale);
+  const who = t.who === 'assignee' ? task.assignee_id : task.creator_id;
+  if (who !== ME) return new RpcFailure('42501', 'Нет прав на это действие');
+  const text = typeof body.p_text === 'string' ? body.p_text.trim() : '';
+  if (t.text && !text) return new RpcFailure('22023', 'Нужен текст');
+  const at = nextAt();
+  const next: TaskRow = { ...task, status: t.to, updated_at: at };
+  if (t.text === 'result') next.result_text = text;
+  if (t.text === 'reason') next[action === 'pause' ? 'pause_reason' : 'cancel_reason'] = text;
+  if (action === 'submit') next.submitted_at = at;
+  if (action === 'return') { next.return_reason = text; next.submitted_at = null; next.reviewed_at = null; next.completed_at = null; }
+  if (action === 'accept') { next.reviewed_at = at; next.completed_at = at; }
+  if (action === 'complete') next.completed_at = at;
+  state.tasks.set(task.id, next);
+  return { ...next };
 }
 
 /**

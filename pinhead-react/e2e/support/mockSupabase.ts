@@ -622,6 +622,12 @@ export type MockExtras = {
    */
   myEmployee?: unknown;
   /**
+   * Справочник людей чата (`erp_chat_directory`) поверх `CHAT_PEOPLE`. Бизнес-задачам
+   * нужны сотрудники ERP (непустая `role`): ответственным и наблюдателем форма
+   * предлагает только их.
+   */
+  chatDirectory?: unknown[];
+  /**
    * Поля участков поверх фикстуры, по коду (`{ cutting: { result_detail: 'rolls' } }`).
    * Схема отчёта цеха живёт в данных (`result_fields`, `result_detail`), и форма
    * сдачи закроя без них не рисуется. Патч действует на ОБА пути, которыми
@@ -1250,7 +1256,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
      * молчала бы ровно там, где эти действия и проверяются.
      */
     case 'erp_chat_directory':
-      return CHAT_PEOPLE;
+      return extra.chatDirectory ?? CHAT_PEOPLE;
 
     case 'erp_chat_page':
       return {

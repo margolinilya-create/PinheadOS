@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../store/useErpStore';
-import { currentUserId } from '../../store/shared';
+import { useAuthStore } from '../../../store/useAuthStore';
 import {
   bizTaskParticipants, canMarkAsResult, canWriteBizTaskChat,
 } from '../../utils/bizTaskChat';
@@ -23,7 +23,12 @@ export function useTaskChat(taskId, canManage, directory) {
     task: taskId ? (s.bizTasks[taskId] ?? null) : null,
     setResult: s.setBizTaskResult,
   })));
-  const meId = currentUserId();
+  /**
+   * Кто я — из стора авторизации, как у карточки задачи (`BizTaskCard`), а не
+   * `currentUserId()`: тот гасит dev-автологин (`id = dev`) в `null` ради записей
+   * в uuid-колонки, и в dev и e2e поле ввода у постановщика не появлялось.
+   */
+  const meId = useAuthStore((s) => s.user?.id ?? null);
   /** Текст для читалки: «Сообщение отмечено результатом» после ответа сервера */
   const [announce, setAnnounce] = useState('');
 
