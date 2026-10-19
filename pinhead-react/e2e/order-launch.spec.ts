@@ -148,15 +148,15 @@ test('запуск с ТЗ и макетами: tz.documents по числу п�
   expect([...erpUploadsByAttempt(extra).values()]).toEqual([4]);
 });
 
-test('файл макета больше 20 МБ — отказ шага files, заказ ERP не создан', async ({ page }) => {
+test('файл макета больше 30 МБ — отказ шага files, заказ ERP не создан', async ({ page }) => {
   const calls: MockCall[] = [];
   const extra = { calls, storageObjects: {} as Objects };
   const files = await start(page, extra, { items: 1, withArtwork: true });
-  extra.storageObjects[`order-artworks/${files.art[0]}`] = { type: 'image/png', body: Buffer.concat([PNG, Buffer.alloc(21 * 1024 * 1024)]) };
+  extra.storageObjects[`order-artworks/${files.art[0]}`] = { type: 'image/png', body: Buffer.concat([PNG, Buffer.alloc(31 * 1024 * 1024)]) };
 
   const r = await launch(page);
   expect(r).toMatchObject({ ok: false, stage: 'files' });
-  expect((r as { reason: string }).reason).toMatch(/больше 20 МБ/);
+  expect((r as { reason: string }).reason).toMatch(/больше 30 МБ/);
   expect(rpcs(calls).map((c) => c.name)).not.toContain('erp_create_order');
 });
 

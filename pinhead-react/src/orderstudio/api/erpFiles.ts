@@ -12,7 +12,7 @@
  *   ВЫЗЫВАЮЩИЙ по сигнатуре байт (`sniffArtwork`), а тело перекладывается в
  *   `Blob` этого типа: тип исходного `Blob` (`blob.type`) сюда не доходит —
  *   иначе SVG со скриптом под именем `.png` исполнился бы на origin Storage;
- * - предел 20 МБ до запроса;
+ * - предел 30 МБ до запроса (= лимит бакета, правка 19.10, Р9);
  * - 409 Duplicate — НЕ успех: файл по этому ключу положил кто-то другой
  *   (подложенный файл приняли бы за свой). Повтор запуска идёт с новыми
  *   ключами (новый uuid попытки).
@@ -25,7 +25,7 @@ import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n'
 
 export const ERP_ATTACHMENTS_BUCKET = 'erp-attachments';
 /** Предел файла в производстве — до запроса */
-export const ERP_FILE_MAX_BYTES = 20 * 1024 * 1024;
+export const ERP_FILE_MAX_BYTES = 30 * 1024 * 1024;
 
 /** Типы, которые Order кладёт в публичный бакет; только по сигнатуре байт */
 export const ERP_FILE_TYPES = [
@@ -69,7 +69,7 @@ export async function uploadErpFile(path: string, body: Blob, contentType: ErpFi
     return { ok: false, reason: 'Этот тип файла в производство не копируется' };
   }
   if (body.size === 0) return { ok: false, reason: 'Файл пустой' };
-  if (body.size > ERP_FILE_MAX_BYTES) return { ok: false, reason: 'Файл больше 20 МБ — производство его не примет' };
+  if (body.size > ERP_FILE_MAX_BYTES) return { ok: false, reason: 'Файл больше 30 МБ — производство его не примет' };
   // Тип — только назначенный вызывающим: тело перекладывается в Blob этого типа
   const typed = new Blob([body], { type: contentType });
   try {

@@ -28,8 +28,8 @@ import type { TzCatalogs } from './tzDocTypes';
 export const SERVER_SEND_RULES = ['tz_pdf_path', 'artwork_path_except_other'] as const;
 export type ServerSendRule = (typeof SERVER_SEND_RULES)[number];
 
-/** Предел файла в `erp-attachments` (решение 24) */
-export const ERP_FILE_MAX_BYTES = 20 * 1024 * 1024;
+/** Предел файла в `erp-attachments` (решение 24; 30 МБ — правка 19.10, Р9) */
+export const ERP_FILE_MAX_BYTES = 30 * 1024 * 1024;
 
 export interface CheckItem {
   id: string;
@@ -75,8 +75,8 @@ function itemChecks(order: SalesOrder, item: SalesItem, ctx: CheckCtx, push: Pus
     if (!(Number(p.width_mm) > 0 && Number(p.height_mm) > 0)) push(id(`mm:${n}`), `Укажите размер в мм у нанесения ${n} позиции ${name}`, `У нанесения ${n} ${name} нет размера в мм`, href);
     const size = p.artwork_path ? ctx.fileSizes?.[p.artwork_path] : undefined;
     if (size && size > ERP_FILE_MAX_BYTES) {
-      push(id(`size:${n}`), `Файл макета нанесения ${n} ${name} больше 20 МБ — производство его не примет. Замените файл`,
-        `Файл макета нанесения ${n} ${name} больше 20 МБ — производство его не примет`, href);
+      push(id(`size:${n}`), `Файл макета нанесения ${n} ${name} больше 30 МБ — производство его не примет. Замените файл`,
+        `Файл макета нанесения ${n} ${name} больше 30 МБ — производство его не примет`, href);
     }
   });
   item.labels.forEach((l, i) => {

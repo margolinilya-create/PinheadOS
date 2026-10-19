@@ -165,14 +165,14 @@ describe('copyLaunchFiles', () => {
     expect(r.ok ? '' : r.reason).toMatch(/нанесения 2 «Футболка»/);
   });
 
-  it('больше 20 МБ — отказ с названием нанесения', async () => {
+  it('больше 30 МБ — отказ с названием нанесения', async () => {
     const o = order([item({ prints: [newSalesPrint({ method: 'dtf', artwork_path: ART('big.png') })] })]);
     const big = new Blob([new Uint8Array(ERP_FILE_MAX_BYTES + 1)]);
     const { d } = deps({ [TZ]: PDF, [ART('big.png')]: big });
     const r = await copyLaunchFiles(o, planLaunchFiles(o, valid(o), ids()), 'u', d);
     expect(r).toEqual({
       ok: false,
-      reason: 'Файл макета нанесения 1 «Футболка» больше 20 МБ — производство его не примет. Верните заказ менеджеру, чтобы он заменил файл',
+      reason: 'Файл макета нанесения 1 «Футболка» больше 30 МБ — производство его не примет. Верните заказ менеджеру, чтобы он заменил файл',
     });
   });
 

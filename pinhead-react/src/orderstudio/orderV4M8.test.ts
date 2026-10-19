@@ -83,7 +83,10 @@ const FORBIDDEN_WORD = /\b(drop|delete)\b/i;
 
 describe('веха 8: порядок и состав миграций', () => {
   it('L < K < M, все после J и последние в папке', () => {
-    const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
+    // «Последние» — среди миграций вехи 8: правки 19.10 (план A, ERP) кладут
+    // свои файлы позже M, и это не нарушает порядок L → K → M. Вклиниться
+    // МЕЖДУ J и M чужой файл по-прежнему не может
+    const all = readdirSync(MIG).filter((f) => f.endsWith('.sql') && f <= FILES.M).sort();
     expect(all.slice(-4)).toEqual([FILES.J, FILES.L, FILES.K, FILES.M]);
   });
 

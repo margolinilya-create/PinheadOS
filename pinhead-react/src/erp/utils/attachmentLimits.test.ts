@@ -106,6 +106,48 @@ describe('лимит размера вложения не расходится �
   });
 
   /**
+   * ПИСАТЕЛИ ORDER КЛАДУТ В ТОТ ЖЕ БАКЕТ (правка 19.10, решение Р9).
+   *
+   * Order копирует ТЗ и макеты в `erp-attachments` при запуске и заранее
+   * предупреждает менеджера: «Файл больше N МБ — производство его не примет».
+   * Своя константа у Order разошлась бы с бакетом молча: мягче — отказ
+   * Storage посреди запуска; строже — текст «больше 20 МБ — производство
+   * не примет» стал бы неправдой при бакете на 30. Поэтому сверяются и
+   * константы (в том числе мок бакета e2e), и числа в самих текстах.
+   *
+   * Константы читаются ТЕКСТОМ, а не импортом: `api/erpFiles.ts` тянет
+   * клиент Supabase, а мок e2e живёт вне `src`.
+   */
+  it('писатели Order не мягче бакета', () => {
+    const MB = 1024 * 1024;
+    const writers = [
+      ['orderstudio/api/erpFiles.ts', /ERP_FILE_MAX_BYTES = (\d+) \* 1024 \* 1024/],
+      ['orderstudio/tz/model/sendChecklist.ts', /ERP_FILE_MAX_BYTES = (\d+) \* 1024 \* 1024/],
+      ['../e2e/support/mock/storageBuckets.ts', /ERP_FILE_LIMIT = (\d+) \* 1024 \* 1024/],
+    ] as const;
+    for (const [rel, re] of writers) {
+      const m = readFileSync(join(SRC, rel), 'utf8').match(re);
+      expect(m, `${rel}: предел не найден — разбор сломан`).toBeTruthy();
+      expect(Number(m![1]) * MB, `${rel}: предел Order разошёлся с бакетом`).toBe(bucketLimit());
+    }
+    const texts = [
+      'orderstudio/api/erpFiles.ts',
+      'orderstudio/tz/model/sendChecklist.ts',
+      'orderstudio/bridge/launchFiles.ts',
+      '../e2e/support/mock/storageBuckets.ts',
+    ];
+    let seen = 0;
+    for (const rel of texts) {
+      const text = readFileSync(join(SRC, rel), 'utf8');
+      for (const m of text.matchAll(/(?:больше|предел) (\d+) МБ/g)) {
+        seen += 1;
+        expect(Number(m[1]) * MB, `${rel}: «${m[0]}» не равно лимиту бакета`).toBe(bucketLimit());
+      }
+    }
+    expect(seen, 'в текстах Order не найдено ни одного «больше N МБ» — разбор сломан').toBeGreaterThan(3);
+  });
+
+  /**
    * `sku-photos` СВОЯ ВЕЛИЧИНА, И ЭТО РЕШЕНИЕ, А НЕ ЗАБЫВЧИВОСТЬ.
    *
    * Это фото моделей Order Studio — другой раздел, другой вопрос («какой

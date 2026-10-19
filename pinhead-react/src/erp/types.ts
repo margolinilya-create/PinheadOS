@@ -883,8 +883,8 @@ export interface ErpTzDocument {
 /** Бакет ТЗ в Supabase Storage */
 export const TZ_BUCKET = 'erp-attachments';
 /**
- * Ограничения загрузки ТЗ: до 20 МБ, формат ЛЮБОЙ (правка 12.09, п. 4;
- * лимит поднят с 15 правкой 14.09).
+ * Ограничения загрузки ТЗ: до 30 МБ на файл, формат ЛЮБОЙ (правка 12.09, п. 4;
+ * лимит поднят с 15 до 20 правкой 14.09 и до 30 правкой 19.10, п. 4).
  *
  * `TZ_MIME` остался и означает теперь не «что принимаем», а «чем считать
  * документ, у которого браузер не определил тип»: у файла с незнакомым
@@ -893,7 +893,7 @@ export const TZ_BUCKET = 'erp-attachments';
  */
 export const TZ_MIME = 'application/pdf';
 /** Зеркало `file_size_limit` бакета `erp-attachments` — см. `ATTACH_MAX_BYTES` */
-export const TZ_MAX_BYTES = 20 * 1024 * 1024;
+export const TZ_MAX_BYTES = 30 * 1024 * 1024;
 
 /** Складская операция (правка 2): строка истории сопровождения заказа складом */
 export interface ErpWarehouseOp {

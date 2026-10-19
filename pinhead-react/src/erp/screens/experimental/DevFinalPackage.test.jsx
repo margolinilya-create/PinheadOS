@@ -41,8 +41,8 @@ function setup(devPatch = {}, attachments = [], canManage = true) {
   return { onUpdate, onReady };
 }
 
+/** Пакет собран БЕЗ техпаспорта — он необязателен (правка 19.10, п. 5) */
 const FILES = [
-  { id: 'a1', kind: 'dev_passport', file_name: 'passport.pdf' },
   { id: 'a2', kind: 'dev_photo', file_name: 'sample.jpg' },
 ];
 
@@ -52,12 +52,37 @@ const FILES = [
  */
 
 describe('финальный этап: обязательная техдокументация (п. 4.5)', () => {
-  it('спрашивает ровно четыре обязательных поля документа', () => {
+  it('спрашивает три обязательных поля и необязательный техпаспорт', () => {
     setup();
     expect(screen.getByLabelText('Техническое название лекал')).toBeInTheDocument();
     expect(screen.getByLabelText('Версия лекал')).toBeInTheDocument();
-    expect(screen.getByLabelText('Технический паспорт')).toBeInTheDocument();
     expect(screen.getByLabelText('Фото утверждённого образца')).toBeInTheDocument();
+  });
+
+  /**
+   * ТЕХПАСПОРТ НЕОБЯЗАТЕЛЕН (правка 19.10, п. 5): «поле „Технический паспорт"
+   * и кнопку „Приложить" сохранить, пометить поле как необязательное».
+   * Пометка — часть доступного имени, а не только серый текст: читалка
+   * обязана услышать её вместе с названием поля.
+   */
+  it('доступное имя «Технический паспорт, необязательно»', () => {
+    setup();
+    expect(screen.getByLabelText('Технический паспорт, необязательно')).toBeInTheDocument();
+    expect(screen.getByText('· необязательно')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Приложить' }).length).toBe(2);
+  });
+
+  it('без паспорта «Завершить разработку» активна', () => {
+    setup({}, FILES);
+    expect(screen.getByRole('button', { name: 'Завершить разработку' })).toBeEnabled();
+    expect(screen.queryByText('Технический паспорт', { selector: 'li' })).toBeNull();
+    // Чип «не приложен» остаётся только у обязательного фото — и здесь его нет
+    expect(screen.queryByText('не приложен')).toBeNull();
+  });
+
+  it('без фото «не приложен» стоит только у фото, не у паспорта', () => {
+    setup({}, []);
+    expect(screen.getAllByText('не приложен')).toHaveLength(1);
   });
 
   /**
@@ -157,10 +182,10 @@ describe('переключатель «Добавить модель в ката
    * что всё готово.
    */
   it('прогресс считается по своему режиму', () => {
-    // Пунктов четыре, а не пять: «Образец отшит и проверен» из перечня ушёл
-    // вместе с блоком проверки образца (правка 12.09, вторая порция, п. 5)
+    // Пунктов три: «Образец отшит и проверен» ушёл правкой 12.09 (вторая
+    // порция, п. 5), техпаспорт стал необязательным правкой 19.10 (п. 5)
     setup({}, FILES);
-    expect(screen.getByText('4 / 4')).toBeInTheDocument();
+    expect(screen.getByText('3 / 3')).toBeInTheDocument();
   });
 });
 

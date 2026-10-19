@@ -114,11 +114,11 @@ describe('sendChecklist — тексты', () => {
     expect(items[0]).toMatchObject({ href: null, text: expect.stringContaining('Подвал ТЗ в справочнике у «Футболка Old Money, чёрный»: знаки ₽') });
   });
 
-  it('файл макета больше 20 МБ — текст решения 24 у МС', () => {
+  it('файл макета больше 30 МБ — текст решения 24 у МС', () => {
     const o = ready('63886');
-    const sizes = { [o.items[0].prints[0].artwork_path]: 21 * 1024 * 1024 };
+    const sizes = { [o.items[0].prints[0].artwork_path]: 31 * 1024 * 1024 };
     const m = sendChecklist(withPdf(o), cat, { ...ms, fileSizes: sizes });
-    expect(m.map((i) => i.text)).toContain('Файл макета нанесения 1 «Футболка Old Money, чёрный» больше 20 МБ — производство его не примет — верните менеджеру');
+    expect(m.map((i) => i.text)).toContain('Файл макета нанесения 1 «Футболка Old Money, чёрный» больше 30 МБ — производство его не примет — верните менеджеру');
   });
 
   it('у позиций одного ТЗ разные бирки — неблокирующий пункт со ссылкой на первую (у МС — без ссылки)', () => {
