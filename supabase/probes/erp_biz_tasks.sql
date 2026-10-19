@@ -628,10 +628,11 @@ select pg_temp.p('attach_outsider', '42501', format($q$select public.erp_biz_tas
 
 -- ── Результат и «видел» ──────────────────────────────────────────────────
 insert into public.erp_chat_threads (task_id) values (pg_temp.fx('t1'));
-insert into public.erp_chat_messages (thread_id, author_id, body)
-select t.id, pg_temp.uid('assignee')::uuid, 'Ткань забрана, лежит на складе' from public.erp_chat_threads t where t.task_id = pg_temp.fx('t1');
-insert into public.erp_chat_messages (thread_id, author_id, body)
-select t.id, pg_temp.uid('creator')::uuid, 'Спасибо' from public.erp_chat_threads t where t.task_id = pg_temp.fx('t1');
+-- client_key на бою NOT NULL (ключ идемпотентности отправки) — фикстура ставит свой
+insert into public.erp_chat_messages (thread_id, author_id, body, client_key)
+select t.id, pg_temp.uid('assignee')::uuid, 'Ткань забрана, лежит на складе', gen_random_uuid() from public.erp_chat_threads t where t.task_id = pg_temp.fx('t1');
+insert into public.erp_chat_messages (thread_id, author_id, body, client_key)
+select t.id, pg_temp.uid('creator')::uuid, 'Спасибо', gen_random_uuid() from public.erp_chat_threads t where t.task_id = pg_temp.fx('t1');
 insert into fx values ('msg_own', (select m.id from public.erp_chat_messages m join public.erp_chat_threads t on t.id = m.thread_id
                                      where t.task_id = pg_temp.fx('t1') and m.author_id = pg_temp.uid('assignee')::uuid));
 insert into fx values ('msg_creator', (select m.id from public.erp_chat_messages m join public.erp_chat_threads t on t.id = m.thread_id

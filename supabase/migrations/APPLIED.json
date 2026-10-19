@@ -2551,6 +2551,34 @@
       "files": [
         "20261019090000_erp_attach_30mb_passport_optional.sql"
       ]
+    },
+    {
+      "version": "20261019100000",
+      "name": "erp_embroidery_one_stage",
+      "files": [
+        "20261019100000_erp_embroidery_one_stage.sql"
+      ]
+    },
+    {
+      "version": "20261019110000",
+      "name": "erp_cut_result_once",
+      "files": [
+        "20261019110000_erp_cut_result_once.sql"
+      ]
+    },
+    {
+      "version": "20261020090000",
+      "name": "erp_biz_tasks_schema",
+      "files": [
+        "20261020090000_erp_biz_tasks_schema.sql"
+      ]
+    },
+    {
+      "version": "20261020100000",
+      "name": "erp_biz_tasks_rpc",
+      "files": [
+        "20261020100000_erp_biz_tasks_rpc.sql"
+      ]
     }
   ]
 }

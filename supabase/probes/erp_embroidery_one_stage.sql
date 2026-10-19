@@ -94,18 +94,27 @@ values
   -- B: старая пара строк
   ('00000000-0000-4000-8000-0000191000b2', '00000000-0000-4000-8000-0000191000b1',
    (select id from public.erp_departments where code = 'cutting'), '{}', 'waiting', 1, null, null),
-  ('00000000-0000-4000-8000-0000191000b3', '00000000-0000-4000-8000-0000191000b1',
-   (select id from public.erp_departments where code = 'embroidery'), '{}', 'waiting', 2,
-   'Разработка программы вышивки', 'embroidery_program'),
-  ('00000000-0000-4000-8000-0000191000b4', '00000000-0000-4000-8000-0000191000b1',
-   (select id from public.erp_departments where code = 'embroidery'),
-   '{00000000-0000-4000-8000-0000191000b2}', 'waiting', 3, null, null),
   -- S: крой → вышивка у подрядчика (фаза программы)
   ('00000000-0000-4000-8000-0000191000d2', '00000000-0000-4000-8000-0000191000d1',
    (select id from public.erp_departments where code = 'cutting'), '{}', 'waiting', 1, null, null),
   ('00000000-0000-4000-8000-0000191000d3', '00000000-0000-4000-8000-0000191000d1',
    (select id from public.erp_departments where code = 'embroidery'),
    '{00000000-0000-4000-8000-0000191000d2}', 'waiting', 2, 'Разработка программы вышивки', 'embroidery_program');
+
+-- Старая пара «программа + вышивка» — так, как она стоит на бою (проверено 19.10):
+-- 1) cycle 0 у программы и 1 у вышивки — уникален (item_id, department_id, cycle);
+-- 2) вышивка вставлена РАНЬШЕ программы: `erp_stage_passthrough` (BEFORE) видит
+--    соседа только уже вставленным, а живые пары давно стоят парой — их программа прозрачна
+insert into public.erp_item_stages (id, item_id, department_id, depends_on, status, sort_order, operation, result_kind, cycle)
+values
+  ('00000000-0000-4000-8000-0000191000b4', '00000000-0000-4000-8000-0000191000b1',
+   (select id from public.erp_departments where code = 'embroidery'),
+   '{00000000-0000-4000-8000-0000191000b2}', 'waiting', 3, null, null, 1);
+insert into public.erp_item_stages (id, item_id, department_id, depends_on, status, sort_order, operation, result_kind, cycle)
+values
+  ('00000000-0000-4000-8000-0000191000b3', '00000000-0000-4000-8000-0000191000b1',
+   (select id from public.erp_departments where code = 'embroidery'), '{}', 'waiting', 2,
+   'Разработка программы вышивки', 'embroidery_program', 0);
 update public.erp_item_stages set executor = 'contractor'
  where id = '00000000-0000-4000-8000-0000191000d3';
 
@@ -207,7 +216,10 @@ reset role;
 -- строка становится «Вышивкой» с фактом подрядчика и закрывается
 select pg_temp.as_user('22d22715-1487-480a-aea1-53a7bd52df2d');
 set local role authenticated;
-select pg_temp.p('sub_no_flag', '23514 Сначала сдайте программу', $q$update public.erp_item_stages set qty_done = 4 where id = '00000000-0000-4000-8000-0000191000d3'$q$);
+-- Без метки штуки не принимаются. На бою первым отказывает страж количества
+-- (`erp_clamp_trusted_state`: крой открыт — передано 0), до стража фазы; сообщение
+-- стража фазы на этой же строке проверяет `d_force_phase`. Здесь — сам отказ (23514)
+select pg_temp.p('sub_no_flag', '23514 ', $q$update public.erp_item_stages set qty_done = 4 where id = '00000000-0000-4000-8000-0000191000d3'$q$);
 select set_config('erp.subcontract_rollup', 'on', true);
 select pg_temp.p('sub_rollup_partial', 'OK rows=1', $q$update public.erp_item_stages set qty_done = 4 where id = '00000000-0000-4000-8000-0000191000d3'$q$);
 select pg_temp.p('sub_rollup_state', 'OK null/null/4/false/false', $q$select coalesce(result_kind, 'null') || '/' || coalesce(operation, 'null') || '/' || qty_done || '/' || qty_passthrough || '/' || public.erp_embroidery_is_phased(id) from public.erp_item_stages where id = '00000000-0000-4000-8000-0000191000d3'$q$);

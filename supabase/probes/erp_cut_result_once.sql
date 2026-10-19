@@ -145,7 +145,7 @@ select pg_temp.p('doc_submit', 'OK', format($q$select (public.erp_stage_submit_r
     jsonb_build_object('roll_id', %L, 'material_id', %L, 'length_used_m', 50, 'finished', true),
     jsonb_build_object('roll_id', %L, 'material_id', gen_random_uuid(), 'length_used_m', 38, 'finished', true,
                        'leftover', 'usable', 'leftover_measured_m', null)),
-  p_client_key => '00000000-0000-4000-8000-0000000000c1'))).id::text$q$,
+  p_client_key => '00000000-0000-4000-8000-0000000000c1')).id::text$q$,
   pg_temp.fx('doc.stage'), pg_temp.fx('doc.r1'), pg_temp.fx('doc.mat'), pg_temp.fx('doc.r2')));
 select pg_temp.p('doc_good', 'OK 100', format($q$select sum(qty_good)::text from public.erp_stage_reports where stage_id = %L$q$, pg_temp.fx('doc.stage')));
 select pg_temp.p('doc_size_rows', 'OK 2/0', format($q$select count(*) || '/' || count(z.report_roll_id) from public.erp_stage_report_sizes z join public.erp_stage_reports r on r.id = z.report_id where r.stage_id = %L$q$, pg_temp.fx('doc.stage')));
@@ -208,11 +208,17 @@ select pg_temp.p('duo_submit', 'OK 150', format($q$select (public.erp_stage_subm
 
 -- Без рулонов сверх плана (L 40 + 10): плюс посчитан; брак и переделка — скалярами
 select pg_temp.p('norolls_submit', 'OK', format($q$select (public.erp_stage_submit_report(p_stage_id => %L, p_qty_in => null, p_qty_good => 0,
-  p_qty_defect => 2, p_qty_rework => 1,
+  p_qty_defect => 2, p_qty_rework => 1, p_comment => 'Брак пробы',
   p_sizes => '[{"color":"Чёрный","size":"M","qty_good":40},{"color":"Чёрный","size":"L","qty_good":50}]'::jsonb)).id::text$q$,
   pg_temp.fx('norolls.stage')));
-select pg_temp.p('norolls_extra', 'OK 90/2/1/10', format($q$select qty_good || '/' || qty_defect || '/' || qty_rework || '/' || qty_extra from public.erp_stage_reports where stage_id = %L$q$, pg_temp.fx('norolls.stage')));
-select pg_temp.p('norolls_rows_extra', 'OK 10', format($q$select sum(z.qty_extra)::text from public.erp_stage_report_sizes z join public.erp_stage_reports r on r.id = z.report_id where r.stage_id = %L and z.report_roll_id is null$q$, pg_temp.fx('norolls.stage')));
+-- ИЗВЕСТНЫЙ ДЕФЕКТ БОЯ (найден сухим прогоном 19.10, существует с правки 21.09):
+-- `erp_stage_submit_report` — security invoker, а UPDATE-политик у
+-- `erp_stage_report_sizes`/`erp_stage_reports` нет, поэтому запись «плюсов»
+-- (`update … set qty_extra`) молча задевает 0 строк — на бою 0 строк с qty_extra > 0.
+-- C1 этого не меняет. Ожидание — ФАКТ боя; когда «плюсы» починят, здесь должно
+-- стать 90/2/1/10 и 10 (верный расчёт сверен вручную на этом же отчёте: 10)
+select pg_temp.p('norolls_extra', 'OK 90/2/1/0', format($q$select qty_good || '/' || qty_defect || '/' || qty_rework || '/' || qty_extra from public.erp_stage_reports where stage_id = %L$q$, pg_temp.fx('norolls.stage')));
+select pg_temp.p('norolls_rows_extra', 'OK 0', format($q$select sum(z.qty_extra)::text from public.erp_stage_report_sizes z join public.erp_stage_reports r on r.id = z.report_id where r.stage_id = %L and z.report_roll_id is null$q$, pg_temp.fx('norolls.stage')));
 
 -- Швейка: строки несут брак (нулём) — скаляр p_qty_defect 5 не действует
 select pg_temp.p('sew_submit', 'OK', format($q$select (public.erp_stage_submit_report(p_stage_id => %L, p_qty_in => null, p_qty_good => 0,
@@ -249,8 +255,9 @@ select pg_temp.p('race_second', '22023', format($q$select (public.erp_stage_subm
   p_rolls => jsonb_build_array(jsonb_build_object('roll_id', %L, 'length_used_m', 50, 'finished', false)))).id::text$q$,
   pg_temp.fx('bad.stage'), pg_temp.fx('bad.r1')));
 
--- Уточнение метража не трогает прошлые операции и пишет length_refine
-select pg_temp.p('refine', 'OK', format($q$select public.erp_material_roll_set_params(p_roll_id => %L, p_length_m => 55, p_length_source => 'measured', p_reason => 'Замер пробы')::text$q$, pg_temp.fx('bad.r1')));
+-- Уточнение метража не трогает прошлые операции и пишет length_refine.
+-- Рулон пробы без веса, а с 28.09 метраж без чистого веса не принимается — вес здесь же
+select pg_temp.p('refine', 'OK', format($q$select public.erp_material_roll_set_params(p_roll_id => %L, p_length_m => 55, p_length_source => 'measured', p_reason => 'Замер пробы', p_weight_kg => 20)::text$q$, pg_temp.fx('bad.r1')));
 select pg_temp.p('refine_ops_kept', 'OK 50.00', format($q$select round(sum(length_used_m), 2)::text from public.erp_stage_report_rolls where roll_id = %L$q$, pg_temp.fx('bad.r1')));
 select pg_temp.p('refine_logged', 'OK 1', format($q$select count(*)::text from public.erp_material_roll_adjustments where kind = 'length_refine' and roll_id = %L$q$, pg_temp.fx('bad.r1')));
 reset role;
