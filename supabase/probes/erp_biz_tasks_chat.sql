@@ -3,7 +3,7 @@
 -- `erp_chat_delete`, `erp_chat_unread_tasks`) и напоминания по сроку (`erp_biz_task_reminders_run`).
 -- Только после применения T1 и T2+T3 (или сухим прогоном вместе с ними), ВЛАДЕЛЕЦ в SQL Editor.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=53 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=55 {…}
 --
 -- Роли — те же профили боя, что в `erp_biz_tasks.sql` (признаки и карточки сотрудника
 -- выставляются внутри транзакции, откат вернёт):
@@ -20,7 +20,7 @@
 -- только задачи пробы.
 --
 -- Проверено локально (19.10): PostgreSQL 16 с заглушкой схемы Supabase + прежние функции
--- чата + T1 + T2/T3 — fails=0 total=53.
+-- чата + T1 + T2/T3 — fails=0 total=55.
 
 begin;
 set local lock_timeout = '3s';
@@ -230,6 +230,9 @@ select pg_temp.p('remind_fresh_none', 'OK 0', format($q$select count(*)::text fr
 select pg_temp.p('remind_late_once', 'OK 1', format($q$select count(*)::text from public.erp_biz_task_events where task_id = %L and kind = 'overdue'$q$, pg_temp.fx('r_late')));
 select pg_temp.p('remind_late_notice', 'OK task_overdue:05bbc552,task_overdue:72b71eba,task_overdue:e73bd7fd', format($q$select string_agg(kind || ':' || left(user_id::text, 8), ',' order by user_id::text)
   from public.erp_notifications where task_id = %L$q$, pg_temp.fx('r_late')));
+-- Заголовки заморожены на сервере (план, Task 9): название задачи в «ёлочках»
+select pg_temp.p('remind_soon_title', 'OK До срока задачи «PROBE T3 soon» меньше 24 часов', format($q$select min(title) from public.erp_notifications where task_id = %L$q$, pg_temp.fx('r_soon')));
+select pg_temp.p('remind_late_title', 'OK Задача «PROBE T3 late» просрочена', format($q$select string_agg(distinct title, '|') from public.erp_notifications where task_id = %L$q$, pg_temp.fx('r_late')));
 select pg_temp.p('remind_review_none', 'OK 0', format($q$select count(*)::text from public.erp_biz_task_events where task_id = %L and kind in ('due_soon', 'overdue')$q$, pg_temp.fx('r_review')));
 -- Просроченная (уже уведомлённая) сдана на проверку и возвращена: срок тот же —
 -- повторного «просрочена» нет

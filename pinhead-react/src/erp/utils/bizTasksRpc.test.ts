@@ -267,6 +267,24 @@ describe('уведомления и файлы', () => {
     expect(b).toMatch(/'task_returned'/);
   });
 
+  it('заголовки заморожены на сервере шаблоном {task}/{order} — тексты плана, Task 9', () => {
+    const n = body('erp_biz_task_notify');
+    expect(n).toMatch(/replace\(replace\(p_title, '\{task\}', '«' \|\| coalesce\(v_title, ''\) \|\| '»'\)/);
+    expect(n).toMatch(/'\{order\}'/);
+    expect(n).not.toMatch(/p_title \|\| ' — '/);
+    // Каждый заголовок каждого вызова несёт название задачи
+    const calls = SQL.match(/perform public\.erp_biz_task_notify\([^;]*;/g) ?? [];
+    expect(calls.length).toBeGreaterThanOrEqual(9);
+    const titles = calls.flatMap((c) => [...c.matchAll(/'([А-ЯЁ][^']*)'/g)].map((m) => m[1]));
+    expect(titles.length).toBeGreaterThanOrEqual(13);
+    expect(titles.filter((t) => !t.includes('{task}'))).toEqual([]);
+    expect(titles).toEqual(expect.arrayContaining([
+      'Вам поручена задача {task} · {order}',
+      'До срока задачи {task} меньше 24 часов',
+      'Задача {task} просрочена',
+    ]));
+  });
+
   it('файл задачи: только свой объект erp-attachments с префиксом att/<order>/biz_task/', () => {
     const b = body('erp_biz_task_attach');
     expect(b).toMatch(/o\.bucket_id = 'erp-attachments'/);

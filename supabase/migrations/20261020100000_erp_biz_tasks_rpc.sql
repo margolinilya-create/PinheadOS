@@ -142,7 +142,12 @@ revoke execute on function public.erp_biz_task_log(uuid, text, jsonb) from publi
 -- действия, только сотрудники ERP; повтор адресата на том же событии (вторая
 -- роль того же человека, второй вид уведомления) гасит уникальный ключ.
 -- Поэтому вызывающий зовёт более точный вид первым (`task_review` раньше
--- `task_status`): кто уже получил уведомление о событии, второго не получит
+-- `task_status`): кто уже получил уведомление о событии, второго не получит.
+-- `p_title` — ШАБЛОН заголовка: `{task}` заменяется названием задачи в
+-- «ёлочках», `{order}` — номером заказа (PH-…). Заголовки заморожены здесь,
+-- клиент показывает `title` как есть (план, Task 9): «Вам поручена задача
+-- «…» · PH-1234», «До срока задачи «…» меньше 24 часов», «Задача «…»
+-- просрочена». Шаблон без `{task}` — ошибка писателя, а не молчаливый текст
 create or replace function public.erp_biz_task_notify(
   p_id uuid, p_event bigint, p_kind text, p_users uuid[], p_title text, p_body text)
 returns void
@@ -161,10 +166,15 @@ begin
     join public.erp_orders o on o.id = t.order_id
    where t.id = p_id;
 
+  if position('{task}' in coalesce(p_title, '')) = 0 then
+    raise exception 'Шаблон уведомления задачи без {task}' using errcode = '22023';
+  end if;
+
   insert into public.erp_notifications
     (user_id, kind, order_id, title, body, link, task_id, task_event_id)
   select distinct u, p_kind, v_order,
-         left(p_title || ' — ' || v_title, 300),
+         left(replace(replace(p_title, '{task}', '«' || coalesce(v_title, '') || '»'),
+                      '{order}', coalesce(nullif(btrim(v_label), ''), 'заказ')), 300),
          left('Заказ ' || coalesce(v_label, '') || coalesce(' · ' || nullif(btrim(p_body), ''), ''), 300),
          '/biz-tasks/' || p_id::text || '?event=' || p_event::text,
          p_id, p_event
@@ -350,7 +360,7 @@ begin
 
   v_event := public.erp_biz_task_log(v_id, 'created', '{}'::jsonb);
   perform public.erp_biz_task_notify(v_id, v_event, 'task_assigned', array[v_assignee],
-                                     'Новая задача', null);
+                                     'Вам поручена задача {task} · {order}', null);
 
   select t.* into v_row from public.erp_biz_tasks t where t.id = v_id;
   return v_row;
@@ -478,20 +488,20 @@ begin
   -- его же в «статусе» гасит уникальный ключ события
   if p_action = 'submit' then
     perform public.erp_biz_task_notify(p_id, v_event, 'task_review', array[v_row.creator_id],
-                                       'Задача ждёт проверки', v_text);
+                                       'Задача {task} ждёт проверки', v_text);
   end if;
   if p_action in ('start', 'pause', 'submit', 'complete', 'cancel') then
     perform public.erp_biz_task_notify(p_id, v_event, 'task_status', array[v_row.creator_id, v_manager],
-      case p_action when 'start' then 'Задача взята в работу'
-                    when 'pause' then 'Задача приостановлена'
-                    when 'submit' then 'Результат сдан на проверку'
-                    when 'complete' then 'Задача завершена'
-                    else 'Задача отменена' end,
+      case p_action when 'start' then 'Задача {task} взята в работу'
+                    when 'pause' then 'Задача {task} приостановлена'
+                    when 'submit' then 'Результат задачи {task} сдан на проверку'
+                    when 'complete' then 'Задача {task} завершена'
+                    else 'Задача {task} отменена' end,
       v_text);
   end if;
   if p_action = 'return' then
     perform public.erp_biz_task_notify(p_id, v_event, 'task_returned', array[v_row.assignee_id],
-                                       'Задача возвращена в работу', v_text);
+                                       'Задача {task} возвращена в работу', v_text);
   end if;
 
   return v_row;
@@ -628,11 +638,11 @@ begin
     v_event := public.erp_biz_task_log(p_id, 'assignee_changed',
       jsonb_build_object('from', v_row.assignee_id, 'to', v_assignee));
     perform public.erp_biz_task_notify(p_id, v_event, 'task_assigned', array[v_assignee],
-                                       'Вам поручена задача', null);
+                                       'Вам поручена задача {task} · {order}', null);
     perform public.erp_biz_task_notify(p_id, v_event, 'task_unassigned', array[v_row.assignee_id],
-                                       'Задача передана другому сотруднику', null);
+                                       'Задача {task} передана другому сотруднику', null);
     perform public.erp_biz_task_notify(p_id, v_event, 'task_status', array[v_row.creator_id],
-                                       'Ответственный по задаче изменён', null);
+                                       'Ответственный по задаче {task} изменён', null);
     v_changed := true;
   end if;
 
@@ -1606,7 +1616,7 @@ begin
     returning id into v_event;
     continue when v_event is null;
     perform public.erp_biz_task_notify(r.id, v_event, 'task_due_soon', array[r.assignee_id],
-                                       'До срока меньше 24 часов', null);
+                                       'До срока задачи {task} меньше 24 часов', null);
     v_soon := v_soon + 1;
   end loop;
 
@@ -1624,7 +1634,7 @@ begin
     returning id into v_event;
     continue when v_event is null;
     perform public.erp_biz_task_notify(r.id, v_event, 'task_overdue', array[r.assignee_id, r.creator_id, r.manager_id],
-                                       'Задача просрочена', null);
+                                       'Задача {task} просрочена', null);
     v_overdue := v_overdue + 1;
   end loop;
 

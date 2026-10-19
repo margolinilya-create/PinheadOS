@@ -419,7 +419,7 @@
     "erp/utils/auditCoverage.test.ts": "d63a2f44f50670f6341af9ec002fb0929d20764266d855b9398d8b66c2d3c56e",
     "erp/utils/bizTasks.ts": "a8ff5393d3969b47c7cfec02d07e6dcc1f9fb35c499c5fb2247831131638e158",
     "erp/utils/bizTasksChat.test.ts": "d74bbb39c378f2e1fa074d047d9fc0553391c3dbcd8d8472a13bbab083b9de41",
-    "erp/utils/bizTasksRpc.test.ts": "d1053d13cb587f07d28cc4b196156bda70d85abcb4a9d434cad8bd021bfe0ac0",
+    "erp/utils/bizTasksRpc.test.ts": "a31c82d67e4f6c7322e96754165f9ae7c91203951fce2f06fe1cd8a8948ae4c7",
     "erp/utils/bizTasksSchema.test.ts": "82ec0dc7e8c8eeceee50b9c3d574b987462d90b4c321f7535410b171641c54c6",
     "erp/utils/brandingMethods.test.ts": "40d46f7f5016074d0e323ef236d6418b592df3e4d5a02fc103b66dd5142022f1",
     "erp/utils/bypass.test.ts": "021d14afda73f3e8041a7b8b6a01b9ea7a2fbec451da14e74a520e454933ec63",
@@ -969,6 +969,6 @@
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
     "20261020090000_erp_biz_tasks_schema.sql": "72abbe5c31ddb9690905f35e92738ca92e896154956f1745a65a79b6d3371e5c",
-    "20261020100000_erp_biz_tasks_rpc.sql": "478655a1fd69341050f2388e33f86d4de4c41f5dc5518c523ff8ffba37f3cb36"
+    "20261020100000_erp_biz_tasks_rpc.sql": "acc4deed81f7642b86a717a602cb8b3be01d9ef14b2a0b2f7ea6dc9ef07863e2"
   }
 }
