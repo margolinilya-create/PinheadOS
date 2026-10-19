@@ -1,11 +1,12 @@
 # Правила сессии 61 (хвосты 14.09): где что лежит
 
 
-- **Лимит вложения 20 МБ** — миграция `20260915053342` (бакет
-  `erp-attachments`) + `ATTACH_MAX_BYTES` (`hooks/useAttachmentUploads`)
+- **Лимит вложения 30 МБ** (с правок 19.10; было 20 МБ — `20260915053342`) — миграция
+  `20261019090000` (бакет `erp-attachments`, `31457280`) + `ATTACH_MAX_BYTES` (`hooks/useAttachmentUploads`)
   и `TZ_MAX_BYTES` (`erp/types.ts`). Три величины ОБЯЗАНЫ совпадать, сторож —
   `utils/attachmentLimits.test.ts` (серверную сторону берёт из миграции:
-  живую базу из CI не прочитать). `sku-photos` живёт своей величиной
+  живую базу из CI не прочитать); писатели Order (`erpFiles`, `sendChecklist`,
+  `launchFiles`, мок бакета e2e) не мягче бакета. `sku-photos` живёт своей величиной
 - **Разработка без сделки** — миграция `20260915053824`:
   `erp_experimental.order_id` и `erp_order_attachments.order_id` обнуляемы,
   CHECK `erp_order_attachments_anchor_check`, RPC

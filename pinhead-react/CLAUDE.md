@@ -83,7 +83,8 @@ admin/director — Производство. Подробно — корнево
   useForeignRolls (остатки других заказов для формы закроя),
   ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
-  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
+  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button (`ariaDisabledReason` — блок по условию
+  с причиной, правки 19.10), Field (свои *.module.css),
   RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
@@ -103,7 +104,10 @@ admin/director — Производство. Подробно — корнево
   stageInput (выход этапа = факт, прозрачный этап, itemProducedQty — 05.10)/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
-  читателей)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
+  читателей)/cutUsage (+ cutUsage.examples — модель «Расхода ткани» 19.10: три режима рулона,
+  payload без размеров, средний по материалу)/embroideryPhase (фаза вышивки одной строки, зеркало
+  `erp_embroidery_is_phased`; тексты экранов — embroideryPhaseText)/fileLimitText («До 30 МБ на один файл»,
+  сводка пачки)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
   общие с RPC)/cutExtras (производственный «плюс», накопительно)/
   rollFinish (сводка метража рулона в закройке и план завершения рулона:
   замер → уточнение полного метража, 05.10 п. 5)/

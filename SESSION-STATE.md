@@ -6,6 +6,56 @@
 > `docs/sessions/INDEX.md`), changelog — `PROJECT.md`. Сторож
 > `src/sessionsIndex.test.ts` не даёт истории снова копиться здесь.
 
+## Состояние на 2026-10-19 (сессия 91) — правки 19.10, план A (производство): сборка ветки и документы
+
+Ветка `claude/gifted-fermi-rnrf9q` (НЕ запушена): полосы Workflow `wf/a-emb` (A1, A2, A6, A7, A8) и `wf/a-cut`
+(A3, A4, A5) слиты `--no-ff`, поверх — сборка и A9. План — `docs/superpowers/plans/2026-10-19-erp-edits-19-10-a-production.md`,
+ledger и отчёты — `.superpowers/sdd/2026-10-19-erp-edits-19-10-a-production/` (отчёт сборки — `integrate-report.md`).
+Владелец одобрил правку замороженного ERP; `erpFrozen.json` пересчитан. npm не добавлялся. План B — в той же
+ветке после A.
+
+### Что сделано
+
+- **Вышивка одной задачей** (E1 `20261019100000`): строка одна, фаза по `result_kind`, переход только
+  `erp_embroidery_program_finish`/`_skip`, страж запуска вышивки (`erp_item_stages_dep_gate`), фаза непрозрачна;
+  клиент — `utils/embroideryPhase`, `ProgramFinishAction`, `store/slices/embroideryActions`; `Button ariaDisabledReason`.
+- **Закрой** (C1 `20261019110000`): «Результат кроя» один раз + «Расход ткани» по рулонам (три режима), средний
+  расход по материалу, страж `erp_material_rolls`, рулон `for update`; форма — `useCutReport`, `CutResultTable`,
+  `CutUsageSection`, `CutTotalsBar`; модель — `utils/cutUsage.ts`.
+- **30 МБ и техпаспорт** (S1 `20261019090000`): вложения ERP и писатели Order — 30 МБ, «Готово к серии» без паспорта.
+- **ТЗ пачкой** в форме и карточке (`EditableFiles`, `fileLimitText`); **закупка без «Принять поставку»**.
+- **Сборка:** конфликты — `orderV4M8.test.ts` (оставлена строгая редакция полосы emb: «последние» среди файлов ≤ M),
+  `erpFrozen.json` (перезаморожен). «Использованы полностью» переведена на `ariaDisabledReason`. Тексты фазы
+  (`PROGRAM_PHASE_BLOCK`, `stageHeadingId`) вынесены в `utils/embroideryPhaseText.ts` — из оболочки ERP (−49 Б gzip).
+- **A9:** `supabase/rollout/r1910a/README.md` (предусловия, S1 → E1 → C1, откаты, триггеры, запрос «наследия»),
+  откат E1 `20261019100000_erp_embroidery_one_stage_rollback.sql`, сторож `utils/rollout1910a.test.ts`
+  (тела откатов = прежние редакции; мутация проверена), правило `docs/rules/pravila-pravok-19-10.md`, DESIGN.md,
+  CLAUDE.md обоих уровней. Сессия 89 перенесена в `docs/sessions/`.
+
+### Проверки
+
+- lint 0 ошибок, typecheck 0; vitest — 574 файла, 8292 теста до правок сборки (2 падения: `erpFrozen` — до
+  перезаморозки, `FlatsTab part=zones` — нестабилен под нагрузкой, отдельно зелёный); после — см. `integrate-report.md`.
+- e2e: `erp-queue`, `erp-experimental`, `erp-tablet`, `erp-supply`, `erp-a11y`, `erp-axe`, `erp-mobile` — 243/243.
+  `visual.spec.ts` локально не сравним: 54 кадра упали (1 прошёл, 7 пропущены), расхождение 1–7 %, включая нетронутые `studio-*` —
+  среда, а не правка; эталоны не переснимались.
+- **`bundle:budget` зелёный после решения Р6:** оболочка ERP JS 195 057 Б gzip (+249 к 194 808: `Button`
+  `ariaDisabledReason` в `ErpStates` +136, `embroideryPhase` в ядре маршрута `statusUi` +71, перенумерация
+  `ErpApp` +29), CSS +33. Потолок `shellJs` поднят 195 000 → 196 000 (запас ≤ 1 000 Б — под «Бизнес-задачи»),
+  строгая база перезаписана — разбор в `design/README.md`, «Замеры 19.10».
+- Пробы S1/E1/C1 (`total=8/38/41`) не прогонялись ни разу — первый сухой прогон при выкатке.
+
+### Следующие шаги
+
+- **Владельцу:** `update_snapshots` для `erp-queue-*`, `erp-order-card-*`,
+  `erp-purchasing-*` (и `erp-experimental-*` — финальный пакет) в CI; глобальный лимит Storage ≥ 30 МБ.
+- Выкатка по `supabase/rollout/r1910a/README.md`: сухие прогоны проб с миграциями, S1 → E1 → C1, `APPLIED.json`.
+- Обход `pinhead-qa` (закройщик, вышивальщик, технолог, менеджер) — не делался.
+- Хвосты ревизий (Minor): событие этапа при `erp.subcontract_rollup`, `isLegacyProgram` и `executor`, склейка
+  `aria-describedby` в `Button`, `cutRolls.ts:135` (`qty_left` в кг), фокус после «Удалить» в `EditableFiles`,
+  проба гонки C1 в одной транзакции, точное сравнение числовых проб.
+- Затем план B (`docs/superpowers/plans/2026-10-19-erp-edits-19-10-b-biz-tasks.md`).
+
 ## Состояние на 2026-10-18 (сессия 90) — веха 8 единого потока: рестайл остатка, хвосты, обход, чек-лист включения
 
 Локальная ветка `m8-local` (рабочая копия `PinheadOS-m8`, задачи 0–12 плана, не запушены) поверх 6+7
@@ -123,118 +173,8 @@ npm не добавлялся. Task 13 (кнопка в ERP) не делалас
 - «Да/нет» на Task 13 и на бирки в экспрессе как новую функцию; `update_snapshots` (`snapshots_grep=studio-`);
   значение `VITE_FEATURE_ORDER_STUDIO` в Preview; через месяц отчётов — секрет `ORDER_FILES_GC_DELETE`.
 
-## Состояние на 2026-10-18 (сессия 89) — веха 6+7 единого потока: ТЗ в PDF, отправка, оплата, «К запуску», запуск в ERP
-
-Локальная ветка `m67-local` (рабочая копия `PinheadOS-m67`, коммиты `a0705727`…HEAD, задачи 0–8 плана,
-не запушены) поверх 5а + 5б (на бою уже H и I: SELECT 18.10 — 337 записей, последняя `20261018090000`).
-План — `docs/superpowers/plans/2026-10-18-order-flow-m67-tz-launch.md` (К1–К25, 45 решений «за владельца»,
-«Проверка безопасности», «Проверка скиллами», «Итог исполнения»); раздела «Ответы владельца после проверки»
-в плане нет. Ledger — `.superpowers/sdd/2026-10-18-order-flow-m67/` (заметки контроллера). ERP не менялся,
-npm не добавлялся.
-
-### Что сделано
-
-- **Задача 0:** сверка имён после 5а/5б и замеры (`tz/README.md`), страж бюджета `scripts/bundle-budget-m67.mjs`,
-  часовой пояс тестов Europe/Moscow (vitest и Playwright, сторож `testTimezone`).
-- **Задача 1 — миграция J** `20261018120000_order_v4_launch` (В ВЕТКЕ; на бой — ДО фронта 6+7): тела
-  `transition`/`launch_check`/`set_payment`/`sales_set_staff` = текст B/F + 30 размеченных блоков правок
-  (обратимость побайтная); автор по `is_sales`; `updated_at` в ответах; `p_expected_updated_at` и проверка PDF
-  и макетов по `storage.objects` при отправке; права ERP МС в `launch_check`; чужая метка 10 минут; возврат
-  запрещён при чужом свежем запуске; `p_erp_order_id` + хелпер `order_v4_erp_authentic`; оплата МС;
-  разделение обязанностей (и в переходе — TOCTOU); свой признак — admin/director. Пробы
-  `order_v4_launch.sql` 162, `order_v4_rights.sql` 157, 28 мутаций (27 краснеют, №16 эквивалентна). Сторож
-  `orderV4Launch.test.ts`. На локальном Postgres-шиме: dryrun/regress/rollback-dryrun — `fails=0`, цепочка
-  apply → rollback → снова dryrun — `fails=0`.
-- **Задача 2 — модель ТЗ** `tz/model/` + 5 фикстур образцов (коммит фикстур до реализации), `model/printOffset.ts`
-  (одна `offsetText`), `model/packaging.ts`; `groupDiff` — неблокирующий пункт чек-листа.
-- **Задача 3 — движок PDF ТЗ** `tz/pdf/` и общий `design/export/pdfCore.ts` (лист макета 5а побайтно прежний,
-  эталон sha-256); `buildSceneSvg` с `outputScale`/`highlight`; детерминированные метаданные PDF.
-- **Задача 4 — API, стор, гейты, мок:** `transitionOrder` с `p_expected_updated_at`/`p_erp_order_id`,
-  `applyServer`, флаг `sending`, гейты в `orderNav`, `uploadTzPdf`, писатель `api/erpFiles.ts`,
-  `api/salesEvents.ts`, `PaymentPanel`, `STATUS_LABELS.done` = «Сдан», мок J модулями
-  `e2e/support/mock/{orderV4Rpc,storageBuckets}.ts` + сторож `mockContract`.
-- **Задача 5 — «ТЗ и цена»:** `tz/sendToWork.ts`, ленивый `TzSummary` (оплата, группы ТЗ, предпросмотр ссылкой,
-  `SendPanel`), шапка (`HeadActions`), плашки отправки и возврата, блокировка на время отправки, `APP_ORIGIN`.
-- **Задача 6 — запуск:** `bridge/{launch,launchFiles,erpKeys,tzCheck}.ts` (tzcheck → files → recheck → create →
-  transition), экран `/sales/:id/launch` (`launch/`), пункт и пресет «К запуску», колонки «Оплата»/«Отправлен»;
-  исправлен баг `PaymentPanel` (`confirm` → boolean).
-- **Задача 7:** бюджет снова зелёный — шлюз `bridge/erpGateway.ts` (вход и оболочка ERP побайтно как база 5б,
-  холст 98 376 / 100 000, «ТЗ PDF» ≤ 31 100, экран запуска ≤ 57 950, «Рабочее место» 91 557 / 94 705); e2e
-  `order-flow.spec.ts` (поток до производства, повторы после 500, отказы, axe на 375/760/768/1280, тач-цели);
-  эталоны `studio-tz-summary`, `studio-launch`, `tz-pdf-67108-p1/p3` (снимает владелец).
-- **Задача 8 — документы:** правило `docs/rules/pravila-tz-i-zapuska-veha-6-7-18-10.md` (+ строки в обоих
-  указателях), CLAUDE.md обоих уровней, DESIGN.md, спека (путь PDF, п. 5 запуска → `tz.documents`, QR → текст,
-  `orders.notes` → веха 8), план (поправка К14, «Нужно от владельца» 5–6, «Итог исполнения»), `design/README.md`
-  (потолок PDF макета 161 380), changelog, PROJECT; сессия 87 — в `docs/sessions/`.
-
-### Решения
-
-- PDF ТЗ собирается только при отправке, ключ с хэшем модели (`-g<hash8>-c<hash12>-` в начале имени), старые
-  версии — история; повтор без правок файлов не плодит; предпросмотр ничего не грузит.
-- Связь с ERP — только подлинный заказ этого запуска; копии ТЗ и макетов в публичном `erp-attachments` — тип
-  по байтам, ключи без id заказа и номера, 409 — отказ.
-- Стор ERP — только через шлюз (пять модулей), а не три `import()`: иначе ломается разбиение чанков ERP.
-- Пока метка запуска свежая, оплату не меняет никто; на экране — оплата, потом запуск.
-
-### Выкатка вехи 6+7 (контроллер с владельцем; в задаче 8 не выполнялась)
-
-Файлы — scratchpad контроллера `m67-sql/` (`1-dryrun-J`, `1b-dryrun-J-regress`, `1m-1…28-*-mutation-J`,
-`2-apply-J`, `3-rollback-J`, `4-dryrun-rollback-J`, `4b-dryrun-rollback-J-after-apply`, `J-md5.json`; сборщики —
-`m67-sql/t1/`). Предусловие каждого — H и I в `schema_migrations` и md5 `prosrc` четырёх функций = литералам
-(`7b4bc1a8…`, `b0708988…`, `3e8b3d32…`, `e63f055a…`; SELECT 18.10 — совпадают).
-1. **Порядок:** H → I (уже на бою) → **J до выкладки фронта 6+7**, окно — пока флаг `orderStudio` выключен у всех.
-2. Сухие прогоны на бою: `1-dryrun-J` (`PROBE_RESULT fails=0 total=162`), `1b-dryrun-J-regress` (157),
-   `4-dryrun-rollback-J` (155) — все `fails=0`; мутации `1m-*` — `fails>0` у каждой, кроме №16 (`fails=0`,
-   эквивалентная); итоги — в `supabase/probes/README.md`. Особо смотреть пробы, проверенные только на шиме:
-   `resid_*`, `oldcopy_*`, `toctou_*`, `race_*`, `ms1_create`, `msw_create` (на бою у `erp_orders` полнее
-   триггеры).
-3. `2-apply-J` (в конце — md5 новых тел = `J-md5.json`, запись `20261018120000`) → `APPLIED.json` (338 записей
-   после слияния с `main`) + `npm run migrations:verify`.
-4. **Проба на бою с откатом** (`order_v4_launch.sql` после apply — одна транзакция под ролями
-   `set local role authenticated` + `request.jwt.claims`): продавец ставит оплату и отправляет; МС с должностью
-   ERP `manager` (выдана внутри транзакции) — `launch_check` → `erp_create_order` с `tz.documents` →
-   `transition(production)` с `p_erp_order_id`; конец — `raise exception 'PROBE_RESULT …'`. Тратятся только id
-   `order_events`; номера заказов — `PROBE-…` (проба сверяет `order_number_seq.last_value` до и после), номера ERP
-   не тратятся, realtime незакоммиченного не шлёт. Storage SQL-ом — только права INSERT в `erp-attachments`
-   (`insert into storage.objects` под ролью внутри транзакции); копирование — e2e на моке.
-5. **Смоук после apply:** md5 `order_v4_save_full` = `6be40fb03b7eec70b76bf5de08b57c83`, md5 новых тел =
-   `J-md5.json`; `order_v4_launch_check(<чужой id>)` от анонима — permission denied; REST
-   `rpc('order_v4_transition', {p_id: <несуществующий>, p_to: 'archived'})` — отказ функции, а не `PGRST202`;
-   `4b-dryrun-rollback-J-after-apply` — `fails=0`.
-6. **Триггеры отката:** `PROBE_RESULT fails>0` после apply; 42501 у продавца с `is_sales` на отправке; ложный
-   `conflict` после оплаты в журнале ошибок интерфейса. Действие — `3-rollback-J` (фронт ещё не выложен —
-   сразу; выложен — реверт фронта → дождаться `/version.json` → `3-rollback-J`).
-7. PR → CI → `update_snapshots` → мердж. Флаг людям не включается (веха 8); после включения — неделя
-   наблюдения за `erp_create_order` (`order_events`, `erp_orders.tz_order_id`).
-
-### Следующие шаги и бэклог
-
-- Уборка `order-artworks` (версии ТЗ, сироты сорвавшейся отправки, К24); серверная сборка PDF ТЗ — целостность
-  байт (веха 8); склейка отправленных PDF (нет `pdf-lib`); QR (К9, новый пакет); `orders.notes` в форме и ТЗ (К8).
-- `order_item_prints.zone_id` (веха 8, решение 44); картинка схемы притачивания в справочнике; календарь
-  праздников для даты запуска; автоматическое «сдан» по ERP; аудит смены признаков `is_sales`/`is_ms` (К21).
-- Два окна одного МС (К15); продление метки во время длинного шага `files` (5 × 20 МБ на 2 Мбит/с ≈ 13 мин >
-  окна 10 мин).
-- Копия в обратную сторону `erp-attachments` → черновик (Low); закрыть прямую вставку `erp_orders`/
-  `erp_order_items` любым одобренным — решение ERP (ERP заморожен).
-- WEBP/PSD/TIFF макеты — пункт чек-листа отправки (сейчас их останавливает только шаг `files`); тост об
-  отсутствии необязательного `.preview.png` при копировании (`api/artworks.ts`).
-- Якорь `statusUi` в шлюзе хрупок к перекройке чанков ERP (держит мутация бюджета). Запасы: холст 98 376 /
-  100 000, «Кэши картинок» 9 365 / 9 400.
-- Клиента в PDF ТЗ нет (формат образцов) — если нужен, правка модели. Сторож «одна подпись техники на экран» —
-  по желанию.
-
-### Задачи владельца
-
-- Утром — «Решено контроллером за владельца» плана 6+7 (45 пунктов; особо 7, 9, 12, 27, 28) и «Итог исполнения».
-- **Решить остаточный путь подделки связи с ERP** (план, «Нужно от владельца» п. 5: снять у продавцов
-  должность `production_head` / принять риск / ослабить заморозку ERP).
-- Назначить МС (`is_ms`; на 18.10 — ни одного) и выдать им должность в производстве с правами «Заказы» и «ТЗ».
-- Сверить PDF пяти фикстур с образцами 63886, 67108, 68180 до включения флага; QR — веха 8.
-- `update_snapshots` для `studio-tz-summary`, `studio-launch`, `tz-pdf-67108-p1/p3`.
-
 ## История
 
-Разделы сессий 88 и старше — `docs/sessions/INDEX.md` (98 файлов, перенос
+Разделы сессий 89 и старше — `docs/sessions/INDEX.md` (99 файлов, перенос
 дословный). В конце сессии старший из разделов здесь переезжает
 туда же, чтобы в этом файле оставались две последние сессии.
