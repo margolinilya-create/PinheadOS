@@ -620,6 +620,13 @@ export type MockExtras = {
    * без неё клиент считает, что роль с сервера не приехала.
    */
   myEmployee?: unknown;
+  /**
+   * Поля участков поверх фикстуры, по коду (`{ cutting: { result_detail: 'rolls' } }`).
+   * Схема отчёта цеха живёт в данных (`result_fields`, `result_detail`), и форма
+   * сдачи закроя без них не рисуется. Патч действует на ОБА пути, которыми
+   * приезжают участки, — пакет оболочки и выборку `erp_departments`.
+   */
+  deptPatch?: Record<string, Record<string, unknown>>;
   deptsGate?: Promise<void>;
   /**
    * Держит ответ по настройкам производства (`erp_settings`). Отдельный гейт,
@@ -923,13 +930,20 @@ function pricesPatchAnswer(body: Record<string, unknown>, extra: MockExtras): un
   return { updated_at: catalogStamp() };
 }
 
+/** Участки фикстуры с полями спеки поверх (`MockExtras.deptPatch`) */
+function departmentsOf(extra: MockExtras): unknown[] {
+  const patch = extra.deptPatch;
+  if (!patch) return departmentsFx;
+  return departmentsFx.map((d) => (patch[d.code] ? { ...d, ...patch[d.code] } : d));
+}
+
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
   // Журнал заказа v4 и вложения запуска — мок J
   const v4 = v4Table(table, params, extra);
   if (v4) return v4;
   switch (table) {
     case 'erp_departments':
-      return departmentsFx;
+      return departmentsOf(extra);
     /**
      * `orders` — таблица двух поколений. Order v4 (`fetchSalesOrders` и
      * `fetchSalesOrder`) ВСЕГДА шлёт `schema_version=eq.4`; v3-читатели
@@ -1197,7 +1211,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
     }
     case 'erp_bootstrap':
       return {
-        departments: departmentsFx,
+        departments: departmentsOf(extra),
         permissions: [],       // пусто → клиент падает на DEFAULT_PERMISSIONS
         dictionaries: extra.dictionaries ?? [],
         subcontracting: extra.subcontracting ?? [],

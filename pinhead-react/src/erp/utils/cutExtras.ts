@@ -31,7 +31,11 @@ import type { SizeGridRow } from '../types';
 import { gridCells, NO_COLOR } from './sizeGrid';
 import { cellKey } from './cutRolls';
 import { CELL_SEP } from './cellKey';
-import type { CutRollEntry } from './cutRolls';
+
+/** Строки выпуска: таблица «Результат кроя» (правки 19.10) или старые строки рулона */
+export interface CutSizeRowsLike {
+  sizes?: readonly { size: string; color?: string | null; qty: number | string }[] | null;
+}
 
 /** Плюс по одной ячейке «цвет × размер» */
 export interface CutExtraRow {
@@ -85,7 +89,7 @@ export function reportedSizesOf(
  * первая.
  */
 export function cutExtras(
-  entries: readonly CutRollEntry[] | null | undefined,
+  entries: readonly CutSizeRowsLike[] | null | undefined,
   grid: SizeGridRow[] | null | undefined,
   already: ReportedSizes = {},
 ): CutExtras {

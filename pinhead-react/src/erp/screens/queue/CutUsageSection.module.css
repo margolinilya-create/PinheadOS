@@ -1,0 +1,132 @@
+/* «Расход ткани» — режимы рулонов группами «материал · цвет» (правки 19.10) */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+  color: var(--text);
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.legend {
+  padding: 0 var(--space-xs);
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.groupBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--control-h-md);
+  cursor: pointer;
+}
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border-light);
+}
+.rollTitle { font-size: var(--type-body-sm); font-weight: 500; color: var(--text); }
+.sub { font-size: var(--type-label); font-weight: 400; color: var(--text-dim); }
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+/* Плитка режима — тач-цель ≥ 44 px: нативное радио внутри подписи */
+.tile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+.tile:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.tile:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.tile input { margin: 0; accent-color: var(--accent); }
+.modes[aria-invalid='true'] .tile { border-color: var(--color-error); }
+.used {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 72px;
+  font-family: var(--mono);
+}
+.partial {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm) var(--space-md);
+}
+.field { display: flex; flex-direction: column; gap: var(--space-xs); }
+.label { font-size: var(--type-label); font-weight: 500; color: var(--text-mid); }
+.input {
+  width: 120px;
+  min-height: var(--control-h-md);
+  padding: 0 10px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+}
+.input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.input[aria-invalid='true'] { border-color: var(--color-error); }
+.input[aria-invalid='true']:focus-visible { box-shadow: var(--focus-ring-error); }
+.error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--color-error-ink);
+}
+.row > :global(button),
+.row > form,
+.row > p { grid-column: 1 / -1; justify-self: start; }
+.totals {
+  margin: 0;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+  font-size: var(--type-body-sm);
+  color: var(--text-mid);
+}
+
+/* Телефон: строка рулона — карточкой, режимы на всю ширину */
+@media (max-width: 760px) {
+  .row { grid-template-columns: 1fr auto; }
+  .modes { grid-column: 1 / -1; order: 3; }
+  .tile { flex: 1 1 0; justify-content: center; padding: 0 var(--space-sm); }
+}
