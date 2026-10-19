@@ -96,11 +96,13 @@ beforeEach(() => {
 describe('создание', () => {
   it('createBizTask передаёт clientKey, повтор не дублирует', async () => {
     h.rpc.erp_biz_task_create = { data: ROW(), error: null };
+    // Сервер: ответственный u2 убран из наблюдателей, добавлен менеджер заказа u9
+    h.tables.erp_biz_tasks = [{ ...ROW(), watchers: [{ user_id: 'u3' }, { user_id: 'u9' }], order: null }];
     let open!: () => void;
     h.gate = new Promise((r) => { open = r; });
     const input = {
       order_id: 'o1', title: 'Заказать молнии', kind: 'purchase' as const,
-      assignee_id: 'u2', due_at: '2026-10-20T15:00:00.000Z', watchers: ['u3'],
+      assignee_id: 'u2', due_at: '2026-10-20T15:00:00.000Z', watchers: ['u3', 'u2'],
     };
 
     // Двойной клик: второй вызов идёт, пока первый не вернулся
@@ -118,7 +120,10 @@ describe('создание', () => {
     h.gate = null;
     await useErpStore.getState().createBizTask(input, 'k1');
     expect(Object.keys(useErpStore.getState().bizTasks)).toEqual(['t1']);
-    expect(useErpStore.getState().bizTasks.t1.watchers).toEqual(['u3']);
+    // Наблюдатели — с сервера (перечитывание), а не из формы
+    expect(useErpStore.getState().bizTasks.t1.watchers).toEqual(['u3', 'u9']);
+    expect(ra?.watchers).toEqual(['u3', 'u9']);
+    expect(useErpStore.getState().bizTaskDetails.t1.watchers).toEqual(['u3', 'u9']);
   });
 
   it('отказ — toast.error и null, в сторе пусто', async () => {

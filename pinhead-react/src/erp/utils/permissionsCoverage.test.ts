@@ -560,6 +560,6 @@ describe('решение владельца по бизнес-задачам (19
 
   it('клиентский гейт — одна функция canManageBizTasks', () => {
     const src = withoutJsComments(readFileSync(join(SRC, 'erp/utils/bizTasks.ts'), 'utf8'));
-    expect(src).toMatch(/export function canManageBizTasks\([^)]*\)[^{]*\{\s*return can\('biz_task\.manage'\);/);
+    expect(src).toMatch(/export function canManageBizTasks\([^)]*\)[^{]*\{\s*return isStaff && can\('biz_task\.manage'\);/);
   });
 });

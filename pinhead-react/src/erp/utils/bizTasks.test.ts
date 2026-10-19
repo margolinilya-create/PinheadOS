@@ -4,6 +4,7 @@ import {
   bizTaskActions,
   bizTaskRolesOf,
   canManageBizTasks,
+  isBizTaskStaff,
   isOverdue,
   kindHints,
 } from './bizTasks';
@@ -63,7 +64,7 @@ describe('роли участника', () => {
 describe('доступные действия', () => {
   it('наблюдатель не получает complete/change_due/assignee', () => {
     const task = T();
-    const acts = bizTaskActions(task, ['watcher'], false);
+    const acts = bizTaskActions(task, ['watcher'], false, true);
     expect(acts).not.toContain('complete');
     expect(acts).not.toContain('change_due');
     expect(acts).not.toContain('assignee');
@@ -73,12 +74,12 @@ describe('доступные действия', () => {
   });
 
   it('посторонний без права управления — ничего, даже писать в тред', () => {
-    expect(bizTaskActions(T(), [], false)).toEqual([]);
+    expect(bizTaskActions(T(), [], false, true)).toEqual([]);
   });
 
   it('постановщик-он-же-ответственный — действия обеих ролей', () => {
     const task = T({ creator_id: 'u1', assignee_id: 'u1' });
-    const acts = bizTaskActions(task, bizTaskRolesOf(task, 'u1', []), false);
+    const acts = bizTaskActions(task, bizTaskRolesOf(task, 'u1', []), false, true);
     expect(acts).toEqual(expect.arrayContaining([
       'complete', 'pause', 'set_result', 'toggle_item', // ответственный
       'cancel', 'change_due', 'assignee', 'edit', 'watchers', 'checklist', // постановщик
@@ -86,36 +87,36 @@ describe('доступные действия', () => {
   });
 
   it('ответственный в «Новая» — «Взять в работу», без завершения', () => {
-    const acts = bizTaskActions(T({ status: 'new' }), ['assignee'], false);
+    const acts = bizTaskActions(T({ status: 'new' }), ['assignee'], false, true);
     expect(acts).toContain('start');
     expect(acts).not.toContain('complete');
     expect(acts).not.toContain('change_due');
   });
 
   it('review_required: complete заменён submit', () => {
-    const acts = bizTaskActions(T({ review_required: true }), ['assignee'], false);
+    const acts = bizTaskActions(T({ review_required: true }), ['assignee'], false, true);
     expect(acts).toContain('submit');
     expect(acts).not.toContain('complete');
-    const plain = bizTaskActions(T({ review_required: false }), ['assignee'], false);
+    const plain = bizTaskActions(T({ review_required: false }), ['assignee'], false, true);
     expect(plain).toContain('complete');
     expect(plain).not.toContain('submit');
   });
 
   it('на проверке у постановщика — «Принять» и «Вернуть в работу»', () => {
-    const acts = bizTaskActions(T({ status: 'review', review_required: true }), ['creator'], false);
+    const acts = bizTaskActions(T({ status: 'review', review_required: true }), ['creator'], false, true);
     expect(acts).toEqual(expect.arrayContaining(['accept', 'return', 'cancel']));
     expect(acts).not.toContain('submit');
   });
 
   it('право управления даёт действия постановщика, но не ответственного', () => {
-    const acts = bizTaskActions(T(), [], true);
+    const acts = bizTaskActions(T(), [], true, true);
     expect(acts).toEqual(expect.arrayContaining(['cancel', 'change_due', 'assignee', 'write']));
     expect(acts).not.toContain('complete');
     expect(acts).not.toContain('set_result');
   });
 
   it('завершённая: правка только наблюдателей, возврат — постановщику', () => {
-    const acts = bizTaskActions(T({ status: 'done' }), ['creator'], false);
+    const acts = bizTaskActions(T({ status: 'done' }), ['creator'], false, true);
     expect(acts).toContain('return');
     expect(acts).toContain('watchers');
     expect(acts).not.toContain('change_due');
@@ -124,7 +125,7 @@ describe('доступные действия', () => {
   });
 
   it('отменённая — «Возобновить» постановщику', () => {
-    expect(bizTaskActions(T({ status: 'cancelled' }), ['creator'], false)).toContain('reopen');
+    expect(bizTaskActions(T({ status: 'cancelled' }), ['creator'], false, true)).toContain('reopen');
   });
 
   it('BIZ_TASK_TRANSITIONS — 9 действий', () => {
@@ -178,8 +179,32 @@ describe('подсказки описания и право управления
     expect(kindHints('other')).toEqual([]);
   });
 
-  it('право управления — ровно biz_task.manage', () => {
-    expect(canManageBizTasks((p) => p === 'biz_task.manage')).toBe(true);
-    expect(canManageBizTasks((p) => p === 'order.manage')).toBe(false);
+  it('право управления — biz_task.manage И сотрудник ERP', () => {
+    expect(canManageBizTasks((p) => p === 'biz_task.manage', true)).toBe(true);
+    expect(canManageBizTasks((p) => p === 'order.manage', true)).toBe(false);
+    // Продавец без карточки: запасная роль manager несёт право, сервер — нет
+    expect(canManageBizTasks((p) => p === 'biz_task.manage', false)).toBe(false);
+  });
+
+  it('сотрудник ERP — активная карточка или admin/director профиля', () => {
+    expect(isBizTaskStaff('manager', null)).toBe(false);
+    expect(isBizTaskStaff('manager', 'manager')).toBe(true);
+    expect(isBizTaskStaff('production', 'worker')).toBe(true);
+    expect(isBizTaskStaff('admin', null)).toBe(true);
+    expect(isBizTaskStaff('director', null)).toBe(true);
+    expect(isBizTaskStaff('rop', null)).toBe(false);
+    expect(isBizTaskStaff(null, null)).toBe(false);
+  });
+
+  it('профиль manager без карточки — ни одного действия', () => {
+    const can = (p: string) => p === 'biz_task.manage';
+    const staff = isBizTaskStaff('manager', null);
+    const manage = canManageBizTasks(can, staff);
+    for (const status of ['new', 'in_progress', 'paused', 'review', 'done', 'cancelled'] as const) {
+      // Ни чужая задача, ни своя роль в ней: ворота писателя отказывают 42501
+      expect(bizTaskActions(T({ status }), [], manage, staff)).toEqual([]);
+      expect(bizTaskActions(T({ status }), ['creator', 'assignee'], true, staff)).toEqual([]);
+      expect(bizTaskActions(T({ status }), ['watcher'], manage, staff)).toEqual([]);
+    }
   });
 });

@@ -65,11 +65,11 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
    * Ответ писателя: строка `erp_biz_tasks` без вложений. Поля задачи —
    * целиком из ответа; наблюдатели и заказ — прежние (писатель их не отдаёт).
    */
-  const putWritten = (task: ErpBizTask, watchers?: string[]): BizTaskRow => {
+  const putWritten = (task: ErpBizTask): BizTaskRow => {
     const prev = get().bizTasks[task.id];
     const row: BizTaskRow = {
       ...task,
-      watchers: watchers ?? prev?.watchers ?? [],
+      watchers: prev?.watchers ?? [],
       order: prev?.order ?? null,
     };
     set((s) => ({ bizTasks: { ...s.bizTasks, [row.id]: row } }));
@@ -192,7 +192,12 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
           erpError('Не удалось создать задачу', error);
           return null;
         }
-        return putWritten(data as unknown as ErpBizTask, input.watchers ?? []);
+        const row = putWritten(data as unknown as ErpBizTask);
+        // Состав участников — с сервера, а не из формы: писатель убирает из
+        // наблюдателей постановщика и ответственного и добавляет менеджера
+        // заказа (Р3). Сбой перечитывания тостит сам; строка задачи уже в сторе
+        await get().loadBizTask(row.id);
+        return get().bizTasks[row.id] ?? row;
       })().finally(() => { creating.delete(clientKey); });
       creating.set(clientKey, call);
       return call;

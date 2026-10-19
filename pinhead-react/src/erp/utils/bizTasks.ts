@@ -97,12 +97,28 @@ export const BIZ_TASK_TRANSITIONS: Record<BizTaskTransitionAction, BizTaskTransi
 };
 
 /**
- * Право управлять чужими задачами (решение владельца Р2): менять описание,
- * ответственного, срок и участников, отменять и возвращать. Сервер выдаёт его
- * только по должности из `erp_employees`, не по запасной роли профиля.
+ * Сотрудник ERP для бизнес-задач — зеркало ворот писателей `erp_biz_task_gate()`:
+ * активная карточка `erp_employees` (её роль — `myRole` стора, грузится только
+ * по `active = true`) либо профиль admin/director. Запасная роль профиля
+ * (`PROFILE_ROLE_FALLBACK`: продавец без карточки → `manager`) сотрудником
+ * НЕ делает: сервер такому откажет 42501 на любом писателе, и кнопок у него
+ * быть не должно.
  */
-export function canManageBizTasks(can: (p: ErpPermission) => boolean): boolean {
-  return can('biz_task.manage');
+export function isBizTaskStaff(
+  profileRole: string | null | undefined,
+  employeeRole: string | null | undefined,
+): boolean {
+  return profileRole === 'admin' || profileRole === 'director' || Boolean(employeeRole);
+}
+
+/**
+ * Право управлять чужими задачами (решение владельца Р2): менять описание,
+ * ответственного, срок и участников, отменять и возвращать. Зеркало
+ * `erp_biz_task_can_manage()`: право по матрице И сотрудник ERP
+ * (`isBizTaskStaff`) — одного права запасной роли профиля мало.
+ */
+export function canManageBizTasks(can: (p: ErpPermission) => boolean, isStaff: boolean): boolean {
+  return isStaff && can('biz_task.manage');
 }
 
 /** Роль человека в задаче; руководитель (`biz_task.manage`) — не роль, а право */
@@ -140,12 +156,18 @@ export function bizTaskRolesOf(
  * `biz_task.manage`. `submit` есть только у задачи с проверкой постановщиком,
  * `complete` — только без неё. Наблюдатель пишет и прикладывает файлы, но не
  * завершает, не переносит срок и не меняет ответственного.
+ *
+ * `isStaff` — `isBizTaskStaff(...)`: не сотрудник ERP не получает ни одного
+ * действия (ворота `erp_biz_task_gate()` отказывают ему на любом писателе),
+ * какие бы роль в задаче и право управления у него ни были.
  */
 export function bizTaskActions(
   task: Pick<ErpBizTask, 'status' | 'review_required'>,
   roles: readonly BizTaskRole[],
   canManage: boolean,
+  isStaff: boolean,
 ): BizTaskAction[] {
+  if (!isStaff) return [];
   const isAssignee = roles.includes('assignee');
   const lead = canManage || roles.includes('creator');
   const open = !CLOSED.includes(task.status);
