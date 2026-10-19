@@ -8,7 +8,7 @@ import { MaterialWait } from './MaterialWait';
 import { dueLabelCompact } from '../../utils/format';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
-import { stageHeadingId } from '../../utils/embroideryPhase';
+import { stageHeadingId } from '../../utils/embroideryPhaseText';
 
 /**
  * Карточка задания — мобильный вид очереди цеха (<760px), где строка не помещается.

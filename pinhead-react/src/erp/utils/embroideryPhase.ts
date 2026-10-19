@@ -23,18 +23,14 @@
  *
  * Зеркало серверной `erp_embroidery_is_phased`. Модуль-лист: его читают
  * утилиты маршрута (`routes`, `stageInput`, `progress`, `gantt`), гейты стора
- * и экраны цеха, поэтому здесь нет импортов кроме типов.
+ * и экраны цеха, поэтому здесь нет импортов кроме типов. Тексты и id
+ * для экранов и гейтов стора — в `embroideryPhaseText.ts`: этот модуль
+ * читает `routes` и он лежит в оболочке ERP (бюджет `bundle:budget`).
  */
 import type { ErpItemStage } from '../types';
 
 /** Имя операции фазы программы — подпись задачи в очереди цеха */
 export const EMBROIDERY_PROGRAM_OPERATION = 'Разработка программы вышивки';
-
-/**
- * Почему фазу программы нельзя закрыть, пропустить или сдать штуками.
- * Текст тот же, что у сервера (`erp_item_stages_embroidery_route_gate`).
- */
-export const PROGRAM_PHASE_BLOCK = 'Сначала сдайте программу — задача станет «Вышивкой»';
 
 /** Строка, о которой спрашивают «в фазе ли программы» */
 export type PhaseStage = Pick<ErpItemStage, 'id' | 'department_id'> & {
@@ -84,13 +80,4 @@ export function phaseOperation(
   // не знает, и подпись остаётся как есть
   if (op === EMBROIDERY_PROGRAM_OPERATION && stage.result_kind === null) return null;
   return op;
-}
-
-/**
- * id заголовка задачи — цель фокуса после перехода фазы: панель действий
- * меняется целиком («Программа готова» исчезает), и фокус, оставшийся
- * на пропавшей кнопке, улетел бы в начало страницы.
- */
-export function stageHeadingId(stageId: string): string {
-  return `stage-title-${stageId}`;
 }

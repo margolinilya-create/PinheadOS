@@ -15,7 +15,8 @@ import {
 } from '../../utils/stageRemaining';
 import type { InputStage } from '../../utils/stageInput';
 import { sizeInputCells, sizeKey, stageAncestors } from '../../utils/stageSizes';
-import { PROGRAM_PHASE_BLOCK, isProgramPhase } from '../../utils/embroideryPhase';
+import { isProgramPhase } from '../../utils/embroideryPhase';
+import { PROGRAM_PHASE_BLOCK } from '../../utils/embroideryPhaseText';
 
 /**
  * Почему строку нельзя закрыть или пропустить, — если она в фазе программы

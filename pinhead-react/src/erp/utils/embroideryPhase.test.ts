@@ -1,8 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import {
-  EMBROIDERY_PROGRAM_OPERATION, PROGRAM_PHASE_BLOCK, isProgramPhase, phaseOperation, stageHeadingId,
-} from './embroideryPhase';
+import { EMBROIDERY_PROGRAM_OPERATION, isProgramPhase, phaseOperation } from './embroideryPhase';
+import { PROGRAM_PHASE_BLOCK, stageHeadingId } from './embroideryPhaseText';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

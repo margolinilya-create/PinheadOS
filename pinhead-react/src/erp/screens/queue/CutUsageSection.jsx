@@ -176,7 +176,6 @@ function RollRow({ option, cut, disabled, onRollParams }) {
 }
 
 function Group({ group, cut, disabled, onRollParams, isFirst }) {
-  const hintId = useId();
   const ids = group.options.map((o) => o.roll.id);
   const picked = ids.filter((rid) => cut.selected.has(rid)).length;
   const total = cut.totals.find((t) => t.materialId === group.material.id);
@@ -208,14 +207,12 @@ function Group({ group, cut, disabled, onRollParams, isFirst }) {
         <Button
           variant="secondary"
           size="sm"
-          aria-disabled={picked === 0 ? 'true' : undefined}
-          aria-describedby={picked === 0 ? hintId : undefined}
+          ariaDisabledReason={picked === 0 ? 'Отметьте рулоны флажками' : ''}
           disabled={disabled}
           onClick={onMark}
         >
           Использованы полностью
         </Button>
-        {picked === 0 && <span id={hintId} className={css.sub}>Отметьте рулоны флажками</span>}
       </div>
       {group.options.map((option) => (
         <RollRow key={option.roll.id} option={option} cut={cut} disabled={disabled} onRollParams={onRollParams} />

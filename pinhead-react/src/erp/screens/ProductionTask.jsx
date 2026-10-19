@@ -14,7 +14,8 @@ import { isStageAwaitingProcurement, isStageReady, waitingReason, materialsForIt
 import { stageMissingTz } from '../utils/tz';
 import { stageQtyProgress } from '../utils/progress';
 import { isFileResultStage, stageResultFiles } from '../utils/stageResult';
-import { phaseOperation, stageHeadingId } from '../utils/embroideryPhase';
+import { phaseOperation } from '../utils/embroideryPhase';
+import { stageHeadingId } from '../utils/embroideryPhaseText';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
 import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
