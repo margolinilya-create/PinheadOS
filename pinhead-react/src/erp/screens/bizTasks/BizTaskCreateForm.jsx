@@ -24,9 +24,10 @@ const FILE_KIND = 'biz_task';
  * Что не заполнено — словами перечня «Заполните: …». Порядок — порядок полей
  * формы: человек читает перечень и идёт по нему сверху вниз.
  */
-function missingOf({ title, kind, assignee, due }) {
+function missingOf({ order, title, kind, assignee, due }) {
   const out = [];
   if (!title.trim()) out.push('название');
+  if (!order) out.push('заказ');
   if (!kind) out.push('тип');
   if (!assignee) out.push('ответственный');
   if (!due) out.push('срок');
@@ -41,9 +42,11 @@ function missingOf({ title, kind, assignee, due }) {
  * постановщиком») — под «Дополнительно», чтобы не загромождать форму.
  *
  * ЗАКАЗ ПОДСТАВЛЕН (`order`) и во вкладке заказа не меняется: поля выбора
- * нет вовсе. Пока заказ не выбран, файлы не прикладываются — папка объекта
- * в бакете называется заказом (`att/<заказ>/biz_task/`), и писатель
- * `erp_biz_task_attach` чужую папку отвергает.
+ * нет вовсе. Общий раздел вместо `order` передаёт `orders` — заказ выбирается
+ * в форме (обязательное поле). Пока заказ не выбран, файлы не прикладываются —
+ * папка объекта в бакете называется заказом (`att/<заказ>/biz_task/`), и
+ * писатель `erp_biz_task_attach` чужую папку отвергает; по той же причине
+ * с приложенными файлами заказ уже не меняется.
  *
  * БЛОК КНОПКИ — `aria-disabled` с причиной: перечень ТОЛЬКО незаполненного
  * (правило вехи 6+7); `disabled` — только на время запроса.
@@ -55,7 +58,7 @@ function missingOf({ title, kind, assignee, due }) {
  * Срок в прошлом — предупреждение, а не блок: поручение «вчера до шести»
  * бывает заведено задним числом, и сразу просроченным оно и должно быть.
  */
-export function BizTaskCreateForm({ order, onCreated, onCancel }) {
+export function BizTaskCreateForm({ order = null, orders = null, onCreated, onCancel }) {
   const createBizTask = useErpStore((s) => s.createBizTask);
   const attachBizTaskFiles = useErpStore((s) => s.attachBizTaskFiles);
   const directory = useErpStore((s) => s.chatDirectory);
@@ -65,6 +68,8 @@ export function BizTaskCreateForm({ order, onCreated, onCancel }) {
   /** Ответственный и наблюдатель — только сотрудник ERP (активная карточка) */
   const staff = useMemo(() => (directory ?? []).filter((p) => p.role !== null), [directory]);
 
+  const [pickedId, setPickedId] = useState('');
+  const target = order ?? (orders ?? []).find((o) => o.id === pickedId) ?? null;
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState(null);
   const [assignee, setAssignee] = useState([]);
@@ -79,11 +84,11 @@ export function BizTaskCreateForm({ order, onCreated, onCancel }) {
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const clientKey = useRef(crypto.randomUUID());
-  const uploads = useAttachmentUploads(order.id);
+  const uploads = useAttachmentUploads(target?.id ?? 'new');
   const ids = useId();
 
   const dueIso = factoryDateTimeToIso(due);
-  const missing = missingOf({ title, kind, assignee: assignee[0], due: dueIso });
+  const missing = missingOf({ order: target, title, kind, assignee: assignee[0], due: dueIso });
   const hints = kind ? kindHints(kind) : [];
   const blockReason = missing.length > 0
     ? `Заполните: ${missing.join(', ')}`
@@ -96,7 +101,7 @@ export function BizTaskCreateForm({ order, onCreated, onCancel }) {
     setBusy(true);
     const items = checklist.map((c) => c.text.trim()).filter(Boolean);
     const input = {
-      order_id: order.id,
+      order_id: target.id,
       title: title.trim(),
       kind,
       assignee_id: assignee[0],
@@ -138,10 +143,25 @@ export function BizTaskCreateForm({ order, onCreated, onCancel }) {
         onChange={(e) => setTitle(e.target.value)}
       />
 
-      <div className={styles.field}>
-        <span className={styles.label}>Заказ</span>
-        <span className={styles.fixed}>{order.label}</span>
-      </div>
+      {order ? (
+        <div className={styles.field}>
+          <span className={styles.label}>Заказ</span>
+          <span className={styles.fixed}>{order.label}</span>
+        </div>
+      ) : (
+        <Field
+          as="select"
+          label="Заказ"
+          required
+          value={pickedId}
+          disabled={uploads.files.length > 0}
+          hint={uploads.files.length > 0 ? 'Файлы приложены к этому заказу — уберите их, чтобы сменить заказ' : undefined}
+          onChange={(e) => setPickedId(e.target.value)}
+        >
+          <option value="">Выберите заказ</option>
+          {(orders ?? []).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </Field>
+      )}
 
       <fieldset className={styles.kinds}>
         <legend className={styles.label}>
@@ -216,15 +236,19 @@ export function BizTaskCreateForm({ order, onCreated, onCancel }) {
             value={watchers}
             onChange={setWatchers}
           />
-          <AttachmentPicker
-            label="Приложить файлы"
-            files={uploads.files}
-            kind={FILE_KIND}
-            onAdd={uploads.add}
-            onRetry={uploads.retry}
-            onRemove={uploads.remove}
-            hint="До 30 МБ на один файл"
-          />
+          {target ? (
+            <AttachmentPicker
+              label="Приложить файлы"
+              files={uploads.files}
+              kind={FILE_KIND}
+              onAdd={uploads.add}
+              onRetry={uploads.retry}
+              onRemove={uploads.remove}
+              hint="До 30 МБ на один файл"
+            />
+          ) : (
+            <span className={styles.hint}>Файлы можно приложить, когда выбран заказ</span>
+          )}
           <div className={styles.field}>
             <span className={styles.label}>Чек-лист</span>
             {checklist.length > 0 && (

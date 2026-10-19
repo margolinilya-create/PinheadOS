@@ -30,7 +30,7 @@ export const BIZ_TASK_LIST_LIMIT = 500;
 export const BIZ_TASK_SELECT = `id, order_id, title, kind, description, assignee_id, creator_id, due_at,
   status, review_required, pause_reason, cancel_reason, return_reason, result_text, result_message_id,
   submitted_at, reviewed_at, completed_at, cancelled_at, client_key, created_at, updated_at,
-  watchers:erp_biz_task_watchers(user_id), order:erp_orders(id, bitrix_id, title)`;
+  watchers:erp_biz_task_watchers(user_id), order:erp_orders(id, bitrix_id, title, tz_number)`;
 
 export const BIZ_TASK_CHECKLIST_COLUMNS = 'id, task_id, text, done, sort, done_by, done_at';
 export const BIZ_TASK_EVENT_COLUMNS = 'id, task_id, kind, actor, payload, due_at, at';

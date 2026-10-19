@@ -23,7 +23,7 @@ const PEOPLE = [
 
 const ORDER = { id: 'o1', label: '№4821 · Худи «Ромашка»' };
 
-function setup(over = {}) {
+function setup(over = {}, props = { order: ORDER }) {
   const attachBizTaskFiles = vi.fn(async () => ({ id: 't-new' }));
   const onCreated = vi.fn();
   useErpStore.setState({
@@ -34,7 +34,7 @@ function setup(over = {}) {
     attachBizTaskFiles,
     ...over,
   });
-  render(<BizTaskCreateForm order={ORDER} onCreated={onCreated} onCancel={() => {}} />);
+  render(<BizTaskCreateForm {...props} onCreated={onCreated} onCancel={() => {}} />);
   return { createBizTask: useErpStore.getState().createBizTask, attachBizTaskFiles, onCreated };
 }
 
@@ -162,5 +162,17 @@ describe('BizTaskCreateForm', () => {
       checklist: ['Согласовать цвет'],
       review_required: true,
     });
+  });
+  it('общий раздел: заказ выбирается в форме и входит в перечень незаполненного', async () => {
+    const orders = [ORDER, { id: 'o2', label: 'PH-1234 · Футболки' }];
+    const { createBizTask } = setup({}, { orders });
+    fillAll();
+    expect(screen.getByText('Заполните: заказ')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Заказ/), { target: { value: 'o2' } });
+    expect(screen.queryByText(/^Заполните:/)).toBeNull();
+    fireEvent.click(createButton());
+    await waitFor(() => expect(createBizTask).toHaveBeenCalledTimes(1));
+    expect(createBizTask.mock.calls[0][0]).toMatchObject({ order_id: 'o2', title: 'Заказать молнии' });
   });
 });

@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon';
 import { Badge } from '../../components/Badge';
 import { BIZ_TASK_KIND_LABELS, BIZ_TASK_STATUS_LABELS, isOverdue } from '../../utils/bizTasks';
 import { formatDue } from '../../../utils/date';
+import { orderLabel } from './bizTaskView';
 import base from '../../styles';
 import styles from './BizTaskList.module.css';
 
@@ -84,9 +85,7 @@ export function BizTaskList({
                   <Icon name="clock" size={13} />
                   {formatDue(t.due_at)}
                 </span>{' '}
-                {showOrder && t.order && (
-                  <span>{t.order.bitrix_id ? `№${t.order.bitrix_id} · ` : ''}{t.order.title}</span>
-                )}{' '}
+                {showOrder && t.order && <span>{orderLabel(t.order)}</span>}{' '}
                 {showOrder && (
                   <span className={styles.who}>Поставил: {names.get(t.creator_id) ?? '—'}</span>
                 )}

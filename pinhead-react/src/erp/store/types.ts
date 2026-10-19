@@ -2105,8 +2105,11 @@ export interface OrderWriteSlice {
  */
 export interface BizTaskRow extends ErpBizTask {
   watchers: string[];
-  /** Номер и название заказа для строки общего раздела; null — не загружали */
-  order: { id: string; bitrix_id: string | null; title: string } | null;
+  /**
+   * Номер и название заказа для строки общего раздела; null — не загружали.
+   * `tz_number` — номер заказа «Оформления» (PH-…): по нему ищут задачи
+   */
+  order: { id: string; bitrix_id: string | null; title: string; tz_number?: string | null } | null;
 }
 
 /** Части карточки задачи, которых нет в строке списка */

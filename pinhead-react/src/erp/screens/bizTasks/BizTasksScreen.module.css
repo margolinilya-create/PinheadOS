@@ -1,0 +1,77 @@
+/* Общий раздел «Бизнес-задачи» (правки 19.10, п. 7) */
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.panel:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Фильтр-выбор: подпись над полем, как у `Field`, но компактнее — их в ряду четыре */
+.select {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.selectLabel {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-mid);
+}
+.control {
+  min-height: var(--control-h-md);
+  max-width: 100%;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+}
+.control:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* «Есть непрочитанные» — переключатель вида (`aria-pressed`), а не фильтр-вкладка */
+.toggle {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text-mid);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.toggle:hover { border-color: var(--border-mid); }
+.toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .select { flex: 1 1 calc(50% - var(--space-sm)); }
+  .control { width: 100%; }
+  .toggle { align-self: stretch; }
+}
