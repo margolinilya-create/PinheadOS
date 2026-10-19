@@ -331,15 +331,18 @@ describe('Склад — вкладки, поиск, адрес', () => {
     expect(sp().get('q')).toBe('Тест');
   });
 
-  it('из закупки: приёмка открыта сразу, «← К закупке» и закрытие ведут обратно', () => {
+  /**
+   * Приёмка — только на складе (правка 19.10): возврата «← К закупке» нет,
+   * и старая ссылка из закупки (`from=purchasing`) закрывается на складе.
+   */
+  it('задача по ссылке: приёмка открыта сразу, «К закупке» нет, закрытие остаётся на складе', () => {
     const back = encodeURIComponent('supply=o9&q=кул&page=2');
     renderAt(`/warehouse?task=r14&from=purchasing&supply=o9&back=${back}`);
     const dialog = screen.getByRole('dialog', { name: 'Приёмка материалов' });
     expect(dialog.className).toMatch(/drawerPanelWide/);
-    expect(within(dialog).getByRole('link', { name: /К закупке/ }))
-      .toHaveAttribute('href', '/purchasing?supply=o9&q=кул&page=2');
+    expect(within(dialog).queryByRole('link', { name: /К закупке/ })).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Закрыть' }));
-    expect(where.loc.pathname).toBe('/purchasing');
-    expect(where.loc.search).toBe('?supply=o9&q=кул&page=2');
+    expect(where.loc.pathname).toBe('/warehouse');
+    expect(sp().get('task')).toBeNull();
   });
 });

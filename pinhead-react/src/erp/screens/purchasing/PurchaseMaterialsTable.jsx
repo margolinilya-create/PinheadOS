@@ -6,7 +6,6 @@ import {
   EtaField, MaterialCell, PriceField, QtyTriple, StatusCell, StatusControl, SupplierCell,
 } from './PurchaseFields';
 import { PurchaseRowDetails } from './PurchaseRowDetails';
-import { ReceiptButton } from './ReceiptButton';
 import { pricePerUnitLabel } from './purchaseLabels';
 import styles from '../../styles';
 
@@ -17,8 +16,9 @@ import styles from '../../styles';
  * по горизонтали… В таблице: материал и цвет, поставщик, количества,
  * цена, срок прихода, статус и действие. Убрать горизонтальный скролл».
  *
- * Было четырнадцать колонок в две группы; стало восемь, и статус с переходом
- * к приёмке видны без открытия деталей. Три количества стоят в ОДНОЙ ячейке
+ * Было четырнадцать колонок в две группы; стало восемь, и статус с действием
+ * видны без открытия деталей. Перехода к приёмке здесь нет (правка 19.10):
+ * приёмку ведёт склад, закупка видит только «принято». Три количества стоят в ОДНОЙ ячейке
  * подписанным столбиком — «нужно / заказано / принято», — а артикул,
  * источник, параметры ткани, сумма, поставки и прочее раскрываются строкой
  * ниже (`PurchaseRowDetails`). Обёртки `ScrollHintBox` здесь нет намеренно:
@@ -83,7 +83,6 @@ export function PurchaseMaterialsTable({
                   <td>
                     <span className={styles.purchaseActions}>
                       <StatusControl m={m} onConfirmStock={onConfirmStock} onSetStatus={onSetStatus} />
-                      <ReceiptButton order={order} m={m} />
                     </span>
                   </td>
                 </tr>

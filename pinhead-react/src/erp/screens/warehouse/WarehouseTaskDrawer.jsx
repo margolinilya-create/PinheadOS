@@ -1,6 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
 import { Badge } from '../../components/Badge';
-import { ButtonLink } from '../../components/Button';
 import { Drawer } from '../../components/Drawer';
 import { ReadOnlyFieldset } from '../../components/ReadOnlyFieldset';
 import { useErpStore } from '../../store/useErpStore';
@@ -12,7 +11,6 @@ import { PackShipCard } from './PackShipCard';
 import { SubcontractReceiptCard } from './SubcontractReceiptCard';
 import { SendToContractorCard } from './SendToContractorCard';
 import { taskStatusLabel, taskVariant } from './warehouseTasks';
-import styles from '../../styles';
 
 /**
  * ПАНЕЛЬ ЗАДАЧИ СКЛАДА: форма операции в правом Drawer (переиспользуются
@@ -22,14 +20,9 @@ import styles from '../../styles';
  * ПРИЁМКА МАТЕРИАЛА — В ШИРОКОЙ ПАНЕЛИ (правка 05.10, п. 4): в 560px
  * строка рулона разбивалась на две.
  *
- * ВОЗВРАТ В ЗАКУПКУ (правка 05.10, п. 7): открытая из строки закупки
- * приёмка несёт ссылку «← К закупке» — «возврат ведёт в ту же закупку…
- * с теми же фильтрами». Адрес возврата собирает экран (`returnHref`).
- *
- * @param open       `{ order, task }` — свежие из стора
- * @param returnHref адрес закупки, если пришли из неё; иначе `null`
+ * @param open `{ order, task }` — свежие из стора
  */
-export function WarehouseTaskDrawer({ open, onClose, canManage, returnHref }) {
+export function WarehouseTaskDrawer({ open, onClose, canManage }) {
   const {
     acceptMaterial, setRollWeights, setRollParams, addMaterialRolls,
     advanceWarehouseTask, shipOrder, submitWarehouseReport,
@@ -47,11 +40,6 @@ export function WarehouseTaskDrawer({ open, onClose, canManage, returnHref }) {
       subtitle={`№${open.order.bitrix_id || '—'} · ${open.order.title}`}
       badge={<Badge variant={taskVariant(open.task)}>{taskStatusLabel(open.task, open.order)}</Badge>}
     >
-      {returnHref && (
-        <div className={styles.drawerBackRow}>
-          <ButtonLink to={returnHref} variant="ghost" icon="chevronLeft">К закупке</ButtonLink>
-        </div>
-      )}
       <ReadOnlyFieldset
         canManage={canManage}
         note="Только просмотр: движение складских задач ведёт кладовщик."
