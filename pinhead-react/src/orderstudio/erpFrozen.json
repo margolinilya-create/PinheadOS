@@ -198,7 +198,7 @@
     "erp/screens/orderCard/LossesSection.jsx": "fc3e237f7dc3cd95d2e34e7dc980895c769f03b77b60b4aa79810a21076eb46c",
     "erp/screens/orderCard/NotificationsSection.jsx": "d64662cc317ed7170cd57be5ffd6e78a14ceda37fe3bfb8870f41a6906851cd7",
     "erp/screens/orderCard/OrderItemSection.jsx": "2d789d9ee27991ac7e5a7f7f0d38ec1c5e80eedb0ac32ddba1fcad3295884529",
-    "erp/screens/orderCard/OrderManagerField.jsx": "d57882539290c12e13d7572b5b64d25da47eb65127d67f316a9372a4eed3a9c0",
+    "erp/screens/orderCard/OrderManagerField.jsx": "976f309348b4e6dd1674f196ea6b09c6761f84e906d36f7fcfd5d3fb92664811",
     "erp/screens/orderCard/OrderManagerField.test.jsx": "725eb3a59f7efbf81188698bf04d147dd11c8c23cf736f41adb07cf65497f9a5",
     "erp/screens/orderCard/PlanCell.jsx": "c3f81096fc01b97f4c9cec94d7a97f3264a93bb139ec5ce274e2dd468d920fd7",
     "erp/screens/orderCard/StageStepper.jsx": "88f750df70cfb09a5a059536020cb7a2250c66072183bf723644e63ddf927143",
@@ -432,7 +432,7 @@
     "erp/utils/bizTasksChat.test.ts": "d74bbb39c378f2e1fa074d047d9fc0553391c3dbcd8d8472a13bbab083b9de41",
     "erp/utils/bizTasksMock.test.ts": "2437845548755ce595adb81d900aaca507a3178ccd2dd0b446b80d1eb2220094",
     "erp/utils/bizTasksRpc.test.ts": "a31c82d67e4f6c7322e96754165f9ae7c91203951fce2f06fe1cd8a8948ae4c7",
-    "erp/utils/bizTasksSchema.test.ts": "82ec0dc7e8c8eeceee50b9c3d574b987462d90b4c321f7535410b171641c54c6",
+    "erp/utils/bizTasksSchema.test.ts": "6215603d0c21efd37656b094a7b57572f68ab75010fc7dce14c7e31efb943884",
     "erp/utils/brandingMethods.test.ts": "40d46f7f5016074d0e323ef236d6418b592df3e4d5a02fc103b66dd5142022f1",
     "erp/utils/bypass.test.ts": "021d14afda73f3e8041a7b8b6a01b9ea7a2fbec451da14e74a520e454933ec63",
     "erp/utils/bypass.ts": "4c7e2d6e64ea7ed8f52125dd0ff7e069c6045531f28036eca9acc3fede4987bc",
@@ -981,7 +981,7 @@
     "20261019090000_erp_attach_30mb_passport_optional.sql": "12d3799c428451c7a06c5e1413477872b034bd38c6bca813e20087143c239083",
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
-    "20261020090000_erp_biz_tasks_schema.sql": "72abbe5c31ddb9690905f35e92738ca92e896154956f1745a65a79b6d3371e5c",
+    "20261020090000_erp_biz_tasks_schema.sql": "ed08014d1816e5c0363ee98625b1206fc735eecde444d21be4a551f90d4aae65",
     "20261020100000_erp_biz_tasks_rpc.sql": "acc4deed81f7642b86a717a602cb8b3be01d9ef14b2a0b2f7ea6dc9ef07863e2"
   }
 }

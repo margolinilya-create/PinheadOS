@@ -11,7 +11,9 @@ import styles from '../../styles';
  *
  * Правит `order.manage` (страж `erp_order_guard` охраняет новую колонку
  * по умолчанию), и только СОТРУДНИКОМ ERP: в списке — люди справочника чата
- * с карточкой `erp_employees` (`role` не пустой). Без права — только имя.
+ * с карточкой `erp_employees` (`role` не пустой); то же множество держит
+ * страж — смена на профиль без активной карточки отвечает 22023.
+ * Без права — только имя.
  */
 export function OrderManagerField({ order, canManage, onSave }) {
   const id = useId();
