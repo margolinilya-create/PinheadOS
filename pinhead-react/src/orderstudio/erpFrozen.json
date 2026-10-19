@@ -83,7 +83,7 @@
     "erp/data/departments.test.ts": "d202319eec547a33c1d18703fd0a4d9589419d2a318b8331b97c557cf31377e9",
     "erp/data/departments.ts": "0a425195d52e11e3c6d52299561d920b18755ed4bff7f5e64947f757b057e461",
     "erp/emptyStates.test.ts": "d6013eb612c869ac30500e0e73cf15fdb62974bbb7223c567640c6828bf2213c",
-    "erp/erp.module.css": "c15e4b8d920f90796227c12fe6b4223f01cbc711a478736cf1eb85b96f86db39",
+    "erp/erp.module.css": "b696a7e994ca06b930364436e1186f3e79341677cf585aab4a7645b03cec4259",
     "erp/hooks/useAttachmentUploads.js": "af15d584b993ed38a8a918e49729475d4369ce002ec0b63d15fdbc04dc89e33d",
     "erp/hooks/useChatDraft.js": "f17b0de808249168da725ca4d02592606183daee3a01c5d36c4d78dbf9d40eaa",
     "erp/hooks/useDevStageMove.js": "8e36628bf0a6a0ada2745e28ae599ec9a3fce8f77d67c8fbf86199e7cce80cd7",

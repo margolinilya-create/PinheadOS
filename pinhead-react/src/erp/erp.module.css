@@ -808,6 +808,10 @@
   gap: var(--space-sm);
   transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
   flex-shrink: 0;
+  /* Опора для .visuallyHidden в подписи вкладки («Бизнес-задачи, открытых: N»,
+     правки 19.10): без неё скрытый текст позиционируется от оболочки, а не
+     от ленты вкладок, и на 375 px распирал страницу до 737 px вширь */
+  position: relative;
 }
 .deptTab:last-child { border-right: none; }
 .deptTab:hover { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }

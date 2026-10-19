@@ -141,6 +141,15 @@ test('visual: erp-queue', async ({ page }) => {
 test('visual: erp-order-card', async ({ page }) => {
   await page.goto('/orders/ord-a?studio=0');
   await expect(page.getByRole('heading', { name: /BOX39 худи чёрные/ })).toBeVisible();
+  /*
+   * СТРАНИЦА НЕ ШИРЕ ОКНА (правки 19.10). Скрытая подпись вкладки
+   * «Бизнес-задачи, открытых: N» (`.visuallyHidden`, absolute) без опоры
+   * на саму вкладку позиционировалась от оболочки и распирала карточку
+   * на 375 px до 737 px — `fullPage` молча снял бы эталон двойной ширины.
+   */
+  await expect(page.getByText('Бизнес-задачи, открытых: 1')).toBeAttached();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
   await shoot(page, 'erp-order-card');
 });
 
