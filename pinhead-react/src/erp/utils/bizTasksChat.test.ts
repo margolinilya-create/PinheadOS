@@ -56,6 +56,11 @@ describe('диалог задачи: отправка', () => {
     // Гейт задачи — до первой записи
     expect(gate).toBeLessThan(send.indexOf('insert into'));
 
+    // Писать — только действующий сотрудник ERP: ворота писателей до проверки участника
+    const staff = send.indexOf('perform public.erp_biz_task_gate();');
+    expect(staff, 'нет ворот сотрудника в ветке задачи').toBeGreaterThan(0);
+    expect(staff).toBeLessThan(gate);
+
     // Тред задачи — по task_id, второй тред гонкой не заводится
     expect(send).toMatch(/where t\.task_id = p_task_id/);
     expect(send).toMatch(/on conflict \(task_id\) where task_id is not null do nothing/);

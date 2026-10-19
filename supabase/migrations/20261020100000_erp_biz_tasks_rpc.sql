@@ -972,7 +972,8 @@ grant execute on function public.erp_biz_task_seen_by(uuid) to authenticated;
 
 -- ── Счётчики вкладки заказа ───────────────────────────────────────────────
 -- Invoker: читает под RLS вызывающего. «Просрочена» — срок истёк, а задача
--- новая, в работе или приостановлена (сданная на проверку — нет)
+-- новая, в работе или приостановлена; сданная на проверку — если сдана после срока
+-- (правило клиентского isOverdue); завершённая в «просрочено» не входит
 create or replace function public.erp_biz_task_counts(p_order_id uuid)
 returns table(open int, overdue int, done int)
 language sql
@@ -980,7 +981,8 @@ stable
 set search_path = public
 as $$
   select count(*) filter (where t.status in ('new', 'in_progress', 'paused', 'review'))::int,
-         count(*) filter (where t.status in ('new', 'in_progress', 'paused') and t.due_at < now())::int,
+         count(*) filter (where (t.status in ('new', 'in_progress', 'paused') and t.due_at < now())
+                             or (t.status = 'review' and t.submitted_at > t.due_at))::int,
          count(*) filter (where t.status = 'done')::int
     from public.erp_biz_tasks t
    where t.order_id = p_order_id;
@@ -1087,6 +1089,9 @@ begin
     if not found then
       raise exception 'erp_chat_send: задача не найдена' using errcode = 'P0002';
     end if;
+    -- Писать — только действующий сотрудник ERP (как прочие писатели задач):
+    -- у бывшего участника без карточки сотрудника тред закрыт
+    perform public.erp_biz_task_gate();
     -- Читать диалог может любой участник раздела (Р1), писать — участник
     -- задачи или руководитель с `biz_task.manage`
     if not (public.erp_biz_task_is_participant(p_task_id, v_me)

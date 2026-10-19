@@ -116,6 +116,15 @@ describe('писатели бизнес-задач: кому выставлен�
     expect(gate).toMatch(/errcode = '42501'/);
   });
 
+  it('erp_biz_task_counts: просрочка — правило клиентского isOverdue для открытых', () => {
+    const b = body('erp_biz_task_counts');
+    expect(b).toMatch(/\(t\.status in \('new', 'in_progress', 'paused'\) and t\.due_at < now\(\)\)/);
+    expect(b).toMatch(/\(t\.status = 'review' and t\.submitted_at > t\.due_at\)/);
+    // завершённая считается в done, в просроченные не входит
+    const overdue = b.slice(b.indexOf('(t.status in (\'new\', \'in_progress\', \'paused\') and t.due_at'), b.indexOf('filter (where t.status = \'done\')'));
+    expect(overdue).not.toMatch(/'done'/);
+  });
+
   it('erp_profile_is_staff: активный, одобренный, с активной записью erp_employees', () => {
     const b = body('erp_profile_is_staff');
     expect(b).toMatch(/p\.active is true and p\.approved is true/);

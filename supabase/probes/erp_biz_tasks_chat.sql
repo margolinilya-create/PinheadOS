@@ -3,7 +3,7 @@
 -- `erp_chat_delete`, `erp_chat_unread_tasks`) и напоминания по сроку (`erp_biz_task_reminders_run`).
 -- Только после применения T1 и T2+T3 (или сухим прогоном вместе с ними), ВЛАДЕЛЕЦ в SQL Editor.
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=55 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=56 {…}
 --
 -- Роли — те же профили боя, что в `erp_biz_tasks.sql` (признаки и карточки сотрудника
 -- выставляются внутри транзакции, откат вернёт):
@@ -20,7 +20,7 @@
 -- только задачи пробы.
 --
 -- Проверено локально (19.10): PostgreSQL 16 с заглушкой схемы Supabase + прежние функции
--- чата + T1 + T2/T3 — fails=0 total=55.
+-- чата + T1 + T2/T3 — fails=0 total=56.
 
 begin;
 set local lock_timeout = '3s';
@@ -117,6 +117,10 @@ select pg_temp.p('old_page_named', 'OK 1', format($q$select jsonb_array_length((
 
 -- ── Кто пишет в тред задачи ──────────────────────────────────────────────
 select pg_temp.p('outsider_send', '42501', pg_temp.ts('Посторонний', '00000000-0000-4000-8000-0000b3000002'), pg_temp.uid('outsider'));
+-- Бывший участник: карточку сотрудника сняли — писать в тред нельзя (42501)
+update public.erp_employees set active = false where profile_id = pg_temp.uid('watcher')::uuid;
+select pg_temp.p('nocard_participant_send', '42501', pg_temp.ts('Без карточки', '00000000-0000-4000-8000-0000b3000020'), pg_temp.uid('watcher'));
+update public.erp_employees set active = true where profile_id = pg_temp.uid('watcher')::uuid;
 select pg_temp.p('task_with_foreign_order', '22023', format($q$select public.erp_chat_send(p_order_id => %L, p_body => 'x',
   p_client_key => '00000000-0000-4000-8000-0000b3000003', p_task_id => %L)$q$, pg_temp.fx('order2'), pg_temp.fx('t')), pg_temp.uid('watcher'));
 select pg_temp.p('task_with_own_order', '22023', format($q$select public.erp_chat_send(p_order_id => %L, p_body => 'x',

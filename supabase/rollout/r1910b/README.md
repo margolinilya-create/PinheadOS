@@ -7,7 +7,7 @@
 | Код | Миграция | Что делает | Проба (ожидание) | Откат |
 |---|---|---|---|---|
 | T1 | `20261020090000_erp_biz_tasks_schema` | таблицы `erp_biz_task*` (только SELECT), `erp_orders.manager_id` и страж заказа (теперь на INSERT и UPDATE), `erp_create_order` (менеджер заказа при подлинном запуске), якорь треда `task_id`, вложения `biz_task_id`, виды уведомлений `task_*`, publication, право `biz_task.manage` | `erp_biz_tasks_schema.sql` → `PROBE_RESULT fails=0 total=35` | только фронт (см. раздел 3) |
-| T2 | `20261020100000_erp_biz_tasks_rpc` | писатели задачи (`erp_biz_task_*`), **и T3 в том же файле**: `erp_chat_send`/`erp_chat_page` с `p_task_id` (`drop` + `create` в одной транзакции), `erp_chat_edit`/`erp_chat_delete`, `erp_chat_unread_tasks`, напоминания `erp_biz_task_reminders_run` и расписание `pg_cron` | `erp_biz_tasks.sql` → `PROBE_RESULT fails=0 total=407`; `erp_biz_tasks_chat.sql` → `PROBE_RESULT fails=0 total=55` | `20261020100000_erp_biz_tasks_rpc_rollback.sql` |
+| T2 | `20261020100000_erp_biz_tasks_rpc` | писатели задачи (`erp_biz_task_*`), **и T3 в том же файле**: `erp_chat_send`/`erp_chat_page` с `p_task_id` (`drop` + `create` в одной транзакции), `erp_chat_edit`/`erp_chat_delete`, `erp_chat_unread_tasks`, напоминания `erp_biz_task_reminders_run` и расписание `pg_cron` | `erp_biz_tasks.sql` → `PROBE_RESULT fails=0 total=407`; `erp_biz_tasks_chat.sql` → `PROBE_RESULT fails=0 total=56` | `20261020100000_erp_biz_tasks_rpc_rollback.sql` |
 
 Применяет **владелец в SQL Editor** (MCP `execute_sql` виснет на `drop`/`delete`); контроллер — только SELECT
 и запись в `APPLIED.json`. Пробы до этой выкатки на бою не прогонялись ни разу (только локально, PostgreSQL 16
@@ -39,7 +39,7 @@
 1. **Сухой прогон.** Открыть файл пробы; сразу после `begin;` и строк `set local …` вставить текст миграции
    целиком (для проб T2 — и T1, если T1 ещё не применена). Выполнить: проба заканчивается исключением
    `PROBE_RESULT fails=0 total=N` — оно же откатывает всё. Любое `fails>0` — стоп, миграцию не применять.
-   Для T2 — обе пробы: `erp_biz_tasks.sql` (total=407) и `erp_biz_tasks_chat.sql` (total=55).
+   Для T2 — обе пробы: `erp_biz_tasks.sql` (total=407) и `erp_biz_tasks_chat.sql` (total=56).
 2. **Применение.** Текст миграции → Run. Затем `notify pgrst, 'reload schema';` (у T2 он уже в конце файла —
    повторить не вредно).
 3. **Журнал.** Контроллер SELECT-ом видит версию в `supabase_migrations.schema_migrations`, дописывает её
