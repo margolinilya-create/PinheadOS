@@ -215,6 +215,12 @@ describe('чтение', () => {
     expect(h.calls.some((c) => c.table === 'erp_biz_tasks' && c.op === 'in')).toBe(false);
   });
 
+  it('закрытые статусы слайса — ровно те, что не входят в BIZ_TASK_ACTIVE', async () => {
+    const { CLOSED_STATUSES } = await import('./bizTasksSlice');
+    const { BIZ_TASK_ACTIVE, BIZ_TASK_STATUSES } = await import('../../utils/bizTasks');
+    expect([...CLOSED_STATUSES].sort()).toEqual(BIZ_TASK_STATUSES.filter((st) => !BIZ_TASK_ACTIVE.includes(st)).sort());
+  });
+
   it('«Наблюдаю» — id пачками по 100: длинный in.(…) не упрётся в предел адреса', async () => {
     h.tables.erp_biz_task_watchers = Array.from({ length: 250 }, (_, i) => ({ task_id: `t${i}` }));
     h.tables.erp_biz_tasks = [];

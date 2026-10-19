@@ -20,7 +20,6 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import type { Json } from '../../../types/database.generated';
 import type { ErpBizTask } from '../../types';
-import { BIZ_TASK_ACTIVE } from '../../utils/bizTasks';
 import { currentUserId, erpError, erpQuery, erpRead } from '../shared';
 import type { BizTaskDetail, BizTaskRow, BizTasksSlice, ErpStore } from '../types';
 
@@ -32,6 +31,9 @@ export const BIZ_TASK_LIST_LIMIT = 500;
  * и сотни uuid разом упёрлись бы в предел длины URL. 100 uuid — около 4 КБ.
  */
 export const BIZ_TASK_ID_CHUNK = 100;
+
+/** Закрытые статусы (зеркало `BIZ_TASK_ACTIVE` из `utils/bizTasks` — сверяет тест слайса) */
+export const CLOSED_STATUSES: ReadonlySet<string> = new Set(['done', 'cancelled']);
 
 /** Колонки строки + наблюдатели и заказ вложенными выборками (литерал — для типизированного клиента) */
 export const BIZ_TASK_SELECT = `id, order_id, title, kind, description, assignee_id, creator_id, due_at,
@@ -138,8 +140,10 @@ export const bizTasksSlice: StateCreator<ErpStore, [], [], BizTasksSlice> = (set
       const me = currentUserId();
       if (filter.scope !== 'all' && !me) return [];
       const statuses = filter.statuses ?? [];
-      // Только активные — ближайшие сроки первыми; с закрытыми — свежие первыми
-      const ascending = statuses.length > 0 && statuses.every((st) => BIZ_TASK_ACTIVE.includes(st));
+      // Только активные — ближайшие сроки первыми; с закрытыми — свежие первыми.
+      // Закрытые названы здесь литералом: импорт `utils/bizTasks` в слайс
+      // переставлял чанки и растил оболочку ERP (bundle:budget)
+      const ascending = statuses.length > 0 && statuses.every((st) => !CLOSED_STATUSES.has(st));
       const query = (ids: string[] | null) => fetchRows((q) => {
         let out = q;
         if (statuses.length) out = out.in('status', [...statuses]);
