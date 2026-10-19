@@ -11,6 +11,12 @@
 Состояние на 18.10 (SELECT): журнал 338 записей, последняя `20261018120000` (J); L, K, M — только файлы;
 `is_sales` = 0, `is_ms` = 0 у всех; заказов v4 — 7, v3 — 3.
 
+**Выкатка выполнена 18.10 (вечер, проверено контроллером в 21:10 UTC):** L `20261018150000` — 20:44 (до фронта);
+PR #208 (6+7) слит 18:27 UTC, PR #209 (веха 8) — мердж `049cb304`, production-выкладка Vercel 21:08:43 UTC,
+`/version.json` = `049cb304d907-`, флаг пуст; K `20261018160000` — 21:09:05 (через 22 с после выкладки);
+M `20261018170000` — 21:09. Журнал `schema_migrations` — 341 запись, md5 `55f6a85f2069ea365df21f87c474469b` =
+`APPLIED.json`. Деплой `order-files-gc` — ещё не сделан (отдельно).
+
 ---
 
 ## Порядок выкатки
@@ -29,7 +35,9 @@
    `2-apply-K.sql`; `APPLIED.json`, `migrations:verify`. Смоук: md5 тел = литералы K; REST `order_v4_save_full`
    с `client_rev: 3` → «Вышло обновление», с `4` → успех и `notes` в ответе; **сохранить комментарий, перечитать
    заказ — комментарий на месте**; нет `PGRST202`.
-4. **M — владелец** в SQL Editor: `1-dryrun-M.sql` (`fails=0 total=13`), `4-dryrun-rollback-M.sql`
+4. **M — владелец** в SQL Editor (18.10 факт: M применена **контроллером через Management API** по заранее
+   данному разрешению владельца применять миграции на бой при `fails=0`; `1-dryrun-M` 13/0, `ROLLBACK_M_OK`,
+   `legacy_left=0`, проба `catalog_legacy` 13/0, `APPLIED.json` обновлён в той же сессии): `1-dryrun-M.sql` (`fails=0 total=13`), `4-dryrun-rollback-M.sql`
    (`ROLLBACK_M_OK`), `2-apply-M.sql` — после просмотра снимка `supabase/snapshots/catalog_config_legacy_2026-10-18.json`.
    Контроллер, увидев M в `schema_migrations`, **в той же сессии** обновляет `APPLIED.json` и `migrations:verify`
    (потолок неприменённых в `migrationJournal.test.ts`).
@@ -60,24 +68,24 @@ Instant Rollback Vercel только после отката функций K. *
 
 ## Чек-лист «Готовность до включения»
 
-Хоть один красный — **не включать** и никого не отмечать. Статус — на 18.10, после задачи 12 (до выкатки).
+Хоть один красный — **не включать** и никого не отмечать. Статус — на 18.10 вечер, после выкатки (до 21:10 UTC — после задачи 12, до выкатки).
 
-| # | Пункт | Как проверить | Красный, если | Статус 18.10 |
+| # | Пункт | Как проверить | Красный, если | Статус 18.10 (вечер) |
 |---|---|---|---|---|
-| 1 | 5а, 5б, 6+7, 8 слиты; H, I, J, L, K на бою; `migrations:verify` зелёный | `git log`, SELECT `schema_migrations` | чего-то нет | **красный** — H, I, J на бою; PR #208 (6+7) и PR вехи 8 не слиты; L, K не применены |
-| 2 | Полный прогон зелёный: `test`, `lint` ≤ 34, `typecheck`, `e2e` (`order-*`, `navigation`, `routes-smoke`, `killswitch`, `visual`, `@walk`), `bundle:budget`; эталоны `erp-*` не менялись | CI на HEAD, `git diff --name-only` по `e2e/visual.spec.ts-snapshots` | любой красный; изменён `erp-*` | **жёлтый** — `bundle:budget` зелёный (вход 152 285 / 155 000, оболочка ERP 194 808 / 195 000, CSS ERP побайтно как база); строгая база `strict` перезаписана решением вслух на финальном ревью (вход +1 245 Б — цена выбора оболочки К1 и подписи входа, разбор — `design/README.md`, «Замеры 8»); локально зелёные `test` (8198), `lint` (12 предупреждений), `typecheck`, e2e `order-flow`/`order-settings`/`order-shell`/`sku-editor`/`killswitch`/`routes-smoke`; эталоны `studio-*` ждут `update_snapshots`; CI на HEAD — при слиянии |
+| 1 | 5а, 5б, 6+7, 8 слиты; H, I, J, L, K на бою; `migrations:verify` зелёный | `git log`, SELECT `schema_migrations` | чего-то нет | **зелёный** — 5а, 5б, 6+7 (PR #208), 8 (PR #209, `049cb304`) слиты и выложены; H, I, J, L, K (и M) на бою; журнал 341 запись = `APPLIED.json` |
+| 2 | Полный прогон зелёный: `test`, `lint` ≤ 34, `typecheck`, `e2e` (`order-*`, `navigation`, `routes-smoke`, `killswitch`, `visual`, `@walk`), `bundle:budget`; эталоны `erp-*` не менялись | CI на HEAD, `git diff --name-only` по `e2e/visual.spec.ts-snapshots` | любой красный; изменён `erp-*` | **зелёный** — всё слито, CI на HEAD `main` зелёный (эталоны `studio-*` обновлены `update_snapshots` до мерджа, `erp-*` не менялись); `bundle:budget` зелёный (вход 152 285 / 155 000, оболочка ERP 194 808 / 195 000) |
 | 3 | Обход `pinhead-qa`: открытых Critical/High = 0 (шкала К12) | отчёты T10/T11 | > 0 | **зелёный** — Critical H-2 и High W1 исправлены в T11; остаток Medium/Low — бэклог SESSION-STATE |
-| 4 | Владелец сверил PDF ТЗ пяти фикстур с образцами | запись владельца в SESSION-STATE | нет записи | **красный** — записи нет |
+| 4 | Владелец сверил PDF ТЗ пяти фикстур с образцами | запись владельца в SESSION-STATE | нет записи | **красный** — записи владельца нет |
 | 5а | Владелец утвердил список: кто продавец, кто МС (≥ 1); у каждого МС — должность ERP с `order.manage` и `tz.manage` | запись владельца + SELECT `erp_employees`, `erp_has_permission` | нет списка, 0 МС, МС без прав | **красный** — списка нет |
 | 6 | Все ключи `PRICES` есть в `app_config.prices` | SELECT (T0) | ключа нет | **зелёный** — нет семи прежних ключей (`dtfGap`, `emb*`, `markup*`) — формула их не читает |
-| 7 | Превью Vercel под продавцом/МС/rop: `/sales`, F5 на `/sales/:id` в разделе, дизайнер уходит в Производство без петли | ручной обход или владелец | провал — красный | **жёлтый** — не проверено (на моке — смены `@walk` зелёные) |
-| 8 | Откат готов: `3-rollback-L`, `3-rollback-K-functions`, `4-dryrun-rollback-*` прогнаны; выключатель проверен без записи в Vercel (e2e `killswitch`, маркер сборки меняется с флагом); значение флага в Production не `'0'`/`'false'` | файлы, CI | не прогнаны / красный тест | **красный** — откаты прогнаны только на локальном шиме (T2), на бою — нет; `killswitch` 3/3 и тест маркера зелёные (T5); Production — флаг не задан (T0, по сборке), Preview — не проверено |
-| 9 | «Ошибки интерфейса» — окно 2 часа после выкладки фронта и K: новых от Order 0 | SELECT по времени выкладки | есть новые; окно не прошло — жёлтый | **жёлтый** — выкладки ещё не было |
+| 7 | Превью Vercel под продавцом/МС/rop: `/sales`, F5 на `/sales/:id` в разделе, дизайнер уходит в Производство без петли | ручной обход или владелец | провал — красный | **жёлтый** — обход превью под ролями не сделан (на моке — смены `@walk` зелёные) |
+| 8 | Откат готов: `3-rollback-L`, `3-rollback-K-functions`, `4-dryrun-rollback-*` прогнаны; выключатель проверен без записи в Vercel (e2e `killswitch`, маркер сборки меняется с флагом); значение флага в Production не `'0'`/`'false'` | файлы, CI | не прогнаны / красный тест | **зелёный** — откаты прогнаны на бою: L 13/0 до и после применения, K 6/0, M `ROLLBACK_M_OK`; `killswitch` 3/3 и тест маркера зелёные; Production — флаг пуст |
+| 9 | «Ошибки интерфейса» — окно 2 часа после выкладки фронта и K: новых от Order 0 | SELECT по времени выкладки | есть новые; окно не прошло — жёлтый | **жёлтый** — выкладка 21:08:43 UTC, K 21:09:05; окно 2 часа — до ~23:10 UTC, после — SELECT |
 | 10 | Кнопка «в Оформление заказа» в Производстве (Task 13) | «да» владельца | нет «да» — жёлтый | **жёлтый** — «да» нет; путь — `/` и `/sales` |
-| 11 | Регресс проб прав на бою: `order_v4_rights`, пробы G/H/I/J/L/K, Storage `order-artworks` и `garment-flats` под продавцом A и B, МС, rop, дизайнером — `fails=0`; `get_advisors(security)` без новых ERROR/WARN против списка T0 (ERROR 0; WARN: `anon_security_definer_function_executable` 1, `authenticated_security_definer_function_executable` 40, `auth_leaked_password_protection` 1) | пробы `begin … rollback`, MCP advisors | не прогнано, `fails>0`, новые ERROR/WARN | **красный** — не прогнано (L и K ещё не на бою) |
+| 11 | Регресс проб прав на бою: `order_v4_rights`, пробы G/H/I/J/L/K, Storage `order-artworks` и `garment-flats` под продавцом A и B, МС, rop, дизайнером — `fails=0`; `get_advisors(security)` без новых ERROR/WARN против списка T0 (ERROR 0; WARN: `anon_security_definer_function_executable` 1, `authenticated_security_definer_function_executable` 40, `auth_leaked_password_protection` 1) | пробы `begin … rollback`, MCP advisors | не прогнано, `fails>0`, новые ERROR/WARN | **зелёный** — на бою `fails=0`: `order_v4_rights` 161/0, `order_v4_launch` 174/0, `order_v4_zone_notes` 26/0, `order_v3_readonly` 35/0, `catalog_legacy` 13/0; `get_advisors(security)` как в T0 (`anon` secdef 1, `authenticated` secdef 40, leaked password 1); `garment_flats.sql` — ожидаемый FAIL `flats_key_absent` (владелец засеял флэты), не регресс |
 
-**Итог 18.10: включать нельзя.** Красные 1, 2, 4, 5а, 8, 11. Закрывают: 1, 8, 11 — контроллер по шагам
-выкатки выше; 2 — контроллер (разбор базы бандла) и владелец (`update_snapshots`); 4 и 5а — только владелец.
+**Итог 18.10 (вечер): включать пока нельзя.** Красные — только 4 и 5а, закрывает только владелец; жёлтые — 7, 9, 10;
+зелёные — 1, 2, 3, 6, 8, 11. (Итог 18.10 до выкатки: красные 1, 2, 4, 5а, 8, 11.)
 
 ## Чек-лист «Включение» (только после того, как «Готовность» вся зелёная или жёлтая)
 
