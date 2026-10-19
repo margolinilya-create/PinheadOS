@@ -188,4 +188,17 @@ describe('менеджер заказа (Р3)', () => {
     expect(rest.slice(0, rest.indexOf(';'))).not.toContain("'manager_id'");
     expect(SQL).toMatch(/revoke execute on function public\.erp_order_guard\(\) from public, anon, authenticated;/);
   });
+
+  it('страж заказа: менеджер — только сотрудник ERP (Р3), проверяется смена значения', () => {
+    const guard = withoutComments(functionBody(latestDefining('erp_order_guard'), 'erp_order_guard'));
+    const at = guard.indexOf('new.manager_id is not null');
+    expect(at).toBeGreaterThan(-1);
+    const branch = guard.slice(at, guard.indexOf('end if;', at));
+    expect(branch).toMatch(/new\.manager_id is distinct from old\.manager_id/);
+    expect(branch).toMatch(/from public\.erp_employees e/);
+    expect(branch).toMatch(/e\.active and p\.active is true and p\.approved is true/);
+    expect(branch).toMatch(/errcode = '22023'/);
+    // Ветка «родитель удалён» идёт раньше: обнуление каскадом сюда не доходит
+    expect(guard.indexOf('not exists (select 1 from public.profiles p where p.id = old.manager_id)')).toBeLessThan(at);
+  });
 });

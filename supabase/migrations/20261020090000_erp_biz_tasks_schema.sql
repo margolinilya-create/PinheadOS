@@ -352,6 +352,26 @@ begin
       using errcode = '42501';
   end if;
 
+  -- Менеджер заказа — только СОТРУДНИК ERP (Р3): активная карточка
+  -- `erp_employees` у активного одобренного профиля — то же множество, что
+  -- список карточки (`erp_chat_directory`, `role` не пустой). Без проверки
+  -- `order.manage` прямым PATCH ставил бы любой профиль, и тот становился бы
+  -- наблюдателем бизнес-задач заказа и получателем их уведомлений.
+  -- Проверяется только СМЕНА: прежнее значение (в том числе автор заказа v4
+  -- из подлинного запуска) правку других полей не запирает.
+  if new.manager_id is not null
+     and new.manager_id is distinct from old.manager_id
+     and not exists (
+       select 1
+         from public.erp_employees e
+         join public.profiles p on p.id = e.profile_id
+        where e.profile_id = new.manager_id
+          and e.active and p.active is true and p.approved is true
+     ) then
+    raise exception 'erp_order_guard: менеджером заказа можно назначить только сотрудника ERP'
+      using errcode = '22023';
+  end if;
+
   if v_ship
      and not (public.erp_has_permission('warehouse.manage')
               or public.erp_has_permission('order.manage')) then

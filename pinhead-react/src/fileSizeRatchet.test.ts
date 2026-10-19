@@ -43,7 +43,7 @@ const CEILINGS: Record<string, number> = {
   'erp/store/slices/stagesSlice.ts': 886,
   'erp/utils/orderForm.ts': 635,
   'erp/utils/experimentalBoard.ts': 821,
-  'erp/screens/OrdersScreen.jsx': 793,
+  'erp/screens/OrdersScreen.jsx': 791,
   'erp/screens/experimental/DevCard.jsx': 790,
   'erp/screens/Experimental.jsx': 734,
   'erp/screens/PlanScreen.jsx': 722,

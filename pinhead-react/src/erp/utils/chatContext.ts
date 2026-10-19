@@ -88,3 +88,33 @@ export function unreadForContext(
   if (!stageId) return unread.total;
   return unread.byStage[stageId] ?? 0;
 }
+
+/**
+ * ЯКОРЬ ОБСУЖДЕНИЯ — «сделка с контекстом» ИЛИ «тред бизнес-задачи»
+ * (правки 19.10, п. 7). Ключ один на два места: черновик («человек × задача»,
+ * `useChatDraft`) и сверка позднего ответа ленты. Префикс `task:`
+ * не пересекается с id заказа (uuid), поэтому черновик задачи не всплывёт
+ * в сделке — даже в сделке той же задачи.
+ */
+export function chatAnchorKey(
+  orderId: string | null | undefined,
+  ctx: ChatContext | null | undefined,
+  taskId?: string | null,
+): string {
+  if (taskId) return `task:${taskId}`;
+  return `${orderId ?? ''}|${contextKey(ctx)}`;
+}
+
+/**
+ * Касается ли звонок realtime треда открытой ленты задачи. Звонок несёт
+ * треды серии событий (`'*'` — событие без треда, например реакция).
+ * Тред ленты неизвестен (ещё ни одного сообщения) или список пуст —
+ * перечитываем: лишний запрос лучше пропущенного сообщения.
+ */
+export function pingConcernsThread(
+  threads: readonly string[] | null | undefined,
+  threadId: string | null | undefined,
+): boolean {
+  if (!threadId || !threads || threads.length === 0) return true;
+  return threads.includes('*') || threads.includes(threadId);
+}

@@ -5,7 +5,7 @@
 -- Только после применения T1 (или сухим прогоном вместе с ней), ВЛАДЕЛЕЦ в SQL Editor.
 -- Регресс — `order_v4_launch.sql` тем же прогоном (его ожидание не меняется).
 --
--- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=28 {…}
+-- ОЖИДАНИЕ: ERROR  PROBE_RESULT fails=0 total=31 {…}
 --
 -- Роли — профили боя: DIRECTOR 56ec3039-f326-42dd-b4de-870844b9468d (запускает
 -- заказ v4, видит все заказы, order.manage), HEAD 9285888e-4401-4b1b-b523-a3e6a9b90e82
@@ -115,6 +115,17 @@ select pg_temp.p('launch_authentic', 'OK 9285888e-4401-4b1b-b523-a3e6a9b90e82', 
 select pg_temp.p('launch_erp_only', 'OK null', $q$select manager_id::text from public.erp_orders where id = public.erp_create_order(jsonb_build_object('order', jsonb_build_object('title', 'PROBE T1 из ERP', 'manager_id', 'cc9ed453-d3d7-4add-a361-8719a7701f97')))$q$);
 select pg_temp.p('launch_foreign_mark', 'OK null', $q$select manager_id::text from public.erp_orders where id = public.erp_create_order(jsonb_build_object('order', jsonb_build_object('title', 'PROBE T1 чужая метка', 'tz_order_id', '00000000-0000-4000-8000-0000b1000002')))$q$);
 select pg_temp.p('launch_stale_mark', 'OK null', $q$select manager_id::text from public.erp_orders where id = public.erp_create_order(jsonb_build_object('order', jsonb_build_object('title', 'PROBE T1 старая метка', 'tz_order_id', '00000000-0000-4000-8000-0000b1000003')))$q$);
+
+-- Менеджер заказа в карточке — только сотрудник ERP (страж, Р3): рабочий
+-- с активной карточкой ставится, снятая карточка — 22023, снять (NULL) можно
+select pg_temp.p('d_manager_staff', 'OK rows=1', format($q$update public.erp_orders set manager_id = 'cc9ed453-d3d7-4add-a361-8719a7701f97' where id = %L$q$, pg_temp.fx('order')));
+select pg_temp.p('d_manager_clear', 'OK rows=1', format($q$update public.erp_orders set manager_id = null where id = %L$q$, pg_temp.fx('order')));
+reset role;
+select pg_temp.as_user(null);
+update public.erp_employees set active = false where full_name = 'Проба рабочий T1';
+select pg_temp.as_user('56ec3039-f326-42dd-b4de-870844b9468d');
+set local role authenticated;
+select pg_temp.p('d_manager_no_card', '22023', format($q$update public.erp_orders set manager_id = 'cc9ed453-d3d7-4add-a361-8719a7701f97' where id = %L$q$, pg_temp.fx('order')));
 reset role;
 select pg_temp.as_user(null);
 

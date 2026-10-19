@@ -386,7 +386,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * только вместе с доменным чанком, поэтому читатель у звонка всегда есть.
      */
     if (ev.table === 'erp_chat_messages') {
-      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      schedulePing((t) => set({ chatPing: get().chatPing + 1, chatPingThreads: t }), (ev.new?.thread_id as string) ?? null);
       return;
     }
 
@@ -397,7 +397,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * (а `mine` в событии вообще нет — оно про чужую строку).
      */
     if (ev.table === 'erp_chat_reactions') {
-      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      schedulePing((t) => set({ chatPing: get().chatPing + 1, chatPingThreads: t }));
       return;
     }
 
