@@ -43,7 +43,15 @@ describe('бизнес-задачи: таблицы только на чтени
     const policies = [...SQL.matchAll(new RegExp(`create policy (\\w+) on public\\.${t}\\b([^;]*);`, 'g'))];
     expect(policies, `${t}: политик должно быть ровно одна`).toHaveLength(1);
     const [, , rest] = policies[0];
-    expect(rest).toMatch(/for select to authenticated\s+using \(\(select public\.erp_is_member\(\)\)\)/);
+    if (t === 'erp_biz_task_seen') {
+      // Отметка «видел» — личная (ревизия безопасности B1): каждый читает
+      // только свою. Факт «ответственный открыл задачу» постановщику и manage
+      // отдаёт писатель `erp_biz_task_seen_by` с проверкой участия
+      expect(rest).toMatch(/for select to authenticated\s+using \(user_id = \(select auth\.uid\(\)\)\)/);
+      expect(rest).not.toContain('erp_is_member');
+    } else {
+      expect(rest).toMatch(/for select to authenticated\s+using \(\(select public\.erp_is_member\(\)\)\)/);
+    }
     expect(SQL).not.toMatch(new RegExp(`on public\\.${t}\\s+(as \\w+\\s+)?for (insert|update|delete|all)`));
   });
 

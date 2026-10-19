@@ -8,10 +8,11 @@
 --
 -- КЛИЕНТ ТОЛЬКО ЧИТАЕТ. У новых таблиц ровно одна политика — SELECT для
 -- `erp_is_member()` (решение владельца Р1: видимость как у заказа и чата
--- сделки). Политик записи нет вовсе, а у authenticated сняты INSERT/UPDATE/
--- DELETE: единственный вход — `security definer` RPC, и событие истории
--- с уведомлениями ложится той же транзакцией, что и само изменение. Это
--- «гейт живёт у писателя» — тот же приём, что у переписки и уведомлений.
+-- сделки); у личной отметки «видел» — только своя строка. Политик записи
+-- нет вовсе, а у authenticated сняты INSERT/UPDATE/DELETE: единственный
+-- вход — `security definer` RPC, и событие истории с уведомлениями ложится
+-- той же транзакцией, что и само изменение. Это «гейт живёт у писателя» —
+-- тот же приём, что у переписки и уведомлений.
 --
 -- ДИАЛОГ — тред существующего чата с якорем `task_id` и `order_id = null`:
 -- тред задачи не попадает ни в один поиск треда сделки (`erp_chat_thread_
@@ -166,8 +167,12 @@ create policy erp_biz_task_checklist_read on public.erp_biz_task_checklist
   for select to authenticated using ((select public.erp_is_member()));
 create policy erp_biz_task_events_read on public.erp_biz_task_events
   for select to authenticated using ((select public.erp_is_member()));
+-- Отметка «видел» — ЛИЧНАЯ (ревизия безопасности B1): каждый читает только
+-- свою. Иначе любой участник ERP видел бы, кто и когда открывал какие задачи.
+-- Постановщику и manage факт «ответственный открыл задачу» отдаёт писатель
+-- `erp_biz_task_seen_by(p_id)` с проверкой участия (миграция T2)
 create policy erp_biz_task_seen_read on public.erp_biz_task_seen
-  for select to authenticated using ((select public.erp_is_member()));
+  for select to authenticated using (user_id = (select auth.uid()));
 
 revoke all on table public.erp_biz_tasks from public, anon;
 revoke all on table public.erp_biz_task_watchers from public, anon;
