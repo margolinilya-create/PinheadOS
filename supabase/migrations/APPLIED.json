@@ -2544,6 +2544,13 @@
       "files": [
         "20261018170000_catalog_legacy_keys.sql"
       ]
+    },
+    {
+      "version": "20261019090000",
+      "name": "erp_attach_30mb_passport_optional",
+      "files": [
+        "20261019090000_erp_attach_30mb_passport_optional.sql"
+      ]
     }
   ]
 }
