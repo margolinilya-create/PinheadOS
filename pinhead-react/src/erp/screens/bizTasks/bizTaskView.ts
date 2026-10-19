@@ -8,6 +8,16 @@ import { BIZ_TASK_ACTIVE, BIZ_TASK_STATUSES, isOverdue } from '../../utils/bizTa
 import type { BizTaskStatus } from '../../utils/bizTasks';
 import type { BizTaskRow } from '../../store/types';
 
+/** Цвет статуса — тот же язык чипов, что у этапов и заказов */
+export const STATUS_VARIANT: Record<BizTaskStatus, string> = {
+  new: 'info',
+  in_progress: 'progress',
+  paused: 'waiting',
+  review: 'violet',
+  done: 'done',
+  cancelled: 'skipped',
+};
+
 /** Фильтр вкладки заказа: по умолчанию — открытые; закрытые — по запросу */
 export type OrderTaskFilter = 'open' | 'overdue' | 'done' | 'cancelled' | 'all';
 

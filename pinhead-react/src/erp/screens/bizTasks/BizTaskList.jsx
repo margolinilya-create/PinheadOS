@@ -4,19 +4,9 @@ import { Icon } from '../../components/Icon';
 import { Badge } from '../../components/Badge';
 import { BIZ_TASK_KIND_LABELS, BIZ_TASK_STATUS_LABELS, isOverdue } from '../../utils/bizTasks';
 import { formatDue } from '../../../utils/date';
-import { orderLabel } from './bizTaskView';
+import { STATUS_VARIANT, orderLabel } from './bizTaskView';
 import base from '../../styles';
 import styles from './BizTaskList.module.css';
-
-/** Цвет статуса — тот же язык чипов, что у этапов и заказов */
-const STATUS_VARIANT = {
-  new: 'info',
-  in_progress: 'progress',
-  paused: 'waiting',
-  review: 'violet',
-  done: 'done',
-  cancelled: 'skipped',
-};
 
 /** `id` строки — по нему форма создания возвращает фокус на новую задачу */
 const bizTaskRowId = (id) => `biz-task-row-${id}`;
