@@ -1,5 +1,5 @@
 {
-  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, «Замеры 8» — и 19.10 — рост оболочки ERP от правок плана A, решение Р6, «Замеры 19.10», и раздел «Бизнес-задачи» части B (раздел, карточка, диалог задачи и уведомления), «Замеры 19.10, часть B»; причины — design/README.md). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
+  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, «Замеры 8» — и 19.10 — рост оболочки ERP от правок плана A, решение Р6, «Замеры 19.10», и раздел «Бизнес-задачи» части B (раздел, карточка, диалог задачи и уведомления), «Замеры 19.10, часть B», и опора `.deptTab` для скрытой подписи вкладки (+17 Б CSS, распор карточки заказа на телефоне); причины — design/README.md). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
   "strict": {
     "entryJs": {
       "raw": 499840,
@@ -21,9 +21,9 @@
       }
     },
     "shellJs": {
-      "raw": 619133,
-      "gzip": 194108,
-      "sha256": "64cfd06ca4b4f51844a4f56731b5c0915915c7f2b13edf71f2b075b06b9e3a21",
+      "raw": 619132,
+      "gzip": 194114,
+      "sha256": "79e470e9077dfdd79fa1f075e7801f8c92a751666cfcbe0e0339753360e0548f",
       "files": {
         "assets/date-HASH.js": {
           "raw": 1799,
@@ -38,8 +38,8 @@
           "gzip": 1121
         },
         "assets/ErpStates-HASH.js": {
-          "raw": 19104,
-          "gzip": 6794
+          "raw": 19103,
+          "gzip": 6800
         },
         "assets/index-HASH.js": {
           "raw": 41022,
@@ -80,17 +80,17 @@
       }
     },
     "shellCss": {
-      "raw": 75920,
-      "gzip": 15951,
-      "sha256": "58df1109848c4ff294ff194277d4b31db999bebfce882be757ec2347a0327239",
+      "raw": 75937,
+      "gzip": 15940,
+      "sha256": "c64755b4f41cebcf9c69ce8a3a1eef1dc5935c326ca3c8b4c63b0ffd9c99bfa0",
       "files": {
         "assets/ErpApp-HASH.css": {
           "raw": 379,
           "gzip": 251
         },
         "assets/ErpStates-HASH.css": {
-          "raw": 53079,
-          "gzip": 10262
+          "raw": 53096,
+          "gzip": 10251
         },
         "assets/index-HASH.css": {
           "raw": 22462,
