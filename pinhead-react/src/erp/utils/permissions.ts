@@ -103,6 +103,11 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
      * читать его нужно как список того, чего у роли нет. Расход полотна
      * и стоимость сборки — его прямая работа, он же за них и отвечает.
      */
+    /**
+     * `biz_task.manage` (правки 19.10, п. 7, решение Р2) ему тоже ОСТАЁТСЯ
+     * и назван по той же причине: поручения по заказу — закупка, доставка —
+     * часть производственного потока, которым он руководит.
+     */
     (p) => p !== 'bypass.manage' && p !== 'experimental.manage' && p !== 'staff.invite'
       && p !== 'stage.force_complete',
   ),
@@ -139,7 +144,13 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
        * распоряжается очередью цехов, а не деньгами заказа. Названо явно —
        * перечень строится исключениями, и право досталось бы ему молча.
        */
-      && p !== 'economics.view',
+      && p !== 'economics.view'
+      /**
+       * `biz_task.manage` диспетчеру НЕ даётся (правки 19.10, п. 7, Р2): он
+       * распоряжается очередью цехов, а не чужими поручениями по заказу.
+       * Названо явно — перечень строится исключениями.
+       */
+      && p !== 'biz_task.manage',
   ),
   foreman: [
     'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect', 'stage.priority',
@@ -203,6 +214,8 @@ export const DEFAULT_PERMISSIONS: Record<EmployeeRole, ErpPermission[]> = {
     'files.manage',
     // Каталог на просмотр: менеджер подбирает модель в заказ, а не ведёт её
     'sku.view',
+    // Поручения по заказу ведёт тот, кто ведёт заказ (правки 19.10, п. 7, Р2)
+    'biz_task.manage',
   ],
   /**
    * material.receive (волна 2 правок менеджера): приёмка — работа закупки и склада.

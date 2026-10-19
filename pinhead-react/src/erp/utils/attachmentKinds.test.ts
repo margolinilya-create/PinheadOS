@@ -72,6 +72,15 @@ describe('виды вложений: тип и CHECK базы не разошл�
    * случае, если оба перечисления «похудеют» одинаково, а эти три должны
    * существовать — на них держатся макет нанесения, файл бирки и заметки.
    */
+  /**
+   * Файл бизнес-задачи (правки 19.10, п. 7): пишет только RPC задачи,
+   * прямую вставку запирает restrictive-политика той же миграции.
+   */
+  it('вид biz_task на месте', () => {
+    expect(kindsInCheck()).toContain('biz_task');
+    expect(kindsInType()).toContain('biz_task');
+  });
+
   it('виды правки 22.08 на месте', () => {
     for (const kind of ['print', 'label', 'note']) {
       expect(kindsInCheck(), `${kind} нет в CHECK базы`).toContain(kind);

@@ -53,6 +53,276 @@ export type Database = {
         }
         Relationships: []
       }
+      erp_biz_task_checklist: {
+        Row: {
+          done: boolean
+          done_at: string | null
+          done_by: string | null
+          id: string
+          sort: number
+          task_id: string
+          text: string
+        }
+        Insert: {
+          done?: boolean
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          sort?: number
+          task_id: string
+          text: string
+        }
+        Update: {
+          done?: boolean
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          sort?: number
+          task_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_biz_task_checklist_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_task_checklist_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_biz_task_events: {
+        Row: {
+          actor: string | null
+          at: string
+          due_at: string | null
+          id: number
+          kind: string
+          payload: Json
+          task_id: string
+        }
+        Insert: {
+          actor?: string | null
+          at?: string
+          due_at?: string | null
+          id?: number
+          kind: string
+          payload?: Json
+          task_id: string
+        }
+        Update: {
+          actor?: string | null
+          at?: string
+          due_at?: string | null
+          id?: number
+          kind?: string
+          payload?: Json
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_biz_task_events_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_biz_task_seen: {
+        Row: {
+          first_seen_at: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          first_seen_at?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          first_seen_at?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_biz_task_seen_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_task_seen_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_biz_task_watchers: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_biz_task_watchers_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_task_watchers_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_task_watchers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_biz_tasks: {
+        Row: {
+          assignee_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          client_key: string | null
+          completed_at: string | null
+          created_at: string
+          creator_id: string
+          description: string | null
+          due_at: string
+          id: string
+          kind: string
+          order_id: string
+          pause_reason: string | null
+          result_message_id: string | null
+          result_text: string | null
+          return_reason: string | null
+          review_required: boolean
+          reviewed_at: string | null
+          status: string
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_key?: string | null
+          completed_at?: string | null
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          due_at: string
+          id?: string
+          kind: string
+          order_id: string
+          pause_reason?: string | null
+          result_message_id?: string | null
+          result_text?: string | null
+          return_reason?: string | null
+          review_required?: boolean
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_key?: string | null
+          completed_at?: string | null
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          due_at?: string
+          id?: string
+          kind?: string
+          order_id?: string
+          pause_reason?: string | null
+          result_message_id?: string | null
+          result_text?: string | null
+          return_reason?: string | null
+          review_required?: boolean
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_biz_tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_tasks_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_tasks_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_biz_tasks_result_message_id_fkey"
+            columns: ["result_message_id"]
+            isOneToOne: false
+            referencedRelation: "erp_chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_bypasses: {
         Row: {
           created_at: string
@@ -471,18 +741,21 @@ export type Database = {
           experimental_id: string | null
           id: string
           order_id: string | null
+          task_id: string | null
         }
         Insert: {
           created_at?: string
           experimental_id?: string | null
           id?: string
           order_id?: string | null
+          task_id?: string | null
         }
         Update: {
           created_at?: string
           experimental_id?: string | null
           id?: string
           order_id?: string | null
+          task_id?: string | null
         }
         Relationships: [
           {
@@ -497,6 +770,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "erp_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_chat_threads_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -1583,6 +1863,8 @@ export type Database = {
           message_id: string | null
           order_id: string | null
           read_at: string | null
+          task_event_id: number | null
+          task_id: string | null
           title: string
           user_id: string
         }
@@ -1595,6 +1877,8 @@ export type Database = {
           message_id?: string | null
           order_id?: string | null
           read_at?: string | null
+          task_event_id?: number | null
+          task_id?: string | null
           title: string
           user_id: string
         }
@@ -1607,6 +1891,8 @@ export type Database = {
           message_id?: string | null
           order_id?: string | null
           read_at?: string | null
+          task_event_id?: number | null
+          task_id?: string | null
           title?: string
           user_id?: string
         }
@@ -1626,6 +1912,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "erp_notifications_task_event_id_fkey"
+            columns: ["task_event_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_task_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_notifications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "erp_notifications_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1636,6 +1936,7 @@ export type Database = {
       }
       erp_order_attachments: {
         Row: {
+          biz_task_id: string | null
           created_at: string
           experimental_id: string | null
           file_name: string | null
@@ -1654,6 +1955,7 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          biz_task_id?: string | null
           created_at?: string
           experimental_id?: string | null
           file_name?: string | null
@@ -1672,6 +1974,7 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          biz_task_id?: string | null
           created_at?: string
           experimental_id?: string | null
           file_name?: string | null
@@ -1690,6 +1993,13 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "erp_order_attachments_biz_task_id_fkey"
+            columns: ["biz_task_id"]
+            isOneToOne: false
+            referencedRelation: "erp_biz_tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "erp_order_attachments_experimental_id_fkey"
             columns: ["experimental_id"]
@@ -2102,6 +2412,7 @@ export type Database = {
           id: string
           launch_date: string | null
           manager: string | null
+          manager_id: string | null
           no_chestny_znak: boolean
           notes: string | null
           packaging: string
@@ -2133,6 +2444,7 @@ export type Database = {
           id?: string
           launch_date?: string | null
           manager?: string | null
+          manager_id?: string | null
           no_chestny_znak?: boolean
           notes?: string | null
           packaging?: string
@@ -2164,6 +2476,7 @@ export type Database = {
           id?: string
           launch_date?: string | null
           manager?: string | null
+          manager_id?: string | null
           no_chestny_znak?: boolean
           notes?: string | null
           packaging?: string
@@ -2188,6 +2501,13 @@ export type Database = {
           {
             foreignKeyName: "erp_orders_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_orders_manager_id_fkey"
+            columns: ["manager_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

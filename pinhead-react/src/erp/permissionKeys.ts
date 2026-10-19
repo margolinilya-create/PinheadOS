@@ -104,7 +104,20 @@ export type ErpPermission =
    * в том числе менеджер заказа. Выдать ему ради этого аналитику значило бы
    * отдать заодно брак по цехам и себестоимость всех чужих заказов.
    */
-  | 'economics.view';
+  | 'economics.view'
+  /**
+   * УПРАВЛЯТЬ БИЗНЕС-ЗАДАЧАМИ (правки 19.10, п. 7; решение владельца Р2) —
+   * менять чужую задачу: описание, ответственного, срок и участников,
+   * отменять и возвращать в работу. Свою задачу постановщик ведёт и без него,
+   * а создать задачу может любой сотрудник ERP.
+   *
+   * Отдельное право, а не `order.manage`: тот про сам заказ (срок клиента,
+   * состав позиций), и выдать его ради поручений значило бы отдать заказ
+   * целиком. Сервер выдаёт его ТОЛЬКО по должности из `erp_employees`,
+   * не по запасной роли профиля — иначе любой менеджер продаж управлял бы
+   * всеми задачами завода.
+   */
+  | 'biz_task.manage';
 
 export const ERP_PERMISSIONS: ErpPermission[] = [
   'stage.take', 'stage.progress', 'stage.complete', 'stage.block', 'stage.defect',
@@ -112,6 +125,6 @@ export const ERP_PERMISSIONS: ErpPermission[] = [
   'material.receive', 'warehouse.manage', 'plan.manage', 'plan.fact', 'catalog.edit',
   'bypass.manage', 'experimental.manage', 'staff.invite', 'files.manage',
   'sku.view', 'sku.edit', 'sku.publish', 'sku.archive',
-  'analytics.view', 'stage.force_complete', 'economics.view',
+  'analytics.view', 'stage.force_complete', 'economics.view', 'biz_task.manage',
 ];
 

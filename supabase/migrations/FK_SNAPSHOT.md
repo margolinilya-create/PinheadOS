@@ -1,7 +1,8 @@
 # Эталон внешних ключей `erp_*` на боевой базе
 
 **Снято:** 2026-09-24, дополнено 2026-10-01 (erp_overdue_requests, erp_user_settings) с `pinhead-os-v2` (`pg_constraint`, `contype = 'f'`).
-**Записей:** 102.
+**Дополнено 2026-10-19** по миграции `20261020090000_erp_biz_tasks_schema` (бизнес-задачи, 18 ключей) — ДО её применения на бою: после применения сверить запросом ниже.
+**Записей:** 120.
 
 ## Зачем этот файл
 
@@ -45,6 +46,19 @@ select c.relname as t, con.conname as c, pg_get_constraintdef(con.oid) as def
 Формат: `таблица · ограничение · определение`.
 
 ```
+erp_biz_task_checklist · erp_biz_task_checklist_done_by_fkey · FOREIGN KEY (done_by) REFERENCES profiles(id) ON DELETE SET NULL
+erp_biz_task_checklist · erp_biz_task_checklist_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
+erp_biz_task_events · erp_biz_task_events_actor_fkey · FOREIGN KEY (actor) REFERENCES profiles(id) ON DELETE SET NULL
+erp_biz_task_events · erp_biz_task_events_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
+erp_biz_task_seen · erp_biz_task_seen_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
+erp_biz_task_seen · erp_biz_task_seen_user_id_fkey · FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+erp_biz_task_watchers · erp_biz_task_watchers_added_by_fkey · FOREIGN KEY (added_by) REFERENCES profiles(id) ON DELETE SET NULL
+erp_biz_task_watchers · erp_biz_task_watchers_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
+erp_biz_task_watchers · erp_biz_task_watchers_user_id_fkey · FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+erp_biz_tasks · erp_biz_tasks_assignee_id_fkey · FOREIGN KEY (assignee_id) REFERENCES profiles(id)
+erp_biz_tasks · erp_biz_tasks_creator_id_fkey · FOREIGN KEY (creator_id) REFERENCES profiles(id)
+erp_biz_tasks · erp_biz_tasks_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
+erp_biz_tasks · erp_biz_tasks_result_message_id_fkey · FOREIGN KEY (result_message_id) REFERENCES erp_chat_messages(id) ON DELETE SET NULL
 erp_bypasses · erp_bypasses_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_calendar_slots · erp_calendar_slots_department_id_fkey · FOREIGN KEY (department_id) REFERENCES erp_departments(id)
 erp_calendar_slots · erp_calendar_slots_stage_id_fkey · FOREIGN KEY (stage_id) REFERENCES erp_item_stages(id) ON DELETE CASCADE
@@ -67,6 +81,7 @@ erp_chat_subscriptions · erp_chat_subscriptions_thread_id_fkey · FOREIGN KEY (
 erp_chat_subscriptions · erp_chat_subscriptions_user_id_fkey · FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 erp_chat_threads · erp_chat_threads_experimental_id_fkey · FOREIGN KEY (experimental_id) REFERENCES erp_experimental(id) ON DELETE CASCADE
 erp_chat_threads · erp_chat_threads_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
+erp_chat_threads · erp_chat_threads_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
 erp_departments · erp_departments_head_employee_id_fkey · FOREIGN KEY (head_employee_id) REFERENCES erp_employees(id) ON DELETE SET NULL
 erp_employees · erp_employees_department_id_fkey · FOREIGN KEY (department_id) REFERENCES erp_departments(id)
 erp_employees · erp_employees_profile_id_fkey · FOREIGN KEY (profile_id) REFERENCES profiles(id)
@@ -88,7 +103,10 @@ erp_materials · erp_materials_item_id_fkey · FOREIGN KEY (item_id) REFERENCES 
 erp_materials · erp_materials_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_notifications · erp_notifications_message_id_fkey · FOREIGN KEY (message_id) REFERENCES erp_chat_messages(id) ON DELETE CASCADE
 erp_notifications · erp_notifications_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
+erp_notifications · erp_notifications_task_event_id_fkey · FOREIGN KEY (task_event_id) REFERENCES erp_biz_task_events(id) ON DELETE CASCADE
+erp_notifications · erp_notifications_task_id_fkey · FOREIGN KEY (task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
 erp_notifications · erp_notifications_user_id_fkey · FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+erp_order_attachments · erp_order_attachments_biz_task_id_fkey · FOREIGN KEY (biz_task_id) REFERENCES erp_biz_tasks(id) ON DELETE CASCADE
 erp_order_attachments · erp_order_attachments_experimental_id_fkey · FOREIGN KEY (experimental_id) REFERENCES erp_experimental(id) ON DELETE CASCADE
 erp_order_attachments · erp_order_attachments_item_id_fkey · FOREIGN KEY (item_id) REFERENCES erp_order_items(id) ON DELETE CASCADE
 erp_order_attachments · erp_order_attachments_label_id_fkey · FOREIGN KEY (label_id) REFERENCES erp_item_labels(id) ON DELETE CASCADE
@@ -108,6 +126,7 @@ erp_order_notes · erp_order_notes_order_id_fkey · FOREIGN KEY (order_id) REFER
 erp_order_shipments · erp_order_shipments_item_id_fkey · FOREIGN KEY (item_id) REFERENCES erp_order_items(id) ON DELETE CASCADE
 erp_order_shipments · erp_order_shipments_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE
 erp_orders · erp_orders_created_by_fkey · FOREIGN KEY (created_by) REFERENCES profiles(id)
+erp_orders · erp_orders_manager_id_fkey · FOREIGN KEY (manager_id) REFERENCES profiles(id) ON DELETE SET NULL
 erp_orders · erp_orders_tz_order_id_fkey · FOREIGN KEY (tz_order_id) REFERENCES orders(id) ON DELETE SET NULL
 erp_overdue_requests · erp_overdue_requests_message_id_fkey · FOREIGN KEY (message_id) REFERENCES erp_chat_messages(id) ON DELETE SET NULL
 erp_overdue_requests · erp_overdue_requests_order_id_fkey · FOREIGN KEY (order_id) REFERENCES erp_orders(id) ON DELETE CASCADE

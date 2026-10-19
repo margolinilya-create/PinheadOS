@@ -357,6 +357,13 @@ export interface ErpOrder {
   tz_order_id?: string | null;
   tz_number?: string | null;
   /**
+   * Менеджер заказа — профиль (правки 19.10, п. 7, решение Р3). Ставит его
+   * подлинный запуск из «Оформления заказа» (автор заказа v4) либо `order.manage`
+   * в карточке. Не путать с текстовым `manager`: тот — подпись из формы.
+   * Пока пусто — менеджер не наблюдатель задач и не получатель уведомлений.
+   */
+  manager_id?: string | null;
+  /**
    * Требуется ли закупка (правки заказчика 20.08). `false` — менеджер ЯВНО
    * отметил «Закупка не требуется»: этап `supply` в маршрут не заводится,
    * и заказ не появляется у закупщика. Хранится, а не выводится из пустого
@@ -1231,7 +1238,14 @@ export type ErpAttachmentKind =
    * сообщений в первой версии нет вовсе, а файл, удалённый из-под сообщения,
    * оставил бы в переписке разговор о том, чего больше нет.
    */
-  | 'chat';
+  | 'chat'
+  /**
+   * ФАЙЛ БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7): описание, обсуждение, результат.
+   * Привязан к задаче колонкой `biz_task_id` (имя `task_id` занято задачей
+   * разработки). Пишет только RPC задачи — прямую вставку запирает
+   * restrictive-политика.
+   */
+  | 'biz_task';
 
 export interface ErpOrderAttachment {
   id: string;
@@ -1282,6 +1296,11 @@ export interface ErpOrderAttachment {
    * был бы «ничьим» и попал бы под уборку `storage-gc`.
    */
   message_id?: string | null;
+  /**
+   * Бизнес-задача, к которой приложен файл (правки 19.10, п. 7). Не путать
+   * с `task_id` — то задача РАЗРАБОТКИ, колонка старше.
+   */
+  biz_task_id?: string | null;
   file_path: string;
   file_name: string | null;
   kind: ErpAttachmentKind;
@@ -1957,6 +1976,7 @@ export const ERP_PERMISSION_LABELS: Record<ErpPermission, string> = {
   'sku.archive': 'Архивировать модель',
   'stage.force_complete': 'Завершать этап принудительно',
   'economics.view': 'Смотреть экономику позиции',
+  'biz_task.manage': 'Управлять бизнес-задачами',
 };
 
 // --- Аварийное снятие блокировок (правки заказчика 10.08) --------------------
@@ -2007,7 +2027,10 @@ export interface ErpBypass {
  * режим «Упоминания и ответы» был зашит в код и выбрать «Все сообщения»
  * человек не мог.
  */
-export type ErpNotificationKind = 'chat_mention' | 'chat_reply' | 'chat_message';
+export type ErpNotificationKind =
+  | 'chat_mention' | 'chat_reply' | 'chat_message'
+  | 'task_assigned' | 'task_unassigned' | 'task_status' | 'task_review'
+  | 'task_returned' | 'task_due_soon' | 'task_overdue' | 'task_mention';
 
 /**
  * ПЕРСОНАЛЬНОЕ уведомление — факт «систему позвала конкретного человека»,
@@ -2035,9 +2058,90 @@ export interface ErpNotification {
    * null — уведомление не о сообщении (других источников пока нет).
    */
   message_id?: string | null;
+  /** Бизнес-задача, о которой уведомление (правки 19.10, п. 7); null — не о задаче */
+  task_id?: string | null;
+  /**
+   * Событие истории задачи. Уникальность `(user_id, task_event_id)` делает
+   * «одно событие — одно уведомление человеку с несколькими ролями»
+   * ограничением базы, а не свойством кода.
+   */
+  task_event_id?: number | null;
   created_at: string;
   /** null — не прочитано; счётчик колокола спрашивает именно это */
   read_at: string | null;
+}
+
+/**
+ * БИЗНЕС-ЗАДАЧИ К ЗАКАЗАМ (правки 19.10, п. 7) — поручение сотруднику
+ * по заказу: доставка, закупка, другое. Таблицы `erp_biz_task*` клиент только
+ * читает; пишут `security definer` RPC, событие истории и уведомления — одной
+ * транзакцией с изменением. Перечни и подписи — `utils/bizTasks.ts`.
+ */
+export type ErpBizTaskKind = 'delivery' | 'purchase' | 'other';
+export type ErpBizTaskStatus = 'new' | 'in_progress' | 'paused' | 'review' | 'done' | 'cancelled';
+
+export interface ErpBizTask {
+  id: string;
+  /** Задача без заказа в первой версии не бывает; заказ уносит её каскадом */
+  order_id: string;
+  title: string;
+  kind: ErpBizTaskKind;
+  description: string | null;
+  /** Ответственный — один, профиль */
+  assignee_id: string;
+  /** Постановщик — тот, кто создал (`auth.uid()` писателя) */
+  creator_id: string;
+  /** Крайний срок — момент времени; показывается в поясе ERP (Москва) */
+  due_at: string;
+  status: ErpBizTaskStatus;
+  /** «Проверка постановщиком»: сдача ведёт в `review`, а не сразу в `done` */
+  review_required: boolean;
+  pause_reason: string | null;
+  cancel_reason: string | null;
+  return_reason: string | null;
+  /** Результат — отдельным блоком: копия текста, даже если сообщение удалят */
+  result_text: string | null;
+  /** Сообщение треда, отмеченное результатом; удалённое — null */
+  result_message_id: string | null;
+  /** Время сдачи на проверку: по нему решается, успел ли исполнитель */
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  /** Ключ повтора «Создать задачу»: двойной клик не даёт второго ряда */
+  client_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErpBizTaskChecklistItem {
+  id: string;
+  task_id: string;
+  text: string;
+  done: boolean;
+  sort: number;
+  done_by: string | null;
+  done_at: string | null;
+}
+
+export type ErpBizTaskEventKind =
+  | 'created' | 'started' | 'paused' | 'resumed' | 'submitted' | 'accepted'
+  | 'returned' | 'completed' | 'cancelled' | 'reopened' | 'assignee_changed'
+  | 'due_changed' | 'watchers_changed' | 'edited' | 'result_changed'
+  | 'checklist_changed' | 'due_soon' | 'overdue';
+
+/** Событие истории задачи: системные строки, отдельные от сообщений треда */
+export interface ErpBizTaskEvent {
+  id: number;
+  task_id: string;
+  kind: ErpBizTaskEventKind;
+  /** Кто сделал; null — система (напоминание о сроке) либо профиль удалён */
+  actor: string | null;
+  /** Подробности события: прежнее и новое значение, причина, текст */
+  payload: Record<string, unknown>;
+  /** Срок, о котором напоминание (`due_soon`/`overdue`); у прочих — null */
+  due_at: string | null;
+  at: string;
 }
 
 /**

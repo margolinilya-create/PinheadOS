@@ -537,3 +537,29 @@ describe('складская строка журнала гейтится, эт�
     expect(rpc).toMatch(/требует права warehouse\.manage/);
   });
 });
+
+/**
+ * БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7; решение владельца Р2): «Управлять
+ * бизнес-задачами» — руководство и менеджер, ПО ДОЛЖНОСТИ. Перечни директора
+ * и руководителя производства строятся исключениями, и право досталось бы им
+ * само; диспетчеру — тоже, поэтому у него оно названо исключением явно:
+ * он распоряжается очередью цехов, а не чужими поручениями по заказу.
+ */
+describe('решение владельца по бизнес-задачам (19.10)', () => {
+  it('«Управлять бизнес-задачами» — ровно у руководства и менеджера', () => {
+    const holders = (Object.keys(DEFAULT_PERMISSIONS) as EmployeeRole[])
+      .filter((r) => DEFAULT_PERMISSIONS[r].includes('biz_task.manage'));
+    expect([...holders].sort()).toEqual(['director', 'manager', 'production_head']);
+  });
+
+  it('диспетчеру не достаётся молча: исключение названо в перечне', () => {
+    const src = readFileSync(join(SRC, 'erp/utils/permissions.ts'), 'utf8');
+    const dispatcher = src.slice(src.indexOf('dispatcher: ERP_PERMISSIONS.filter('));
+    expect(dispatcher.slice(0, dispatcher.indexOf('\n  ),'))).toContain("p !== 'biz_task.manage'");
+  });
+
+  it('клиентский гейт — одна функция canManageBizTasks', () => {
+    const src = withoutJsComments(readFileSync(join(SRC, 'erp/utils/bizTasks.ts'), 'utf8'));
+    expect(src).toMatch(/export function canManageBizTasks\([^)]*\)[^{]*\{\s*return can\('biz_task\.manage'\);/);
+  });
+});

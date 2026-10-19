@@ -110,6 +110,41 @@ describe('уведомления: клиент и схема сходятся', 
     expect(inType.length).toBeGreaterThan(0);
   });
 
+  /**
+   * ВИДЫ БИЗНЕС-ЗАДАЧ (правки 19.10, п. 7). Сверка выше докажет только, что
+   * два перечня равны, — и пройдёт, если оба одинаково «похудеют». Эти восемь
+   * названы поимённо: на них держатся назначение, смена ответственного,
+   * проверка, возврат, напоминание о сроке, просрочка и @упоминание в треде.
+   */
+  it('виды бизнес-задач есть и в CHECK, и в типе', () => {
+    const kindSql = withoutComments(latestMatching(
+      /check \(kind in \([^)]*'chat_mention'/,
+      'список видов erp_notifications.kind',
+    ));
+    const check = kindSql.slice(kindSql.lastIndexOf('check (kind in'));
+    const types = readFileSync(join(process.cwd(), 'src/erp/types.ts'), 'utf8');
+    const union = types.slice(types.indexOf('export type ErpNotificationKind'));
+    for (const kind of [
+      'task_assigned', 'task_unassigned', 'task_status', 'task_review',
+      'task_returned', 'task_due_soon', 'task_overdue', 'task_mention',
+    ]) {
+      expect(check.slice(0, check.indexOf(')')), `${kind} нет в CHECK`).toContain(`'${kind}'`);
+      expect(union.slice(0, union.indexOf(';')), `${kind} нет в ErpNotificationKind`).toContain(`'${kind}'`);
+    }
+  });
+
+  it('событие задачи — одно уведомление человеку: ключ (user_id, task_event_id)', () => {
+    const sql = withoutComments(latestMatching(
+      /erp_notifications_task_event_uniq/,
+      'уникальный ключ уведомления о событии задачи',
+    ));
+    expect(sql).toMatch(/on public\.erp_notifications \(user_id, task_event_id\) where task_event_id is not null/);
+    const cols = columnTypesOf('erp_notifications');
+    for (const name of ['task_id', 'task_event_id']) {
+      expect(cols.get(name)?.nullable, `${name} обязан допускать null`).toBe(true);
+    }
+  });
+
   it('таблица есть в снимке схемы, а обнуляемость колонок повторена в типе', () => {
     // Тип строже схемы — худший из случаев: код считает поле всегда
     // заполненным, tsc это подтверждает, а в проде приезжает null
