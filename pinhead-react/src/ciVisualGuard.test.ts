@@ -54,7 +54,9 @@ function runGuard(changed: string[], env: Record<string, string> = {}): number {
 describe('ci.yml: эталоны и смены обхода', () => {
   it('пересъёмка — по snapshots_grep, по умолчанию studio-', () => {
     expect(CI).toMatch(/snapshots_grep:\n(?:\s+.*\n)*?\s+default: 'studio-'/);
-    expect(CI).toContain("GREP: ${{ inputs.snapshots_grep || 'studio-' }}");
+    expect(CI).toContain(
+      "GREP: ${{ (inputs.allow_erp_snapshots && (inputs.snapshots_grep == '' || inputs.snapshots_grep == 'studio-')) && 'erp-' || inputs.snapshots_grep || 'studio-' }}",
+    );
     expect(CI).toContain('npx playwright test e2e/visual.spec.ts --update-snapshots --grep "$GREP"');
     expect(CI).not.toMatch(/--update-snapshots\s*$/m);
   });
