@@ -344,7 +344,7 @@
     "erp/store/queryCache.ts": "a2146b82e601d28c6f43984102e78b9c75f2ae892327fd1615fc0d0ec969f6bf",
     "erp/store/realtimeCoalesce.test.ts": "2ddfb5dee70779569a63b0dbc90d2158ca02345a55ea7caafe80c1cd9160274a",
     "erp/store/realtimeCoalesce.ts": "425a62ac5e149f36a8ea8790485c71fecfb58b23e87d0ff184db9b4dcbb4d247",
-    "erp/store/realtimeCoverage.test.ts": "e1adaa742d4e43db5383cdb3e9a66cdc293d3c16ef41111c23912bf0293c5cd9",
+    "erp/store/realtimeCoverage.test.ts": "ef014210c6e8d4d9ab9c7fdb8f12d9a5aad9180ef009bc2e11f061ebe36a7ae6",
     "erp/store/realtimeHelpers.ts": "78369a39880b9edaa693e11d9893e470db5ec37865c7f90bf555c6d309dfe946",
     "erp/store/realtimeReconnect.test.ts": "cc644b25e7ade6f79411d6aebb452780b0ca1e568dc7096b434d886f2342e03b",
     "erp/store/realtimeReconnect.ts": "1c715b0b963cf5c3ff5dff0107d5e1b955e71b167c791c13d06bc8062df7f08a",
@@ -418,7 +418,8 @@
     "erp/utils/attemptKey.test.js": "716a3aaf0af5f82971ec960f454b1ed39fa17fc51fb964f08b360240f9dbcfb3",
     "erp/utils/auditCoverage.test.ts": "d63a2f44f50670f6341af9ec002fb0929d20764266d855b9398d8b66c2d3c56e",
     "erp/utils/bizTasks.ts": "a8ff5393d3969b47c7cfec02d07e6dcc1f9fb35c499c5fb2247831131638e158",
-    "erp/utils/bizTasksRpc.test.ts": "b95161307df3ddbeea563a825f61d4b83aa0868673f579c8cdfdb9d8c8f9ba8c",
+    "erp/utils/bizTasksChat.test.ts": "d74bbb39c378f2e1fa074d047d9fc0553391c3dbcd8d8472a13bbab083b9de41",
+    "erp/utils/bizTasksRpc.test.ts": "d1053d13cb587f07d28cc4b196156bda70d85abcb4a9d434cad8bd021bfe0ac0",
     "erp/utils/bizTasksSchema.test.ts": "82ec0dc7e8c8eeceee50b9c3d574b987462d90b4c321f7535410b171641c54c6",
     "erp/utils/brandingMethods.test.ts": "40d46f7f5016074d0e323ef236d6418b592df3e4d5a02fc103b66dd5142022f1",
     "erp/utils/bypass.test.ts": "021d14afda73f3e8041a7b8b6a01b9ea7a2fbec451da14e74a520e454933ec63",
@@ -968,6 +969,6 @@
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
     "20261020090000_erp_biz_tasks_schema.sql": "72abbe5c31ddb9690905f35e92738ca92e896154956f1745a65a79b6d3371e5c",
-    "20261020100000_erp_biz_tasks_rpc.sql": "e25fb388c3b3370c6d2a187c89a48c45edce1d5bf77034e01384daf909370834"
+    "20261020100000_erp_biz_tasks_rpc.sql": "478655a1fd69341050f2388e33f86d4de4c41f5dc5518c523ff8ffba37f3cb36"
   }
 }

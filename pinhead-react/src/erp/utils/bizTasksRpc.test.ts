@@ -46,6 +46,21 @@ const HELPERS = [
   'erp_biz_task_notify',
 ];
 
+/**
+ * T3 в том же файле (лимит неприменённых ≤ 5): функции чата с веткой задачи
+ * выставлены клиенту; напоминания — только service_role (`pg_cron`)
+ */
+const CHAT = [
+  'erp_chat_send',
+  'erp_chat_page',
+  'erp_chat_unread_tasks',
+  'erp_chat_edit',
+  'erp_chat_delete',
+];
+const SERVICE = ['erp_biz_task_reminders_run'];
+/** Читают под RLS вызывающего — invoker */
+const INVOKERS = ['erp_biz_task_counts', 'erp_chat_page', 'erp_chat_unread_tasks'];
+
 /** Заголовок функции — от `create` до начала тела */
 function header(fn: string): string {
   const at = SQL.indexOf(`create or replace function public.${fn}(`);
@@ -67,13 +82,13 @@ function constArray(fn: string, name: string): string[] {
 describe('писатели бизнес-задач: кому выставлены', () => {
   it('писатели — definer, revoke у public/anon/authenticated, grant — только белому списку', () => {
     const defined = [...SQL.matchAll(/create or replace function public\.(\w+)\(/g)].map((m) => m[1]);
-    expect([...new Set(defined)].sort()).toEqual([...WRITERS, ...HELPERS].sort());
+    expect([...new Set(defined)].sort()).toEqual([...WRITERS, ...HELPERS, ...CHAT, ...SERVICE].sort());
 
-    for (const fn of [...WRITERS, ...HELPERS]) {
+    for (const fn of [...WRITERS, ...HELPERS, ...CHAT, ...SERVICE]) {
       const h = header(fn);
       expect(h, `${fn}: search_path`).toMatch(/set search_path = public/);
-      if (fn === 'erp_biz_task_counts') {
-        // Счётчик — invoker: читает под RLS вызывающего, обходить её незачем
+      if (INVOKERS.includes(fn)) {
+        // Счётчики и лента — invoker: читают под RLS вызывающего, обходить её незачем
         expect(h).not.toMatch(/security definer/);
       } else {
         expect(h, `${fn}: security definer`).toMatch(/security definer/);
@@ -84,8 +99,10 @@ describe('писатели бизнес-задач: кому выставлен�
     }
 
     const granted = [...SQL.matchAll(/grant execute on function public\.(\w+)\([^)]*\) to ([\w, ]+);/g)];
-    expect(granted.map((m) => m[1]).sort()).toEqual([...WRITERS].sort());
-    for (const m of granted) expect(m[2], m[1]).toBe('authenticated');
+    expect(granted.map((m) => m[1]).sort()).toEqual([...WRITERS, ...CHAT, ...SERVICE].sort());
+    for (const m of granted) {
+      expect(m[2], m[1]).toBe(SERVICE.includes(m[1]) ? 'service_role' : 'authenticated');
+    }
     expect(SQL).not.toMatch(/grant execute on function [^;]*\bto (anon|public)\b/);
   });
 
@@ -232,7 +249,9 @@ describe('создание и правка: белые списки и лими�
 
 describe('уведомления и файлы', () => {
   it('уведомления — один писатель: distinct, без автора, только сотрудники, одно на событие', () => {
-    expect(SQL.match(/insert into public\.erp_notifications/g)).toHaveLength(1);
+    // Вне отправки чата (у неё своя рассылка: сделка и `task_mention`) — один писатель
+    const send = functionBody(SQL, 'erp_chat_send');
+    expect(SQL.replace(send, '').match(/insert into public\.erp_notifications/g)).toHaveLength(1);
     const n = body('erp_biz_task_notify');
     expect(n).toMatch(/insert into public\.erp_notifications/);
     expect(n).toMatch(/select distinct u/);
@@ -277,7 +296,7 @@ describe('уведомления и файлы', () => {
   });
 });
 
-describe('миграция T2: форма файла', () => {
+describe('миграция T2 + T3: форма файла', () => {
   it('не правит применённое и перечитывает схему', () => {
     expect(SQL).not.toMatch(/\bdrop table\b/);
     expect(SQL).toMatch(/notify pgrst, 'reload schema';/);

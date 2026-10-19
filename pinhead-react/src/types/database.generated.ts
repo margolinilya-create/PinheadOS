@@ -3824,6 +3824,7 @@ export type Database = {
           p_limit?: number
           p_order_id: string
           p_stage_id?: string
+          p_task_id?: string
         }
         Returns: Json
       }
@@ -3858,6 +3859,7 @@ export type Database = {
           p_order_id: string
           p_reply_to?: string
           p_stage_id?: string
+          p_task_id?: string
         }
         Returns: Json
       }
@@ -3875,6 +3877,13 @@ export type Database = {
         Returns: Json
       }
       erp_chat_unread_many: { Args: { p_order_ids: string[] }; Returns: Json }
+      erp_chat_unread_tasks: {
+        Args: { p_task_ids: string[] }
+        Returns: {
+          task_id: string
+          unread: number
+        }[]
+      }
       erp_clamp_done: {
         Args: { p_current: number; p_delta: number; p_total: number }
         Returns: number
