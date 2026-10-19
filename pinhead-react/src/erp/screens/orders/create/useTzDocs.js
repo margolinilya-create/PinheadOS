@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../../../../lib/supabase';
 import { erpQuery } from '../../../store/shared';
-import { toast } from '../../../../store/useToastStore';
 import { translateSupabaseError } from '../../../../utils/i18n';
 import { tzFilePath } from '../../../utils/tz';
 import { TZ_BUCKET, TZ_MAX_BYTES } from '../../../types';
+import { tooBigText } from '../../../utils/fileLimitText';
 
 /**
  * ТЗ в PDF формы создания заказа: выбор, загрузка, повтор, удаление, снимок
@@ -21,7 +21,7 @@ import { TZ_BUCKET, TZ_MAX_BYTES } from '../../../types';
  * `uploading` → `uploaded` либо `error` с повтором.
  *
  * Документ: `{ groupId, itemIndex (null = общее ТЗ заказа), file, name, type,
- * size, state, error, path }`. `name`/`type`/`size` дублируют поля `File`
+ * size, state, error, path, tooBig? }`. `name`/`type`/`size` дублируют поля `File`
  * НАРОЧНО: `File` в JSON превращается в `{}`, а черновик пишется через
  * `JSON.stringify` — и восстановленный из черновика документ `File` не несёт
  * вовсе. Сабмит и показ читают эти три поля, а не `file.*`.
@@ -77,27 +77,38 @@ export function useTzDocs(initial = []) {
     }));
   }, []);
 
-  const addTzDoc = useCallback((file, itemIndex) => {
-    if (!file) return;
-    // Формат больше не проверяется (правка 12.09, п. 4) — только размер,
-    // и он повторяет лимит бакета, чтобы причина называлась СРАЗУ
-    if (file.size > TZ_MAX_BYTES) {
-      toast.error(`ТЗ: файл больше ${Math.round(TZ_MAX_BYTES / 1024 / 1024)} МБ`);
-      return;
-    }
-    const groupId = crypto.randomUUID();
-    setTzDocs((arr) => [...arr, {
-      groupId,
-      itemIndex,
-      file,
-      name: file.name,
-      type: file.type || '',
-      size: file.size,
-      state: 'uploading',
-      error: null,
-      path: null,
-    }]);
-    uploadTzFile(groupId, file);
+  /**
+   * ПАЧКА (правка 19.10, п. 4): «размер проверять отдельно для каждого файла;
+   * если один файл больше 30 МБ, показать его имя и причину отказа; остальные
+   * подходящие файлы должны загрузиться». Поэтому большой файл не тост
+   * и не отказ всей пачке, а СВОЯ строка в состоянии ошибки — с именем,
+   * причиной и без «Загрузить заново»: повтор упрётся в тот же лимит.
+   * Подходящие уходят в бакет параллельно, каждый своей группой; новая пачка
+   * дописывается к уже выбранным.
+   */
+  const addTzDocs = useCallback((files, itemIndex) => {
+    const picked = (files ?? []).filter(Boolean);
+    const docs = picked.map((file) => {
+      const tooBig = file.size > TZ_MAX_BYTES;
+      return {
+        groupId: crypto.randomUUID(),
+        itemIndex,
+        // У большого `File` не держим: перезаливать его некуда
+        file: tooBig ? null : file,
+        name: file.name,
+        type: file.type || '',
+        size: file.size,
+        state: tooBig ? 'error' : 'uploading',
+        error: tooBig ? tooBigText(TZ_MAX_BYTES) : null,
+        tooBig,
+        path: null,
+      };
+    });
+    if (docs.length === 0) return;
+    setTzDocs((arr) => [...arr, ...docs]);
+    docs.forEach((d, i) => {
+      if (!d.tooBig) uploadTzFile(d.groupId, picked[i]);
+    });
   }, [uploadTzFile]);
 
   /** Повторная загрузка после сбоя: перезаливается только файл, форма не трогается */
@@ -144,7 +155,7 @@ export function useTzDocs(initial = []) {
 
   return {
     tzDocs,
-    addTzDoc,
+    addTzDocs,
     retryTzDoc,
     removeTzDoc,
     dropItem,

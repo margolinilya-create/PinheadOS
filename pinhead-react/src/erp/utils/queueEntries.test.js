@@ -321,3 +321,33 @@ describe('buildQueueEntries — приоритет причин', () => {
       .toBe('Ожидает закупку материала на замену');
   });
 });
+
+/**
+ * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). Фаза программы готова сразу —
+ * крой и ткань её не держат; после перехода та же строка ждёт крой.
+ */
+describe('buildQueueEntries — фазы строки вышивки', () => {
+  const EMB_DEPTS = [...DEPTS, { id: 'd-emb', code: 'embroidery', name: 'Вышивка', gate_material_kinds: ['fabric'] }];
+  const withEmb = (cutStatus, resultKind, materials = []) => order({
+    materials,
+    items: [{ id: 'it1', qty: 100, product_type: 'Футболка', stages: [
+      stage({ id: 'cut', status: cutStatus }),
+      stage({ id: 'emb', department_id: 'd-emb', depends_on: ['cut'], result_kind: resultKind }),
+    ] }],
+  });
+  const embEntry = (o) => buildQueueEntries([o], EMB_DEPTS).find((e) => e.stage.id === 'emb');
+
+  it('фаза программы — ready при несданном крое и неприехавшей ткани', () => {
+    expect(embEntry(withEmb('in_progress', 'embroidery_program', [material()])).group).toBe('ready');
+  });
+
+  it('после перехода фазы при несданном крое — ждёт крой', () => {
+    const e = embEntry(withEmb('in_progress', null));
+    expect(e.group).toBe('waiting');
+    expect(e.reason).toBe('Закройный цех: ещё не завершено');
+  });
+
+  it('после перехода фазы при сданном крое — группа ready', () => {
+    expect(embEntry(withEmb('done', null)).group).toBe('ready');
+  });
+});

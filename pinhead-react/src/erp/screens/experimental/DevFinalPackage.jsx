@@ -32,13 +32,22 @@ import styles from '../../styles';
  * только обязательную техническую документацию и завершить разработку».
  * Ввод лекал снят целиком («поле „Файл лекал или ссылка" не нужно»);
  * уже приложенное показывается на чтение — на проде такие файлы есть.
+ *
+ * ПРАВКА 19.10, п. 5. Техпаспорт необязателен: «поле „Технический паспорт"
+ * и кнопку „Приложить" сохранить, пометить поле как необязательное». Пометка
+ * видна («· необязательно») и входит в доступное имя поля; чипа «не приложен»
+ * у необязательного поля нет — он читался бы как недостача, которой нет.
  */
 
 /** Список из текста: строка на значение. Пустые строки отбрасываются */
 const toList = (text) => text.split('\n').map((s) => s.trim()).filter(Boolean);
 const fromList = (list) => (Array.isArray(list) ? list : []).join('\n');
 
-function FileBlock({ label, kind, files, hint, accept, canManage, onUpload, onRemove }) {
+function FileBlock({
+  label, kind, files, hint, accept, canManage, onUpload, onRemove, optional = false,
+}) {
+  /** Доступное имя: пометка «необязательно» звучит вместе с названием поля */
+  const name = optional ? `${label}, необязательно` : label;
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
@@ -65,7 +74,8 @@ function FileBlock({ label, kind, files, hint, accept, canManage, onUpload, onRe
     <div className={styles.attachBlock}>
       <div className={styles.checkRow}>
         <span className={styles.fieldLabel}>{label}</span>
-        {files.length === 0 && (
+        {optional && <span className={styles.subText}>· необязательно</span>}
+        {!optional && files.length === 0 && (
           <span className={`${styles.chip} ${styles.chipWaiting}`}>не приложен</span>
         )}
         {canManage && (
@@ -87,7 +97,7 @@ function FileBlock({ label, kind, files, hint, accept, canManage, onUpload, onRe
         accept={accept}
         multiple={kind === DEV_ATTACHMENT_KINDS.photo}
         onChange={pick}
-        aria-label={label}
+        aria-label={name}
         style={{ display: 'none' }}
       />
       <AttachmentList files={files} />
@@ -251,8 +261,9 @@ export function DevFinalPackage({
         label="Технический паспорт"
         kind={DEV_ATTACHMENT_KINDS.passport}
         files={filesOf(DEV_ATTACHMENT_KINDS.passport)}
-        hint="Техпаспорт или техописание"
+        hint="Техпаспорт или техописание — если составлялся"
         accept="application/pdf,image/*"
+        optional
         canManage={canManage}
         onUpload={onUpload}
         onRemove={onRemoveFile}

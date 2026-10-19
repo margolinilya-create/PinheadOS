@@ -229,7 +229,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
    * только загруженные документы — без `File`, с именем/типом/размером.
    */
   const tz = useTzDocs(restoredDraft?.tzDocs);
-  const { tzDocs, addTzDoc, retryTzDoc, removeTzDoc } = tz;
+  const { tzDocs, addTzDocs, retryTzDoc, removeTzDoc } = tz;
   const tzUploading = tz.uploading;
   const tzFailed = tz.failed;
 
@@ -738,7 +738,7 @@ export function CreateOrderModal({ onClose, draftId = null, order = null }) {
           <TzSection
             tzItems={tzItems}
             tzDocs={tzDocs}
-            addTzDoc={addTzDoc}
+            addTzDocs={addTzDocs}
             removeTzDoc={removeTzDoc}
             retryTzDoc={retryTzDoc}
           />

@@ -45,8 +45,10 @@ export function StageResultFile({ order, item, stage, canUpload }) {
       <span className={styles.queueReason}>
         <span className={styles.cellWithIcon}>
           <Icon name="file" size={14} />
-          Результат этапа — файл программы вышивки. Количество здесь не вносится:
-          вышивают на отдельном этапе после кроя.
+          {/* В фазе вышивки (19.10) файлы программы закрыты для правки */}
+          {canUpload
+            ? 'Результат — файл программы вышивки. Количество здесь не вносится.'
+            : 'Программа вышивки сдана — файлы только для просмотра.'}
         </span>
       </span>
 

@@ -22,6 +22,8 @@ import { StageResultFile } from './StageResultFile';
 import { MoveStageSelect } from './MoveStageSelect';
 import { TaskRollsInWork } from './TaskRollsInWork';
 import { embroideryProgramBlock, isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { isProgramPhase } from '../../utils/embroideryPhase';
+import { ProgramFinishAction } from './ProgramFinishAction';
 import { stageUnaccounted } from '../../utils/stageRemaining';
 import { stageBrandingNote } from '../../utils/devNote';
 import { useStageMove } from '../../hooks/useStageMove';
@@ -61,8 +63,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
   const remaining = stageUnaccounted({
     stage, allStages: item.stages ?? [], itemQty: item.qty, defectReported: 0,
   });
-  // Вышивка ждёт «Разработку программы вышивки» той же позиции (27.09, п. 3)
+  // Вышивка ждёт программу той же позиции (27.09, п. 3); фаза программы (19.10) — без закрытия
   const programBlock = embroideryProgramBlock(stage, item.stages ?? []);
+  const phase = isProgramPhase(stage, item.stages ?? []);
 
   // Норматив участка (правка 12) и справочники быстрых причин (правка 12)
   const normDays = useErpStore(
@@ -322,8 +325,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                 в остальном разделе — обычная работа впереди, необратимая
                 рядом и спокойнее.
               */}
-              {perms.progress && fileResult && (
-                <StageResultFile order={order} item={item} stage={stage} canUpload />
+              {(fileResult ? perms.progress : resultFiles.length > 0) && (
+                <StageResultFile order={order} item={item} stage={stage} canUpload={fileResult} />
               )}
               {perms.progress && !fileResult && (hasReportSchema ? (
                 !reportMode && (
@@ -363,7 +366,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   </Button>
                 </>
               ))}
-              {perms.complete && !reportMode && (
+              {perms.complete && !reportMode && !phase && (
                 <Button
                   variant="secondary"
                   loading={busy}
@@ -376,10 +379,8 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                   <Icon name="check" size={14} /> Завершить этап
                 </Button>
               )}
-              {fileResult && resultFiles.length === 0 && (
-                <span className={styles.subText}>
-                  Приложите файл программы — без него этап не закрыть.
-                </span>
+              {fileResult && !phase && resultFiles.length === 0 && (
+                <span className={styles.subText}>Приложите файл программы — без него этап не закрыть.</span>
               )}
               {programBlock && <span className={styles.subText}>{programBlock}</span>}
               {!blockMode && !defectMode && (
@@ -402,12 +403,9 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                       <Icon name="ban" size={14} /> Проблема
                     </Button>
                   )}
-                  {/*
-                    Пропуск — аварийный выход для застрявшего маршрута, поэтому
-                    стоит последним и требует причины. Право `order.manage`:
-                    решение принимает тот, кто ведёт заказ, а не цех.
-                  */}
-                  {perms.skip && !reportMode && (
+                  {/* Пропуск — аварийный выход застрявшего маршрута: последним, с причиной,
+                      право `order.manage`. Фазу программы вышивки не пропускает (19.10) */}
+                  {perms.skip && !reportMode && !phase && (
                     <Button variant="ghost" loading={busy} disabled={busy} onClick={() => run(() => onSkip(entry))}>
                       <Icon name="chevronRight" size={14} /> Пропустить этап
                     </Button>
@@ -425,7 +423,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
                     и страж этапов. Скрытой кнопки мало: путь через REST
                     остаётся открытым для любого участника.
                   */}
-                  {perms.forceComplete && !reportMode && (
+                  {perms.forceComplete && !reportMode && !phase && (
                     <Button
                       variant="ghost"
                       loading={busy}
@@ -439,6 +437,7 @@ export function StageActionsPanel({ entry, perms, deptShortById, actions, showTz
               )}
             </>
           )}
+          <ProgramFinishAction entry={entry} perms={perms} busy={busy} run={run} />
           {canMoveDept && moveTargets.length > 0 && !reportMode && (
             <MoveStageSelect entry={entry} targets={moveTargets} busy={busy} run={run} moveStageTo={moveStageTo} />
           )}

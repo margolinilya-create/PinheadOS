@@ -15,17 +15,13 @@ import { draftFromRoute, linearize } from './routeDraft';
 import { latestMatching } from './migrations.testutil';
 import type { ErpItemStage, ErpMaterial, StageStatus } from '../types';
 
-/** Хелпер: находит этап по коду цеха */
 /**
- * ПРОИЗВОДСТВЕННЫЙ этап участка, а не первый попавшийся по коду.
- *
- * С 12.09 у цеха вышивки этапов на позиции ДВА: разработка программы
- * (`standalone`, без зависимостей) и сама вышивка. Прежний `find` по коду
- * возвращал бы первый — то есть все проверки маршрута молча переехали бы
- * на подготовительную задачу и перестали бы сторожить работу цеха.
+ * Этап участка по коду. С 19.10 у цеха вышивки строка снова одна
+ * (программа → вышивка — фазы одной строки), и первый найденный по коду
+ * и есть единственный.
  */
 function stage(route: ReturnType<typeof buildRoute>, code: string) {
-  const s = route.find((r) => r.departmentCode === code && !r.standalone);
+  const s = route.find((r) => r.departmentCode === code);
   if (!s) throw new Error(`stage ${code} not found in route`);
   return s;
 }
@@ -141,9 +137,9 @@ describe('buildRoute — нанесения', () => {
     const route = buildRoute({
       productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
-    // Разработка программы идёт ПЕРВОЙ и ни от чего не зависит (12.09, п. 2)
+    // С 19.10 строка вышивки одна — на своём месте в маршруте
     expect(route.map((r) => r.departmentCode)).toEqual(
-      ['embroidery', 'supply', 'cutting', 'sewing', 'vto', 'embroidery'],
+      ['supply', 'cutting', 'sewing', 'vto', 'embroidery'],
     );
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['vto']);
   });
@@ -159,7 +155,7 @@ describe('buildRoute — нанесения', () => {
       productionType: 'ready_garment', brandingMethods: ['embroidery'], brandingOn: 'finished',
     });
     expect(route.map((r) => r.departmentCode))
-      .toEqual(['embroidery', 'supply', 'warehouse', 'embroidery', 'vto']);
+      .toEqual(['supply', 'warehouse', 'embroidery', 'vto']);
     expect(stage(route, 'warehouse').dependsOnCodes).toEqual(['supply']);
     expect(stage(route, 'embroidery').dependsOnCodes).toEqual(['warehouse']);
     expect(stage(route, 'vto').dependsOnCodes).toEqual(['embroidery']);
@@ -297,13 +293,8 @@ describe('buildRoute — ОТК больше не отдельный этап', 
     // Раньше обе ветки сходились на ОТК. Теперь у позиции просто два хвоста —
     // и готовность к отгрузке считается по «все этапы done», а не по одному ОТК
     const depended = new Set(route.flatMap((r) => r.dependsOnCodes));
-    /**
-     * Подготовительный этап из счёта исключён: он терминальный по построению
-     * (от него никто не зависит) и был бы третьим хвостом, хотя работы цеха
-     * по тиражу не несёт вовсе.
-     */
     const terminal = route
-      .filter((r) => !r.standalone && !depended.has(r.departmentCode))
+      .filter((r) => !depended.has(r.departmentCode))
       .map((r) => r.departmentCode);
     expect(terminal.slice().sort()).toEqual(['embroidery', 'silkscreen']);
   });
@@ -771,77 +762,62 @@ describe('materialsForItem — материалы позиции против м
 });
 
 /**
- * РАЗРАБОТКА ПРОГРАММЫ ВЫШИВКИ — ОТДЕЛЬНАЯ ЗАДАЧА ЦЕХА (правка 12.09, п. 2).
+ * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1; Р1–Р2).
  *
- * «Если в заказе требуется вышивка, сразу при создании заказа автоматически
- * создавать в цехе „Вышивка" отдельную задачу „Разработка программы вышивки".
- * Эта задача должна создаваться независимо от этапа „Закрой"… Эти две задачи
- * не должны заменять или закрывать друг друга».
+ * «Сразу после заведения заказа с вышивкой в ERP создавать в цехе вышивки
+ * одну задачу „Разработка программы вышивки“… После завершения разработки
+ * программы эта же задача превращается в задачу „Вышивка“. Отдельную вторую
+ * задачу не создавать».
  *
- * Каждое утверждение сторожится отдельно: «есть этап» само по себе ничего
- * не доказывает — задача, зависящая от кроя или сидящая на том же цикле,
- * выглядела бы так же, а работала бы наоборот (в первом случае ждала бы крой,
- * во втором вообще не создалась бы — 23505).
+ * Строка одна: на месте вышивки в маршруте, с зависимостью от кроя (или от
+ * последнего этапа цепочки — маршрут конкретного заказа). Фазу программы
+ * держит `resultKind`; зависимость её не держит (`isStageReady`), а держит
+ * уже «Вышивку» — после перехода.
  */
-describe('разработка программы вышивки (правка 12.09, п. 2)', () => {
+describe('вышивка одной задачей (правки 19.10, п. 1)', () => {
   const withEmbroidery = (brandingOn: 'cut' | 'finished' = 'cut') => buildRoute({
     productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn,
   });
 
-  it('этап заводится при вышивке — и только при ней', () => {
-    const prep = withEmbroidery().filter((r) => r.standalone);
-    expect(prep).toHaveLength(1);
-    expect(prep[0].departmentCode).toBe('embroidery');
-    expect(prep[0].operation).toBe(EMBROIDERY_PROGRAM_OPERATION);
-
-    const noEmbroidery = buildRoute({
-      productionType: 'sewing', brandingMethods: ['dtf'], brandingOn: 'cut',
-    });
-    expect(noEmbroidery.filter((r) => r.standalone)).toHaveLength(0);
+  it('вышивка на крое — одна строка embroidery: operation «Разработка программы вышивки», resultKind embroidery_program, dependsOnCodes [cutting], cycle 0', () => {
+    const emb = withEmbroidery('cut').filter((r) => r.departmentCode === 'embroidery');
+    expect(emb).toHaveLength(1);
+    expect(emb[0].operation).toBe(EMBROIDERY_PROGRAM_OPERATION);
+    expect(emb[0].operation).toBe('Разработка программы вышивки');
+    expect(emb[0].resultKind).toBe('embroidery_program');
+    expect(emb[0].dependsOnCodes).toEqual(['cutting']);
+    expect(emb[0].cycle ?? 0).toBe(0);
   });
 
-  it('не зависит ни от кого и никого не держит', () => {
-    const route = withEmbroidery();
-    const prep = route.find((r) => r.standalone)!;
-    expect(prep.dependsOnCodes).toEqual([]);
-    // И НИ ОДИН этап не ждёт подготовку: иначе забытая галочка вышивальщицы
-    // останавливала бы крой, то есть всё производство по заказу
+  it('вышивка на готовом — одна строка, зависит от последнего этапа цепочки', () => {
+    const route = withEmbroidery('finished');
+    const emb = route.filter((r) => r.departmentCode === 'embroidery');
+    expect(emb).toHaveLength(1);
+    expect(emb[0].resultKind).toBe('embroidery_program');
+    expect(emb[0].operation).toBe(EMBROIDERY_PROGRAM_OPERATION);
+    expect(emb[0].dependsOnCodes).toEqual(['vto']);
+    expect(emb[0].cycle ?? 0).toBe(0);
+  });
+
+  it('без вышивки признака нет ни у кого', () => {
+    const route = buildRoute({ productionType: 'sewing', brandingMethods: ['dtf'], brandingOn: 'cut' });
+    expect(route.filter((r) => r.resultKind)).toHaveLength(0);
+  });
+
+  it('строка вышивки держит швейку как обычная ветка нанесения', () => {
+    const route = withEmbroidery('cut');
     const linear = linearize(draftFromRoute(route));
-    const prepIdx = linear.findIndex((l) => l.step.standalone);
-    expect(prepIdx).toBeGreaterThanOrEqual(0);
-    for (const l of linear) expect(l.dependsOn).not.toContain(prepIdx);
-  });
-
-  it('сама вышивка остаётся на месте и ждёт крой', () => {
-    const work = withEmbroidery().filter(
-      (r) => r.departmentCode === 'embroidery' && !r.standalone,
-    );
-    expect(work).toHaveLength(1);
-    expect(work[0].dependsOnCodes).toEqual(['cutting']);
-    expect(work[0].operation).toBeUndefined();
-  });
-
-  /**
-   * ЦИКЛЫ РАЗНЫЕ — ИНАЧЕ ЗАКАЗ НЕ СОЗДАЁТСЯ ВОВСЕ. Уникальность наших этапов
-   * `(item_id, department_id, cycle)`, и вторая вставка падает 23505 внутри
-   * транзакции, которая пишет и позиции, и нанесения, и ТЗ.
-   */
-  it('у двух этапов одного цеха РАЗНЫЕ циклы', () => {
-    for (const on of ['cut', 'finished'] as const) {
-      const emb = withEmbroidery(on).filter((r) => r.departmentCode === 'embroidery');
-      expect(emb).toHaveLength(2);
-      expect(emb.map((r) => r.cycle ?? 0).sort()).toEqual([0, 1]);
-    }
+    const embIdx = linear.findIndex((l) => l.step.departmentCode === 'embroidery');
+    const sew = linear.find((l) => l.step.departmentCode === 'sewing')!;
+    expect(sew.dependsOn).toContain(embIdx);
+    const cutIdx = linear.findIndex((l) => l.step.departmentCode === 'cutting');
+    expect(linear[embIdx].dependsOn).toEqual([cutIdx]);
   });
 
   it('цикл доезжает до сервера — обе RPC его пишут', () => {
-    // Клиент может слать что угодно: пока функции не пишут колонку,
-    // оба этапа лягут с cycle = 0 и вторая вставка упадёт
     /**
      * Кавычки УДВОЕНЫ: вставка живёт внутри строкового литерала DO-блока,
-     * которым функции пересобираются из `pg_get_functiondef`. Одинарные
-     * означали бы сверку с несуществующим текстом — сторож был бы зелен
-     * ровно тогда, когда его нечего сторожить.
+     * которым функции пересобираются из `pg_get_functiondef`.
      */
     const sql = latestMatching(
       /coalesce\(\(v_stage->>''cycle''\)::int, 0\)/,
@@ -849,5 +825,50 @@ describe('разработка программы вышивки (правка 1
     );
     expect(sql).toMatch(/coalesce\(\(v_step->>''cycle''\)::int, 0\)/);
     expect(sql).toMatch(/executor, contractor, operation, cycle\)/);
+  });
+});
+
+/**
+ * ГОТОВНОСТЬ ФАЗ (Р2). Фаза программы не ждёт ни маршрута, ни материалов:
+ * «подготовку программы можно начинать сразу, независимо от прохождения
+ * закроя». Фаза вышивки ждёт `depends_on` строки.
+ */
+describe('isStageReady — фазы строки вышивки', () => {
+  const cutStage = (status: StageStatus) => ({
+    id: 'cut', item_id: 'i1', department_id: 'd-cut', depends_on: [] as string[], status,
+    result_kind: null,
+  });
+  const embStage = (resultKind: 'embroidery_program' | null) => ({
+    id: 'emb', item_id: 'i1', department_id: 'd-emb', depends_on: ['cut'], status: 'waiting' as StageStatus,
+    result_kind: resultKind, block_reason: null,
+  });
+  const EMB_DEPT = { gate_material_kinds: ['fabric'] };
+  const pending = [mkMat('pending', 'fabric', null, 'Кулирка')] as unknown as ErpMaterial[];
+
+  it('isStageReady: фаза программы готова при несданном крое и держащих материалах', () => {
+    const emb = embStage('embroidery_program');
+    const all = [cutStage('in_progress'), emb];
+    expect(isStageReady(emb, all, pending, EMB_DEPT)).toBe(true);
+    expect(waitingReason(emb, all, pending, new Map(), EMB_DEPT)).toBeNull();
+  });
+
+  it('фаза вышивки ждёт крой', () => {
+    const emb = embStage(null);
+    const all = [cutStage('in_progress'), emb];
+    expect(isStageReady(emb, all, [], null)).toBe(false);
+    expect(waitingReason(emb, all, [], new Map([['d-cut', 'Закрой']]), null)).toBe('Закрой: ещё не завершено');
+    expect(isStageReady(emb, [cutStage('done'), emb], [], null)).toBe(true);
+  });
+
+  it('старая пара строк: отдельная программа фазой не считается — ждёт как раньше', () => {
+    const prog = { ...embStage('embroidery_program'), id: 'prog' };
+    const work = embStage(null);
+    const all = [cutStage('in_progress'), prog, work];
+    expect(isStageReady(prog, all, [], null)).toBe(false);
+  });
+
+  it('проблема закупки фазу программы всё равно держит', () => {
+    const emb = embStage('embroidery_program');
+    expect(isStageReady(emb, [cutStage('done'), emb], [], null, true)).toBe(false);
   });
 });

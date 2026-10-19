@@ -740,12 +740,9 @@ a.cellTitle:hover { color: var(--accent); }
 .purchaseDetailsRow > td { background: var(--surface); }
 .purchaseDetails { display: flex; flex-direction: column; gap: var(--space-md); }
 .purchaseActions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-xs); }
-.receiptAction { display: inline-flex; flex-direction: column; gap: var(--space-xs); }
 .receiptList { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); }
 .qtyTriple { display: flex; flex-direction: column; gap: var(--space-xs); }
 .qtyTripleRow { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: var(--space-xs); }
-/* «← К закупке» в панели приёмки, открытой из закупки (правка 05.10, п. 7) */
-.drawerBackRow { margin-bottom: var(--space-md); }
 /* Сводка закупки строкой вместо шести плиток */
 .summaryLine { margin: 0 0 var(--space-md); color: var(--text); font-size: var(--type-body-sm); }
 

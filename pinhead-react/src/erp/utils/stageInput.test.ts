@@ -151,3 +151,40 @@ describe('передача фактического количества (пра
     expect(itemProducedQty({ qty: 150, stages: [] })).toBe(150);
   });
 });
+
+/**
+ * ФАЗА ПРОГРАММЫ НЕПРОЗРАЧНА (правки 19.10, Р3): строка вышивки стоит
+ * в маршруте на месте вышивки и до перехода ничего дальше не пропускает —
+ * иначе при вышивке последним этапом склад принял бы тираж до вышивки.
+ * Зеркало серверных `erp_stage_passthrough` / `erp_item_produced_qty`.
+ */
+describe('фаза программы вышивки (правки 19.10)', () => {
+  const emb = (resultKind: 'embroidery_program' | null, extra: Partial<InputStage> = {}): InputStage => ({
+    id: 'emb', item_id: 'it1', department_id: 'd-emb', status: 'in_progress', qty_done: 0,
+    depends_on: ['vto'], result_kind: resultKind, qty_passthrough: false, ...extra,
+  } as InputStage);
+  const vto = {
+    id: 'vto', item_id: 'it1', department_id: 'd-vto', status: 'done', qty_done: 100,
+    depends_on: [], qty_passthrough: false,
+  } as InputStage;
+
+  it('вышивка последним этапом в фазе программы — выпуск 0', () => {
+    expect(itemProducedQty({ qty: 100, stages: [vto, emb('embroidery_program')] })).toBe(0);
+    // Колонки прозрачности нет (оптимистичная строка) — всё равно непрозрачна
+    expect(itemProducedQty({
+      qty: 100, stages: [vto, emb('embroidery_program', { qty_passthrough: undefined })],
+    })).toBe(0);
+  });
+
+  it('после перехода и сдачи — выпуск по факту вышивки', () => {
+    expect(itemProducedQty({ qty: 100, stages: [vto, emb(null, { qty_done: 60 })] })).toBe(60);
+  });
+
+  it('старая отдельная программа в выпуск не идёт, как раньше', () => {
+    const prog: InputStage = {
+      id: 'prog', item_id: 'it1', department_id: 'd-emb', status: 'done', qty_done: 0,
+      depends_on: [], result_kind: 'embroidery_program', qty_passthrough: true,
+    } as InputStage;
+    expect(itemProducedQty({ qty: 100, stages: [vto, prog, emb(null, { qty_done: 100 })] })).toBe(100);
+  });
+});

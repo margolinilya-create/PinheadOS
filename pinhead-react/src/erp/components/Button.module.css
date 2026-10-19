@@ -33,9 +33,17 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+/* Причина блока по условию (`ariaDisabledReason`): видимым текстом рядом
+   с кнопкой, а не только подсказкой — на планшете наведения нет */
+.reason {
+  font-size: var(--type-label);
+  color: var(--text-mid);
 }
 
 /* ─── Варианты ─── */
@@ -48,23 +56,23 @@
   background: var(--btn-primary-bg);
   color: var(--btn-primary-fg);
 }
-.primary:hover:not(:disabled) { background: var(--btn-primary-hover-bg); }
-.primary:active:not(:disabled) { background: var(--btn-primary-active-bg); }
+.primary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--btn-primary-hover-bg); }
+.primary:active:not(:disabled):not([aria-disabled='true']) { background: var(--btn-primary-active-bg); }
 
 .secondary {
   background: var(--card);
   border-color: var(--border-mid);
   color: var(--text);
 }
-.secondary:hover:not(:disabled) { background: var(--surface); border-color: var(--text-muted); }
-.secondary:active:not(:disabled) { background: var(--bg3); border-color: var(--text-mid); }
+.secondary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--surface); border-color: var(--text-muted); }
+.secondary:active:not(:disabled):not([aria-disabled='true']) { background: var(--bg3); border-color: var(--text-mid); }
 
 .ghost {
   background: transparent;
   color: var(--text-mid);
 }
-.ghost:hover:not(:disabled) { background: var(--surface); color: var(--text); }
-.ghost:active:not(:disabled) { background: var(--bg3); color: var(--text); }
+.ghost:hover:not(:disabled):not([aria-disabled='true']) { background: var(--surface); color: var(--text); }
+.ghost:active:not(:disabled):not([aria-disabled='true']) { background: var(--bg3); color: var(--text); }
 
 /* Заливка своим токеном: --color-error под белым даёт 3.76:1 в светлой теме
    и 2.77:1 в тёмной (там он светлый) — обе ниже AA. Токен объявлен в палитре
@@ -73,8 +81,8 @@
   background: var(--btn-danger-bg);
   color: var(--btn-danger-fg);
 }
-.danger:hover:not(:disabled) { filter: brightness(0.94); }
-.danger:active:not(:disabled) { filter: brightness(0.88); }
+.danger:hover:not(:disabled):not([aria-disabled='true']) { filter: brightness(0.94); }
+.danger:active:not(:disabled):not([aria-disabled='true']) { filter: brightness(0.88); }
 
 /* ─── Размеры ─── */
 .sm { min-height: var(--control-h-sm); padding: 0 10px; font-size: var(--type-label); }

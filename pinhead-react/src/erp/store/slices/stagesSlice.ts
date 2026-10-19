@@ -12,20 +12,14 @@ import { loadReworkEvents } from '../reworkEvents';
 import { deptShortName } from '../../data/departments';
 import type { ErpItemStage, ErpStageEvent } from '../../types';
 import type { ReportWithSizes } from '../../utils/stageSizes';
-import {
-  defaultQueuePosition,
-  nextQueuePosition,
-  renumberedQueue,
-  reorderIds,
-} from '../../utils/queueOrder';
+import { defaultQueuePosition, nextQueuePosition, renumberedQueue, reorderIds } from '../../utils/queueOrder';
 import { analyzeStageMove } from '../../utils/stageMove';
 import { intermediateReopened } from '../../utils/stageDefect';
 import { stageCeiling } from '../../utils/stageRemaining';
-import { completionBlockFor, reportAfterNote, unaccountedBlockFor } from './stageGates';
+import { completionBlockFor, programPhaseBlock, reportAfterNote, unaccountedBlockFor } from './stageGates';
+import { embroideryActions } from './embroideryActions';
 import { defaultPlannedEnd } from '../../utils/stagePlan';
-import {
-  erpError, erpQuery, erpWrite, logStageEvent, withPending,
-} from '../shared';
+import { erpError, erpQuery, erpWrite, logStageEvent, withPending } from '../shared';
 import { addStageIn, findStage, patchStageIn, stagesInDept } from '../orderHelpers';
 import type { ErpStore, StagesSlice } from '../types';
 import { attemptKeyFor, resetAttempt } from '../attempts';
@@ -48,6 +42,7 @@ interface DefectWrite {
 }
 
 export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, get) => ({
+  ...embroideryActions(set, get),
   setStageStatus: async (stageId, status, extra = {}) => {
     const prev = get().orders;
     const { comment, ...fields } = extra;
@@ -116,6 +111,8 @@ export const stagesSlice: StateCreator<ErpStore, [], [], StagesSlice> = (set, ge
      * `gate_material_kinds` не гейтится вовсе (fail-open), поэтому
      * автозакрытие самой закупки и складских шагов этим не задето.
      */
+    const phaseBlock = status === 'skipped' && found ? programPhaseBlock(found.stage, found.item.stages) : null;
+    if (phaseBlock) { toast.error(phaseBlock); return false; } // фаза программы вышивки (19.10, Р3)
     if (status === 'done' && found) {
       const blocked = completionBlockFor(get(), found, extra.qty_done ?? found.item.qty, true);
       if (blocked) {

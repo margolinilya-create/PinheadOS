@@ -19,7 +19,8 @@ import styles from '../erp.module.css';
  */
 const SUFFIX = 'Pinhead';
 
-export function PageHead({ title, sub }) {
+/** `titleId` — id заголовка, когда экран переводит на него фокус (задание цеха, 19.10) */
+export function PageHead({ title, sub, titleId }) {
   useEffect(() => {
     if (!title) return undefined;
     const prev = document.title;
@@ -31,7 +32,7 @@ export function PageHead({ title, sub }) {
 
   return (
     <div className={styles.pageHead}>
-      <h1 className={styles.pageTitle}>{title}</h1>
+      <h1 className={styles.pageTitle} id={titleId} tabIndex={titleId ? -1 : undefined}>{title}</h1>
       {sub && <div className={styles.pageSub}>{sub}</div>}
     </div>
   );

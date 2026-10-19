@@ -1,7 +1,7 @@
 /**
  * Мок Storage для e2e: объекты с телом (веха 5а), список «папок» (5б) и правила
  * бакета `erp-attachments` (веха 6+7, К12): повтор ключа — 409 Duplicate
- * (всегда, а не только с картой `storageObjects`), больше 20 МБ — 413, счётчик
+ * (всегда, а не только с картой `storageObjects`), больше 30 МБ — 413, счётчик
  * загрузок по попытке запуска (`tz/v4-<uuid>/…`, `att/v4-<uuid>/…`).
  * `order-artworks` (PDF ТЗ и макеты) — общие правила: с картой тело хранится и
  * читается `download`.
@@ -19,7 +19,7 @@ type StorageExtras = {
 
 export const ERP_BUCKET = 'erp-attachments';
 /** Предел файла в производстве, как у писателя Order `api/erpFiles.ts` */
-export const ERP_FILE_LIMIT = 20 * 1024 * 1024;
+export const ERP_FILE_LIMIT = 30 * 1024 * 1024;
 
 const DUPLICATE = { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' };
 const TOO_LARGE = { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' };
@@ -60,7 +60,7 @@ export function uploadedFile(contentType: string, buf: Buffer): { type: string; 
   return { type: contentType, body: buf };
 }
 
-/** Правила `erp-attachments`: 413 больше 20 МБ, 409 на повтор ключа; иначе ключ учтён */
+/** Правила `erp-attachments`: 413 больше 30 МБ, 409 на повтор ключа; иначе ключ учтён */
 function erpWrite(name: string, file: { body: Buffer }, upsert: string | undefined, extra: object): StorageReply | null {
   if (!name.startsWith(`${ERP_BUCKET}/`)) return null;
   if (file.body.length > ERP_FILE_LIMIT) return { status: 413, body: TOO_LARGE };

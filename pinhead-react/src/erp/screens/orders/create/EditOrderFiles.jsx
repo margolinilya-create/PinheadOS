@@ -1,13 +1,12 @@
-import { useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../../../store/useErpStore';
 import { useErpAccess } from '../../../store/useErpAccess';
-import { confirm } from '../../../../store/useConfirmStore';
-import { Button } from '../../../components/Button';
-import { Icon } from '../../../components/Icon';
-import { ATTACH_KIND_LABEL, attachmentUrl } from '../../../utils/attachmentView';
+import { TZ_MAX_BYTES } from '../../../types';
+import { ATTACH_KIND_LABEL } from '../../../utils/attachmentView';
 import { canRemoveOrderAttachment } from '../../../utils/attachmentRights';
+import { fileLimitCaption } from '../../../utils/fileLimitText';
 import { currentDocuments, itemLabel } from '../../../utils/tz';
+import { EditableFiles } from './EditableFiles';
 import { FieldError, FormSection } from './FormParts';
 import styles from '../../../styles';
 
@@ -36,190 +35,10 @@ import styles from '../../../styles';
  * снимается только после того, как новый лёг в заказ. Перезаписывать объект
  * в бакете нельзя — на него могут ссылаться. У ТЗ замена — новая версия
  * в той же группе, история остаётся.
- */
-
-/** Кнопка + скрытый input: файл уходит в работу сразу по выбору */
-function PickButton({ label, ariaLabel, onPick, disabled, variant = 'ghost', multiple = false }) {
-  const ref = useRef(null);
-  return (
-    <span>
-      <Button
-        variant={variant}
-        size="sm"
-        disabled={disabled}
-        aria-label={ariaLabel}
-        onClick={() => ref.current?.click()}
-      >
-        {label}
-      </Button>
-      <input
-        ref={ref}
-        type="file"
-        multiple={multiple}
-        className={styles.visuallyHidden}
-        aria-label={ariaLabel ?? label}
-        onChange={(e) => {
-          const picked = Array.from(e.target.files ?? []);
-          // Сброс значения: иначе повторный выбор того же файла не поднимет change
-          e.target.value = '';
-          for (const f of picked) onPick(f);
-        }}
-      />
-    </span>
-  );
-}
-
-const OP_TEXT = { replacing: 'заменяется…', removing: 'удаляется…' };
-
-/**
- * Список файлов одного блока с действиями. Знания «куда привязан файл» здесь
- * нет — его приносит вызывающий в `onUpload`/`onReplace`/`onRemove`; каждый
- * возвращает `true`, когда сервер подтвердил.
  *
- * `files` — `[{ id, name, path, subtitle?, canChange }]`.
+ * Сам список файлов с действиями — `EditableFiles` (вынесен 19.10, п. 4:
+ * им же пользуется карточка заказа, не подтягивая форму).
  */
-export function EditableFiles({
-  title, files, emptyText, uploadLabel, canUpload,
-  onUpload, onReplace, onRemove, removeMessage, track,
-}) {
-  const [ops, setOps] = useState({});
-  const [failed, setFailed] = useState({});
-  const [uploads, setUploads] = useState([]);
-
-  const run = async (id, op, action, failText) => {
-    setOps((o) => ({ ...o, [id]: op }));
-    setFailed((f) => ({ ...f, [id]: null }));
-    let ok = false;
-    try {
-      ok = Boolean(await track(action()));
-    } finally {
-      setOps((o) => ({ ...o, [id]: null }));
-    }
-    if (!ok) setFailed((f) => ({ ...f, [id]: failText }));
-  };
-
-  const startUpload = async (uid, file) => {
-    setUploads((u) => u.map((x) => (x.uid === uid ? { ...x, state: 'uploading' } : x)));
-    let ok = false;
-    try {
-      ok = Boolean(await track(onUpload(file)));
-    } catch {
-      ok = false;
-    }
-    // Загруженный уходит из «ожидающих»: дальше его показывает сам заказ
-    setUploads((u) => (ok
-      ? u.filter((x) => x.uid !== uid)
-      : u.map((x) => (x.uid === uid ? { ...x, state: 'error' } : x))));
-  };
-
-  const upload = (file) => {
-    const uid = crypto.randomUUID();
-    setUploads((u) => [...u, { uid, file, state: 'uploading' }]);
-    startUpload(uid, file);
-  };
-
-  const remove = async (f) => {
-    const ok = await confirm({
-      title: 'Удалить файл?',
-      message: removeMessage(f),
-      confirmLabel: 'Удалить',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    await run(f.id, 'removing', () => onRemove(f), 'не удалён — повторите');
-  };
-
-  const replace = (f, file) => run(f.id, 'replacing', () => onReplace(f, file), 'не заменён — повторите');
-
-  return (
-    <div className={styles.attachBlock}>
-      <div className={styles.checkRow}>
-        {title && <span className={styles.fieldLabel}>{title}</span>}
-        {canUpload && (
-          <PickButton
-            label={uploadLabel}
-            ariaLabel={`${uploadLabel}${title ? ` — ${title}` : ''}`}
-            variant="secondary"
-            multiple
-            onPick={upload}
-          />
-        )}
-      </div>
-      {files.length === 0 && uploads.length === 0 && (
-        <p className={styles.subText}>{emptyText}</p>
-      )}
-      {(files.length > 0 || uploads.length > 0) && (
-        <ul className={styles.attachList}>
-          {files.map((f) => {
-            const op = ops[f.id];
-            return (
-              <li key={f.id} className={styles.attachRow}>
-                <Icon name={op ? 'clock' : 'file'} size={13} />
-                <a
-                  href={attachmentUrl(f.path)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={styles.attachName}
-                  title={f.name}
-                >
-                  {f.name}
-                </a>
-                {f.subtitle && <span className={styles.subText}>{f.subtitle}</span>}
-                {op && <span className={styles.subText} role="status">{OP_TEXT[op]}</span>}
-                {!op && failed[f.id] && (
-                  <span className={styles.overdue} role="status">{failed[f.id]}</span>
-                )}
-                {f.canChange && (
-                  <>
-                    <PickButton
-                      label="Заменить"
-                      ariaLabel={`Заменить файл ${f.name}`}
-                      disabled={Boolean(op)}
-                      onPick={(file) => replace(f, file)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={Boolean(op)}
-                      aria-label={`Удалить файл ${f.name}`}
-                      onClick={() => remove(f)}
-                    >
-                      Удалить
-                    </Button>
-                  </>
-                )}
-              </li>
-            );
-          })}
-          {uploads.map((u) => (
-            <li key={u.uid} className={styles.attachRow}>
-              <Icon name={u.state === 'error' ? 'alert' : 'clock'} size={13} />
-              <span className={styles.attachName} title={u.file.name}>{u.file.name}</span>
-              {u.state === 'uploading' ? (
-                <span className={styles.subText} role="status">загружается…</span>
-              ) : (
-                <>
-                  <span className={styles.overdue} role="status">не загрузился</span>
-                  <Button variant="ghost" size="sm" onClick={() => startUpload(u.uid, u.file)}>
-                    Загрузить заново
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Убрать файл ${u.file.name}`}
-                    onClick={() => setUploads((x) => x.filter((y) => y.uid !== u.uid))}
-                  >
-                    Убрать
-                  </Button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 /**
  * ТЗ заказа: общее (`item_id = null`) и по позициям — ровно как их делит
@@ -257,6 +76,8 @@ export function EditTzFiles({ order, track }) {
           emptyText="Не приложено."
           uploadLabel="+ Загрузить ТЗ"
           canUpload={canManage}
+          maxBytes={TZ_MAX_BYTES}
+          caption={fileLimitCaption(TZ_MAX_BYTES)}
           onUpload={(file) => uploadTzDocument({ orderId: order.id, itemId: b.itemId, file })}
           onReplace={(f, file) => replaceTzDocument(f.groupId, file)}
           onRemove={(f) => removeTzDocument(f.groupId)}

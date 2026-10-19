@@ -60,19 +60,12 @@ function makeOrder(input: {
     brandingMethods: [], brandingOn: 'cut', materialSource: 'pinhead', ...input,
   });
   /**
-   * Код → id ПРОИЗВОДСТВЕННОГО этапа участка.
-   *
-   * `standalone` пропускается намеренно: с 12.09 у цеха вышивки этапов два
-   * (разработка программы и сама вышивка), и простая карта по коду
-   * перезаписывала бы одну другой — швейка начала бы зависеть от подготовки
-   * вместо работы. Настоящий `createOrder` связывает этапы по ИНДЕКСАМ
-   * в массиве, и такой неоднозначности у него нет.
+   * Код → id этапа участка. С 19.10 у цеха вышивки снова одна строка
+   * (программа и вышивка — фазы одной строки), и карта по коду однозначна.
+   * Признак фазы (`result_kind`) прогон не переносит: здесь проверяется
+   * граф маршрута, фазы — отдельным тестом ниже.
    */
-  const idByCode = new Map(
-    route.map((r, i) => [r, `st${i + 1}`] as const)
-      .filter(([r]) => !r.standalone)
-      .map(([r, id]) => [r.departmentCode, id]),
-  );
+  const idByCode = new Map(route.map((r, i) => [r.departmentCode, `st${i + 1}`] as const));
   const stages = route.map((r, i) => ({
     id: `st${i + 1}`,
     item_id: 'it1',
@@ -130,8 +123,8 @@ function walk(built: Built): string[][] {
     if (ready.length === 0) break;
     steps.push(ready);
     /**
-      * Закрываем по ID, а не по коду: у позиции с вышивкой этапов этого цеха
-      * два, и закрытие по коду гасило бы саму вышивку вместе с подготовкой —
+      * Закрываем по ID, а не по коду: у одного цеха бывает несколько проходов
+      * (склад до и после нанесения), и закрытие по коду гасило бы их разом —
       * прогон объявлял бы маршрут пройденным, ни разу его не пройдя.
       */
     for (const id of readyIds(built)) {
@@ -169,19 +162,10 @@ describe('маршрут проходится целиком — по каждо
         productionType: 'sewing', brandingMethods: ['dtf', 'embroidery'], brandingOn: 'cut',
       },
       /**
-       * Обе ветки готовы одновременно, швейка ждёт обе.
-       *
-       * В ПЕРВОЙ ВОЛНЕ ТЕПЕРЬ ДВОЕ (правка 12.09, п. 2): вместе с закупкой
-       * готова разработка программы вышивки. Это и есть требование дословно —
-       * «задача должна создаваться независимо от этапа „Закрой"»: она доступна
-       * цеху с первого дня и никого не ждёт. Сама вышивка по-прежнему приходит
-       * третьей волной, после кроя, и закрываются они независимо — прогон
-       * идёт через `buildQueueEntries`, то есть проверяет настоящую готовность,
-       * а не список этапов.
+       * Обе ветки готовы одновременно, швейка ждёт обе. Строка вышивки одна
+       * (19.10); фаза программы, готовая с первого дня, — отдельный тест.
        */
-      expected: [
-        ['embroidery', 'supply'], ['cutting'], ['dtf', 'embroidery'], ['sewing'], ['vto'],
-      ],
+      expected: [['supply'], ['cutting'], ['dtf', 'embroidery'], ['sewing'], ['vto']],
     },
     {
       name: 'пошив + нанесение на готовом (после ВТО)',
@@ -270,17 +254,9 @@ describe('маршрут проходится целиком — по каждо
     const built = makeOrder({
       productionType: 'sewing', brandingMethods: ['dtf', 'embroidery'], brandingOn: 'cut',
     });
-    /**
-     * Закрываем ПОДГОТОВКУ И ЦЕПОЧКУ ДО ВЕТОК — по смыслу, а не по номерам
-     * `st1`/`st2`: с 12.09 первым этапом идёт разработка программы вышивки,
-     * и жёсткие номера молча закрыли бы не то, что назвали.
-     */
+    // Закрываем цепочку до веток — по смыслу, а не по номерам этапов
     for (const st of built.stages) {
-      if (['supply', 'cutting', 'embroidery'].includes(built.codeOf(st.id))
-          && st.depends_on.length === 0) {
-        st.status = 'done';
-      }
-      if (built.codeOf(st.id) === 'cutting') st.status = 'done';
+      if (['supply', 'cutting'].includes(built.codeOf(st.id))) st.status = 'done';
     }
     expect(readyCodes(built)).toEqual(['dtf', 'embroidery']);
 
@@ -289,6 +265,29 @@ describe('маршрут проходится целиком — по каждо
     dtf.status = 'done';
     expect(readyCodes(built)).toEqual(['embroidery']);
     expect(reasonFor(built, 'sewing')).toBe('Цех вышивки: ещё не завершено');
+  });
+
+  /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). Фаза программы готова с первого
+   * дня — «подготовку программы можно начинать сразу, независимо от прохождения
+   * закроя»; после перехода та же строка — «Вышивка» и ждёт крой.
+   */
+  it('фаза программы готова сразу, после перехода вышивка ждёт крой', () => {
+    const built = makeOrder({
+      productionType: 'sewing', brandingMethods: ['embroidery'], brandingOn: 'cut',
+    });
+    const emb = built.stages.find((s) => built.codeOf(s.id) === 'embroidery')! as
+      Built['stages'][number] & { result_kind?: string | null };
+    emb.result_kind = 'embroidery_program';
+    expect(readyCodes(built)).toEqual(['embroidery', 'supply']);
+    // «Программа готова»: та же строка, без типа результата, в ожидании
+    emb.result_kind = null;
+    expect(readyCodes(built)).toEqual(['supply']);
+    expect(reasonFor(built, 'embroidery')).toBe('Закройный цех: ещё не завершено');
+    for (const st of built.stages) {
+      if (['supply', 'cutting'].includes(built.codeOf(st.id))) st.status = 'done';
+    }
+    expect(readyCodes(built)).toEqual(['embroidery']);
   });
 
   it('маршрут без производственных этапов не создаёт пробки', () => {

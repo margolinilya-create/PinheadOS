@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import { itemNeedsPurchase, needsGarmentIntake } from './garmentSource';
 import { formatDateShort } from './time';
+import { EMBROIDERY_PROGRAM_OPERATION, isProgramPhase, type PhaseSibling, type PhaseStage } from './embroideryPhase';
 
 export interface RouteStage {
   departmentCode: string;
@@ -29,7 +30,7 @@ export interface RouteStage {
   sortOrder: number;
   /**
    * Имя операции, когда оно расходится с именем цеха. У расчётных этапов
-   * пусто; заполняет его только разработка программы вышивки (правка 12.09).
+   * пусто; заполняет его только строка вышивки в фазе программы (19.10).
    */
   operation?: string;
   /**
@@ -40,27 +41,14 @@ export interface RouteStage {
    */
   cycle?: number;
   /**
-   * ЭТАП ВНЕ ЦЕПОЧКИ (правка 12.09, п. 2).
-   *
-   * Маршрут линеен по группам: каждая следующая группа зависит от всех
-   * этапов предыдущей. Разработка программы вышивки в эту модель не
-   * укладывается — она не ждёт никого И НЕ ДЕРЖИТ НИКОГО: программу пишут
-   * параллельно закупке, а крой не имеет к ней отношения вовсе.
-   *
-   * Без этого признака этап пришлось бы положить в первую группу, и тогда
-   * крой ждал бы закрытия задачи вышивальщицей — то есть забытая галочка
-   * останавливала бы производство. Признак читает `linearize`: такой шаг
-   * получает пустой `depends_on` и не становится предшественником следующей
-   * группы.
-   */
-  standalone?: boolean;
-  /**
    * ЧЕМ ОТЧИТЫВАЕТСЯ ЭТАП (правка 12.09, вторая порция, баг 02).
    *
    * `embroidery_program` — результат этапа не число, а ФАЙЛ программы
-   * вышивки. Схема отчёта живёт у участка (`erp_departments.result_fields`),
-   * и у цеха вышивки это «Вышито, шт» и «Брак, шт» — то есть оба его этапа,
-   * разработка программы и сама вышивка, получали одну и ту же форму.
+   * вышивки. С 19.10 это ФАЗА строки вышивки (`utils/embroideryPhase`):
+   * «Программа готова» стирает признак, и та же строка становится вышивкой.
+   * Схема отчёта живёт у участка (`erp_departments.result_fields`), и у цеха
+   * вышивки это «Вышито, шт» и «Брак, шт» — то есть до правки 12.09 оба его
+   * этапа, разработка программы и сама вышивка, получали одну форму.
    *
    * Признак хранится КОЛОНКОЙ, а не выводится из `operation`: имя операции —
    * свободный текст (в справочнике `route_operation` такой операции нет
@@ -144,7 +132,7 @@ export const WAREHOUSE_DEPT_CODE = 'warehouse';
  * этапа (`utils/outsourcing.stageLabel`) и по нему же этап узнают сторожа.
  */
 export const EMBROIDERY_DEPT_CODE = 'embroidery';
-export const EMBROIDERY_PROGRAM_OPERATION = 'Разработка программы вышивки';
+export { EMBROIDERY_PROGRAM_OPERATION };
 
 /** Код цеха ВТО: у готового изделия он дописывается ПОСЛЕ нанесения */
 export const VTO_DEPT_CODE = 'vto';
@@ -236,42 +224,15 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
   let sort = 10;
 
   /**
-   * РАЗРАБОТКА ПРОГРАММЫ ВЫШИВКИ — ОТДЕЛЬНАЯ ЗАДАЧА ЦЕХА (правка 12.09, п. 2).
-   *
-   * «Если в заказе требуется вышивка, сразу при создании заказа автоматически
-   * создавать в цехе „Вышивка" отдельную задачу „Разработка программы
-   * вышивки". Эта задача должна создаваться независимо от этапа „Закрой"…
-   * После завершения кроя отдельно должна создаваться существующая задача
-   * на выполнение самой вышивки. Эти две задачи не должны заменять или
-   * закрывать друг друга».
-   *
-   * ЭТО ЭТАП, А НЕ НОВАЯ СУЩНОСТЬ. Документ просит «ту же механику»: статус,
-   * план, проблема, завершение, фиксация результата — всё это уже живёт
-   * на этапе, и второй механизм рядом означал бы вторую машину состояний
-   * с теми же словами (ровно то, от чего 12.08 ушла разработка образцов).
-   *
-   * НЕЗАВИСИМОСТЬ ВЫРАЖЕНА `standalone`, а не пустым `dependsOnCodes`:
-   * в линейной модели черновика пустые зависимости не спасают — следующая
-   * группа всё равно ждала бы этот этап. Программу пишут параллельно всему
-   * маршруту, и держать ею крой нельзя.
-   *
-   * ЦИКЛ 0 ЗДЕСЬ, 1 — У САМОЙ ВЫШИВКИ. Уникальность наших этапов —
-   * `(item_id, department_id, cycle)`, и без разных циклов вставка второго
-   * этапа того же цеха падает 23505, то есть заказ не создаётся вовсе.
-   * Ноль достаётся разработке, потому что она первая по времени.
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). Строка вышивки заводится
+   * в фазе «Разработка программы вышивки» — на своём месте в маршруте, с той
+   * же зависимостью, что у любой ветки нанесения. Фазу программы зависимость
+   * не держит (`isStageReady`), а держит уже «Вышивку» после перехода.
+   * До 19.10 программа была отдельной строкой вне цепочки (`standalone`).
    */
-  const needsEmbroideryProgram = brandingCodes.includes(EMBROIDERY_DEPT_CODE);
-  if (needsEmbroideryProgram) {
-    stages.push({
-      departmentCode: EMBROIDERY_DEPT_CODE,
-      dependsOnCodes: [],
-      sortOrder: sort,
-      operation: EMBROIDERY_PROGRAM_OPERATION,
-      cycle: 0,
-      standalone: true,
-      resultKind: 'embroidery_program',
-    });
-  }
+  const branch = (bc: string): Pick<RouteStage, 'operation' | 'resultKind'> => (
+    bc === EMBROIDERY_DEPT_CODE
+      ? { operation: EMBROIDERY_PROGRAM_OPERATION, resultKind: 'embroidery_program' } : {});
 
   // Нанесение на крое возможно только если в цепочке есть закрой
   const brandAfterCut = brandingOn === 'cut' && chain.includes('cutting');
@@ -296,9 +257,7 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
           departmentCode: bc,
           dependsOnCodes: ['cutting'],
           sortOrder: sort,
-          // Вышивка идёт ВТОРЫМ проходом цеха: первый занят разработкой
-          // программы (правка 12.09, п. 2), и общий цикл дал бы 23505
-          ...(bc === EMBROIDERY_DEPT_CODE && needsEmbroideryProgram ? { cycle: 1 } : {}),
+          ...branch(bc),
         });
       }
       sort += 10;
@@ -313,7 +272,7 @@ export function buildRoute(input: BuildRouteInput): RouteStage[] {
         departmentCode: bc,
         dependsOnCodes: last ? [last] : [],
         sortOrder: sort,
-        ...(bc === EMBROIDERY_DEPT_CODE && needsEmbroideryProgram ? { cycle: 1 } : {}),
+        ...branch(bc),
       });
     }
     sort += 10;
@@ -550,6 +509,16 @@ export function hasOpenProcurement(
   return (procurementTasks ?? []).some((t) => !isProcurementClosed(t));
 }
 
+/** Этап для гейтов входа; поля фазы вышивки — необязательные (19.10) */
+type GateStage = Pick<ErpItemStage, 'depends_on' | 'status'> & Partial<PhaseStage>;
+type GateSibling = Pick<ErpItemStage, 'id' | 'status'> & Partial<PhaseSibling>;
+
+/** Фаза программы вышивки (Р2): не ждёт ни маршрута, ни материалов */
+function programPhase(stage: GateStage, allStages: readonly GateSibling[]): boolean {
+  return Boolean(stage.id && stage.department_id)
+    && isProgramPhase(stage as PhaseStage, allStages as readonly PhaseSibling[]);
+}
+
 /**
  * Готов ли этап к работе: все зависимости done/skipped.
  * (Материальный гейт, гейт закупки и гейт ТЗ проверяются отдельно и передаются флагами.)
@@ -559,8 +528,8 @@ export function hasOpenProcurement(
  * появившихся позже (перенос между цехами) и заказов, заведённых до внедрения ТЗ.
  */
 export function isStageReady(
-  stage: Pick<ErpItemStage, 'depends_on' | 'status'>,
-  allStages: Pick<ErpItemStage, 'id' | 'status'>[],
+  stage: GateStage,
+  allStages: GateSibling[],
   materials: ErpMaterial[],
   dept?: MaterialGateDept | null,
   blockedByProcurement = false,
@@ -568,6 +537,7 @@ export function isStageReady(
 ): boolean {
   if (blockedByProcurement) return false;
   if (missingTz) return false;
+  if (programPhase(stage, allStages)) return true;
   if (materialsBlockStage(materials, dept)) return false;
   const byId = new Map(allStages.map((s) => [s.id, s]));
   return stage.depends_on.every((depId) => {
@@ -581,8 +551,8 @@ export function isStageReady(
  * null = не заблокирован.
  */
 export function waitingReason(
-  stage: Pick<ErpItemStage, 'depends_on' | 'status' | 'block_reason'>,
-  allStages: Pick<ErpItemStage, 'id' | 'status' | 'department_id'>[],
+  stage: GateStage & Pick<ErpItemStage, 'block_reason'>,
+  allStages: (GateSibling & Pick<ErpItemStage, 'department_id'>)[],
   materials: ErpMaterial[],
   departmentNameById: Map<string, string>,
   dept?: MaterialGateDept | null,
@@ -592,6 +562,7 @@ export function waitingReason(
   if (stage.status === 'blocked') return stage.block_reason || 'Заблокирован цехом';
   if (blockedByProcurement) return 'Ожидает закупку материала на замену';
   if (missingTz) return 'Не назначено ТЗ';
+  if (programPhase(stage, allStages)) return null;
   const missing = missingMaterialsForStage(materials, dept);
   if (missing.length > 0) {
     // Пришли, но склад не принял → «ожидает приёмки»; иначе → «ждём приход»

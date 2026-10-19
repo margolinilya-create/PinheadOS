@@ -30,22 +30,30 @@ export function FormSection({ id, title, summary, open, onToggle, children }) {
   );
 }
 
-/** Кнопка выбора файла ТЗ: скрытый input + вид обычной кнопки */
+/**
+ * Кнопка выбора файлов ТЗ: скрытый input + вид обычной кнопки.
+ *
+ * Пачкой (правка 19.10, п. 4): «при одном открытии окна выбора выделить
+ * несколько файлов». `onPick` получает массив — пустой при отмене выбора.
+ */
 export function PdfPick({ label, onPick }) {
   const ref = useRef(null);
   return (
     <>
-      <Button variant="secondary" onClick={() => ref.current?.click()}>
+      {/* `data-pick-focus` — сюда возвращается фокус, когда убрана последняя строка */}
+      <Button variant="secondary" data-pick-focus onClick={() => ref.current?.click()}>
         {label}
       </Button>
       <input
         ref={ref}
         type="file"
+        multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = Array.from(e.target.files ?? []);
+          // Сброс значения: иначе повторный выбор того же файла не поднимет change
           e.target.value = '';
-          onPick(file);
+          if (files.length > 0) onPick(files);
         }}
       />
     </>

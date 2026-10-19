@@ -55,6 +55,22 @@ describe('itemProgress', () => {
   it('позиция без этапов — ноль без деления на ноль', () => {
     expect(itemProgress({ qty: 50, stages: [] })).toEqual({ done: 0, total: 0, pct: 0 });
   });
+
+  /**
+   * ФАЗА ПРОГРАММЫ (правки 19.10, Р3): строка стоит на месте вышивки и в
+   * прогрессе считается вышивкой с нулём. Прежде этап с `result_kind` из
+   * прогресса выпадал, и позиция с закрытым ВТО показывала 100 % до вышивки.
+   */
+  it('вышивка последним этапом в фазе программы — выпуск 0', () => {
+    const vto = { id: 'vto', item_id: 'it1', department_id: 'd-vto', status: 'done', qty_done: 100,
+      qty_passthrough: false };
+    const emb = { id: 'emb', item_id: 'it1', department_id: 'd-emb', status: 'in_progress',
+      qty_done: 0, qty_passthrough: false, result_kind: 'embroidery_program' };
+    expect(itemProgress({ qty: 100, stages: [vto, emb] as never })).toEqual({ done: 100, total: 200, pct: 50 });
+    // Старая отдельная программа (рядом есть строка вышивки) — по-прежнему вне прогресса
+    const work = { ...emb, id: 'emb2', result_kind: null };
+    expect(itemProgress({ qty: 100, stages: [vto, emb, work] as never }).total).toBe(200);
+  });
 });
 
 describe('orderProgress', () => {
