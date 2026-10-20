@@ -2579,6 +2579,13 @@
       "files": [
         "20261020100000_erp_biz_tasks_rpc.sql"
       ]
+    },
+    {
+      "version": "20261020130000",
+      "name": "erp_create_order_restore_patches",
+      "files": [
+        "20261020130000_erp_create_order_restore_patches.sql"
+      ]
     }
   ]
 }
