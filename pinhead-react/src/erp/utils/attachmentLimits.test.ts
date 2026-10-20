@@ -81,8 +81,12 @@ describe('лимит размера вложения не расходится �
     const sources = [
       'erp/hooks/useAttachmentUploads.js',
       'erp/store/slices/tzSlice.ts',
-      // ТЗ формы заказа — свой хук с 27.09 (правка 12)
-      'erp/screens/orders/create/useTzDocs.js',
+      /**
+       * ТЗ формы заказа и карточки (правка 19.10, п. 4): текст отказа живёт
+       * в `fileLimitText.ts` и считает МБ из ПАРАМЕТРА `maxBytes`; что туда
+       * приходит именно `TZ_MAX_BYTES`, проверяет соседняя спека ниже.
+       */
+      'erp/utils/fileLimitText.ts',
     ];
     for (const rel of sources) {
       /**
@@ -100,9 +104,76 @@ describe('лимит размера вложения не расходится �
         expect(
           msg,
           `${rel}: в сообщении «${msg}» число МБ вписано руками — оно переживёт смену лимита`,
-        ).toMatch(/MAX_BYTES/);
+        ).toMatch(/MAX_BYTES|maxBytes/);
+        expect(msg, `${rel}: в сообщении «${msg}» число МБ литералом`).not.toMatch(/\d\s*МБ/);
       }
     }
+  });
+
+  /**
+   * ТЕКСТ ОТКАЗА ТЗ ПОЛУЧАЕТ ЛИМИТ ТЗ (правка 19.10, п. 4). Общий модуль
+   * считает число из аргумента, поэтому сторож выше его не ловит, если
+   * вызывающий передаст чужую величину или число руками. Проверяются оба
+   * писателя пачки ТЗ: форма создания и карточка/правка через `EditableFiles`.
+   */
+  it('отказ большому ТЗ считается из TZ_MAX_BYTES', () => {
+    const callers = [
+      'erp/screens/orders/create/useTzDocs.js',
+      'erp/screens/orders/create/TzSection.jsx',
+      'erp/screens/orderCard/TzDocsSection.jsx',
+      'erp/screens/orders/create/EditOrderFiles.jsx',
+    ];
+    for (const rel of callers) {
+      const text = withoutJsComments(readFileSync(join(SRC, rel), 'utf8'));
+      const calls = [...text.matchAll(/(?:tooBigText|fileLimitCaption)\(([^)]*)\)|maxBytes=\{([^}]*)\}/g)];
+      expect(calls.length, `${rel}: лимит ТЗ не передаётся`).toBeGreaterThan(0);
+      for (const c of calls) {
+        expect(c[1] ?? c[2], `${rel}: «${c[0]}» — лимит не из TZ_MAX_BYTES`).toBe('TZ_MAX_BYTES');
+      }
+      expect(text, `${rel}: число МБ в подписи вписано руками`).not.toMatch(/до \d+ МБ/i);
+    }
+  });
+
+  /**
+   * ПИСАТЕЛИ ORDER КЛАДУТ В ТОТ ЖЕ БАКЕТ (правка 19.10, решение Р9).
+   *
+   * Order копирует ТЗ и макеты в `erp-attachments` при запуске и заранее
+   * предупреждает менеджера: «Файл больше N МБ — производство его не примет».
+   * Своя константа у Order разошлась бы с бакетом молча: мягче — отказ
+   * Storage посреди запуска; строже — текст «больше 20 МБ — производство
+   * не примет» стал бы неправдой при бакете на 30. Поэтому сверяются и
+   * константы (в том числе мок бакета e2e), и числа в самих текстах.
+   *
+   * Константы читаются ТЕКСТОМ, а не импортом: `api/erpFiles.ts` тянет
+   * клиент Supabase, а мок e2e живёт вне `src`.
+   */
+  it('писатели Order не мягче бакета', () => {
+    const MB = 1024 * 1024;
+    const writers = [
+      ['orderstudio/api/erpFiles.ts', /ERP_FILE_MAX_BYTES = (\d+) \* 1024 \* 1024/],
+      ['orderstudio/tz/model/sendChecklist.ts', /ERP_FILE_MAX_BYTES = (\d+) \* 1024 \* 1024/],
+      ['../e2e/support/mock/storageBuckets.ts', /ERP_FILE_LIMIT = (\d+) \* 1024 \* 1024/],
+    ] as const;
+    for (const [rel, re] of writers) {
+      const m = readFileSync(join(SRC, rel), 'utf8').match(re);
+      expect(m, `${rel}: предел не найден — разбор сломан`).toBeTruthy();
+      expect(Number(m![1]) * MB, `${rel}: предел Order разошёлся с бакетом`).toBe(bucketLimit());
+    }
+    const texts = [
+      'orderstudio/api/erpFiles.ts',
+      'orderstudio/tz/model/sendChecklist.ts',
+      'orderstudio/bridge/launchFiles.ts',
+      '../e2e/support/mock/storageBuckets.ts',
+    ];
+    let seen = 0;
+    for (const rel of texts) {
+      const text = readFileSync(join(SRC, rel), 'utf8');
+      for (const m of text.matchAll(/(?:больше|предел) (\d+) МБ/g)) {
+        seen += 1;
+        expect(Number(m[1]) * MB, `${rel}: «${m[0]}» не равно лимиту бакета`).toBe(bucketLimit());
+      }
+    }
+    expect(seen, 'в текстах Order не найдено ни одного «больше N МБ» — разбор сломан').toBeGreaterThan(3);
   });
 
   /**

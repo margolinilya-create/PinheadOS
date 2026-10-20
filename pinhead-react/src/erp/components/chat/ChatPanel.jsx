@@ -8,9 +8,10 @@ import { LoadFailed } from '../ErpStates';
 import { Skeleton } from '../../../components/shared/Skeleton';
 import { ChatMessage } from './ChatMessage';
 import { ChatComposer } from './ChatComposer';
-import { isWholeDeal } from '../../utils/chatContext';
+import { isWholeDeal, pingConcernsThread } from '../../utils/chatContext';
 import { buildFeed } from '../../utils/chatFeed';
 import { useSeenMessages } from '../../hooks/useSeenMessages';
+import { useTaskChat } from './useTaskChat';
 import styles from '../../styles';
 
 /**
@@ -32,11 +33,20 @@ import styles from '../../styles';
  */
 const FOCUS_MAX_PAGES = 20;
 
-export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId = null }) {
+/**
+ * ДИАЛОГ БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7) — та же панель с якорем `taskId`
+ * вместо `orderId`: свой тред, свой счётчик, переключателя «вся сделка» нет
+ * (тред задачи сделке не принадлежит). `canManage` — право писать, не будучи
+ * участником (`canManageBizTasks` вызывающего).
+ */
+export function ChatPanel({
+  orderId = null, taskId = null, canManage = false,
+  context = {}, contextLabel = null, focusId = null,
+}) {
   const {
-    messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, realtimeLive,
-    openChat, loadMore, refresh, send, loadDirectory, markSeen, loadUnread, closeChat,
-    editMessage, deleteMessage,
+    messages, hasMore, loading, error, directory, unread, unreadAnchor, ping, pingThreads,
+    realtimeLive, openChat, loadMore, refresh, send, loadDirectory, markSeen, loadUnread,
+    loadTaskUnread, closeChat, editMessage, deleteMessage,
   } = useErpStore(useShallow((s) => ({
     messages: s.chatMessages,
     hasMore: s.chatHasMore,
@@ -46,6 +56,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     unread: s.chatUnread[orderId],
     unreadAnchor: s.chatUnreadAnchor,
     ping: s.chatPing,
+    pingThreads: s.chatPingThreads,
     realtimeLive: s.realtimeLive,
     openChat: s.openChat,
     loadMore: s.loadMoreChat,
@@ -56,10 +67,12 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     deleteMessage: s.deleteChatMessage,
     markSeen: s.markChatSeen,
     loadUnread: s.loadChatUnread,
+    loadTaskUnread: s.loadChatUnreadTasks,
     closeChat: s.closeChat,
   })));
 
-  /** Выбранный вид: контекст задачи либо вся сделка */
+  const taskChat = useTaskChat(taskId, canManage, directory);
+  /** Выбранный вид: контекст задачи цеха либо вся сделка (у бизнес-задачи вида нет) */
   const [scoped, setScoped] = useState(!isWholeDeal(context));
   const active = useMemo(() => (scoped ? context : {}), [scoped, context]);
   const [replyTo, setReplyTo] = useState(null);
@@ -69,14 +82,15 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
   const contextId = JSON.stringify(active);
   useEffect(() => {
     void loadDirectory();
-    void openChat(orderId, JSON.parse(contextId));
+    if (taskId) void openChat(null, {}, taskId);
+    else void openChat(orderId, JSON.parse(contextId));
     /**
      * Панель размонтируется — лента закрывается. Иначе следующее открытие
      * первым кадром покажет ЧУЖОЙ разговор (тот, что остался в сторе),
      * и только потом заменит его своим.
      */
     return () => closeChat();
-  }, [orderId, contextId, openChat, loadDirectory, closeChat]);
+  }, [orderId, taskId, contextId, openChat, loadDirectory, closeChat]);
 
   /**
    * ЗВОНОК REALTIME. Из события берётся только факт «что-то пришло»
@@ -84,11 +98,18 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
    * пропускается: лента только что загружена `openChat`.
    */
   const seenPing = useRef(ping);
+  /**
+   * Тред задачи перечитывается только своим звонком: сообщения сделок и
+   * других задач идут тем же каналом, и каждое дёргало бы ленту задачи
+   * лишним запросом. Тред ещё неизвестен (пустая лента) — перечитываем.
+   */
+  const feedThread = taskId ? (messages[0]?.thread_id ?? null) : null;
   useEffect(() => {
     if (seenPing.current === ping) return;
     seenPing.current = ping;
+    if (!pingConcernsThread(pingThreads, feedThread)) return;
     void refresh();
-  }, [ping, refresh]);
+  }, [ping, pingThreads, feedThread, refresh]);
 
   /**
    * ФОЛБЭК, ПОКА КАНАЛ ЛЕЖИТ. Документ обещает новые сообщения «не позднее
@@ -140,9 +161,11 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
     const added = await markSeen(ids);
     // Счётчик перечитываем, только если что-то действительно отметилось:
     // повтор пачки ничего не меняет, и лишний запрос здесь — это запрос
-    // на каждую прокрутку
-    if (added > 0) void loadUnread(orderId);
-  }, [markSeen, loadUnread, orderId]);
+    // на каждую прокрутку. У задачи — её счётчик, сделка не трогается
+    if (added === 0) return;
+    if (taskId) void loadTaskUnread([taskId]);
+    else void loadUnread(orderId);
+  }, [markSeen, loadUnread, loadTaskUnread, orderId, taskId]);
   const seen = useSeenMessages(onSeen, messages.length > 0);
   /**
    * Один узел — два наблюдателя: прокрутка (`feedRef`) и корень наблюдения
@@ -243,9 +266,9 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
   }, [directory]);
 
   const onSend = useCallback(async (input) => {
-    const result = await send({ ...input, orderId, context: active });
+    const result = await send(taskId ? { ...input, taskId } : { ...input, orderId, context: active });
     return Boolean(result);
-  }, [send, orderId, active]);
+  }, [send, orderId, taskId, active]);
 
   /**
    * ПРАВКА И УДАЛЕНИЕ СВОЕГО (вторая очередь чата). Обработчики собираются
@@ -258,11 +281,11 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
   );
   const onDelete = useCallback((message) => deleteMessage(message.id), [deleteMessage]);
 
-  const showSwitch = !isWholeDeal(context);
+  const showSwitch = !taskId && !isWholeDeal(context);
   const unreadTotal = unread?.total ?? 0;
 
   return (
-    <section className={styles.chatPanel} aria-label="Обсуждение сделки">
+    <section className={styles.chatPanel} aria-label={taskId ? 'Обсуждение задачи' : 'Обсуждение сделки'}>
       {showSwitch && (
         <div className={styles.chatScope} role="group" aria-label="Что показывать">
           <Button
@@ -293,7 +316,10 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
         }}
       >
         {error && !loading && messages.length === 0 && (
-          <LoadFailed onRetry={() => openChat(orderId, active)} what="переписку" />
+          <LoadFailed
+            onRetry={() => (taskId ? openChat(null, {}, taskId) : openChat(orderId, active))}
+            what="переписку"
+          />
         )}
 
         {hasMore && !loading && (
@@ -312,7 +338,7 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
         )}
         {!loading && !error && messages.length === 0 && (
           <p className={styles.subText}>
-            {isWholeDeal(active)
+            {taskId || isWholeDeal(active)
               ? 'Обсуждения пока нет — напишите первым.'
               : 'По этой задаче пока не писали. Общая переписка сделки — на соседней вкладке.'}
           </p>
@@ -357,6 +383,8 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
                   observeRef={seen.observe}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  isResult={Boolean(taskChat.task) && taskChat.task.result_message_id === m.id}
+                  onMarkResult={taskChat.canMark(m) ? taskChat.onMarkResult : undefined}
                 />
               ))}
             </div>
@@ -378,15 +406,27 @@ export function ChatPanel({ orderId, context = {}, contextLabel = null, focusId 
         </div>
       )}
 
-      <ChatComposer
-        orderId={orderId}
-        context={active}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-        onSend={onSend}
-        nameOf={nameOf}
-        directory={directory}
-      />
+      {/* Читалка узнаёт итог «Отметить как результат» — кнопка при этом исчезает */}
+      {taskId && <p role="status" className={styles.visuallyHidden}>{taskChat.announce}</p>}
+
+      {taskChat.canWrite && (
+        <ChatComposer
+          orderId={orderId}
+          taskId={taskId}
+          /* Файл треда задачи — под папкой чата ЕЁ заказа: иначе сервер откажет */
+          uploadScope={taskId ? taskChat.orderId : 'chat'}
+          context={active}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          onSend={onSend}
+          nameOf={nameOf}
+          directory={taskChat.people}
+          mentionHint={taskId ? 'Упомянуть можно только участников задачи' : null}
+        />
+      )}
+      {taskId && taskChat.task && !taskChat.canWrite && (
+        <p className={styles.chatReadOnly}>Писать могут участники задачи</p>
+      )}
     </section>
   );
 }

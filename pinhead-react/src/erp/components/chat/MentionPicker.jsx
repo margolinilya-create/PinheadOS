@@ -14,17 +14,29 @@ import styles from '../../styles';
  * Escape закрывает — обработчики живут в композере, потому что события
  * приходят в textarea, а не сюда.
  */
-export function MentionPicker({ people, activeIndex, onPick, emptyHint }) {
+export function MentionPicker({
+  people, activeIndex, onPick, emptyHint,
+  /**
+   * Имя списка и его `id` — для выбора людей вне композера (ответственный
+   * и наблюдатели бизнес-задачи): там список зовётся не «Кого упомянуть»,
+   * а поле ввода ссылается на него через `aria-controls`.
+   */
+  label = 'Кого упомянуть',
+  id,
+  /** Положение списка: у композера он над полем, в форме — под ним */
+  className = '',
+}) {
+  const box = [styles.mentionBox, className].filter(Boolean).join(' ');
   if (people.length === 0) {
     return (
-      <div className={styles.mentionBox} role="status">
+      <div className={box} role="status" id={id}>
         <span className={styles.subText}>{emptyHint}</span>
       </div>
     );
   }
 
   return (
-    <ul className={styles.mentionBox} role="listbox" aria-label="Кого упомянуть">
+    <ul className={box} role="listbox" aria-label={label} id={id}>
       {people.map((p, i) => (
         <li key={p.user_id}>
           <button

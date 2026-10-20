@@ -165,6 +165,34 @@ describe('страница задания — раскладка 13.09', () => {
   });
 
   /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1): после «Программа готова» та же
+   * строка называется «Вышивка» — даже если перечитанная строка ещё несёт
+   * старую операцию. Заголовок — цель фокуса после перехода фазы.
+   */
+  it('фаза вышивки — заголовок «Вышивка»', () => {
+    const EMB = { ...DEPT, id: 'd1', code: 'embroidery', name: 'Вышивка' };
+    useErpStore.setState({
+      departments: [EMB],
+      orders: [{
+        ...ORDER,
+        items: [{
+          ...ORDER.items[0],
+          stages: [{
+            ...STAGE, status: 'waiting', qty_done: 0, result_kind: null,
+            operation: 'Разработка программы вышивки',
+          }],
+        }],
+      }],
+    });
+    renderTask();
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent(/^Вышивка: Худи/);
+    expect(heading).not.toHaveTextContent(/Разработка программы/);
+    expect(heading).toHaveAttribute('id', 'stage-title-st1');
+    expect(heading).toHaveAttribute('tabindex', '-1');
+  });
+
+  /**
    * Правка 14.09, п. 5: вход в переписку СО СТРАНИЦЫ ЗАДАНИЯ, с контекстом
    * задачи. Кнопка раскрывает чат здесь же — увод на карточку заказа стоил
    * бы цеху возврата и потерянного места, а пришёл он сюда работать.

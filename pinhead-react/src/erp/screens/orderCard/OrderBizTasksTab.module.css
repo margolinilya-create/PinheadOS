@@ -1,0 +1,51 @@
+/* Вкладка «Бизнес-задачи» карточки заказа (правки 19.10, п. 7) */
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--text-mid);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.filter:hover { border-color: var(--border-mid); }
+.filter:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.filter[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--text);
+  font-weight: 600;
+}
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.loading {
+  padding: var(--space-lg) 0;
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}

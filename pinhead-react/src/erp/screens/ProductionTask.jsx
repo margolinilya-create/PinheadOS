@@ -14,6 +14,8 @@ import { isStageAwaitingProcurement, isStageReady, waitingReason, materialsForIt
 import { stageMissingTz } from '../utils/tz';
 import { stageQtyProgress } from '../utils/progress';
 import { isFileResultStage, stageResultFiles } from '../utils/stageResult';
+import { phaseOperation } from '../utils/embroideryPhase';
+import { stageHeadingId } from '../utils/embroideryPhaseText';
 import { STAGE_CHIP_CLASS } from '../utils/stageUi';
 import { daysLeft, formatDateShort, stageOverdue } from '../utils/time';
 import { MATERIAL_STATUS_LABELS, STAGE_STATUS_LABELS } from '../types';
@@ -183,11 +185,11 @@ export default function ProductionTask() {
    * ЗАДАЧА НАЗЫВАЕТ СЕБЯ. У позиции с вышивкой этапов в одном цехе два —
    * разработка программы и сама вышивка, — и по имени участка их не различить
    * (правка 12.09, вторая порция). Имя операции печатается, только когда
-   * оно расходится с именем цеха.
+   * оно расходится с именем цеха. В фазе вышивки (19.10) подпись программы
+   * не печатается: задача — «Вышивка».
    */
-  const stageName = stage.operation && stage.operation !== deptName
-    ? `${deptName} · ${stage.operation}`
-    : deptName;
+  const operation = phaseOperation(stage);
+  const stageName = operation && operation !== deptName ? `${deptName} · ${operation}` : deptName;
 
   /**
    * Ключевая строка заказа. Собирается списком, чтобы пустое отсеивалось
@@ -220,6 +222,7 @@ export default function ProductionTask() {
   return (
     <>
       <PageHead
+        titleId={stageHeadingId(stage.id)}
         title={`${stageName}: ${itemName}`}
         sub={`Задание цеха по заказу №${order.bitrix_id || '—'}.`}
       />

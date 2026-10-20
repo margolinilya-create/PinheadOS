@@ -44,8 +44,9 @@ type DomainState = Pick<ErpStore,
   | 'orderEconomics' | 'economicsLoading'
   | 'chatUnreadAnchor' | 'chatWindow'
   | 'chatOrderId' | 'chatContext' | 'chatMessages' | 'chatHasMore'
-  | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing'
+  | 'chatLoading' | 'chatError' | 'chatUnread' | 'chatPing' | 'chatTaskId' | 'chatPingThreads'
   | 'skuCards' | 'skuCardsLoaded' | 'skuCardsError' | 'skuPriceCodes'
+  | 'bizTasks' | 'bizTaskDetails' | 'bizTaskUnread' | 'bizTaskPing'
 >;
 
 export const DOMAIN_INITIAL_STATE: DomainState = {
@@ -118,6 +119,7 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   chatDirectory: [],
   chatDirectoryLoaded: false,
   chatOrderId: null,
+  chatTaskId: null,
   chatContext: {},
   chatMessages: [],
   chatHasMore: false,
@@ -125,11 +127,21 @@ export const DOMAIN_INITIAL_STATE: DomainState = {
   chatError: null,
   chatUnread: {},
   chatPing: 0,
+  chatPingThreads: [],
   // skuSlice — каталог моделей ERP (правка 14.09, п. 6)
   skuCards: [],
   skuCardsLoaded: false,
   skuCardsError: null,
   skuPriceCodes: [],
+  /**
+   * bizTasksSlice — бизнес-задачи (правки 19.10, п. 7). В снимке сброса по той же
+   * причине, что чат: на общем планшете следующая смена не видит чужих поручений.
+   * `bizTaskPing` правит ядро (`realtimeSlice`), как `chatPing`.
+   */
+  bizTasks: {},
+  bizTaskDetails: {},
+  bizTaskUnread: {},
+  bizTaskPing: 0,
 };
 
 /**

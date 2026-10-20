@@ -6,6 +6,7 @@ import {
   scheduleFullReload,
   scheduleOrderReload,
   schedulePing,
+  scheduleTaskPing,
   ORDER_RELOAD_DEBOUNCE_MS,
   EXPERIMENTAL_RELOAD_DEBOUNCE_MS,
   CHAT_PING_DEBOUNCE_MS,
@@ -71,6 +72,30 @@ describe('realtimeCoalesce', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
+  it('звонок несёт треды ВСЕЙ серии, а не последнего события', () => {
+    const fn = vi.fn();
+    schedulePing(fn, 'thr-a');
+    schedulePing(fn, 'thr-b');
+    schedulePing(fn, 'thr-a');
+    vi.advanceTimersByTime(CHAT_PING_DEBOUNCE_MS);
+    expect(fn).toHaveBeenCalledWith(['thr-a', 'thr-b']);
+    // Следующая серия начинается с чистого списка; событие без треда — '*'
+    schedulePing(fn);
+    vi.advanceTimersByTime(CHAT_PING_DEBOUNCE_MS);
+    expect(fn).toHaveBeenLastCalledWith(['*']);
+  });
+
+  it('звонок задач не глушится сообщением чата в той же серии', () => {
+    const chat = vi.fn();
+    const task = vi.fn();
+    scheduleTaskPing(task);
+    schedulePing(chat);
+    scheduleTaskPing(task);
+    vi.advanceTimersByTime(CHAT_PING_DEBOUNCE_MS);
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
   it('полная перезагрузка — одна на серию', () => {
     const fn = vi.fn();
     scheduleFullReload(fn);
@@ -84,6 +109,7 @@ describe('realtimeCoalesce', () => {
     scheduleOrderReload('o1', fn);
     scheduleExperimentalReload(fn);
     schedulePing(fn);
+    scheduleTaskPing(fn);
     scheduleFullReload(fn);
     clearRealtimeTimers();
     vi.advanceTimersByTime(FULL_RELOAD_DEBOUNCE_MS * 2);

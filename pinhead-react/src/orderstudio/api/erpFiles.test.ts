@@ -8,7 +8,7 @@ import type { ErpFileType } from './erpFiles';
 
 /**
  * Писатель `erp-attachments` из Order (К12): ключи попытки без id заказа,
- * тип только из белого списка и не из `blob.type`, 20 МБ до запроса,
+ * тип только из белого списка и не из `blob.type`, 30 МБ до запроса,
  * 409 — отказ, а не успех.
  */
 const storageFrom = supabase.storage.from as unknown as ReturnType<typeof vi.fn>;
@@ -65,12 +65,12 @@ describe('uploadErpFile', () => {
     expect(opts).toEqual({ upsert: false, contentType: 'application/pdf' });
   });
 
-  it('21 МБ — отказ без запроса', async () => {
+  it('31 МБ — отказ без запроса', async () => {
     const upload = mockUpload();
-    const r = await uploadErpFile(TZ_KEY, blob(21 * 1024 * 1024), 'application/pdf');
+    const r = await uploadErpFile(TZ_KEY, blob(31 * 1024 * 1024), 'application/pdf');
     expect(r.ok).toBe(false);
     expect(upload).not.toHaveBeenCalled();
-    expect(ERP_FILE_MAX_BYTES).toBe(20 * 1024 * 1024);
+    expect(ERP_FILE_MAX_BYTES).toBe(30 * 1024 * 1024);
   });
 
   it('путь с .. или кириллицей — отказ без запроса', async () => {

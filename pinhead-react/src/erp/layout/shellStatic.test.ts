@@ -91,4 +91,20 @@ describe('оболочка ERP: что едет всем и всегда', () =>
         .toContain(`import('${mod}')`);
     }
   });
+  it('бизнес-задачи — только ленивыми экранами (правки 19.10, п. 7)', () => {
+    /**
+     * Маршрут и пункт меню едут в оболочке; экран, карточка, форма и список —
+     * нет. Статический импорт `screens/bizTasks/…` из `ErpApp` или `layout/*`
+     * унёс бы их в критический путь каждого (потолок оболочки — решение Р6).
+     */
+    const app = withoutComments(readFileSync(join(LAYOUT, '..', 'ErpApp.jsx'), 'utf8'));
+    expect(app).toContain("lazyScreen(() => import('./screens/BizTasksScreen'))");
+    // Один вход на оба адреса: второй `lazyScreen` — второй список предзагрузки в оболочке
+    expect(app.match(/import\('\.\/screens\/BizTask/g)).toHaveLength(1);
+    for (const file of [...files, join(LAYOUT, '..', 'ErpApp.jsx')]) {
+      for (const spec of staticImports(file)) {
+        expect(/BizTask|bizTasks\//.test(spec), `${file}: ${spec} — бизнес-задачи только лениво`).toBe(false);
+      }
+    }
+  });
 });

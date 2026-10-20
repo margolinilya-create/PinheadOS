@@ -38,7 +38,8 @@ export function AttachmentPicker({
    * по расширениям/MIME-типам». Прежде здесь стояло `image/*,application/pdf`,
    * и рабочий файл — раскладка в .xlsx, макет в .ai, архив образцов —
    * в диалоге просто не показывался. Ограничение размера остаётся
-   * (`useAttachmentUploads`, 15 МБ), проверка прав — на бакете.
+   * (`useAttachmentUploads`, `ATTACH_MAX_BYTES` — 30 МБ на файл с правки
+   * 19.10), проверка прав — на бакете.
    */
   accept = undefined,
   onAdd,

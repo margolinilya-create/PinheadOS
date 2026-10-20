@@ -173,3 +173,78 @@ describe('центр уведомлений: настройки сотрудни
     }
   });
 });
+
+/**
+ * УВЕДОМЛЕНИЯ БИЗНЕС-ЗАДАЧ (правки 19.10, п. 7): «по нажатию уведомления
+ * открывать нужную задачу и сообщение или событие». Заголовок заморожен
+ * сервером (`erp_biz_task_notify`) — клиент показывает его как есть.
+ * Переход — только по ссылке внутри приложения: строка из базы, и ссылка
+ * на чужой адрес (или `javascript:`) не должна уводить человека никуда.
+ */
+describe('центр уведомлений: бизнес-задачи', () => {
+  it('task_overdue открывает карточку задачи', () => {
+    const onClose = vi.fn();
+    useErpStore.setState({
+      notifications: [N({
+        id: 'n9', kind: 'task_overdue', message_id: null,
+        title: 'Задача «Заказать молнии» просрочена',
+        body: 'Заказ 4821',
+        link: '/biz-tasks/t1?event=17',
+      })],
+      notificationsUnread: 1,
+    });
+    show([], onClose);
+    fireEvent.click(screen.getByText('Задача «Заказать молнии» просрочена'));
+    expect(navigate).toHaveBeenCalledWith('/biz-tasks/t1?event=17');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('ссылка не с «/» — не переходит', () => {
+    const onClose = vi.fn();
+    useErpStore.setState({
+      notifications: [
+        N({ id: 'a', title: 'Внешняя', link: 'https://evil.example/x' }),
+        N({ id: 'b', title: 'Скрипт', link: 'javascript:alert(1)' }),
+        N({ id: 'c', title: 'Протокол', link: '//evil.example/x' }),
+        N({ id: 'd', title: 'Пустая', link: null }),
+      ],
+      notificationsUnread: 4,
+    });
+    show([], onClose);
+    for (const t of ['Внешняя', 'Скрипт', 'Протокол', 'Пустая']) {
+      fireEvent.click(screen.getByText(t));
+    }
+    expect(navigate).not.toHaveBeenCalled();
+    // Центр всё равно закрывается: нажатие не должно казаться зависшим
+    expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
+  it('незнакомый kind не роняет центр', () => {
+    useErpStore.setState({
+      notifications: [
+        N({ id: 'x', kind: 'something_new', title: 'Новый вид', link: '/orders/o1' }),
+      ],
+      notificationsUnread: 1,
+    });
+    show([]);
+    expect(screen.getByText('Новый вид')).toBeInTheDocument();
+    for (const tab of ['Упоминания', 'Ответы', 'Все']) {
+      fireEvent.click(screen.getByText(tab));
+    }
+    expect(screen.getByText('Новый вид')).toBeInTheDocument();
+  });
+
+  it('упоминание в задаче — во вкладке «Упоминания»', () => {
+    useErpStore.setState({
+      notifications: [N({
+        id: 'm', kind: 'task_mention',
+        title: 'Вас упомянули в задаче «Заказать молнии» — заказ 4821',
+        link: '/biz-tasks/t1?msg=m7',
+      })],
+      notificationsUnread: 1,
+    });
+    show([]);
+    fireEvent.click(screen.getByText('Упоминания'));
+    expect(screen.getByText(/Вас упомянули в задаче/)).toBeInTheDocument();
+  });
+});

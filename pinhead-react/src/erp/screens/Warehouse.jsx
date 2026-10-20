@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { PageHead } from '../components/PageHead';
 import { FgIntakeQueue } from './warehouse/FgIntakeQueue';
@@ -10,7 +9,6 @@ import { FilterBar } from '../components/FilterBar';
 import { Pagination } from '../components/Pagination';
 import { useErpStore } from '../store/useErpStore';
 import { sortRows, useTableSort } from '../utils/tableSort';
-import { purchasingReturnHref } from '../utils/receiptLink';
 import { FilterChip } from '../components/FilterChip';
 import styles from '../styles';
 import { WarehouseTaskTable } from './warehouse/WarehouseTaskTable';
@@ -37,8 +35,8 @@ import { factoryToday } from '../../utils/date';
  * ВЕСЬ КОНТЕКСТ — В АДРЕСЕ (`useListParams`): вкладка, поиск, «только
  * открытые», срок, страница и открытая задача. После сохранения формы
  * человек остаётся там же, где был, а закрытая задача уходит из открытых.
- * Задачу по ссылке (`?task=`) открывает и переход из закупки (п. 7) —
- * тогда в панели есть «← К закупке», и закрытие возвращает туда же.
+ * Задачу по ссылке (`?task=`) открывает адрес; перехода из закупки
+ * с возвратом туда больше нет (правка 19.10: приёмка — только на складе).
  *
  * Правила (вкладки, подписи, срок, поиск) — `warehouse/warehouseTasks`,
  * таблица и карточки — `WarehouseTaskTable`, форма — `WarehouseTaskDrawer`.
@@ -65,7 +63,6 @@ export default function Warehouse() {
    * другого даёт либо дыру, либо «кнопка есть, действие падает».
    */
   const canManageWarehouse = useErpAccess().can('warehouse.manage');
-  const navigate = useNavigate();
   const list = useListParams(LIST_DEFAULTS);
   const tab = tabOf(list.get('tab')).key;
   const query = list.get('q');
@@ -151,17 +148,11 @@ export default function Warehouse() {
     }
   }
 
-  /** Пришли из закупки — возврат туда же, с её фильтрами (правка 05.10, п. 7) */
-  const fromPurchasing = list.get('from') === 'purchasing';
-  const returnHref = fromPurchasing ? purchasingReturnHref(list.get('back'), list.get('supply')) : null;
-  const closeTask = () => {
-    if (returnHref) navigate(returnHref);
-    else list.patchKeep({ task: '' });
-  };
+  const closeTask = () => list.patchKeep({ task: '' });
   // `useCallback`: уходит в карточки задач (`memo`) через таблицу
   const { patchKeep } = list;
   const openTask = useCallback(
-    (id) => patchKeep({ task: id, from: '', back: '', supply: '' }),
+    (id) => patchKeep({ task: id }),
     [patchKeep],
   );
 
@@ -251,7 +242,6 @@ export default function Warehouse() {
           open={open}
           onClose={closeTask}
           canManage={canManageWarehouse}
-          returnHref={returnHref}
         />
       )}
     </>

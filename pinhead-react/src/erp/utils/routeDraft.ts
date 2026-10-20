@@ -65,12 +65,6 @@ export interface RouteStep {
    */
   cycle: number;
   /**
-   * Этап ВНЕ цепочки: не ждёт предыдущую группу и не держит следующую.
-   * Единственный такой этап сегодня — разработка программы вышивки.
-   * Подробное обоснование — `routes.RouteStage.standalone`.
-   */
-  standalone: boolean;
-  /**
    * Чем отчитывается этап: `''` — числами по схеме участка,
    * `embroidery_program` — файлом программы вышивки (правка 12.09, баг 02).
    * Хранится колонкой `erp_item_stages.result_kind`, поэтому переживает
@@ -151,7 +145,6 @@ export function emptyStep(departmentCode: string): RouteStep {
     contractor: '',
     operation: '',
     cycle: 0,
-    standalone: false,
     resultKind: '',
     qty: '',
     sendPlan: '',
@@ -180,7 +173,6 @@ export function draftFromRoute(route: readonly RouteStage[]): RouteGroup[] {
       ...emptyStep(r.departmentCode),
       operation: r.operation ?? '',
       cycle: r.cycle ?? 0,
-      standalone: r.standalone ?? false,
       resultKind: r.resultKind ?? '',
     });
     byOrder.set(r.sortOrder, group);
@@ -346,16 +338,9 @@ export function draftFromStages(
        */
       cycle: s.cycle ?? 0,
       /**
-       * `standalone` из этапа НЕ выводится и не хранится: он про то, как
-       * строился маршрут, а у существующего этапа связи уже записаны
-       * в `depends_on`. Конструктор их пересчитает по группам — ровно как
-       * делал всегда.
-       */
-      standalone: false,
-      /**
-       * А ВОТ ЭТО БЕРЁТСЯ У ЭТАПА, в отличие от `standalone`: признак хранится
-       * колонкой, и потеряв его, сохранение конструктора вернуло бы разработке
-       * программы поля «Вышито» и «Брак» — молча, без единой ошибки.
+       * Признак результата БЕРЁТСЯ У ЭТАПА: он хранится колонкой, и потеряв
+       * его, сохранение конструктора вернуло бы разработке программы поля
+       * «Вышито» и «Брак» — молча, без единой ошибки.
        */
       resultKind: s.result_kind === 'embroidery_program' ? 'embroidery_program' : '',
       qty: text(sub?.qty),
@@ -475,6 +460,17 @@ export interface LinearStep {
  * ещё нет, и сервер раскладывает индексы в uuid сам — тот же приём, что
  * в `erp_create_order` и `erp_experimental_add_tasks`.
  */
+/**
+ * Отдельная строка программы вышивки старого заказа: рядом в маршруте есть
+ * строка того же участка без признака результата (сама вышивка). Одиночная
+ * строка с признаком — фаза программы новой задачи (`utils/embroideryPhase`).
+ */
+function isLegacyProgram(step: RouteStep, draft: readonly RouteGroup[]): boolean {
+  return step.resultKind === 'embroidery_program'
+    && draft.some((g) => g.some((o) => o !== step
+      && o.departmentCode === step.departmentCode && o.executor === step.executor && !o.resultKind));
+}
+
 export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
   const out: LinearStep[] = [];
   let prevIndices: number[] = [];
@@ -486,13 +482,13 @@ export function linearize(draft: readonly RouteGroup[]): LinearStep[] {
     for (let si = 0; si < group.length; si += 1) {
       const step = group[si];
       /**
-       * ЭТАП ВНЕ ЦЕПОЧКИ (правка 12.09, п. 2) не участвует в связях с обеих
-       * сторон: не получает `depends_on` от предыдущей группы и не попадает
-       * в `mine`, то есть не становится предшественником следующей. Разработка
-       * программы вышивки не ждёт закупку и не держит крой — иначе забытая
-       * галочка вышивальщицы останавливала бы производство.
+       * СТАРАЯ ОТДЕЛЬНАЯ ПРОГРАММА ВЫШИВКИ (заказы до 19.10, Р1) живёт вне
+       * цепочки, как жила: не ждёт предыдущую группу и не держит следующую —
+       * иначе первая же правка маршрута старого заказа поставила бы крой
+       * ждать программу. С 19.10 программа — фаза строки вышивки и стоит
+       * в цепочке как любая ветка нанесения.
        */
-      if (step.standalone) {
+      if (isLegacyProgram(step, draft)) {
         out.push({ step, sortOrder: sort, dependsOn: [], gi, si });
         continue;
       }

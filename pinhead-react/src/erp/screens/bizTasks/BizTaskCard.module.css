@@ -1,0 +1,209 @@
+/* Карточка бизнес-задачи (правки 19.10, п. 7): слева задача, справа диалог */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  align-self: flex-start;
+  min-height: var(--control-h-sm);
+  color: var(--accent);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+.back:hover { text-decoration: underline; }
+.back:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+/* Две колонки: задача и диалог рядом — «основные данные и обсуждение на одном экране» */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  align-items: start;
+  gap: var(--space-lg);
+}
+.column,
+.main,
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+/* Диалог не уезжает при прокрутке длинной задачи: поле ввода остаётся под рукой */
+.side {
+  position: sticky;
+  top: var(--space-md);
+  min-width: 0;
+}
+.pane:focus-visible,
+.chatPane:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Узкий экран, «Обсуждение»: вкладка — только диалог, поле ввода видно без прокрутки карточки */
+.chatPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-sm) var(--space-md);
+  margin: 0;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fact dt {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-mid);
+}
+.fact dd {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--type-body-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+.actions:empty { display: none; }
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  min-width: 0;
+}
+.blockTitle {
+  margin: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+/* Результат — отдельным блоком, а не среди сообщений: его не приходится искать */
+.result { border-color: var(--accent); }
+.description {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.muted {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.checklist,
+.events,
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checkItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: var(--control-h-sm);
+  font-size: var(--type-body-sm);
+}
+.checkLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--control-h-sm);
+  cursor: pointer;
+}
+.checkDone { color: var(--text-dim); text-decoration: line-through; }
+.checkAdd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+.control {
+  flex: 1 1 200px;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+}
+.control:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* История — системные события, визуально отдельно от реплик диалога */
+.event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-xs) 0 var(--space-xs) var(--space-sm);
+  border-left: 2px solid var(--border-mid);
+  font-size: var(--type-body-sm);
+  overflow-wrap: anywhere;
+}
+.eventMeta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  font-size: var(--type-label);
+  color: var(--text-dim);
+}
+.file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-sm);
+  font-size: var(--type-body-sm);
+  overflow-wrap: anywhere;
+}
+.attach {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 760px) {
+  .side { position: static; }
+  .facts { grid-template-columns: minmax(0, 1fr); }
+}

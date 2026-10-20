@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { installSupabaseMock, buildStages } from './support/mockSupabase';
+import { CUT_DEPT_PATCH, CUT_ORDER } from './support/cutFormFx';
 
 /**
  * Планшет цеха (проект `tablet`, 768×1024, hasTouch).
@@ -71,6 +72,37 @@ test.describe('Очередь цеха на планшете', () => {
       if (!box) continue;
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
     }
+  });
+
+  /**
+   * ФОРМА СДАЧИ ЗАКРОЯ (правки 19.10): плитки режимов рулона — тач-цели
+   * ≥ 44 px, форма не уезжает вбок, «Сдать результат» — в липкой полосе
+   * итогов и в пределах экрана.
+   */
+  test('форма закроя: плитки режимов ≥ 44 px, без горизонтальной прокрутки', async ({ page }) => {
+    await installSupabaseMock(page, { orders: [CUT_ORDER], deptPatch: CUT_DEPT_PATCH });
+    await page.goto('/queue/cutting?studio=0');
+    const card = page.locator('[class*="queueCard"]', { hasText: 'Свитшоты закрой-тест' }).first();
+    await card.getByRole('button', { name: /Записать результат/ }).click();
+    const mode = page.getByRole('radiogroup', { name: 'Рулон №1 — использование' });
+    await expect(mode).toBeVisible();
+    const viewport = page.viewportSize()!;
+    for (const label of ['Не использован', 'Полностью', 'Частично']) {
+      const box = await mode.locator('label', { hasText: label }).boundingBox();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    }
+    await mode.getByText('Полностью').click();
+    await expect(page.getByRole('status').filter({ hasText: 'Футер 3-нитка · чёрный' }))
+      .toContainText('Расход 50 м');
+    const submit = page.getByRole('button', { name: /Сдать результат/ });
+    await expect(submit).toBeVisible();
+    const box = await submit.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 });
 

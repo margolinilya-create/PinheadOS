@@ -740,12 +740,9 @@ a.cellTitle:hover { color: var(--accent); }
 .purchaseDetailsRow > td { background: var(--surface); }
 .purchaseDetails { display: flex; flex-direction: column; gap: var(--space-md); }
 .purchaseActions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-xs); }
-.receiptAction { display: inline-flex; flex-direction: column; gap: var(--space-xs); }
 .receiptList { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); }
 .qtyTriple { display: flex; flex-direction: column; gap: var(--space-xs); }
 .qtyTripleRow { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: var(--space-xs); }
-/* «← К закупке» в панели приёмки, открытой из закупки (правка 05.10, п. 7) */
-.drawerBackRow { margin-bottom: var(--space-md); }
 /* Сводка закупки строкой вместо шести плиток */
 .summaryLine { margin: 0 0 var(--space-md); color: var(--text); font-size: var(--type-body-sm); }
 
@@ -2060,6 +2057,21 @@ a.cellTitle:hover { color: var(--accent); }
 .chatFileThumb { width: 28px; height: 28px; object-fit: cover; border-radius: var(--radius-sm); }
 
 .chatComposer { display: flex; flex-direction: column; gap: var(--space-xs); }
+/* Диалог бизнес-задачи (правки 19.10, п. 7): сообщение-результат и место
+   поля ввода у того, кто читает, но не пишет (не участник задачи) */
+.chatMsgResult {
+  font-size: var(--type-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-success-ink);
+}
+.chatReadOnly {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-light);
+  font-size: var(--type-body-sm);
+  color: var(--text-dim);
+}
 /*
   ОКНО ЧАТА ПОВЕРХ ERP (правка 20.09, п. 4): «шириной примерно 760–960 px,
   с возможностью развернуть».

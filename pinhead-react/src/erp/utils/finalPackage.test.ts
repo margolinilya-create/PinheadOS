@@ -63,8 +63,12 @@ const FULL = {
   },
 };
 
+/**
+ * Техпаспорт НЕ входит в набор (правка 19.10, п. 5: «техпаспорт составляется
+ * не на каждый заказ, поэтому его отсутствие не должно мешать завершению»).
+ * Фикстура «пакет собран» без паспорта — и есть проверка правки.
+ */
 const FILES = [
-  { kind: DEV_ATTACHMENT_KINDS.passport },
   { kind: DEV_ATTACHMENT_KINDS.photo },
 ];
 
@@ -129,7 +133,7 @@ describe('чего не хватает, чтобы завершить разра
     // множественное число здесь существенно, иначе человек ходит по кругу
     const missing = missingFinalPackage({ final_package: { add_to_sku: true } }, []);
     expect(missing).toContain('Техническое название лекал');
-    expect(missing).toContain('Технический паспорт');
+    expect(missing).not.toContain('Технический паспорт');
     expect(missing).toContain('Фото образца');
     expect(missing).toContain('Доступные ткани');
     expect(missing).toContain('Ценовая вилка');
@@ -145,6 +149,21 @@ describe('чего не хватает, чтобы завершить разра
     expect(missingFinalPackage(DOCS, FILES)).not.toContain('Файл или ссылка на лекала');
     expect(missingFinalPackage({ final_package: { add_to_sku: true } }, []))
       .not.toContain('Файл или ссылка на лекала');
+  });
+
+  /**
+   * ТЕХПАСПОРТ НЕОБЯЗАТЕЛЕН (правка 19.10, п. 5): «разрешить завершение без
+   * техпаспорта при выполнении остальных обязательных условий… обязательность
+   * фото утверждённого образца этой правкой не меняется».
+   */
+  it('без техпаспорта при остальных полях перечень пуст', () => {
+    expect(missingFinalPackage(DOCS, [{ kind: DEV_ATTACHMENT_KINDS.photo }])).toEqual([]);
+    expect(missingFinalPackage(FULL, [{ kind: DEV_ATTACHMENT_KINDS.photo }])).toEqual([]);
+  });
+
+  it('без фото — «Фото образца»', () => {
+    expect(missingFinalPackage(DOCS, [{ kind: DEV_ATTACHMENT_KINDS.passport }]))
+      .toEqual(['Фото образца']);
   });
 
   it('«комментарии и особенности производства» — при необходимости, не обязательны', () => {
@@ -173,8 +192,9 @@ describe('чего не хватает, чтобы завершить разра
    * подтверждения, что всё готово.
    */
   it('прогресс считается той же функцией и в том же режиме', () => {
-    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 4, total: 4 });
-    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 11, total: 11 });
+    // Пунктов три, а не четыре: техпаспорт необязателен (правка 19.10, п. 5)
+    expect(finalPackageProgress(DOCS, FILES)).toEqual({ done: 3, total: 3 });
+    expect(finalPackageProgress(FULL, FILES)).toEqual({ done: 10, total: 10 });
     expect(finalPackageProgress({}, []).done).toBe(0);
   });
 
@@ -228,10 +248,9 @@ describe('серверный страж повторяет клиентский 
     for (const key of ['description', 'fit', 'size_row', 'fabrics', 'branding', 'modifications']) {
       expect(GUARD).toContain(`'${key}'`);
     }
-    // Лекала из обязательных сняты — сторожим их отсутствие поимённо
-    for (const kind of [DEV_ATTACHMENT_KINDS.passport, DEV_ATTACHMENT_KINDS.photo]) {
-      expect(GUARD).toContain(`'${kind}'`);
-    }
+    // Фото образца обязательно; техпаспорт снят правкой 19.10 (п. 5) —
+    // его отсутствие сторожится ниже, на теле последней редакции
+    expect(GUARD).toContain(`'${DEV_ATTACHMENT_KINDS.photo}'`);
   });
 
   it('называет недостающее теми же словами', () => {
@@ -307,7 +326,6 @@ describe('финальный пакет снова обязателен', () => 
     const missing = missingFinalPackage({}, []);
     expect(missing).toContain('Техническое название лекал');
     expect(missing).toContain('Версия лекал');
-    expect(missing).toContain('Технический паспорт');
     expect(missing).toContain('Фото образца');
     expect(isFinalPackageReady({}, [])).toBe(false);
   });
@@ -323,7 +341,6 @@ describe('финальный пакет снова обязателен', () => 
       final_package: {},
     };
     const atts = [
-      { kind: DEV_ATTACHMENT_KINDS.passport },
       { kind: DEV_ATTACHMENT_KINDS.photo },
     ];
     expect(missingFinalPackage(full, atts)).toEqual([]);
@@ -347,7 +364,20 @@ describe('страж финального пакета действует', () =
   it('последняя редакция отказывает при пустом пакете', () => {
     expect(BODY).toMatch(/raise exception/);
     expect(BODY).toContain('Техническое название лекал');
-    expect(BODY).toContain('Технический паспорт');
+  });
+
+  /**
+   * ПОЛОЖИТЕЛЬНЫЙ ЯКОРЬ (правка 19.10, п. 5). Одно «паспорта нет» было бы
+   * зелёным и на пустом теле или на сломанном разборе — поэтому рядом
+   * утверждается то, что ОБЯЗАНО остаться: фото и лекала.
+   */
+  it('страж: последняя редакция требует фото и лекала и не требует dev_passport', () => {
+    expect(BODY).toContain(`'${DEV_ATTACHMENT_KINDS.photo}'`);
+    expect(BODY).toContain('Фото образца');
+    expect(BODY).toContain('new.pattern_tech_name');
+    expect(BODY).toContain('new.pattern_version');
+    expect(BODY).not.toContain(DEV_ATTACHMENT_KINDS.passport);
+    expect(BODY).not.toContain('Технический паспорт');
   });
 
   it('условия по образцу в стороже нет', () => {

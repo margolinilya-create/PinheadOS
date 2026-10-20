@@ -8,6 +8,7 @@ import type { ReportWithSizes } from '../utils/stageSizes';
 import type { PermissionMatrix } from '../utils/permissions';
 import type { CapacitySettings } from '../utils/capacity';
 import type { RouteGroup } from '../utils/routeDraft';
+import type { BizTaskFilter, BizTaskTransitionAction } from '../utils/bizTasks';
 import type {
   BrandingMethod,
   BrandingOn,
@@ -41,6 +42,10 @@ import type {
   ErpAttachmentKind,
   ErpOrder,
   ErpOrderAttachment,
+  ErpBizTask,
+  ErpBizTaskChecklistItem,
+  ErpBizTaskEvent,
+  ErpBizTaskKind,
   ErpOrderDraft,
   ErpOrderItem,
   ErpOrderNote,
@@ -567,6 +572,15 @@ export interface StagesSlice {
    * «почему этап закрыт без результата» не восстановить ничем, кроме текста.
    */
   forceCompleteStage: (stageId: string, reason: string) => Promise<boolean>;
+  /**
+   * ВЫШИВКА ОДНОЙ ЗАДАЧЕЙ (правки 19.10, п. 1). «Программа готова»: строка
+   * в фазе программы становится «Вышивкой» (RPC `erp_embroidery_program_finish`,
+   * файл программы обязан лежать в бакете). Не оптимистично; после ответа
+   * заказ перечитывается. Отказ — тост и `null`.
+   */
+  finishEmbroideryProgram: (stageId: string) => Promise<ErpItemStage | null>;
+  /** «Без программы» (`order.manage`, причина обязательна) — тот же переход без файла */
+  skipEmbroideryProgram: (stageId: string, reason: string) => Promise<ErpItemStage | null>;
   /**
    * Отчёт цеха по схеме участка (правки 10.08, P2): журнал + приращение
    * счётчиков одной транзакцией. `qtyIn` — снимок входа, считает
@@ -1627,8 +1641,13 @@ export interface ChatSlice {
   /** Кого можно упомянуть и как называть автора; пусто — справочник не грузили */
   chatDirectory: ErpChatPerson[];
   chatDirectoryLoaded: boolean;
-  /** Открытое обсуждение: заказ и контекст. `null` — окно закрыто */
+  /**
+   * Открытое обсуждение — ЯКОРЬ «сделка ИЛИ задача» (правки 19.10, п. 7):
+   * `chatOrderId` + контекст у переписки сделки, `chatTaskId` у треда
+   * бизнес-задачи (заказ задачи сервер берёт сам). Оба `null` — окно закрыто.
+   */
   chatOrderId: string | null;
+  chatTaskId: string | null;
   chatContext: ChatContext;
   chatMessages: ErpChatMessage[];
   /** Есть ли что дочитывать ВВЕРХ (страница отдаёт последние N) */
@@ -1643,13 +1662,23 @@ export interface ChatSlice {
    * иначе видимость решалась бы дважды, фильтром подписки и функцией чтения.
    */
   chatPing: number;
+  /**
+   * Треды последнего звонка (`thread_id` событий серии; `'*'` — событие
+   * без треда, например реакция). Открытый тред задачи перечитывается,
+   * только если звонок про него (правки 19.10, п. 7).
+   */
+  chatPingThreads: string[];
 
   loadChatDirectory: () => Promise<void>;
-  openChat: (orderId: string, context?: ChatContext) => Promise<void>;
+  /** Сделка — `openChat(orderId, context)`; тред задачи — `openChat(null, {}, taskId)` */
+  openChat: (orderId: string | null, context?: ChatContext, taskId?: string | null) => Promise<void>;
   loadMoreChat: () => Promise<void>;
   refreshChat: () => Promise<void>;
   sendChatMessage: (input: {
-    orderId: string;
+    /** Сделка; у сообщения задачи — не передаётся (`p_order_id = null`) */
+    orderId?: string | null;
+    /** Тред бизнес-задачи: заказ и проверку участника делает сервер */
+    taskId?: string | null;
     body: string;
     /** Ключ попытки (`utils/attemptKey`): повтор не создаёт второго сообщения */
     clientKey: string;
@@ -1697,6 +1726,11 @@ export interface ChatSlice {
    * полсотни запросов.
    */
   loadChatUnreadMany: (orderIds: string[]) => Promise<void>;
+  /**
+   * Непрочитанное по задачам (`erp_chat_unread_tasks`) — в `bizTaskUnread`.
+   * Только читает: открытие списка задач ничего не отмечает прочитанным.
+   */
+  loadChatUnreadTasks: (taskIds: string[]) => Promise<void>;
   markChatRead: (orderId: string, stageId?: string | null) => Promise<void>;
   closeChat: () => void;
 }
@@ -2083,6 +2117,91 @@ export interface OrderWriteSlice {
   addComment: (orderId: string, text: string) => Promise<ErpOrderComment | null>;
 }
 
+/**
+ * БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7). Строка задачи в сторе — одна на id,
+ * общая для вкладки заказа, общего раздела и карточки: «одна и та же задача,
+ * без копий». Наблюдатели и заказ приезжают вложенными выборками и в ответе
+ * писателя не возвращаются — при слиянии их не теряем.
+ */
+export interface BizTaskRow extends ErpBizTask {
+  watchers: string[];
+  /**
+   * Номер и название заказа для строки общего раздела; null — не загружали.
+   * `tz_number` — номер заказа «Оформления» (PH-…): по нему ищут задачи
+   */
+  order: { id: string; bitrix_id: string | null; title: string; tz_number?: string | null } | null;
+}
+
+/** Части карточки задачи, которых нет в строке списка */
+export interface BizTaskDetail {
+  watchers: string[];
+  checklist: ErpBizTaskChecklistItem[];
+  events: ErpBizTaskEvent[];
+  /** Файлы описания, обсуждения и результата (`erp_order_attachments.biz_task_id`) */
+  files: ErpOrderAttachment[];
+}
+
+/** Поля формы создания — ровно белый список `erp_biz_task_create` */
+export interface BizTaskCreateInput {
+  order_id: string;
+  title: string;
+  kind: ErpBizTaskKind;
+  assignee_id: string;
+  /** Момент (ISO); из поля ввода — `utils/date.factoryDateTimeToIso` */
+  due_at: string;
+  description?: string | null;
+  review_required?: boolean;
+  watchers?: string[];
+  checklist?: string[];
+}
+
+/** Правка задачи — белый список `erp_biz_task_update`; перенос срока — с причиной */
+export interface BizTaskPatch {
+  title?: string;
+  description?: string | null;
+  kind?: ErpBizTaskKind;
+  assignee_id?: string;
+  due_at?: string;
+  due_reason?: string;
+  watchers?: string[];
+}
+
+export type BizTaskChecklistOp = 'add' | 'toggle' | 'remove' | 'rename';
+
+export interface BizTasksSlice {
+  bizTasks: Record<string, BizTaskRow>;
+  bizTaskDetails: Record<string, BizTaskDetail>;
+  /** Непрочитанные сообщения треда задачи — по задаче, у каждого свои */
+  bizTaskUnread: Record<string, number>;
+  /**
+   * Звонок realtime по `erp_biz_tasks`/`erp_biz_task_events`: экраны задач
+   * перечитывают своё. Правит ЯДРО (`realtimeSlice`), читают ленивые экраны.
+   */
+  bizTaskPing: number;
+
+  /** Список по роли и статусам; null — ошибка (toast уже показан) */
+  loadBizTasks: (filter: BizTaskFilter) => Promise<BizTaskRow[] | null>;
+  /** Все задачи заказа, любые статусы — вкладка заказа фильтрует сама */
+  loadOrderBizTasks: (orderId: string) => Promise<BizTaskRow[] | null>;
+  loadBizTask: (id: string) => Promise<BizTaskDetail | null>;
+  /** Повтор с тем же ключом не создаёт второй задачи — ни в базе, ни в сторе */
+  createBizTask: (input: BizTaskCreateInput, clientKey: string) => Promise<BizTaskRow | null>;
+  bizTaskTransition: (
+    id: string, action: BizTaskTransitionAction, text: string | null,
+  ) => Promise<BizTaskRow | null>;
+  updateBizTask: (id: string, patch: BizTaskPatch) => Promise<BizTaskRow | null>;
+  setBizTaskResult: (id: string, text: string | null, messageId: string | null) => Promise<BizTaskRow | null>;
+  bizTaskChecklistOp: (
+    id: string, op: BizTaskChecklistOp, item: { id?: string; text?: string; done?: boolean },
+  ) => Promise<BizTaskRow | null>;
+  /** Файлы уже в бакете (`att/<заказ>/biz_task/…`); здесь — только привязка */
+  attachBizTaskFiles: (
+    id: string, files: { file_path: string; file_name: string | null }[],
+  ) => Promise<BizTaskRow | null>;
+  /** «Видел» — не «Взять в работу»: статус не меняется */
+  markBizTaskSeen: (id: string) => Promise<BizTaskRow | null>;
+}
+
 export type ErpStore = BootstrapSlice &
   OrdersSlice &
   OrdersOnDemandSlice &
@@ -2104,6 +2223,7 @@ export type ErpStore = BootstrapSlice &
   SettingsSlice &
   NotificationsSlice &
   ChatSlice &
+  BizTasksSlice &
   SkuSlice &
   AnalyticsSlice &
   RealtimeSlice;

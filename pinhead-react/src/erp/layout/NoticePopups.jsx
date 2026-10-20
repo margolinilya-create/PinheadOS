@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useErpStore } from '../store/useErpStore';
 import { Icon } from '../components/Icon';
+import { inAppLink } from '../utils/noticeNav';
 import styles from '../erp.module.css';
 
 /**
@@ -88,7 +89,8 @@ export function NoticePopups() {
              * 01.10, п. 4): прочитанным его делает показ сообщения в ленте
              * — `erp_chat_mark_seen`, — а не нажатие на карточку.
              */
-            if (notice.link) navigate(notice.link);
+            const to = inAppLink(notice.link);
+            if (to) navigate(to);
             dismiss(notice.id);
           }}
         />

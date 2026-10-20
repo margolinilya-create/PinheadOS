@@ -17,6 +17,7 @@ import {
   RpcFailure, kSaveCheck, kSavedRow, v4Rpc, v4ServerColumns, v4Table, type V4Ctx, type V4MockOptions,
 } from './mock/orderV4Rpc';
 import { storageList, storageRead, storageWrite } from './mock/storageBuckets';
+import { bizTasksRpc, bizTasksTable, resetBizTasksMock } from './mock/bizTasksRpc';
 
 // Фиксированные метки времени — никаких «сегодня» в фикстурах.
 const CREATED = '2026-07-10T08:00:00Z';
@@ -620,6 +621,19 @@ export type MockExtras = {
    * без неё клиент считает, что роль с сервера не приехала.
    */
   myEmployee?: unknown;
+  /**
+   * Справочник людей чата (`erp_chat_directory`) поверх `CHAT_PEOPLE`. Бизнес-задачам
+   * нужны сотрудники ERP (непустая `role`): ответственным и наблюдателем форма
+   * предлагает только их.
+   */
+  chatDirectory?: unknown[];
+  /**
+   * Поля участков поверх фикстуры, по коду (`{ cutting: { result_detail: 'rolls' } }`).
+   * Схема отчёта цеха живёт в данных (`result_fields`, `result_detail`), и форма
+   * сдачи закроя без них не рисуется. Патч действует на ОБА пути, которыми
+   * приезжают участки, — пакет оболочки и выборку `erp_departments`.
+   */
+  deptPatch?: Record<string, Record<string, unknown>>;
   deptsGate?: Promise<void>;
   /**
    * Держит ответ по настройкам производства (`erp_settings`). Отдельный гейт,
@@ -923,13 +937,22 @@ function pricesPatchAnswer(body: Record<string, unknown>, extra: MockExtras): un
   return { updated_at: catalogStamp() };
 }
 
+/** Участки фикстуры с полями спеки поверх (`MockExtras.deptPatch`) */
+function departmentsOf(extra: MockExtras): unknown[] {
+  const patch = extra.deptPatch;
+  if (!patch) return departmentsFx;
+  return departmentsFx.map((d) => (patch[d.code] ? { ...d, ...patch[d.code] } : d));
+}
+
 function dataForTable(table: string, params: URLSearchParams, extra: MockExtras): unknown[] {
   // Журнал заказа v4 и вложения запуска — мок J
   const v4 = v4Table(table, params, extra);
   if (v4) return v4;
+  const biz = bizTasksTable(table, params);
+  if (biz) return biz;
   switch (table) {
     case 'erp_departments':
-      return departmentsFx;
+      return departmentsOf(extra);
     /**
      * `orders` — таблица двух поколений. Order v4 (`fetchSalesOrders` и
      * `fetchSalesOrder`) ВСЕГДА шлёт `schema_version=eq.4`; v3-читатели
@@ -1108,6 +1131,8 @@ interface ChatMsg {
 const chatState: { messages: ChatMsg[] } = { messages: [] };
 
 export function resetChatMock(): void {
+  // Треды бизнес-задач — своя лента (`mock/bizTasksRpc.ts`), сбрасываются вместе
+  resetBizTasksMock();
   chatState.messages = [
     {
       ...CHAT_BASE,
@@ -1135,6 +1160,9 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
    */
   const v4 = v4Rpc(fn, body, extra as Parameters<typeof v4Rpc>[2], v4Ctx(extra));
   if (v4 !== undefined) return v4;
+  // Тред бизнес-задачи и её писатели — до веток чата сделки: `p_task_id` решает ленту
+  const biz = bizTasksRpc(fn, body);
+  if (biz !== undefined) return biz;
   switch (fn) {
     /** Справочники с защитой от затирания — см. `MockExtras.catalogs` */
     case 'catalog_put':
@@ -1197,7 +1225,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
     }
     case 'erp_bootstrap':
       return {
-        departments: departmentsFx,
+        departments: departmentsOf(extra),
         permissions: [],       // пусто → клиент падает на DEFAULT_PERMISSIONS
         dictionaries: extra.dictionaries ?? [],
         subcontracting: extra.subcontracting ?? [],
@@ -1228,7 +1256,7 @@ function dataForRpc(fn: string, body: Record<string, unknown>, extra: MockExtras
      * молчала бы ровно там, где эти действия и проверяются.
      */
     case 'erp_chat_directory':
-      return CHAT_PEOPLE;
+      return extra.chatDirectory ?? CHAT_PEOPLE;
 
     case 'erp_chat_page':
       return {

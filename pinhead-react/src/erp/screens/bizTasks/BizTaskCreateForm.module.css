@@ -1,0 +1,132 @@
+/* Форма создания бизнес-задачи (правки 19.10, п. 7): компактная, необязательное — под «Дополнительно» */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 640px;
+  padding: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Поле, подпись и ввод — тот же язык, что у примитива `Field` */
+.field { composes: field from '../../components/Field.module.css'; }
+.label { composes: label from '../../components/Field.module.css'; }
+.required { composes: required from '../../components/Field.module.css'; }
+.control { composes: control from '../../components/Field.module.css'; }
+.hint { composes: hint from '../../components/Field.module.css'; }
+
+.fixed {
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.kinds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.kindRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+}
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--control-h-md);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+.kind input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+
+.warn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--color-warning-ink);
+}
+
+.more {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--control-h-md);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+.more:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+.moreBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-left: var(--space-md);
+  border-left: 2px solid var(--border-light);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-left: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+}
+
+/* Подсказка людей — под полем, а не над ним, как у композера чата */
+.pickerWrap { position: relative; }
+.pickerWrap .below { top: calc(100% + var(--space-xs)); bottom: auto; }
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 760px) {
+  .form { padding: var(--space-md); }
+  .moreBody { padding-left: var(--space-sm); }
+}

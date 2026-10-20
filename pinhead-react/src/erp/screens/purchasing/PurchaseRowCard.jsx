@@ -6,7 +6,6 @@ import {
 } from './PurchaseFields';
 import { PURCHASE_FIELD_LABELS, PURCHASE_GROUPS, pricePerUnitLabel } from './purchaseLabels';
 import { PurchaseRowDetails } from './PurchaseRowDetails';
-import { ReceiptButton } from './ReceiptButton';
 import { useDictionary } from '../../store/useDictionary';
 
 /**
@@ -20,8 +19,8 @@ import { useDictionary } from '../../store/useDictionary';
  *
  * С ПРАВКИ 05.10 (п. 6) состав тот же, что у строки таблицы: материал и цвет,
  * поставщик, три количества («нужно по заказу / заказано поставщику /
- * принято складом»), цена, срок прихода, статус и действие — включая
- * переход к приёмке (п. 7). Артикул, источник, параметры ткани, сумма
+ * принято складом»), цена, срок прихода, статус и действие. Перехода
+ * к приёмке нет (правка 19.10): приёмку ведёт склад. Артикул, источник, параметры ткани, сумма
  * и поставки — в «Подробностях», теми же `PurchaseRowDetails`, что
  * раскрывает таблица.
  *
@@ -66,7 +65,6 @@ function PurchaseRowCardBase({ order, m, onUpdate, onOpenOptions, onConfirmStock
 
       <div className={styles.purchaseActions}>
         <StatusControl m={m} onConfirmStock={onConfirmStock} onSetStatus={onSetStatus} />
-        <ReceiptButton order={order} m={m} block />
       </div>
 
       <details className={styles.gridDetails} onToggle={(e) => setMore(e.currentTarget.open)}>

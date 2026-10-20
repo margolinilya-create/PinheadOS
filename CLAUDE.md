@@ -154,7 +154,9 @@ supabase/
 ├── migrations/              # SQL-миграции (Supabase CLI)
 ├── functions/               # edge-функции: storage-gc (уборка erp-attachments), order-files-gc (веха 8: отчёт о ничьих файлах заказа и флэтов)
 ├── probes/                  # пробы прав на бою (README там же)
-└── rollout/m8/              # файлы выкатки L/K/M (build.mjs), README, чек-лист включения CHECKLIST.md
+├── rollout/m8/              # файлы выкатки L/K/M (build.mjs), README, чек-лист включения CHECKLIST.md
+├── rollout/r1910a/          # правки 19.10, план A: README выкатки S1 → E1 → C1, откаты *_rollback.sql (сторож rollout1910a.test.ts)
+└── rollout/r1910b/          # правки 19.10, план B («Бизнес-задачи»): README выкатки T1 → T2 → фронт, откат T2 (сторож rollout1910b.test.ts)
 ```
 
 ## Роутинг
@@ -190,6 +192,7 @@ Env — тройка: `'0'`/`'false'` выключатель, `'1'`/`'true'` dev
 | `/load` | DeptLoad (загрузка цехов из плановых дат этапов) | Все |
 | `/gantt` | GanttScreen (этапы полосами во времени) | Все |
 | `/orders/:orderId/purchase-list` | PurchaseListPrint (печатный лист закупки) | Все |
+| `/biz-tasks`, `/biz-tasks/:taskId` | BizTasksScreen — «Бизнес-задачи» (правки 19.10, п. 7): «Мне / Поставленные мной / Наблюдаю», фильтры в адресе; карточка задачи (на ≤ 760 px — вкладки «Задача / Обсуждение / История / Файлы»); вкладка заказа — `/orders/:id?tab=tasks` | Все читают (`erp_is_member`); ставят сотрудники ERP, управляют — `biz_task.manage` по должности |
 | `/leftovers` | FabricLeftovers (остатки полотна по рулонам) | `warehouse.manage`, `material.receive`, `order.manage` |
 | `/purchasing`, `/warehouse`, `/subcontracting`, `/experimental` | Закупка, Склад, Подряд, Эксперим. цех | admin, director |
 | `/admin` | AdminScreen (пользователи, права, цеха, мощность, справочники, аварийный режим, заказы ТЗ, ошибки интерфейса) | admin, director |
@@ -284,12 +287,20 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 `erp_materials`. Таблицы и колонки — `docs/rules/pravila-shemy-erp-podrobno.md`;
 **журнал правок схемы по датам** (24.08–05.10) —
 `docs/rules/pravila-zhurnal-shemy-supabase-24-08-05-10.md`.
+**Бизнес-задачи (правки 19.10, план B; T1 `20261020090000`, T2 `20261020100000` — файлами, выкатка
+`supabase/rollout/r1910b/README.md`):** `erp_biz_tasks` (заказ, тип `delivery|purchase|other`, ответственный, срок
+`timestamptz`, статус `new|in_progress|paused|review|done|cancelled`, «Проверка постановщиком», результат, `client_key`),
+`erp_biz_task_watchers`, `_checklist`, `_events` (история и ключ напоминаний `(task_id, kind, due_at)`), `_seen`;
+`erp_orders.manager_id` (менеджер заказа, Р3); `erp_chat_threads.task_id` (тред задачи — `order_id = null`, CHECK
+«ровно один якорь из трёх»); `erp_order_attachments.biz_task_id` (вид `biz_task`); `erp_notifications.task_id`/
+`task_event_id` и виды `task_*`; publication — `erp_biz_tasks`, `erp_biz_task_events`; право `biz_task.manage`;
+`pg_cron` `erp-biz-task-reminders` раз в 15 минут.
 
 **Storage:**
 | Bucket | Назначение |
 |--------|-----------|
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
-| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read. С вехи 6+7 — копии ТЗ (`tz/v4-<попытка>/<группа>/v1-tz.pdf`) и макетов (`att/v4-<попытка>/<вид>/<uid>.<ext>`) при запуске заказа v4: пишет только `orderstudio/api/erpFiles.ts` (тип по сигнатуре байт из `ERP_FILE_TYPES`, SVG только очищенный, `upsert: false`, 409 — отказ), ключи без id заказа и номера; после запуска их видят все одобренные и любой со ссылкой |
+| `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read; лимит файла 30 МБ (`31457280`, миграция S1 правок 19.10; одна величина с `ATTACH_MAX_BYTES`, `TZ_MAX_BYTES` и писателями Order — сторож `attachmentLimits.test.ts`). С вехи 6+7 — копии ТЗ (`tz/v4-<попытка>/<группа>/v1-tz.pdf`) и макетов (`att/v4-<попытка>/<вид>/<uid>.<ext>`) при запуске заказа v4: пишет только `orderstudio/api/erpFiles.ts` (тип по сигнатуре байт из `ERP_FILE_TYPES`, SVG только очищенный, `upsert: false`, 409 — отказ), ключи без id заказа и номера; после запуска их видят все одобренные и любой со ссылкой |
 | `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`. Веха 6+7: PDF ТЗ — `orders/<id>/tz/<uuid>-<PH-…>-g<hash8>-c<hash12>-<модель>.pdf` (`uploadTzPdf`, только `%PDF-`, ≤ 8 МБ), новая версия — новый ключ, старые — история (уборка — веха 8) |
 | `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема; L1 плана 5а «delete неупомянутых версий» отменён решением К5 вехи 5б). Пишет только `orderstudio/api/garmentFlats.ts` (`uploadFlatSvgOnce`: «уже есть» сверяется содержимым), читает холст через `api/garmentFlatsRead.ts`; наполняет кнопка «Загрузить типовые флэты», новые версии — редактор флэта (стартовая версия — и по занятым `v<N>` в бакете). Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
 | `storage-backup` | Ночная копия бакетов выше (с вехи 5а — четырёх, `garment-flats` в `SOURCES`) (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
@@ -397,7 +408,8 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
   правка только в `draft` (`model/editable`); выход сбрасывает заказ и буфер (`registerAppReset`)
 - Новый импорт ERP-примитива в Order — сверять `npm run bundle:budget`: бюджет оболочки ERP
   держится на том, как Rollup режет чанки `ErpStates`/`ErpSkeletons` (запас ~200 Б на 18.10 после вехи 8:
-  194 797 / 195 000; ленивый экран с примитивами без `ErpStates` режет общий чанк — держать импорт `EmptyResult`,
+  194 797 / 195 000; на 19.10 после правок плана A — 195 057 / 196 000: `Button.ariaDisabledReason`
+  и `embroideryPhase` в ядре маршрута — потолок поднят до 196 000 решением Р6 (запас ≤ 1 000 Б — под «Бизнес-задачи», разбор — `design/README.md`, «Замеры 19.10»); ленивый экран с примитивами без `ErpStates` режет общий чанк — держать импорт `EmptyResult`,
   как `SkuItemsTab`/`OrderSettings`, или снимок CSS в модуль, как `ExpressCalc`)
 - **Статус, оплата и связь с ERP у v4 — только RPC** (`order_v4_transition` / `_launch_check` /
   `_set_payment`); прямую запись отклоняют стражи Order (`order_v4_guard` белым списком,
@@ -487,6 +499,23 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 - **ERP заморожен** (веха 1, 16.10): сторож `orderstudio/erpFrozen.test.ts` сверяет
   хэши `src/erp` и миграций ERP с `erpFrozen.json` и запрещает DDL по `erp_*` в новых
   миграциях. Правка ERP с согласия владельца — затем `npm run erp:freeze`
+- **Правки 19.10, план A** (владелец одобрил правку ERP; миграции S1 `20261019090000`, E1 `20261019100000`,
+  C1 `20261019110000` — файлами, выкатка `supabase/rollout/r1910a/README.md`): вышивка — одна строка в две фазы
+  по `result_kind` (переход только `erp_embroidery_program_finish`/`_skip`; фаза только у одиночной строки —
+  `erp_embroidery_is_phased` ↔ `utils/embroideryPhase.isProgramPhase(stage, siblings)`; тексты экранов —
+  `utils/embroideryPhaseText.ts`, вне оболочки); закрой — «Результат кроя» один раз (`report_roll_id = null`),
+  «Расход ткани» по рулонам (`utils/cutUsage.ts`), страж `erp_material_rolls`; блок по условию в ERP —
+  `Button ariaDisabledReason`. Подробно — `docs/rules/pravila-pravok-19-10.md`
+- **Бизнес-задачи (правки 19.10, план B): задачи пишут только RPC.** Таблицы `erp_biz_task*` у клиента — только
+  SELECT; пишут `security definer` `erp_biz_task_create/_transition/_update/_set_result/_checklist_op/_attach/_mark_seen`
+  (событие и уведомления — одной транзакцией, белый список ключей, `client_key`, версия `p_expected_updated_at` →
+  `P0001`); новая функция — `revoke` у всех, `grant` только писателю (сторож `bizTasksRpc.test.ts`). Переходы — одна
+  таблица `BIZ_TASK_TRANSITIONS` (`erp/utils/bizTasks.ts`) для SQL, клиента и матрицы пробы. `biz_task.manage` — только
+  по должности из `erp_employees` (`isBizTaskStaff`/`canManageBizTasks`), не по запасной роли профиля. Тред задачи —
+  якорь `task_id` и **`order_id = null`** (в поиски треда сделки не попадает), `erp_chat_send`/`erp_chat_page` с
+  `p_task_id` — по одной перегрузке; сообщения задачи уведомлений не создают, кроме `task_mention`. Файлы — только
+  `erp_biz_task_attach` (`biz_task_id`, restrictive-политика). Realtime — только звонок в существующем канале.
+  Подробно — `docs/rules/pravila-biznes-zadach-19-10.md`
 - **Order импортирует из ERP** только `erp/erp.module.css`, белый список примитивов
   `ERP_PRIMITIVES` (`erp/components`) и стор для моста (через шлюз `bridge/erpGateway.ts`) — сторож `erpImports.test.ts`
   (реэкспорт и динамический `import()` тоже считаются)
@@ -566,6 +595,8 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
 | `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (99 файлов, перенос 24.09) |
+| `supabase/rollout/r1910a/README.md` | **Правки 19.10, план A:** предусловия, порядок S1 → E1 → C1, откаты, триггеры, запрос «наследия» вышивки |
+| `supabase/rollout/r1910b/README.md` | **Правки 19.10, план B («Бизнес-задачи»):** предусловие «A выкачена», T1 → T2 → фронт, смоук чата и `pg_cron`, откат T2, триггеры |
 | `supabase/rollout/m8/CHECKLIST.md` | **Веха 8:** порядок выкатки L → фронт → K → M, триггеры отката, чек-лист «Готовность» и «Включение» |
 | `docs/DESIGN.md` | Дизайн-система (токены, компоненты, UX-правила) |
 | `docs/erp/*` | ERP: план, разборы таблицы/kontora24/ТЗ |

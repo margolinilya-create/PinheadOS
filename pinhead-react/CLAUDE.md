@@ -24,12 +24,13 @@ admin/director — Производство. Подробно — корнево
   orderPayload.ts (сборка payload правки и создания) — форма разрезана, 09.10);
   screens/queue/ — Lightbox/PhotoAttach/TzBlock/QueueCard/QueueRow (компактная строка)/
   StageActionsPanel + useStageActions (действия цеха, общие со страницей задания)/
-  MoveStageSelect (перенос в цех из панели)/CutRollsSection (закрой по рулонам;
-  кнопки судьбы остатка у рулонов «в работе» — 27.09 п. 2; «Фактический
-  расход, м», доступно/источник/≈кг, замер остатка и форма параметров
-  рулона при их отсутствии — 27.09 п. 4; с 05.10 п. 5 судьба остатка — только
-  окном RollFinishModal «Завершить рулон», в строке — исходный метраж/записано/доступно)
-  + CutSizeRows (размерные строки рулона, «записано N» у размера)/
+  MoveStageSelect (перенос в цех из панели)/форма закроя (правки 19.10):
+  useCutReport (состояние, ошибки, payload) + CutResultTable («Результат кроя» —
+  выпуск один раз по сетке позиции, «Размер вне заказа…») + CutUsageSection
+  («Расход ткани» — группы «материал · цвет», режимы «Не использован / Полностью /
+  Частично», «Использованы полностью», «Уточнить метраж рулона») + CutTotalsBar
+  (липкая полоса итогов, один role="status"); рулоны «в работе» прежних сдач —
+  окном RollFinishModal «Завершить рулон»/
   DefectWizard (мастер брака: 2 шага в Drawer);
   screens/DeptLoad.jsx — «Загрузка цехов» (/load): сетка «цех × день» из плановых дат этапов;
   screens/GanttScreen.jsx — «Гант» (/gantt): этапы полосами во времени, даты
@@ -53,6 +54,15 @@ admin/director — Производство. Подробно — корнево
   с экранов)/ChatNotifyMenu (режим подписки)/ChatReadReceipts («Прочитали N»);
   layout/NotificationCenter + layout/NoticePopups (центр и всплывающие под колоколом;
   очередь показа считает `utils/noticePopups`, первая загрузка сессии молчит);
+  «Бизнес-задачи» (правки 19.10, план B): screens/BizTasksScreen.jsx (`/biz-tasks` и `/biz-tasks/:taskId` —
+  один ленивый вход) + screens/bizTasks/ (BizTaskList, BizTaskCreateForm + PersonPicker, BizTaskCard — на ≤ 760 px
+  вкладки, BizTaskActions + диалоги перехода/срока/людей/описания, BizTaskChecklist, BizTaskHistory, BizTaskFiles,
+  bizTaskView/bizTaskCardView), вкладка заказа screens/orderCard/OrderBizTasksTab + useOrderBizTasks, менеджер
+  заказа OrderManagerField, предупреждение при отгрузке screens/useShipConfirm; модель и права — utils/bizTasks.ts
+  (`BIZ_TASK_TRANSITIONS`, `isBizTaskStaff`, `canManageBizTasks`, `bizTaskActions`, `isOverdue`), диалог задачи —
+  тот же ChatPanel с `taskId` (components/chat/useTaskChat + utils/bizTaskChat), стор — store/slices/bizTasksSlice.ts,
+  переход из уведомлений — utils/noticeNav (`inAppLink`). Пишут только RPC `erp_biz_task_*`; правила —
+  `docs/rules/pravila-biznes-zadach-19-10.md`;
   screens/admin/ — PermissionsTab (матрица прав)/DictionariesTab (справочники + статусы r/o)/
   SkuCatalogTab (каталог моделей: сетка, поиск и фильтры в адресе)/
   InviteModal (выдача ссылок)/UserModal (карточка учётной записи: имя, логин, пароль, удаление);
@@ -82,7 +92,8 @@ admin/director — Производство. Подробно — корнево
   useForeignRolls (остатки других заказов для формы закроя),
   ErpKanban + kanban/ KanbanCard/useTouchDndPolyfill, InlineEdit, PageHead, ErpSkeletons,
   ErpStates (LoadFailed/EmptyResult/EmptyState — единые состояния раздела, вид в States.module.css),
-  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button, Field (свои *.module.css),
+  Icon + icons.js (свой SVG-набор 48 иконок вместо эмодзи), Button (`ariaDisabledReason` — блок по условию
+  с причиной, правки 19.10), Field (свои *.module.css),
   RouteProgress (маршрут в штуках), QueueFilters, DictionaryDatalist, TzViewer (PDF в iframe) +
   редизайн-примитивы: Badge/Drawer/Pagination/FilterBar/Stepper/Pipeline), store/ (composition-root
   useErpStore.ts + слайсы в slices/ + useOrderDrawer.ts (боковая карточка) + useErpSearch.ts (глоб. поиск)
@@ -102,7 +113,10 @@ admin/director — Производство. Подробно — корнево
   stageInput (выход этапа = факт, прозрачный этап, itemProducedQty — 05.10)/progress/filterStages/queueEntries/queueOrder/
   stageMove/permissions/kanbanDrop/stageDone/tz + tzFile/deptLoad/planCard/planDay/
   sizeGrid (схлопывает дубли `(цвет, размер)` при ЧТЕНИИ — один раз на пятерых
-  читателей)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
+  читателей)/cutUsage (+ cutUsage.examples — модель «Расхода ткани» 19.10: три режима рулона,
+  payload без размеров, средний по материалу)/embroideryPhase (фаза вышивки одной строки, зеркало
+  `erp_embroidery_is_phased`; тексты экранов — embroideryPhaseText)/fileLimitText («До 30 МБ на один файл»,
+  сводка пачки)/cutRolls (расход в метрах, доступно по рулону, тексты отказов
   общие с RPC)/cutExtras (производственный «плюс», накопительно)/
   rollFinish (сводка метража рулона в закройке и план завершения рулона:
   замер → уточнение полного метража, 05.10 п. 5)/

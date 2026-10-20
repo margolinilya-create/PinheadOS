@@ -51,3 +51,41 @@ describe('Button', () => {
     expect(screen.getByTestId('b')).toHaveAttribute('title', 'Подсказка');
   });
 });
+
+/**
+ * БЛОК ПО УСЛОВИЮ — `aria-disabled` С ВИДИМОЙ ПРИЧИНОЙ (правило вехи 6+7,
+ * правки 19.10). Кнопка остаётся в порядке Tab и объявляется читалкой
+ * вместе с причиной; `disabled` — только на время запроса.
+ */
+describe('Button — ariaDisabledReason', () => {
+  it('aria-disabled, причина описанием и видимым текстом, клик не зовёт обработчик', () => {
+    const onClick = vi.fn();
+    render(
+      <Button ariaDisabledReason="Приложите файл программы" onClick={onClick}>Программа готова</Button>,
+    );
+    const btn = screen.getByRole('button', { name: 'Программа готова' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAccessibleDescription(/Приложите файл программы/);
+    expect(screen.getByText('Приложите файл программы')).toBeVisible();
+    fireEvent.click(btn);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('во время loading — обычный disabled без причины', () => {
+    render(<Button loading ariaDisabledReason="Приложите файл программы">Программа готова</Button>);
+    const btn = screen.getByRole('button', { name: 'Программа готова' });
+    expect(btn).toBeDisabled();
+    expect(btn).not.toHaveAttribute('aria-disabled');
+    expect(screen.queryByText('Приложите файл программы')).toBeNull();
+  });
+
+  it('без причины — обычная кнопка', () => {
+    const onClick = vi.fn();
+    render(<Button ariaDisabledReason="" onClick={onClick}>Ок</Button>);
+    const btn = screen.getByRole('button', { name: 'Ок' });
+    expect(btn).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(btn);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});

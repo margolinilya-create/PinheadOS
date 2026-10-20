@@ -18,6 +18,14 @@ on:
         description: 'Which visual snapshots to update (--grep), default studio-'
         type: string
         default: 'studio-'
+      # Осознанное разрешение переснять эталоны вне `studio-` (правки 19.10, решение владельца):
+      # без флажка сторож ниже валит коммит, тронувший не-`studio-`, как раньше; с флажком
+      # пропускает ещё и эталоны, чьё имя начинается с `snapshots_grep`. Если при флажке
+      # `snapshots_grep` оставлен по умолчанию (`studio-`), берётся `erp-`
+      allow_erp_snapshots:
+        description: 'Allow committing snapshots matching snapshots_grep outside studio- (e.g. erp-)'
+        type: boolean
+        default: false
 
 # Новый пуш в ту же ветку отменяет прогон предыдущего: результат по
 # устаревшему коммиту никому не нужен, а минуты раннера — общие
@@ -205,7 +213,7 @@ jobs:
       # прежняя `--update-snapshots` без фильтра переписывала ВСЕ эталоны, и любой
       # сдвиг ERP молча узаконивался бы вместе с правками раздела заказа
       - env:
-          GREP: ${{ inputs.snapshots_grep || 'studio-' }}
+          GREP: ${{ (inputs.allow_erp_snapshots && (inputs.snapshots_grep == '' || inputs.snapshots_grep == 'studio-')) && 'erp-' || inputs.snapshots_grep || 'studio-' }}
         run: |
           if [ "${{ inputs.update_snapshots }}" = "true" ]; then
             npx playwright test e2e/visual.spec.ts --update-snapshots --grep "$GREP"
@@ -217,6 +225,9 @@ jobs:
       # выкатывал их в прод, потому что деплоит на push независимо от CI.
       - name: Commit updated snapshots
         if: ${{ inputs.update_snapshots == true }}
+        env:
+          GREP: ${{ (inputs.allow_erp_snapshots && (inputs.snapshots_grep == '' || inputs.snapshots_grep == 'studio-')) && 'erp-' || inputs.snapshots_grep || 'studio-' }}
+          ALLOW_ERP: ${{ inputs.allow_erp_snapshots }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -226,7 +237,8 @@ jobs:
           # Сторож (веха 8, задача 9): коммит пересъёмки не трогает ни один
           # эталон вне `studio-` — иначе это узаконенный сдвиг ERP. До push:
           # красный шаг не отправляет коммит в ветку
-          changed=$(git diff --name-only HEAD~1 HEAD -- e2e/visual.spec.ts-snapshots | grep -v '/studio-' || true)
+          # С флажком `allow_erp_snapshots` пропускаются и эталоны с префиксом `snapshots_grep`
+          changed=$(git diff --name-only HEAD~1 HEAD -- e2e/visual.spec.ts-snapshots | grep -v '/studio-' | { if [ "${ALLOW_ERP:-false}" = "true" ] && [ -n "${GREP:-}" ]; then grep -v "/${GREP}" || true; else cat; fi; } || true)
           if [ -n "$changed" ]; then
             echo "::error::Пересъёмка тронула эталоны вне studio-: $changed"
             exit 1

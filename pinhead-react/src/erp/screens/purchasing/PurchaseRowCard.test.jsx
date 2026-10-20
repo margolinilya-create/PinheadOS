@@ -276,35 +276,19 @@ describe('строка закупки карточкой (планшет)', () =
   });
 
   /**
-   * ПЕРЕХОД К ПРИЁМКЕ (правка 05.10, п. 7): «для ожидаемой поставки
-   * „Принять поставку", для принятой „Открыть приёмку"… Если приёмка уже
-   * есть — открывать её, а не создавать ещё одну».
+   * ПРИЁМКА — ТОЛЬКО НА СКЛАДЕ (правка 19.10). Кнопка «Принять поставку» /
+   * «Открыть приёмку» из закупки убрана: закупщик видит, сколько принято,
+   * но саму приёмку ведёт кладовщик на экране «Склад».
    */
-  it('задачи приёмки ещё нет — кнопка погашена и объясняет почему', () => {
-    renderCard();
-    expect(screen.getByRole('button', { name: 'Принять поставку' })).toBeDisabled();
-    expect(screen.getByText('Задача приёмки появится, когда поставка будет в пути')).toBeInTheDocument();
-  });
-
-  it('поставка в пути — «Принять поставку» ведёт в задачу этой позиции на складе', () => {
-    renderCard({ ...MATERIAL, status: 'in_transit' }, {
+  it('в строке материала нет «Принять поставку» и «Открыть приёмку», принятое количество видно', () => {
+    renderCard({ ...MATERIAL, status: 'in_transit', qty_received: 40 }, {
       ...ORDER,
       warehouse_tasks: [{ id: 'wt-9', task_type: 'material_receipt', material_id: 'm1', status: 'awaiting' }],
     });
-    const link = screen.getByRole('link', { name: 'Принять поставку: Футер 3-нитка' });
-    const href = new URL(link.getAttribute('href'), 'http://x');
-    expect(href.pathname).toBe('/warehouse');
-    expect(href.searchParams.get('task')).toBe('wt-9');
-    expect(href.searchParams.get('from')).toBe('purchasing');
-    expect(href.searchParams.get('supply')).toBe('o1');
-  });
-
-  it('принятая поставка — «Открыть приёмку» той же задачи', () => {
-    renderCard({ ...MATERIAL, status: 'received', qty_received: 100 }, {
-      ...ORDER,
-      warehouse_tasks: [{ id: 'wt-9', task_type: 'material_receipt', material_id: 'm1', status: 'accepted' }],
-    });
-    const link = screen.getByRole('link', { name: 'Открыть приёмку: Футер 3-нитка' });
-    expect(link.getAttribute('href')).toContain('task=wt-9');
+    expect(screen.queryByRole('link', { name: /Принять поставку|Открыть приёмку/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Принять поставку|Открыть приёмку/ })).toBeNull();
+    expect(screen.queryByText('Задача приёмки появится, когда поставка будет в пути')).toBeNull();
+    expect(screen.getByText(PURCHASE_FIELD_LABELS.qtyReceived)).toBeInTheDocument();
+    expect(screen.getByText('40 м')).toBeInTheDocument();
   });
 });

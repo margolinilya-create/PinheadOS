@@ -1,7 +1,7 @@
 {
   "$comment": "Снимок журнала supabase_migrations.schema_migrations боевой базы. Сторож — pinhead-react/src/erp/utils/migrationJournal.test.ts. ОБНОВЛЯТЬ ПОСЛЕ КАЖДОЙ ВЫКЛАДКИ: порядок в supabase/migrations/README.md",
   "project": "pinhead-os-v2",
-  "capturedAt": "2026-10-13",
+  "capturedAt": "2026-10-18",
   "preJournalFiles": [
     "20260101000000_baseline_order_studio.sql",
     "20260101000100_order_templates.sql",
@@ -2543,6 +2543,41 @@
       "name": "catalog_legacy_keys",
       "files": [
         "20261018170000_catalog_legacy_keys.sql"
+      ]
+    },
+    {
+      "version": "20261019090000",
+      "name": "erp_attach_30mb_passport_optional",
+      "files": [
+        "20261019090000_erp_attach_30mb_passport_optional.sql"
+      ]
+    },
+    {
+      "version": "20261019100000",
+      "name": "erp_embroidery_one_stage",
+      "files": [
+        "20261019100000_erp_embroidery_one_stage.sql"
+      ]
+    },
+    {
+      "version": "20261019110000",
+      "name": "erp_cut_result_once",
+      "files": [
+        "20261019110000_erp_cut_result_once.sql"
+      ]
+    },
+    {
+      "version": "20261020090000",
+      "name": "erp_biz_tasks_schema",
+      "files": [
+        "20261020090000_erp_biz_tasks_schema.sql"
+      ]
+    },
+    {
+      "version": "20261020100000",
+      "name": "erp_biz_tasks_rpc",
+      "files": [
+        "20261020100000_erp_biz_tasks_rpc.sql"
       ]
     }
   ]

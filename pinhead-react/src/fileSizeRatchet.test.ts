@@ -40,20 +40,20 @@ const EXEMPT: Record<string, string> = {
 /** Размеры на 24.09 — только вниз */
 const CEILINGS: Record<string, number> = {
   'erp/screens/orders/CreateOrderModal.jsx': 955,
-  'erp/store/slices/stagesSlice.ts': 889,
+  'erp/store/slices/stagesSlice.ts': 886,
   'erp/utils/orderForm.ts': 635,
   'erp/utils/experimentalBoard.ts': 821,
-  'erp/screens/OrdersScreen.jsx': 793,
+  'erp/screens/OrdersScreen.jsx': 791,
   'erp/screens/experimental/DevCard.jsx': 790,
   'erp/screens/Experimental.jsx': 734,
   'erp/screens/PlanScreen.jsx': 722,
   'erp/store/slices/orderWriteSlice.ts': 573,
   'erp/screens/DepartmentQueue.jsx': 653,
-  'erp/utils/routeDraft.ts': 624,
-  'erp/utils/routes.ts': 618,
+  'erp/utils/routeDraft.ts': 620,
+  'erp/utils/routes.ts': 589,
   'store/useAuthStore.ts': 551,
   'erp/screens/ErpDashboard.jsx': 560,
-  'erp/screens/queue/StageActionsPanel.jsx': 532,
+  'erp/screens/queue/StageActionsPanel.jsx': 531,
 };
 
 const SRC = join(process.cwd(), 'src');

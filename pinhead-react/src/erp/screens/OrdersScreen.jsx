@@ -39,6 +39,7 @@ import { sortRows, nextSortState } from '../utils/tableSort';
 import { Button } from '../components/Button';
 import { buildOrderNow } from '../utils/orderNow';
 import { createAttemptKeeper } from '../utils/attemptKey';
+import { useShipConfirm } from './useShipConfirm';
 import { formatDateCell } from '../utils/format';
 
 export default function OrdersScreen() {
@@ -408,25 +409,22 @@ export default function OrdersScreen() {
    * со склада, остаток из списка» — это две разные попытки, а не повтор одной.
    */
   const shipAttempt = useRef(createAttemptKeeper());
+  const confirmShip = useShipConfirm();
   const [shippingId, setShippingId] = useState(null);
 
   const onShip = useCallback(async (order) => {
     // Второй клик гасится ДО подтверждения: `confirm` асинхронный, и без
     // этой проверки два диалога встают друг на друга.
     if (shippingId) return;
-    const ok = await confirm({
-      title: `Отгрузить заказ «${order.title}»?`,
-      message: 'Заказ уйдёт в архив.',
-      confirmLabel: 'Отгрузить',
-    });
-    if (!ok) return;
+    // Открытые бизнес-задачи — списком в вопросе, но не блоком (правки 19.10, п. 7)
+    if (!(await confirmShip(order, { message: 'Заказ уйдёт в архив.' }))) return;
     setShippingId(order.id);
     const done = await shipOrder(order.id, undefined, {
       clientKey: shipAttempt.current.keyFor(order.id),
     });
     if (done) shipAttempt.current.reset();
     setShippingId(null);
-  }, [shippingId, shipOrder]);
+  }, [shippingId, shipOrder, confirmShip]);
 
   return (
     <>

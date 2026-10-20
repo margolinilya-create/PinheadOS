@@ -17,7 +17,7 @@ import {
   scheduleExperimentalReload,
   scheduleFullReload,
   scheduleOrderReload,
-  schedulePing,
+  schedulePing, scheduleTaskPing,
 } from '../realtimeCoalesce';
 import { findStage, patchStageIn, withNewWorkToast } from '../orderHelpers';
 import { resyncRealtime } from './realtimeResync';
@@ -85,6 +85,7 @@ const REALTIME_TABLES = [
    * свои записи до перезагрузки страницы.
    */
   { table: 'erp_calendar_slots' },
+  { table: 'erp_biz_tasks' }, { table: 'erp_biz_task_events' }, // бизнес-задачи — звонок, как у чата
 ];
 
 /** Дочерние массивы заказа, обновляемые точечно по realtime (не трогая этапы) */
@@ -385,7 +386,7 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * только вместе с доменным чанком, поэтому читатель у звонка всегда есть.
      */
     if (ev.table === 'erp_chat_messages') {
-      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      schedulePing((t) => set({ chatPing: get().chatPing + 1, chatPingThreads: t }), (ev.new?.thread_id as string) ?? null);
       return;
     }
 
@@ -396,10 +397,11 @@ export const realtimeSlice: StateCreator<ErpStore, [], [], RealtimeSlice> = (set
      * (а `mine` в событии вообще нет — оно про чужую строку).
      */
     if (ev.table === 'erp_chat_reactions') {
-      schedulePing(() => set({ chatPing: get().chatPing + 1 }));
+      schedulePing((t) => set({ chatPing: get().chatPing + 1, chatPingThreads: t }));
       return;
     }
 
+    if (ev.table === 'erp_biz_tasks' || ev.table === 'erp_biz_task_events') return scheduleTaskPing(() => set({ bizTaskPing: get().bizTaskPing + 1 }));
     // Неизвестная таблица — старый путь
     fullReload();
   },

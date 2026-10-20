@@ -141,6 +141,15 @@ test('visual: erp-queue', async ({ page }) => {
 test('visual: erp-order-card', async ({ page }) => {
   await page.goto('/orders/ord-a?studio=0');
   await expect(page.getByRole('heading', { name: /BOX39 худи чёрные/ })).toBeVisible();
+  /*
+   * СТРАНИЦА НЕ ШИРЕ ОКНА (правки 19.10). Скрытая подпись вкладки
+   * «Бизнес-задачи, открытых: N» (`.visuallyHidden`, absolute) без опоры
+   * на саму вкладку позиционировалась от оболочки и распирала карточку
+   * на 375 px до 737 px — `fullPage` молча снял бы эталон двойной ширины.
+   */
+  await expect(page.getByText('Бизнес-задачи, открытых: 1')).toBeAttached();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
   await shoot(page, 'erp-order-card');
 });
 
@@ -190,6 +199,34 @@ test('visual: erp-admin-roles', async ({ page }) => {
   await page.goto('/admin?tab=roles&studio=0');
   await expect(page.getByRole('heading', { name: 'Админка' })).toBeVisible();
   await shoot(page, 'erp-admin-roles');
+});
+
+/**
+ * Бизнес-задачи (правки 19.10, п. 7): общий раздел и карточка фикстурной задачи
+ * `bt-1` (мок `support/mock/bizTasksRpc.ts`). Эталоны снимает владелец: имя
+ * начинается с `erp-`, а CI по умолчанию переснимает только `studio-` (К13 вехи 8).
+ */
+test('visual: erp-biz-tasks', async ({ page }) => {
+  skipUntilBaseline('erp-biz-tasks');
+  await page.goto('/biz-tasks?studio=0');
+  await expect(page.getByRole('heading', { level: 1, name: 'Бизнес-задачи' })).toBeVisible();
+  // Фильтры и вкладки; список «Мне» у dev-автологина пуст (`currentUserId()` гасит id `dev`)
+  await expect(page.getByRole('tablist', { name: 'Мои задачи' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Статус' })).toBeVisible();
+  await shoot(page, 'erp-biz-tasks');
+});
+
+test('visual: erp-biz-tasks-card', async ({ page }) => {
+  skipUntilBaseline('erp-biz-tasks-card');
+  await page.goto('/biz-tasks/bt-1?studio=0');
+  await expect(page.getByRole('heading', { level: 1, name: 'Заказать молнии' })).toBeVisible();
+  // На ≤ 760 px диалог — за вкладкой «Обсуждение»: снимается вкладка «Задача»
+  if ((page.viewportSize()?.width ?? 1280) > 760) {
+    await expect(page.getByText('Уточни срок у поставщика')).toBeVisible();
+  } else {
+    await expect(page.getByRole('tablist', { name: 'Разделы задачи' })).toBeVisible();
+  }
+  await shoot(page, 'erp-biz-tasks-card');
 });
 
 // ─── Order Studio (каталог) — флаг включён (?studio=1) ───

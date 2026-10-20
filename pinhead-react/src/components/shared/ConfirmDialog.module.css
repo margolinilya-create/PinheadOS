@@ -37,6 +37,8 @@
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 20px;
+  /* Список строками (открытые бизнес-задачи при отгрузке, правки 19.10, п. 7) */
+  white-space: pre-line;
 }
 
 .actions {

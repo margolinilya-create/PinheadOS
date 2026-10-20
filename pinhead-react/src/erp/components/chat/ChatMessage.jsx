@@ -49,6 +49,12 @@ export function ChatMessage({
    * потому что прочитанным считается сообщение, а не лента.
    */
   observeRef,
+  /**
+   * Диалог бизнес-задачи (правки 19.10, п. 7): `onMarkResult` приходит только
+   * для своего живого сообщения ответственного (`canMarkAsResult`), `isResult` —
+   * это сообщение уже зафиксировано результатом задачи.
+   */
+  onMarkResult, isResult = false,
 }) {
   // Системное сообщение (правка 01.10, п. 5) — без автора: подпись «ERP»,
   // ответить на него можно, править и удалять — нет
@@ -92,6 +98,7 @@ export function ChatMessage({
         {/* «Вас упомянули» видно В ЛЕНТЕ, а не только в колоколе: человек
             приходит по ссылке и должен понять, ради чего его позвали */}
         {mentioned && <span className={styles.chatMsgMention}>вам</span>}
+        {isResult && <span className={styles.chatMsgResult}>Результат</span>}
         {/* «изменено» — рядом со временем, а не вместо него: важен и момент
             отправки, и факт правки (полная дата правки — в подсказке) */}
         {message.edited_at && !deleted && (
@@ -110,6 +117,15 @@ export function ChatMessage({
               onClick={() => onReply(message)}
             >
               Ответить
+            </button>
+          )}
+          {onMarkResult && !deleted && !isResult && (
+            <button
+              type="button"
+              className={styles.chatMsgReply}
+              onClick={() => onMarkResult(message)}
+            >
+              Отметить как результат
             </button>
           )}
           {/* Правка и удаление — только у своего и только пока оно живо.

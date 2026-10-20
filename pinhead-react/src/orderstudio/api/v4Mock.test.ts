@@ -180,14 +180,14 @@ describe('sales_set_staff и erp-attachments', () => {
     expect(staff[1].is_ms).toBe(true);
   });
 
-  it('erp-attachments: повтор ключа — 409 даже без карты объектов, больше 20 МБ — 413, счёт по попытке', () => {
+  it('erp-attachments: повтор ключа — 409 даже без карты объектов, больше 30 МБ — 413, счёт по попытке', () => {
     const e: MockExtras = {};
     const key = 'erp-attachments/tz/v4-1f0e2d3c-4b5a-4968-8776-655443322110/g/v1-tz.pdf';
     expect(mock.storageWrite(key, 'application/pdf', Buffer.from('%PDF-'), undefined, e).status).toBe(200);
     const dup = mock.storageWrite(key, 'application/pdf', Buffer.from('%PDF-'), undefined, e);
     expect(dup.status).toBe(400);
     expect(dup.body).toMatchObject({ statusCode: '409', error: 'Duplicate' });
-    const big = mock.storageWrite(`${key}.2`, 'application/pdf', Buffer.alloc(20 * 1024 * 1024 + 1), undefined, e);
+    const big = mock.storageWrite(`${key}.2`, 'application/pdf', Buffer.alloc(30 * 1024 * 1024 + 1), undefined, e);
     expect(big.status).toBe(413);
     expect(erpUploadsByAttempt(e).get('1f0e2d3c-4b5a-4968-8776-655443322110')).toBe(1);
   });

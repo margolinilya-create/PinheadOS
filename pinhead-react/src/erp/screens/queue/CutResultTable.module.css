@@ -1,0 +1,72 @@
+/* «Результат кроя» — выпуск один раз по сетке позиции (правки 19.10, Р5) */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: 600;
+  color: var(--text);
+}
+.warn {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  color: var(--color-warning-ink);
+}
+.table {
+  width: 100%;
+  max-width: 520px;
+  border-collapse: collapse;
+  font-size: var(--type-body-sm);
+}
+.table th,
+.table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+  vertical-align: middle;
+}
+.table thead th {
+  font-size: var(--type-label);
+  font-weight: 500;
+  color: var(--text-mid);
+}
+.size { font-weight: 600; color: var(--text); }
+.num { font-family: var(--mono); color: var(--text-mid); }
+.sub { font-size: var(--type-label); font-weight: 400; color: var(--text-dim); }
+.input {
+  width: 100%;
+  max-width: 120px;
+  min-height: var(--control-h-md);
+  padding: 0 10px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--type-body-sm);
+}
+.input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.input[aria-invalid='true'] { border-color: var(--color-error); }
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+.field { display: flex; flex-direction: column; gap: var(--space-xs); }
+.label { font-size: var(--type-label); font-weight: 500; color: var(--text-mid); }
+.error { flex-basis: 100%; font-size: var(--type-label); font-weight: 500; color: var(--color-error-ink); }
+
+/* Телефон: таблица на всю ширину, поле количества — по своему содержимому */
+@media (max-width: 760px) {
+  .table { max-width: none; }
+}

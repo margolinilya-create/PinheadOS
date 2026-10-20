@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import { StageReportForm } from './StageReportForm';
 import { useErpStore } from '../store/useErpStore';
+import { attemptKeyFor } from '../store/attempts';
+import { useConfirmStore } from '../../store/useConfirmStore';
 import { attachDomainSlices } from '../store/domainSlices';
+import { reportTotals } from '../utils/reportTotals';
 
 attachDomainSlices();
 
@@ -431,9 +434,7 @@ describe('швейка: размеры и стоимость сборки без
  * В `ORDER_LIST_SELECT` нет `items.size_grid`, а рулоны туда не входили
  * никогда. Обе вещи приезжали `undefined`, и обе ломались молча: закрой
  * предлагал стандартную шкалу и писал «у позиции нет размерной сетки»
- * на позиции, где она заполнена, а список рулонов оказывался пустым —
- * «после добавления одного рулона система ошибочно считает, что все
- * принятые рулоны уже в списке».
+ * на позиции, где она заполнена, а список рулонов оказывался пустым.
  */
 describe('форма сдачи дозагружает полный заказ', () => {
   const CUTTING = {
@@ -469,8 +470,8 @@ describe('форма сдачи дозагружает полный заказ',
       item_id: null,
       accept_status: 'accepted_full',
       rolls: [
-        { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_stock' },
-        { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock' },
+        { id: 'r-1', seq: 1, label: 'Рулон №1', status: 'in_stock', length_m: 30, length_left_m: 30 },
+        { id: 'r-2', seq: 2, label: 'Рулон №2', status: 'in_stock', length_m: 30, length_left_m: 30 },
       ],
     }],
   };
@@ -486,7 +487,10 @@ describe('форма сдачи дозагружает полный заказ',
       useErpStore.setState({ orders: [fullOrder], detailIds: ['o-cut'] });
       return fullOrder;
     });
-    useErpStore.setState({ orders: [listOrder], detailIds: [], loadOne });
+    useErpStore.setState({
+      orders: [listOrder], detailIds: [], loadOne,
+      fabricLeftovers: [], loadFabricLeftovers: vi.fn(async () => []), loadOrderForeignRolls: vi.fn(async () => []),
+    });
     render(
       <StageReportForm
         entry={entryOf(listOrder)}
@@ -502,34 +506,25 @@ describe('форма сдачи дозагружает полный заказ',
   it('листовой заказ дотягивается, а не выдаётся за полный', async () => {
     const { loadOne } = setup();
     expect(loadOne).toHaveBeenCalledWith('o-cut');
-    // До ответа секция молчит, а не врёт «склад ещё не принял рулоны»
-    expect(screen.queryByText(/Склад ещё не принял рулоны/)).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /Добавить рулон/ })).toBeEnabled();
+    // До ответа секция молчит, а не врёт «склад ещё не принял ткань»
+    expect(screen.queryByText(/Склад ещё не принял/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('radiogroup', { name: 'Рулон №1 — использование' })).toBeInTheDocument();
   });
 
-  it('рулоны приёмки видны в селекте, а размеры берутся из сетки позиции', async () => {
+  it('оба принятых рулона в «Расходе ткани», а размеры — из сетки позиции', async () => {
     setup();
-    fireEvent.click(await screen.findByRole('button', { name: /Добавить рулон/ }));
-
-    // Оба принятых рулона — в выборе, а не один
-    const roll = screen.getByLabelText('Рулон, строка 1');
-    expect(within(roll).getByRole('option', { name: /Рулон №1/ })).toBeInTheDocument();
-    expect(within(roll).getByRole('option', { name: /Рулон №2/ })).toBeInTheDocument();
-    // Добавили один — второй остаётся свободным
-    expect(screen.queryByText('Все принятые рулоны уже в списке')).not.toBeInTheDocument();
-
-    // Размер подписан количеством ИЗ ЗАКАЗА, а не взят из стандартной шкалы
-    const size = screen.getByLabelText('Размер, строка 1');
-    expect(within(size).getByRole('option', { name: 'XS (в заказе 200)' })).toBeInTheDocument();
+    expect(await screen.findByRole('radiogroup', { name: 'Рулон №2 — использование' })).toBeInTheDocument();
+    const row = screen.getByRole('row', { name: /^XS/ });
+    expect(row).toHaveTextContent('200');
+    expect(screen.queryByText(/У позиции нет размерной сетки/)).not.toBeInTheDocument();
   });
 });
 
 /**
- * ЗАПИСЬ ПАРТИИ ЗАКРОЯ (правка заказчика 05.10, п. 5): «Из метража вычитать
- * весь сохранённый расход; остаток на экране = проверке при сохранении.
- * Расход больше остатка нельзя… двойной клик не списывает ещё 40».
+ * СДАЧА ЗАКРОЯ (правки 19.10, «Закрой»): выпуск один раз таблицей, расход —
+ * режимами рулона, брак и комментарий — общие поля формы.
  */
-describe('запись партии закроя (05.10, п. 5)', () => {
+describe('сдача закроя — результат один раз, расход по рулонам', () => {
   const CUTTING = {
     id: 'd-cut', name: 'Закройный', result_detail: 'rolls', allows_over_plan: true,
     result_fields: [
@@ -537,67 +532,161 @@ describe('запись партии закроя (05.10, п. 5)', () => {
       { code: 'defect', label: 'Брак', unit: 'шт', required: false, target: 'qty_defect' },
     ],
   };
-  /** 111,11 м, уже списано 40 — сервер ведёт доступное 71,11 */
+  const roll = (id, seq, left) => ({
+    id, seq, label: `Рулон №${seq}`, status: 'in_stock', qty: 20,
+    length_m: left, length_source: 'supplier', length_left_m: left, kg_per_m: 0.4,
+  });
   const order = {
     id: 'o-5', title: 'Заказ',
-    items: [{ id: 'it-5', qty: 100, stages: [], size_grid: [{ color: '—', sizes: { XS: 100 } }] }],
-    materials: [{
-      id: 'm-5', kind: 'fabric', name: 'Футер', item_id: null, accept_status: 'accepted_full',
-      rolls: [{
-        id: 'r-5', seq: 1, label: 'Рулон №1', status: 'in_use', qty: 50,
-        length_m: 111.11, length_source: 'calc', length_left_m: 71.11, kg_per_m: 0.45,
-      }],
-    }],
+    items: [{ id: 'it-5', qty: 100, stages: [], size_grid: [{ color: 'чёрный', sizes: { S: 50, M: 50 } }] }],
+    materials: [
+      {
+        id: 'm-f', kind: 'fabric', name: 'Футер', color: 'чёрный', item_id: null, accept_status: 'accepted_full',
+        rolls: [roll('r-1', 1, 50), roll('r-2', 2, 50), roll('r-3', 3, 50)],
+      },
+      {
+        id: 'm-r', kind: 'fabric', name: 'Рибана', color: 'чёрный', item_id: null, accept_status: 'accepted_full',
+        rolls: [roll('r-9', 9, 10)],
+      },
+    ],
   };
   const entry = {
     order, item: order.items[0],
     stage: { id: 'st-5', item_id: 'it-5', department_id: 'd-cut', qty_done: 0, depends_on: [], status: 'in_progress' },
   };
 
-  function setup(onSubmit) {
+  function setup(onSubmit = vi.fn(async () => true), orders = [order]) {
     const loadFabricLeftovers = vi.fn(async () => []);
     useErpStore.setState({
-      orders: [order], detailIds: ['o-5'], fabricLeftovers: [],
+      orders, detailIds: ['o-5'], fabricLeftovers: [],
       loadFabricLeftovers, loadOrderForeignRolls: vi.fn(async () => []),
     });
     render(
       <StageReportForm entry={entry} dept={CUTTING} busy={false} onSubmit={onSubmit} onCancel={vi.fn()} />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /Добавить рулон/ }));
-    fireEvent.change(screen.getByLabelText('Скроено, шт, размер XS, строка 1'), { target: { value: '10' } });
-    return { loadFabricLeftovers };
+    return { onSubmit, loadFabricLeftovers };
   }
+  const mode = (seq, name) => fireEvent.click(
+    within(screen.getByRole('radiogroup', { name: `Рулон №${seq} — использование` })).getByRole('radio', { name }),
+  );
+  const fill = () => {
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Скроено, шт — S' }), { target: { value: '40' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Скроено, шт — M' }), { target: { value: '60' } });
+  };
 
-  it('доступно — метраж минус весь сохранённый расход', () => {
-    setup(vi.fn());
-    expect(screen.getByText(/Исходный метраж/)).toHaveTextContent('записано расходом 40,00 м · доступно 71,11 м');
+  it('один вызов: sizes из таблицы, rolls только отмеченные, брак и комментарий один раз', async () => {
+    const { onSubmit } = setup();
+    fill();
+    mode(1, 'Полностью');
+    mode(2, 'Частично');
+    fireEvent.change(screen.getByLabelText('Остаток, м — рулон №2'), { target: { value: '12' } });
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рулон №2 — остаток' }))
+      .getByRole('radio', { name: 'Остаток пригоден' }));
+    expect(screen.getAllByLabelText(/^Брак/)).toHaveLength(1);
+    expect(screen.queryByLabelText(/^Скроено, шт$/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^Брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText('что именно пошло не так'), { target: { value: 'пятно' } });
+    fireEvent.click(screen.getByRole('button', { name: /Сдать результат/ }));
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).toMatchObject({ qtyGood: 100, qtyDefect: 2, comment: 'пятно' });
+    expect(payload.sizes).toEqual([
+      { color: 'чёрный', size: 'S', qty_good: 40 },
+      { color: 'чёрный', size: 'M', qty_good: 60 },
+    ]);
+    expect(payload.rolls).toEqual([
+      { roll_id: 'r-1', material_id: 'm-f', length_used_m: 50, finished: true },
+      {
+        roll_id: 'r-2', material_id: 'm-f', length_used_m: 38, finished: true,
+        leftover: 'usable', leftover_measured_m: null,
+      },
+    ]);
   });
 
-  it('расход 100 м при доступных 71,11 блокируется с числами', () => {
-    setup(vi.fn());
-    fireEvent.change(screen.getByLabelText('Расход сейчас, м, строка 1'), { target: { value: '100' } });
-    expect(screen.getByText(/доступно 71,11 м, а списывается 100,00 м/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Сдать результат/ })).toBeDisabled();
-  });
-
-  it('двойной клик не списывает ещё раз; после сдачи остатки перечитываются', async () => {
+  it('двойной клик — один submitStageReport', async () => {
     let resolve;
     const onSubmit = vi.fn(() => new Promise((r) => { resolve = r; }));
     const { loadFabricLeftovers } = setup(onSubmit);
-    fireEvent.change(screen.getByLabelText('Расход сейчас, м, строка 1'), { target: { value: '40' } });
+    fill();
+    mode(1, 'Полностью');
     const button = screen.getByRole('button', { name: /Сдать результат/ });
     fireEvent.click(button);
     fireEvent.click(button);
     await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].rolls[0]).toMatchObject({ roll_id: 'r-5', length_used_m: 40, finished: false });
     const before = loadFabricLeftovers.mock.calls.length;
     resolve(true);
     await vi.waitFor(() => expect(loadFabricLeftovers.mock.calls.length).toBeGreaterThan(before));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it('в форме записи нет завершения рулона — оно отдельной кнопкой', () => {
-    setup(vi.fn());
-    expect(screen.queryByText(/Работа по рулону закончена/)).not.toBeInTheDocument();
+  it('повтор после сетевой ошибки — тот же client_key, значения формы сохранены', async () => {
+    const onSubmit = vi.fn(async () => false);
+    setup(onSubmit);
+    fill();
+    mode(1, 'Полностью');
+    const button = screen.getByRole('button', { name: /Сдать результат/ });
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('spinbutton', { name: 'Скроено, шт — S' })).toHaveValue(40);
+    expect(within(screen.getByRole('radiogroup', { name: 'Рулон №1 — использование' }))
+      .getByRole('radio', { name: 'Полностью' })).toBeChecked();
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    const [first, second] = onSubmit.mock.calls.map((c) => c[0]);
+    expect(second).toEqual(first);
+    expect(attemptKeyFor('st-5', second)).toBe(attemptKeyFor('st-5', first));
+  });
+
+  it('выпуск без рулонов — подтверждение «Сдать без списания ткани?», отказ не отправляет', async () => {
+    const { onSubmit } = setup();
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: /Сдать результат/ }));
+    await vi.waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    const dialog = useConfirmStore.getState();
+    expect(dialog.title).toBe('Сдать без списания ткани?');
+    expect(dialog.message).toBe('Ни один рулон не отмечен как использованный — метры не спишутся со склада.');
+    expect(dialog.confirmLabel).toBe('Сдать без списания');
+    expect(dialog.cancelLabel).toBe('Отметить рулоны');
+    await act(async () => { useConfirmStore.getState()._close(false); });
+    expect(onSubmit).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(document.activeElement).toBe(
+      screen.getByRole('checkbox', { name: 'Выбрать все в группе Футер · чёрный' }),
+    ));
+  });
+
+  /**
+   * Р7 + брак (ревизия A4): без рулонов строки выпуска несут одно `qty_good`,
+   * и `reportTotals` прежде брал брак из них — нулём. Теперь брак — скаляр формы.
+   */
+  it('«Сдать без списания» с браком — брак доходит до отчёта и reportTotals', async () => {
+    const { onSubmit } = setup();
+    fill();
+    fireEvent.change(screen.getByLabelText(/^Брак/), { target: { value: '2' } });
+    fireEvent.change(screen.getByPlaceholderText('что именно пошло не так'), { target: { value: 'пятно' } });
+    fireEvent.click(screen.getByRole('button', { name: /Сдать результат/ }));
+    await vi.waitFor(() => expect(useConfirmStore.getState().open).toBe(true));
+    await act(async () => { useConfirmStore.getState()._close(true); });
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const payload = onSubmit.mock.calls[0][0];
+    expect(payload).toMatchObject({ qtyGood: 100, qtyDefect: 2, comment: 'пятно', rolls: [] });
+    expect(reportTotals(payload)).toMatchObject({ good: 100, defect: 2 });
+  });
+
+  it('сдача с ошибкой — alert и фокус на первом ошибочном поле', async () => {
+    const { onSubmit } = setup();
+    fill();
+    mode(1, 'Частично');
+    mode(2, 'Частично');
+    fireEvent.click(screen.getByRole('button', { name: /Сдать результат/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Проверьте 2 рулона');
+    expect(document.activeElement).toBe(screen.getByLabelText('Остаток, м — рулон №1'));
+    expect(screen.getByLabelText('Остаток, м — рулон №1')).toHaveAttribute('aria-invalid', 'true');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('рулоны в работе прежних сдач — отдельной кнопкой «Завершить рулон»', () => {
+    const inUse = { ...roll('r-1', 1, 50), status: 'in_use', length_left_m: 20 };
+    setup(vi.fn(), [{ ...order, materials: [{ ...order.materials[0], rolls: [inUse] }] }]);
     expect(screen.getByRole('group', { name: 'Рулоны в работе' })).toHaveTextContent('Рулон №1');
   });
 });

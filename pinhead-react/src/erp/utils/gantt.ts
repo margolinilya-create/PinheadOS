@@ -43,6 +43,7 @@
 
 import { addDays, diffDays } from '../../utils/date';
 import { isOutsourced } from './outsourcing';
+import { isProgramPhase } from './embroideryPhase';
 import { deptShortName } from '../data/departments';
 import type { ErpDepartment, ErpItemStage, ErpOrderItem } from '../types';
 import type { ErpOrderFull } from '../store/types';
@@ -116,12 +117,18 @@ function dayOf(ts: string | null | undefined): string | null {
   return ts ? ts.slice(0, 10) : null;
 }
 
-/** Начало полосы и его источник */
-function startOf(stage: ErpItemStage, launchDate: string | null): {
+/**
+ * Начало полосы и его источник.
+ *
+ * `programPhase` — строка вышивки в фазе программы (правки 19.10, Р4): её
+ * плановые даты — даты вышивки, а `started_at` — начало ПРОГРАММЫ. Фактом
+ * начала вышивки он не служит; факт программы живёт в журнале этапа.
+ */
+function startOf(stage: ErpItemStage, launchDate: string | null, programPhase = false): {
   date: string | null; source: GanttDateSource;
 } {
   if (stage.planned_start) return { date: stage.planned_start, source: 'planned' };
-  const started = dayOf(stage.started_at);
+  const started = programPhase ? null : dayOf(stage.started_at);
   if (started) return { date: started, source: 'fact' };
   if (launchDate) return { date: launchDate, source: 'order' };
   return { date: null, source: 'none' };
@@ -167,7 +174,7 @@ export function ganttBars(
       for (const stage of item.stages) {
         if (!OPEN_STATUSES.has(stage.status)) continue;
         const dept = deptById.get(stage.department_id);
-        const s = startOf(stage, order.launch_date ?? null);
+        const s = startOf(stage, order.launch_date ?? null, isProgramPhase(stage, item.stages));
         const e = endOf(stage, order.due_date ?? null);
 
         /**

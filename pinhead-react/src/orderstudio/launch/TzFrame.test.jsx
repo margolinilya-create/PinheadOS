@@ -75,8 +75,14 @@ describe('TzFrame', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     expect(art.artworkSignedUrl).toHaveBeenCalledTimes(1);
     now += 5 * 60 * 1000;
-    document.dispatchEvent(new Event('visibilitychange'));
-    await waitFor(() => expect(art.artworkSignedUrl).toHaveBeenCalledTimes(2));
+    // Обработчик с новым `doc.at` подписывает пассивный эффект — после отрисовки,
+    // а не вместе с ней: под нагрузкой (CI) первое событие ловил прежний
+    // обработчик с `at = 0`. Событие повторяется, пока эффект не подхватит время;
+    // лишнего обновления не будет — после него `at` снова свежий
+    await waitFor(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      expect(art.artworkSignedUrl).toHaveBeenCalledTimes(2);
+    });
     spy.mockRestore();
   });
 

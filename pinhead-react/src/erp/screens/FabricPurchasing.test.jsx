@@ -157,6 +157,24 @@ describe('Закупка — карточка в широкой панели', (
     expect(within(dialog).getByLabelText('Статус Кулирка')).toBeInTheDocument();
   });
 
+  /** Приёмка — только на складе (правка 19.10): в строке закупки перехода к ней нет */
+  it('в строке материала нет «Принять поставку» и «Открыть приёмку», принятое количество видно', () => {
+    setStore({
+      orders: [{
+        ...ORDERS[0],
+        materials: [mat('m2', 'Футер', { status: 'in_transit', qty_received: 40 })],
+        warehouse_tasks: [{ id: 'wt-9', task_type: 'material_receipt', material_id: 'm2', status: 'awaiting' }],
+      }],
+      loadMaterialReceipts: vi.fn(async () => []),
+    });
+    renderAt('/purchasing?supply=o1');
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByRole('link', { name: /Принять поставку|Открыть приёмку/ })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /Принять поставку|Открыть приёмку/ })).toBeNull();
+    expect(within(dialog).getByText('принято')).toBeInTheDocument();
+    expect(within(dialog).getByText('40 кг')).toBeInTheDocument();
+  });
+
   it('поиск, фильтр и страница — в адресе; закрытие возвращает к списку', () => {
     renderAt('/purchasing?supply=o1');
     fireEvent.change(screen.getByLabelText('Поиск по закупке'), { target: { value: 'кул' } });

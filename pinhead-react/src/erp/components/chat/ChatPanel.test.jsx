@@ -4,6 +4,7 @@ import {
 } from '@testing-library/react';
 import { ChatPanel } from './ChatPanel';
 import { useErpStore } from '../../store/useErpStore';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 /**
  * ОКНО ЧАТА (правка 14.09, п. 5) — клиентская половина трёх требований
@@ -389,5 +390,129 @@ describe('окно чата: переход к сообщению из увед�
       });
     });
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * ДИАЛОГ БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7, Task 8). Панель та же, якорь —
+ * задача: `taskId` вместо `orderId`. Ломается молча в четырёх местах —
+ * отправка уходит в тред сделки, повтор после ошибки заводит дубль,
+ * подсказка упоминаний зовёт людей вне задачи, посторонний видит поле,
+ * в которое сервер всё равно не пустит.
+ */
+describe('диалог бизнес-задачи', () => {
+  const TASK = {
+    id: 't1', order_id: 'o1', title: 'Заказать молнии', kind: 'purchase', status: 'in_progress',
+    creator_id: 'u1', assignee_id: 'u2', watchers: ['u3'], review_required: false,
+    result_text: null, result_message_id: null, updated_at: '2026-10-19T09:00:00Z',
+  };
+  const PEOPLE = [
+    { user_id: 'u1', name: 'Анна', email: null, role: null, department_id: null },
+    { user_id: 'u2', name: 'Борис', email: null, role: null, department_id: null },
+    { user_id: 'u3', name: 'Вера', email: null, role: null, department_id: null },
+    { user_id: 'u4', name: 'Глеб', email: null, role: null, department_id: null },
+  ];
+  const TMSG = { ...MSG, thread_id: 'thr-t1', stage_id: null, author_id: 'u2', body: 'Молнии заказаны у «Фурнитура+»' };
+
+  function setupTask(me, over = {}) {
+    useAuthStore.setState({ user: { id: me, name: 'x', email: 'x@x', role: 'manager' } });
+    return setup({
+      chatMessages: [TMSG],
+      chatDirectory: PEOPLE,
+      chatUnread: {},
+      bizTasks: { t1: TASK },
+      bizTaskUnread: {},
+      loadChatUnreadTasks: vi.fn(async () => {}),
+      setBizTaskResult: vi.fn(async () => ({ ...TASK, result_message_id: 'm1' })),
+      ...over,
+    });
+  }
+
+  it('лента открывается по задаче, без заказа', async () => {
+    const a = setupTask('u3');
+    render(<ChatPanel taskId="t1" />);
+    await waitFor(() => expect(a.openChat).toHaveBeenCalledWith(null, {}, 't1'));
+    expect(screen.getByRole('region', { name: 'Обсуждение задачи' })).toBeInTheDocument();
+    // Переключателя «эта задача / вся сделка» нет: тред задачи сделке не принадлежит
+    expect(screen.queryByRole('group', { name: 'Что показывать' })).toBeNull();
+  });
+
+  it('повтор после ошибки — тот же clientKey, текст не теряется', async () => {
+    const send = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ message_id: 'm2', mentioned: [] });
+    setupTask('u3', { sendChatMessage: send });
+    render(<ChatPanel taskId="t1" />);
+    const input = screen.getByLabelText('Новое сообщение');
+
+    fireEvent.change(input, { target: { value: 'Где молнии?', selectionStart: 11 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    // Отказ: текст на месте
+    await waitFor(() => expect(input).toHaveValue('Где молнии?'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    const [first, second] = send.mock.calls.map((c) => c[0]);
+    expect(second.clientKey).toBe(first.clientKey);
+    expect(first.taskId).toBe('t1');
+    expect(first.orderId ?? null).toBeNull();
+    await waitFor(() => expect(input).toHaveValue(''));
+  });
+
+  it('в упоминаниях только участники', async () => {
+    setupTask('u3');
+    render(<ChatPanel taskId="t1" />);
+    const input = screen.getByLabelText('Новое сообщение');
+    fireEvent.change(input, { target: { value: '@', selectionStart: 1 } });
+
+    const names = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(names).toEqual(['Анна', 'Борис', 'Вера']);
+  });
+
+  it('«Отметить как результат» зовёт setBizTaskResult и объявляет status', async () => {
+    const setBizTaskResult = vi.fn(async () => ({ ...TASK, result_message_id: 'm1' }));
+    setupTask('u2', { setBizTaskResult });
+    render(<ChatPanel taskId="t1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отметить как результат' }));
+    await waitFor(() => expect(setBizTaskResult).toHaveBeenCalledWith('t1', null, 'm1'));
+    expect(await screen.findByRole('status')).toHaveTextContent('Сообщение отмечено результатом');
+  });
+
+  it('«Отметить как результат» — только у своих сообщений ответственного', () => {
+    setupTask('u3', { chatMessages: [TMSG, { ...TMSG, id: 'm9', author_id: 'u3' }] });
+    render(<ChatPanel taskId="t1" />);
+    expect(screen.queryByRole('button', { name: 'Отметить как результат' })).toBeNull();
+  });
+
+  it('наблюдатель пишет, посторонний видит «Писать могут участники задачи»', () => {
+    setupTask('u3');
+    const { unmount } = render(<ChatPanel taskId="t1" />);
+    expect(screen.getByLabelText('Новое сообщение')).toBeInTheDocument();
+    unmount();
+
+    setupTask('u4');
+    render(<ChatPanel taskId="t1" />);
+    expect(screen.queryByLabelText('Новое сообщение')).toBeNull();
+    expect(screen.getByText('Писать могут участники задачи')).toBeInTheDocument();
+  });
+
+  it('звонок чужого треда ленту задачи не перечитывает, своего — перечитывает', async () => {
+    const a = setupTask('u3');
+    render(<ChatPanel taskId="t1" />);
+    await waitFor(() => expect(a.openChat).toHaveBeenCalled());
+
+    act(() => { useErpStore.setState({ chatPing: 1, chatPingThreads: ['thr-deal'] }); });
+    expect(a.refreshChat).not.toHaveBeenCalled();
+
+    act(() => { useErpStore.setState({ chatPing: 2, chatPingThreads: ['thr-deal', 'thr-t1'] }); });
+    await waitFor(() => expect(a.refreshChat).toHaveBeenCalledTimes(1));
+  });
+
+  it('руководитель с правом управления пишет и не будучи участником', () => {
+    setupTask('u4');
+    render(<ChatPanel taskId="t1" canManage />);
+    expect(screen.getByLabelText('Новое сообщение')).toBeInTheDocument();
   });
 });

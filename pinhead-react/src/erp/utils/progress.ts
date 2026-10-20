@@ -13,6 +13,7 @@
 
 import type { ErpItemStage } from '../types';
 import { stageFactQty } from './stageQty';
+import { isProgramPhase, type PhaseSibling, type PhaseStage } from './embroideryPhase';
 
 export interface QtyProgress {
   /** Сделано штук */
@@ -31,11 +32,20 @@ type ProgressStage = Pick<ErpItemStage, 'status'> & {
   origin?: string | null;
   /** Этап отчитывается файлом — штук у него нет, в прогресс он не входит */
   result_kind?: string | null;
+  id?: string;
+  item_id?: string | null;
+  department_id?: string;
 };
 /** Минимум позиции */
 interface ProgressItem {
   qty: number;
   stages: ProgressStage[];
+}
+
+/** Строка в фазе программы вышивки — вышивка с нулём, а не файловый этап */
+function inProgramPhase(stage: ProgressStage, stages: readonly ProgressStage[]): boolean {
+  return Boolean(stage.id && stage.department_id)
+    && isProgramPhase(stage as PhaseStage, stages.filter((s) => s.id && s.department_id) as PhaseSibling[]);
 }
 
 function pct(done: number, total: number): number {
@@ -75,11 +85,16 @@ export function stageQtyProgress(stage: ProgressStage, itemQty: number): QtyProg
  * вовсе — `qty_done` у неё остаётся нулём до самого закрытия. В знаменателе
  * такой этап держал бы позицию на «0 из 100» всю дорогу и врал бы о ней
  * ровно так же, как этапы образца.
+ *
+ * Кроме строки вышивки в ФАЗЕ ПРОГРАММЫ (правки 19.10, Р3): она стоит
+ * на месте вышивки и считается вышивкой с нулём — иначе позиция с закрытым
+ * ВТО показывала бы 100 % до вышивки.
  */
 export function itemProgress(item: ProgressItem): QtyProgress {
-  const relevant = (item.stages ?? []).filter(
+  const stages = item.stages ?? [];
+  const relevant = stages.filter(
     (s) => s.status !== 'skipped' && s.origin !== 'experimental'
-      && !s.result_kind);
+      && (!s.result_kind || inProgramPhase(s, stages)));
   const qty = Math.max(item.qty, 0);
   const total = relevant.length * qty;
   const done = relevant.reduce((sum, s) => sum + stageQtyProgress(s, qty).done, 0);

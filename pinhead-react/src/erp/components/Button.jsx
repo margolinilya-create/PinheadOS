@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './Icon';
 import styles from './Button.module.css';
@@ -13,6 +14,11 @@ import styles from './Button.module.css';
  *   (тогда обязателен `aria-label`).
  * - `loading`: показывает спиннер и блокирует кнопку.
  * - `block`: на всю ширину контейнера.
+ * - `ariaDisabledReason`: БЛОК ПО УСЛОВИЮ (правило вехи 6+7, правки 19.10) —
+ *   кнопка `aria-disabled`, клик заглушён, причина видимым текстом рядом
+ *   и описанием кнопки (`aria-describedby`). Кнопка остаётся в порядке Tab
+ *   и объясняет себя читалке; `disabled` — только на время запроса
+ *   (`loading`), и тогда причина не показывается.
  */
 export function Button({
   variant = 'secondary',
@@ -24,9 +30,11 @@ export function Button({
   disabled = false,
   type = 'button',
   className = '',
+  ariaDisabledReason = '',
   children,
   ...rest
 }) {
+  const reasonId = useId();
   const cls = [
     styles.btn,
     styles[variant],
@@ -37,9 +45,13 @@ export function Button({
   ].filter(Boolean).join(' ');
 
   const iconSize = size === 'lg' ? 17 : size === 'sm' ? 14 : 15;
+  const reason = !loading && !disabled && ariaDisabledReason ? ariaDisabledReason : '';
+  const blocked = reason
+    ? { 'aria-disabled': 'true', 'aria-describedby': reasonId, onClick: (e) => e.preventDefault() }
+    : {};
 
-  return (
-    <button type={type} className={cls} disabled={disabled || loading} {...rest}>
+  const button = (
+    <button type={type} className={cls} disabled={disabled || loading} {...rest} {...blocked}>
       {loading ? (
         <span className={styles.spinner} aria-hidden="true" />
       ) : (
@@ -47,6 +59,13 @@ export function Button({
       )}
       {!iconOnly && children}
     </button>
+  );
+  if (!reason) return button;
+  return (
+    <>
+      {button}
+      <span id={reasonId} className={styles.reason}>{reason}</span>
+    </>
   );
 }
 

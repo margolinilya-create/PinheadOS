@@ -52,12 +52,16 @@ const ORDER = {
   tz_documents: [],
 };
 
+/** Задачи заказа для вкладки «Бизнес-задачи»; тест подменяет загрузчик целиком */
+let bizTaskLoader = async () => [];
+
 function renderCard(initialUrl = '/orders/o1', state = undefined) {
   useErpStore.setState({
     orders: [ORDER], departments: DEPTS, loaded: true, detailIds: ['o1'],
     loadOrderBundle: async () => ({ events: [], audit: [], comments: [] }),
     loadOne: async () => ORDER,
     loadAll: async () => {},
+    loadOrderBizTasks: bizTaskLoader,
   });
   const entry = state ? { pathname: initialUrl, state } : initialUrl;
   return render(
@@ -219,5 +223,42 @@ describe('OrderCard — маршрут не обрывается на после
     // Именно ПОСЛЕДНИЙ: склад идёт после производства, а не между цехами
     const labels = within(strip).getAllByText(/\S/).map((n) => n.textContent);
     expect(labels[labels.length - 1]).toBe('Склад');
+  });
+});
+
+/**
+ * ВКЛАДКА «БИЗНЕС-ЗАДАЧИ» (правки 19.10, п. 7). Подпись — «Бизнес-задачи · 3»,
+ * доступное имя — «Бизнес-задачи, открытых: 3»: точка между словом и числом
+ * читалкой не произносится, и «3» без слова не отвечает, чего три.
+ */
+describe('OrderCard — вкладка «Бизнес-задачи»', () => {
+  const task = (id, status) => ({
+    id, order_id: 'o1', title: `Задача ${id}`, kind: 'other', status,
+    assignee_id: 'u1', creator_id: 'u2', due_at: '2099-01-01T10:00:00.000Z',
+    submitted_at: null, completed_at: null, watchers: [], order: null,
+  });
+
+  beforeEach(() => {
+    canOrderManage = true;
+    useErpStore.setState({ orders: [], departments: [], loaded: false, detailIds: [], bizTasks: {} });
+    bizTaskLoader = vi.fn(async (orderId) => {
+      const rows = [task('a', 'new'), task('b', 'in_progress'), task('c', 'paused'), task('d', 'done')];
+      useErpStore.setState({ bizTasks: Object.fromEntries(rows.map((r) => [r.id, r])) });
+      return orderId === 'o1' ? rows : [];
+    });
+  });
+
+  it('подпись с числом открытых и доступное имя «открытых: N»', async () => {
+    renderCard();
+    const tab = await screen.findByRole('tab', { name: 'Бизнес-задачи, открытых: 3' });
+    expect(tab).toHaveTextContent('Бизнес-задачи · 3');
+    expect(bizTaskLoader).toHaveBeenCalledWith('o1');
+  });
+
+  it('вкладка открывается из адреса ?tab=tasks', async () => {
+    renderCard('/orders/o1?tab=tasks');
+    const tab = await screen.findByRole('tab', { name: /Бизнес-задачи/ });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('link', { name: /Задача a/ })).toBeInTheDocument();
   });
 });

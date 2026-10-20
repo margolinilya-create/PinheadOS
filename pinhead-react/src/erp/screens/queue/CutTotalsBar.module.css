@@ -1,0 +1,47 @@
+/* Липкая нижняя полоса итогов закроя (правки 19.10) */
+.bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow-raise);
+}
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.line,
+.message {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  color: var(--text);
+}
+.message { font-weight: 600; }
+.alert {
+  margin: 0;
+  font-size: var(--type-body-sm);
+  font-weight: 600;
+  color: var(--color-error-ink);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .bar { border-radius: 0; }
+  .actions { width: 100%; }
+  .actions > * { flex: 1 1 0; }
+}

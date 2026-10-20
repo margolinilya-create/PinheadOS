@@ -34,6 +34,8 @@ const DOMAIN = [
   'subcontractingSlice', 'orderDraftsSlice', 'ordersOnDemandSlice',
   'employeesSlice', 'invitesSlice', 'dictionariesSlice', 'experimentalSlice',
   'chatSlice', 'skuSlice',
+  // Бизнес-задачи (правки 19.10, п. 7): экраны задач — ленивые
+  'bizTasksSlice',
   'tzSlice', 'planSlice', 'settingsSlice',
   // Аналитика (правка 16.09, п. 7): доменный слайс — сводку грузит вкладка
   'analyticsSlice',

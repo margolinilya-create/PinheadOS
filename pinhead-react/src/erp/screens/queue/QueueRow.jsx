@@ -7,6 +7,8 @@ import { STAGE_STATUS_LABELS } from '../../types';
 import { STAGE_CHIP_CLASS } from '../../utils/stageUi';
 import { itemTzDocument, tzUpdatedAfterStart } from '../../utils/tz';
 import { isFileResultStage, stageResultFiles } from '../../utils/stageResult';
+import { phaseOperation } from '../../utils/embroideryPhase';
+import { stageHeadingId } from '../../utils/embroideryPhaseText';
 import styles from '../../styles';
 import { Icon } from '../../components/Icon';
 import { StageActionsPanel } from './StageActionsPanel';
@@ -135,6 +137,7 @@ export function QueueRow({
             это другой адресат, а не тот же переход второй раз.
           */}
           <Link
+            id={stageHeadingId(stage.id)}
             to={`/task/${stage.id}`}
             state={{ from: `${location.pathname}${location.search}` }}
             className={styles.queueCardTitleLink}
@@ -177,9 +180,9 @@ export function QueueRow({
             вовсе: строки были неразличимы, а результат у них разный.
             Имя печатается только когда оно расходится с именем цеха.
           */}
-          {stage.operation && (
+          {phaseOperation(stage) && (
             <span className={`${styles.chip} ${styles.chipNeutral}`}>
-              {stage.operation}
+              {phaseOperation(stage)}
             </span>
           )}
         </span>

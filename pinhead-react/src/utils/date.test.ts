@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
-  FACTORY_TIMEZONE, addDays, diffDays, factoryDate, factoryToday,
-  monthBounds, monthDates, mondayOfWeek, parseIsoDate, weekdayIndex,
+  FACTORY_TIMEZONE, addDays, diffDays, factoryDate, factoryDateTimeToIso, factoryToday,
+  formatDue, isoToFactoryInput, monthBounds, monthDates, mondayOfWeek, parseIsoDate, weekdayIndex,
 } from './date';
 
 /**
@@ -290,5 +290,47 @@ describe('в исходниках нет календарных дат из UTC'
       hits,
       `тест строит календарную дату в UTC — он будет красным ночью по Москве: ${hits.join(', ')}`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * СРОК БИЗНЕС-ЗАДАЧИ (правки 19.10, п. 7): дата и время вводятся по Москве
+ * («до 20.10, 18:00 МСК»), хранятся моментом (`timestamptz`). Менеджер в другом
+ * поясе обязан ставить и видеть тот же час цеха, а не свой.
+ */
+describe('срок с временем — по поясу производства', () => {
+  it('ввод «20.10, 18:00» по Москве — это 15:00 UTC в любом поясе машины', () => {
+    inEveryZone(() => {
+      expect(factoryDateTimeToIso('2026-10-20T18:00')).toBe('2026-10-20T15:00:00.000Z');
+    });
+  });
+
+  it('полночь по Москве — предыдущий день в UTC', () => {
+    inEveryZone(() => {
+      expect(factoryDateTimeToIso('2026-10-20T00:30')).toBe('2026-10-19T21:30:00.000Z');
+    });
+  });
+
+  it('момент → значение поля ввода по Москве и обратно без потерь', () => {
+    inEveryZone(() => {
+      expect(isoToFactoryInput('2026-10-20T15:00:00.000Z')).toBe('2026-10-20T18:00');
+      expect(isoToFactoryInput('2026-10-19T21:30:00+00:00')).toBe('2026-10-20T00:30');
+      expect(factoryDateTimeToIso(isoToFactoryInput('2026-12-31T22:15:00Z'))).toBe('2026-12-31T22:15:00.000Z');
+    });
+  });
+
+  it('подпись срока — «до 20.10, 18:00 МСК»', () => {
+    inEveryZone(() => {
+      expect(formatDue(factoryDateTimeToIso('2026-10-20T18:00'))).toBe('до 20.10, 18:00 МСК');
+      expect(formatDue('2026-12-31T21:05:00Z')).toBe('до 01.01, 00:05 МСК');
+    });
+  });
+
+  it('мусор и пустота — пустая строка, а не исключение', () => {
+    expect(factoryDateTimeToIso('')).toBe('');
+    expect(factoryDateTimeToIso('2026-10-20')).toBe('');
+    expect(factoryDateTimeToIso('abc')).toBe('');
+    expect(isoToFactoryInput('')).toBe('');
+    expect(formatDue('не дата')).toBe('');
   });
 });
