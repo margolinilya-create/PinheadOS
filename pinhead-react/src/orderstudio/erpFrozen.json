@@ -482,6 +482,7 @@
     "erp/utils/chatServer.test.ts": "f694167ac87df25199695525328855f105853273512f2d4cf8e5dfa547d7654c",
     "erp/utils/closedStatus.test.ts": "78631f5fc64b70fea0eb0a68749849dc43d41cbe6474fd0efc045219ce528dfa",
     "erp/utils/contractorStageNotInQueue.test.ts": "cf64a40466c187808d0acebf134d2c078bd3f133a8575cb027745b943b98141f",
+    "erp/utils/createOrderPatches.test.ts": "eb9fa3058ebf788cab2a34bbce924073438c069a15ebbfa5bd073d45346be2e7",
     "erp/utils/cutExtras.test.ts": "99957e049fedcae7faaa8e9afff141b6ea774481a745d0ac3c3c69069c6b2004",
     "erp/utils/cutExtras.ts": "e82d420902b8463fee33bff9ae044c97fbf71d62b14c64fa1613c49e646eac79",
     "erp/utils/cutResultOnce.test.ts": "5e8f9df7d24eb876998b5425391e88f32d978199a0dd30fc3fcbb63a14384e7a",
@@ -632,7 +633,7 @@
     "erp/utils/routeGuard.test.ts": "4771adc980a56fdede28bd893c2742c631464e323627bd8f2aebb1db89bef977",
     "erp/utils/routeReachable.test.ts": "a15c6b890bca39b179caba8a91014c5bb01bc7a82428672850f8834d7da23765",
     "erp/utils/routeWalk.test.ts": "b478455bbd83963bc4334ac6bac0cdd65dbb881d896b7b79eb8df2b48d49a56d",
-    "erp/utils/routes.test.ts": "b7e10a072f345b81ca22c0e15c20a0cdfbd45cec99a8b35c482c4abd32d921d7",
+    "erp/utils/routes.test.ts": "6015aa1b62e5cc905df9867fbffd74c354c0ef591f684e8844fabdb27256cc99",
     "erp/utils/routes.ts": "8a645bcdf79cfe3996045b297c601a727572f7a34e3f703a317f4d1db609fc56",
     "erp/utils/rpcContract.test.ts": "04feacb90099f1d1aacb09bcf5c8701c74cb570fd00080a92603617cbfeb46df",
     "erp/utils/schemaNames.test.ts": "26fadfafa170ce7230530b32a2d533fce0460e5c6f51f12b68e3fdc428faad93",
@@ -1014,6 +1015,7 @@
     "20261019100000_erp_embroidery_one_stage.sql": "b4508e235cd8518193ecd6a6bf36399f8d54673cbb6d94d92acb2b3f4182d196",
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
     "20261020090000_erp_biz_tasks_schema.sql": "4bc7776b1f942f36ff48d920a5b2b4c56e56faa75a21b769992bf63c5bc38647",
-    "20261020100000_erp_biz_tasks_rpc.sql": "1b6b7e1228dc62f770fd8301c016ac74bba94f6ed165ac852522007c9084ade6"
+    "20261020100000_erp_biz_tasks_rpc.sql": "1b6b7e1228dc62f770fd8301c016ac74bba94f6ed165ac852522007c9084ade6",
+    "20261020130000_erp_create_order_restore_patches.sql": "783039213cc1951c604ba69708efaac4b61f9ed65792a76329dc5ce921826983"
   }
 }
