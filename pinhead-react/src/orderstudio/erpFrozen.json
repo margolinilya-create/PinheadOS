@@ -633,7 +633,7 @@
     "erp/utils/routeGuard.test.ts": "4771adc980a56fdede28bd893c2742c631464e323627bd8f2aebb1db89bef977",
     "erp/utils/routeReachable.test.ts": "a15c6b890bca39b179caba8a91014c5bb01bc7a82428672850f8834d7da23765",
     "erp/utils/routeWalk.test.ts": "b478455bbd83963bc4334ac6bac0cdd65dbb881d896b7b79eb8df2b48d49a56d",
-    "erp/utils/routes.test.ts": "b7e10a072f345b81ca22c0e15c20a0cdfbd45cec99a8b35c482c4abd32d921d7",
+    "erp/utils/routes.test.ts": "6015aa1b62e5cc905df9867fbffd74c354c0ef591f684e8844fabdb27256cc99",
     "erp/utils/routes.ts": "8a645bcdf79cfe3996045b297c601a727572f7a34e3f703a317f4d1db609fc56",
     "erp/utils/rpcContract.test.ts": "04feacb90099f1d1aacb09bcf5c8701c74cb570fd00080a92603617cbfeb46df",
     "erp/utils/schemaNames.test.ts": "26fadfafa170ce7230530b32a2d533fce0460e5c6f51f12b68e3fdc428faad93",
@@ -1016,6 +1016,6 @@
     "20261019110000_erp_cut_result_once.sql": "626fb7a3c5278cd2d490e4480fb585a06c7a6dedc5b092b3dab974926873faaa",
     "20261020090000_erp_biz_tasks_schema.sql": "4bc7776b1f942f36ff48d920a5b2b4c56e56faa75a21b769992bf63c5bc38647",
     "20261020100000_erp_biz_tasks_rpc.sql": "1b6b7e1228dc62f770fd8301c016ac74bba94f6ed165ac852522007c9084ade6",
-    "20261020130000_erp_create_order_restore_patches.sql": "451b52571c928b297884187f16a7877c73568afdc262ccf9d6810e64acb1f9db"
+    "20261020130000_erp_create_order_restore_patches.sql": "783039213cc1951c604ba69708efaac4b61f9ed65792a76329dc5ce921826983"
   }
 }

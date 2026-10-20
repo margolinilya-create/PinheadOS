@@ -819,12 +819,18 @@ describe('вышивка одной задачей (правки 19.10, п. 1)',
      * Кавычки УДВОЕНЫ: вставка живёт внутри строкового литерала DO-блока,
      * которым функции пересобираются из `pg_get_functiondef`.
      */
-    const sql = latestMatching(
+    // Каждая RPC — по своей последней правке: 20.10 `erp_create_order`
+    // вернули отдельной миграцией (`20261020130000`), `erp_route_apply` — нет
+    const create = latestMatching(
       /coalesce\(\(v_stage->>''cycle''\)::int, 0\)/,
       'cycle в erp_create_order',
     );
-    expect(sql).toMatch(/coalesce\(\(v_step->>''cycle''\)::int, 0\)/);
-    expect(sql).toMatch(/executor, contractor, operation, cycle\)/);
+    expect(create).toMatch(/executor, contractor, operation, cycle\)/);
+    const apply = latestMatching(
+      /coalesce\(\(v_step->>''cycle''\)::int, 0\)/,
+      'cycle в erp_route_apply',
+    );
+    expect(apply).toMatch(/executor, contractor, operation, cycle\)/);
   });
 });
 
