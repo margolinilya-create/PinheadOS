@@ -334,6 +334,11 @@ const printFilesKey = designKey('printFiles', 'src/orderstudio/design/export/pri
 const printFilesJs = printFilesKey ? minus(staticGraph(manifest, [printFilesKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
 const printFilesTotal = printFilesKey ? report('Файлы печати — JS (printFiles минус холст, картинки, панель, части сцены и оболочка Order)', printFilesJs).total : null;
 if (printFilesKey) check('Файлы печати «Дизайн», JS', printFilesTotal, BUDGETS.designPrintFiles);
+// Мокапы (веха 5в, Э5): ZIP по кнопке — свой ленивый чанк
+const mockupsKey = designKey('mockups', 'src/orderstudio/design/export/mockups.ts', 'src/orderstudio/design/ui/stage/PrintFilesButton.jsx');
+const mockupsJs = mockupsKey ? minus(staticGraph(manifest, [mockupsKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs, printFilesJs) : [];
+const mockupsTotal = mockupsKey ? report('Мокапы — JS (mockups минус холст, картинки, панель, части сцены, файлы печати и оболочка Order)', mockupsJs).total : null;
+if (mockupsKey) check('Мокапы «Дизайн», JS', mockupsTotal, BUDGETS.designMockups);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);

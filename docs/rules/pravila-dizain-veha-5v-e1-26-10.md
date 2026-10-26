@@ -130,3 +130,9 @@
   — только кэши картинок, сторож `assetGuards`); PDF/AI — исходником, без растра.
 - ZIP — свой «stored»-архиватор (`export/zipStore`), новой зависимости нет.
 
+## Э5 «Мокапы» (26.10)
+
+- Мокапы — своей сценой `export/mockups.mockupSceneSvg` поверх `buildPreviewSvg`; лист PDF макета (`buildSceneSvg`,
+  эталон `sceneGolden`) не трогается. Сборка — `import()` по кнопке, ничего не пишет; растеризация — `data:`-ссылкой.
+- Кнопки архивов («Файлы печати», «Мокапы») — один компонент `ui/stage/ZipExportButton.jsx`.
+
