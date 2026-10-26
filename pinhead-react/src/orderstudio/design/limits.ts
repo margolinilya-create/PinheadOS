@@ -18,9 +18,6 @@ export const MAX_NAME_LEN = 200;
 /** |координата| флэта, мм */
 export const MAX_COORD_MM = 5000;
 export const MAX_POLYGON_POINTS = 256;
-/** Точек в контуре лекала (после упрощения, веха 5в, Э2б) и деталей в крое */
-export const MAX_PATTERN_POINTS = 400;
-export const MAX_PATTERN_COUNT = 8;
 export const MAX_SCALE_MM_PER_UNIT = 10;
 export const MAX_SOURCE_FILE_LEN = 255;
 

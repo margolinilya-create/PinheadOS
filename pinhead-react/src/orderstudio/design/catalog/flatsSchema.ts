@@ -26,9 +26,16 @@ import { FLAT_VIEW_KINDS, GARMENT_TYPES, type GarmentFlat, type GarmentFlatsCata
 import { isAccessoryType } from './categoryMap';
 import { TZ_ROW_CODES, ZONE_ID_RE } from '../../catalog/tzRows';
 import {
-  AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_NAME_LEN, MAX_PATTERN_COUNT, MAX_PATTERN_POINTS,
-  MAX_POLYGON_POINTS, MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
+  AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_NAME_LEN, MAX_POLYGON_POINTS,
+  MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
 } from '../limits';
+
+/*
+ * Лекало детали (веха 5в, Э2б): точек в контуре после упрощения и деталей в крое.
+ * Здесь, а не в `limits.ts`: тот общий с кэшами картинок холста (их потолок).
+ */
+export const MAX_PATTERN_POINTS = 400;
+export const MAX_PATTERN_COUNT = 8;
 
 const coord = z.number().check(z.gte(-MAX_COORD_MM), z.lte(MAX_COORD_MM));
 const positiveMm = z.number().check(z.gt(0), z.lte(MAX_COORD_MM));
