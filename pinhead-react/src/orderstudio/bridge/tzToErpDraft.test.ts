@@ -159,6 +159,16 @@ describe('tzToErpDraft — нанесения и бирки', () => {
     });
   });
 
+  it('отступ с холста уходит в offset_note — как в ТЗ: «мм от опоры; заметка»', () => {
+    const canvas = newSalesPrint({ method: 'dtf', offset_mm: 70, offset_from: 'neck_seam', offset_dir: 'down', offset_note: '' });
+    const both = newSalesPrint({ method: 'dtf', offset_mm: 70, offset_from: 'neck_seam', offset_dir: 'down', offset_note: 'по центру кармана' });
+    const manual = newSalesPrint({ method: 'dtf', offset_mm: null, offset_note: 'по центру кармана' });
+    const prints = tzToErpDraft(order([sku({ prints: [canvas, both, manual] })])).items[0].prints;
+    expect(prints.map((x) => x.offset_note)).toEqual([
+      '70 мм от шва горловины', '70 мм от шва горловины; по центру кармана', 'по центру кармана',
+    ]);
+  });
+
   it('вышивка хранит тип изделия; нить — в комментарий, не в эффект', () => {
     const p = newSalesPrint({ method: 'embroidery', special: 'metallic', garment_kind: 'patch' });
     const [dp] = tzToErpDraft(order([sku({ prints: [p] })])).items[0].prints;

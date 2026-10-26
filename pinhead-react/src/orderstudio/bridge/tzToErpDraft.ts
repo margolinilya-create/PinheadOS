@@ -20,6 +20,7 @@ import { emptyOrderForm, newDraftItem, normalizeBrandingOn } from '../../erp/uti
 import type { DraftForm, DraftItem, DraftLabel, DraftPrint } from '../../erp/utils/orderForm';
 import type { BrandingMethod, GarmentSource, ProductionType } from '../../erp/types';
 import { gridQty } from '../model/factory';
+import { offsetNote } from '../model/printOffset';
 import { EFFECT_TO_ERP, EMBROIDERY_EFFECT_NOTE, LABEL_TYPE_TO_ERP } from './erpNames';
 
 export { EFFECT_TO_ERP, LABEL_TYPE_TO_ERP };
@@ -196,7 +197,7 @@ function mapPrint(p: SalesPrint): DraftPrint {
     zone: p.zone,
     width_mm: mm(p.width_mm),
     height_mm: mm(p.height_mm),
-    offset_note: p.offset_note,
+    offset_note: offsetNote(p),
     pantone: p.pantone.join(', '),
     special: p.method === 'silkscreen' ? (EFFECT_TO_ERP[p.special] ?? p.special) : '',
     garment_kind: p.method === 'embroidery' ? p.garment_kind : '',
