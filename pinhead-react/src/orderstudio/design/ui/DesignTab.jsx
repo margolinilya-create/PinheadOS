@@ -36,6 +36,8 @@ const loadStage = () => import('./stage/StageParts');
 const StageTop = lazy(() => loadStage().then((m) => ({ default: m.StageTop })));
 const StageBelow = lazy(() => loadStage().then((m) => ({ default: m.StageBelow })));
 const ItemTotalBar = lazy(() => loadStage().then((m) => ({ default: m.ItemTotalBar })));
+/* Лист «Выкройка» (веха 5в, Э2б) — свой ленивый чанк: только с лекалами и по кнопке */
+const PatternSheet = lazy(() => import('./stage/PatternSheet'));
 const STAGE_TOP_FALLBACK = <div className={styles.stageBarFallback} aria-hidden="true" />;
 
 /**
@@ -144,26 +146,38 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
       {flat && !compact && (
         <div className={styles.body}>
           <div className={styles.stageCol}>
-            <div className={styles.stage}>
-              <EditorCanvas
-                flat={flat}
-                view={d.view}
-                prints={item.prints}
-                selectedKey={d.selectedKey}
-                readOnly={ro}
-                onSelect={select}
-                onCommit={d.onCanvasCommit}
-                onDropFile={ro ? undefined : d.art.addFile}
-                orderId={order.id}
-                colorHex={d.colorHex}
-                display={d.display}
-                onDuplicate={ro ? undefined : (key) => d.layerOp('duplicate', key)}
-                onCopyLayer={d.copyLayer}
-                onPasteLayer={ro ? undefined : (token) => d.layerOp('paste', token)}
-                onUndo={undo}
-                onRedo={redo}
-              />
-            </div>
+            {d.display === 'pattern' ? (
+              <Suspense fallback={<p className={styles.muted} role="status">Открываю выкройку…</p>}>
+                <PatternSheet
+                  orderId={order.id}
+                  item={item}
+                  flat={flat}
+                  colorHex={d.colorHex}
+                  onEdit={(kind) => { const s = useDesignStore.getState(); s.setDisplay('markup'); s.setView(kind); }}
+                />
+              </Suspense>
+            ) : (
+              <div className={styles.stage}>
+                <EditorCanvas
+                  flat={flat}
+                  view={d.view}
+                  prints={item.prints}
+                  selectedKey={d.selectedKey}
+                  readOnly={ro}
+                  onSelect={select}
+                  onCommit={d.onCanvasCommit}
+                  onDropFile={ro ? undefined : d.art.addFile}
+                  orderId={order.id}
+                  colorHex={d.colorHex}
+                  display={d.display}
+                  onDuplicate={ro ? undefined : (key) => d.layerOp('duplicate', key)}
+                  onCopyLayer={d.copyLayer}
+                  onPasteLayer={ro ? undefined : (token) => d.layerOp('paste', token)}
+                  onUndo={undo}
+                  onRedo={redo}
+                />
+              </div>
+            )}
             {d.studio && (
               <Suspense fallback={null}>
                 <StageBelow d={d} item={item} />

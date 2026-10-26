@@ -69,14 +69,15 @@ function PresetChips({ d, item }) {
 const DISPLAYS = [
   { key: 'markup', label: 'Разметка' },
   { key: 'garment', label: 'Как на изделии' },
+  { key: 'pattern', label: 'Выкройка' },
 ];
 
-/** Вид холста: две кнопки с неизменным текстом; только показ — работает и в только чтении */
-function DisplayToggle({ display }) {
+/** Вид холста: кнопки с неизменным текстом; «Выкройка» — только с лекалами; работает и в только чтении */
+function DisplayToggle({ display, hasPattern }) {
   const setDisplay = useDesignStore((s) => s.setDisplay);
   return (
     <div className={styles.group} role="group" aria-label="Вид холста">
-      {DISPLAYS.map((x) => (
+      {DISPLAYS.filter((x) => x.key !== 'pattern' || hasPattern).map((x) => (
         <button key={x.key} type="button" className={styles.chipBtn} aria-pressed={display === x.key} onClick={() => setDisplay(x.key)}>
           {x.label}
         </button>
@@ -92,7 +93,7 @@ export function StageTop({ d, item, readOnly }) {
     <div className={styles.bar}>
       {!readOnly && <PresetChips d={d} item={item} />}
       <span className={styles.grow} />
-      <DisplayToggle display={d.display} />
+      <DisplayToggle display={d.display} hasPattern={d.hasPattern} />
     </div>
   );
 }

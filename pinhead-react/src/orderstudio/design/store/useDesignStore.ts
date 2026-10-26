@@ -44,8 +44,8 @@ export interface HistoryEntry extends DesignSnapshot {
 /** Правка позиции: новые нанесения и (или) флэт; `null` — ничего не менять */
 export type DesignPatch = Partial<DesignSnapshot> | null;
 
-/** Вид холста: с разметкой или «Как на изделии» */
-export type DesignDisplay = 'markup' | 'garment';
+/** Вид холста: с разметкой, «Как на изделии» или лист «Выкройка» (лекала, веха 5в, Э2б) */
+export type DesignDisplay = 'markup' | 'garment' | 'pattern';
 
 interface DesignState {
   orderId: string | null;

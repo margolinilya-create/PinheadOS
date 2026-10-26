@@ -495,3 +495,31 @@ describe('DesignTab — копия на другой вид и Ctrl+D (веха 
   });
 });
 
+describe('DesignTab — лист «Выкройка» (веха 5в, Э2б)', () => {
+  const withPattern = (f) => ({
+    ...f,
+    views: f.views.map((v) => ({ ...v, pattern: { contour_mm: [[20, 10], [580, 10], [600, 730], [0, 730]], count: 1 } })),
+  });
+
+  it('без лекал — кнопки «Выкройка» нет', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    expect(within(group).queryByRole('button', { name: 'Выкройка' })).toBeNull();
+  });
+
+  it('с лекалами — лист картинкой вместо холста, ничего не пишет; «Править деталь» — разметка на этом виде', async () => {
+    h.catalog = catalog([withPattern(FLAT_A), FLAT_B]);
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    fireEvent.click(within(group).getByRole('button', { name: 'Выкройка' }));
+    const sheet = await screen.findByRole('region', { name: 'Выкройка' });
+    expect(await within(sheet).findByRole('img', { name: /^Выкройка: перед, спина; нанесений 1$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('application')).toBeNull();
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Править деталь' })).getByRole('button', { name: 'Спина' }));
+    expect(useDesignStore.getState().display).toBe('markup');
+    expect(useDesignStore.getState().view).toBe('back');
+    expect(await screen.findByRole('application')).toBeInTheDocument();
+    expect(edit).not.toHaveBeenCalled();
+  });
+});
+

@@ -324,6 +324,11 @@ const stageKey = designKey('StageParts', 'src/orderstudio/design/ui/stage/StageP
 const stageJs = stageKey ? minus(staticGraph(manifest, [stageKey]).js, order.js, canvasJs, imagesJs, panelJs) : [];
 const stageTotal = stageKey ? report('Части сцены — JS (StageParts минус холст, картинки, панель и оболочка Order)', stageJs).total : null;
 if (stageKey) check('Части сцены «Дизайн», JS', stageTotal, BUDGETS.designStage);
+// Лист «Выкройка» (веха 5в, Э2б): по кнопке и только с лекалами — свой ленивый чанк
+const patternKey = designKey('PatternSheet', 'src/orderstudio/design/ui/stage/PatternSheet.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const patternJs = patternKey ? minus(staticGraph(manifest, [patternKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
+const patternTotal = patternKey ? report('Лист выкройки — JS (PatternSheet минус холст, картинки, панель, части сцены и оболочка Order)', patternJs).total : null;
+if (patternKey) check('Лист выкройки «Дизайн», JS', patternTotal, BUDGETS.designPattern);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);

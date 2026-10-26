@@ -96,6 +96,10 @@ export function useDesignTab({ order, item, readOnly }) {
     [item, cat.suppliers, cat.fabricsCatalog],
   );
 
+  // «Выкройка» — только у силуэта с лекалами (веха 5в, Э2б); без флага — всегда разметка
+  const hasPattern = !!flat?.views.some((v) => v.pattern);
+  const display = !studio || (ds.display === 'pattern' && !hasPattern) ? 'markup' : ds.display;
+
   // Вида нет на этом силуэте — первый, что есть (порядок: перед → спина → левый → правый рукав)
   const view = views.includes(ds.view) ? ds.view : (views[0] ?? 'front');
   useEffect(() => {
@@ -188,7 +192,7 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [current, readOnly, zonesCatalog, category]);
 
   return {
-    studio, display: studio ? ds.display : 'markup', fabricColor: shownColor, suppliers: cat.suppliers,
+    studio, display, hasPattern, fabricColor: shownColor, suppliers: cat.suppliers,
     flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
     art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote, addBlocked, layerOp, copyLayer,

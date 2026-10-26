@@ -134,3 +134,27 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
 }
+
+/* Лист «Выкройка» (веха 5в, Э2б): натуральная величина, прокрутка по ширине */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.sheetScroll {
+  overflow: auto;
+  max-height: min(72vh, 760px);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.sheetImg {
+  display: block;
+  max-width: none;
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+}
