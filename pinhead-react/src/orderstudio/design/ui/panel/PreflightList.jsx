@@ -13,8 +13,8 @@ const LEVEL = {
  * не блокирует (ответ владельца 17.10). Замечание с нанесением — кнопкой
  * «Показать» (выбрать его на холсте).
  */
-export default function PreflightList({ flat, placements, rules, modelMismatch = false, onShow }) {
-  const issues = useMemo(() => preflightIssues(flat, placements, rules, modelMismatch), [flat, placements, rules, modelMismatch]);
+export default function PreflightList({ flat, placements, rules, modelMismatch = false, art, onShow }) {
+  const issues = useMemo(() => preflightIssues(flat, placements, rules, modelMismatch, art), [flat, placements, rules, modelMismatch, art]);
   if (issues.length === 0) return null;
   return (
     <section className={styles.section} aria-label="Проверка макета">

@@ -7,7 +7,9 @@ import { useDesignStore } from '../../store/useDesignStore';
 import ArtworkPicker from './ArtworkPicker';
 import PreflightList from './PreflightList';
 import CopyToView from './CopyToView';
-import { preflightIssues } from './preflightIssues';
+import { artContextOf, preflightIssues } from './preflightIssues';
+import { useArtStats } from './useArtStats';
+import { isLightFabric } from '../../assets/artStats';
 import { printStatus } from './printStatus';
 import LayerList from './LayerList';
 import UnplacedList from './UnplacedList';
@@ -41,9 +43,12 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
   );
   const selected = entries.find((e) => e.print.key === selectedKey) ?? null;
   // «Дизайн» 2.0: проверки — под холстом, здесь — статус у каждой строки
+  // Макеты клиента (Э3): прозрачность и цвета — из картинок холста, на лету
+  const artStats = useArtStats(order.id, placements);
+  const art = useMemo(() => artContextOf(item.prints, artStats, isLightFabric(d.colorHex)), [item.prints, artStats, d.colorHex]);
   const issues = useMemo(
-    () => (d.studio ? preflightIssues(ctx.flat, placements, d.rules, d.pick.modelChanged) : []),
-    [d.studio, ctx, placements, d.rules, d.pick.modelChanged],
+    () => (d.studio ? preflightIssues(ctx.flat, placements, d.rules, d.pick.modelChanged, art) : []),
+    [d.studio, ctx, placements, d.rules, d.pick.modelChanged, art],
   );
   const unitOf = (key) => price?.prints.find((x) => x.key === key) ?? null;
   const selectedTech = selected ? unitOf(selected.print.key)?.tech ?? null : null;
@@ -149,7 +154,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
         {(price?.issues ?? []).map((iss) => <p key={iss} className={`${styles.muted} ${styles.warnText}`}>{ISSUE_LABELS[iss]}</p>)}
       </section>
 
-      {!d.studio && <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} onShow={onShow} />}
+      {!d.studio && <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} art={art} onShow={onShow} />}
       <UnplacedList
         prints={free}
         flatId={item.flat_id}

@@ -85,6 +85,27 @@ describe('readJpegDpi', () => {
   });
 });
 
+describe('loadAsset — набор форматов Э3: размер ±1 мм (веха 5в)', () => {
+  const sizeOf = async (b: Uint8Array, name: string) => {
+    const r = await loadAsset(blob(b), name);
+    if (r.status !== 'ok') throw new Error(r.status);
+    return [r.asset.meta.intrinsic_w_mm, r.asset.meta.intrinsic_h_mm, r.asset.meta.size_estimated];
+  };
+  it.each([
+    ['PNG 300 dpi', () => pngBytes(1181, 591, 300), 'a.png', 100, 50],
+    ['PNG 72 dpi', () => pngBytes(283, 142, 72), 'a.png', 99.8, 50.1],
+    ['JPEG 300 dpi (JFIF)', () => jpegBytes(1181, 591, { jfif: { units: 1, x: 300 } }), 'a.jpg', 100, 50],
+    ['JPEG 300 dpi (EXIF)', () => jpegBytes(1181, 591, { exif: { x: 300, unit: 2, littleEndian: false } }), 'a.jpg', 100, 50],
+    ['SVG в мм', () => textBytes('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><rect width="10" height="10"/></svg>'), 'a.svg', 100, 50],
+    ['SVG в дюймах', () => textBytes('<svg xmlns="http://www.w3.org/2000/svg" width="3.937in" height="1.9685in" viewBox="0 0 100 50"><rect width="10" height="10"/></svg>'), 'a.svg', 100, 50],
+  ])('%s', async (_n, make, name, w, h) => {
+    const [mw, mh, est] = await sizeOf(make(), name);
+    expect(Math.abs(Number(mw) - w)).toBeLessThanOrEqual(1);
+    expect(Math.abs(Number(mh) - h)).toBeLessThanOrEqual(1);
+    expect(est).toBe(false);
+  });
+});
+
 describe('loadAsset', () => {
   it('PNG с pHYs: размер из DPI, достоверно; Blob — image/png по сигнатуре, а не по File.type', async () => {
     const r = await loadAsset(blob(pngBytes(1181, 591, 300), 'text/html'), 'logo.png');

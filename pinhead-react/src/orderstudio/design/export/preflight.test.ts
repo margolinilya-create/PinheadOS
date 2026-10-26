@@ -1,3 +1,4 @@
+import type { ArtStats } from '../assets/artStats';
 import { describe, it, expect } from 'vitest';
 import { preflight, type PreflightInput } from './preflight';
 import { area, flat, frontView } from '../fixtures.testutil';
@@ -134,3 +135,24 @@ describe('preflight — на флэтах сида', () => {
     expect(checked).toBeGreaterThan(40);
   });
 });
+
+describe('preflight — макет клиента (веха 5в, Э3)', () => {
+  const stats = (o: Partial<ArtStats>): ArtStats => ({ transparent: false, opaqueBackground: false, colors: 2, ...o });
+  it('DTF с непрозрачным фоном — предупреждение; с прозрачным — нет', () => {
+    const bad = run({ placements: [pl()], artStats: { p1: stats({ opaqueBackground: true }) } });
+    expect(has(bad, '«Грудь»: у макета непрозрачный фон — напечатается прямоугольником; нужен PNG с прозрачным фоном.')).toBe(true);
+    expect(has(run({ placements: [pl()], artStats: { p1: stats({ transparent: true }) } }), 'непрозрачный фон')).toBe(false);
+  });
+  it('DTG: фон — только на цветной ткани', () => {
+    const dtg = pl({ method: 'dtg' });
+    expect(has(run({ placements: [dtg], artStats: { p1: stats({ opaqueBackground: true }) }, garmentLight: true }), 'непрозрачный фон')).toBe(false);
+    expect(has(run({ placements: [dtg], artStats: { p1: stats({ opaqueBackground: true }) }, garmentLight: false }), 'непрозрачный фон')).toBe(true);
+  });
+  it('шелкография: цветов в макете больше, чем в нанесении; полноцвет — отдельный текст; без статистики — молчим', () => {
+    const silk = pl({ method: 'silkscreen' });
+    expect(has(run({ placements: [silk], artStats: { p1: stats({ colors: 4 }) }, printColors: { p1: 2 } }), 'в макете около 4 цветов, в нанесении — 2 цвета: печать и цена — по нанесению.')).toBe(true);
+    expect(has(run({ placements: [silk], artStats: { p1: stats({ colors: 16 }) }, printColors: { p1: 1 } }), 'макет полноцветный (фото или градиент) — для «Шелкография» нужен макет в 1 цвет или другая техника.')).toBe(true);
+    expect(has(run({ placements: [silk], printColors: { p1: 1 } }), 'в макете')).toBe(false);
+  });
+});
+

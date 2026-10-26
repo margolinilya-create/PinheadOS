@@ -192,7 +192,7 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [current, readOnly, zonesCatalog, category]);
 
   return {
-    studio, display, hasPattern, fabricColor: shownColor, suppliers: cat.suppliers,
+    orderId: order.id, studio, display, hasPattern, fabricColor: shownColor, suppliers: cat.suppliers,
     flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
     art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote, addBlocked, layerOp, copyLayer,

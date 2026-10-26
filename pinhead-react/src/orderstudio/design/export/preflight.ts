@@ -17,6 +17,8 @@ import { placementInfo } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { printQuality } from '../catalog/dpi';
 import { methodSizeIssue } from '../../model/printMethods';
+import { pluralize } from '../../../utils/i18n';
+import { FULL_COLOR, type ArtStats } from '../assets/artStats';
 
 export type PreflightLevel = 'serious' | 'warn' | 'info';
 
@@ -34,6 +36,12 @@ export interface PreflightInput {
   methodAllowed: (area: PrintArea, method: SalesPrintMethod) => boolean;
   /** Силуэт позиции — от другой модели (`flatMismatch`, B1 вехи 5в) */
   modelMismatch?: boolean;
+  /** Что видно в макетах (веха 5в, Э3) — по `print_key`; считается на лету, в раскладку не пишется */
+  artStats?: Readonly<Record<string, ArtStats | null | undefined>>;
+  /** Цветов в нанесении (шелкография, флекс) — по `print_key` */
+  printColors?: Readonly<Record<string, number | null | undefined>>;
+  /** Ткань светлая (белая, молочная): DTG по ней фон не печатает */
+  garmentLight?: boolean;
 }
 
 export const MSG_NO_PRINTS = 'На изделии нет нанесений — PDF будет без макета.';
@@ -70,6 +78,7 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
   }
   const sizeIssue = methodSizeIssue(p.method, p.width_mm, p.height_mm);
   if (sizeIssue) add('warn', `${sizeIssue.text}.`);
+  artChecks(p, input, profile.label, add);
   if (!input.methodAllowed(area, p.method)) add('warn', `техника «${profile.label}» не для этой зоны.`);
 
   const bbox = { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm };
@@ -81,6 +90,26 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
     add('warn', `до края зоны меньше ${Math.round(info.safeInsetMm)} мм — при печати рисунок может съехать за край.`);
   }
   return out;
+}
+
+/**
+ * Макет клиента (Э3): непрозрачный фон у DTF (и у DTG на цветной ткани)
+ * напечатается прямоугольником; у шелкографии и флекса цветов в макете больше,
+ * чем в нанесении, — цена и печать идут по нанесению
+ */
+function artChecks(p: Placement, input: PreflightInput, label: string, add: (l: PreflightLevel, t: string) => void): void {
+  const st = input.artStats?.[p.print_key];
+  if (!st) return;
+  if (st.opaqueBackground && (p.method === 'dtf' || (p.method === 'dtg' && input.garmentLight === false))) {
+    add('warn', 'у макета непрозрачный фон — напечатается прямоугольником; нужен PNG с прозрачным фоном.');
+  }
+  const cols = input.printColors?.[p.print_key];
+  if ((p.method === 'silkscreen' || p.method === 'heat_transfer') && cols && st.colors > cols) {
+    const n = `${cols} ${pluralize(cols, 'цвет', 'цвета', 'цветов')}`;
+    add('warn', st.colors >= FULL_COLOR
+      ? `макет полноцветный (фото или градиент) — для «${label}» нужен макет в ${n} или другая техника.`
+      : `в макете около ${st.colors} ${pluralize(st.colors, 'цвета', 'цветов', 'цветов')}, в нанесении — ${n}: печать и цена — по нанесению.`);
+  }
 }
 
 /** Замечания перед экспортом: серьёзные впереди */
