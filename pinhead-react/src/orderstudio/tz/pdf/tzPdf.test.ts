@@ -55,17 +55,18 @@ describe('buildTzPdf — настоящий PDF (jsPDF + svg2pdf, шрифты �
 
   it('мокап — svgInto в прямоугольник ячейки, outputScale по ячейке, легенды нет; сцена очищена', async () => {
     await buildTzPdf(input('67108'), deps());
-    const scenes = vi.mocked(buildSceneSvg).mock.calls.map(([a]) => a);
+    const all = vi.mocked(buildSceneSvg).mock.calls.map(([a]) => a);
+    // Лист размещения (Э7) — сцены вида без подсветки; лист нанесения — с подсветкой своего номера
+    const scenes = all.filter((s) => s.highlight);
+    const sheet = all.filter((s) => !s.highlight);
     expect(scenes.length).toBeGreaterThan(0);
+    expect(sheet.length).toBeGreaterThan(0);
     const mm = mockupSceneMm({ w: 600, h: 760 });
-    for (const s of scenes) {
-      expect(s.legend).toEqual([]);
-      expect(s.outputScale).toBeCloseTo(Math.min(112 / mm.w, 100 / mm.h), 6);
-      expect(s.highlight).toBeTruthy();
-    }
+    for (const s of all) expect(s.legend).toEqual([]);
+    for (const s of scenes) expect(s.outputScale).toBeCloseTo(Math.min(112 / mm.w, 100 / mm.h), 6);
     const boxes = vi.mocked(svgInto).mock.calls.filter(([, , , b]) => b.w === 112 && b.h === 100);
     expect(boxes).toHaveLength(scenes.length);
-    for (const [, , markup] of boxes) {
+    for (const [, , markup] of vi.mocked(svgInto).mock.calls) {
       const again = sanitizeSvg(markup, 'scene');
       expect(again.ok && again.removed).toEqual([]);
     }
@@ -116,8 +117,10 @@ describe('buildTzPdf — отказы словами', () => {
     await expect(run).rejects.toThrow('логотип нанесения 2 не загрузился');
   }, 60_000);
 
-  it('силуэт не загрузился — отказ с номером нанесения', async () => {
-    await expect(buildTzPdf(input('67108'), deps({ flatMarkup: vi.fn(async () => null) }))).rejects.toThrow(/силуэт изделия для мокапа нанесения \d+ не загрузился/);
+  it('силуэт не загрузился — отказ с номером нанесения; на листе размещения — с его названием', async () => {
+    const none = () => deps({ flatMarkup: vi.fn(async () => null) });
+    await expect(buildTzPdf(input('68180-polo'), none())).rejects.toThrow(/силуэт изделия для мокапа нанесения \d+ не загрузился/);
+    await expect(buildTzPdf(input('67108'), none())).rejects.toThrow('силуэт изделия для мокапа листа размещения не загрузился');
   }, 60_000);
 
   it('больше предела — отказ с размером', async () => {

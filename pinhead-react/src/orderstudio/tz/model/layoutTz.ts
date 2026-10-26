@@ -19,7 +19,7 @@ import {
   type Pager, type TzBox, type TzLayout,
 } from './layoutPager';
 import { gridTable, matrixTable } from './layoutGrid';
-import { labelsPages, notesPages, printsPages } from './layoutTzPrints';
+import { labelsPages, notesPages, placementSheet, printsPages } from './layoutTzPrints';
 import { isSafeHttpUrl } from './safeUrl';
 import type { TzDoc } from './tzDocTypes';
 
@@ -124,6 +124,7 @@ export function layoutTz(doc: TzDoc, measure: Measure): TzLayout {
   headerPage(p, doc);
   fabricPage(p, doc);
   labelsPages(p, doc);
+  placementSheet(p, doc);
   printsPages(p, doc);
   notesPages(p, doc);
   const tpl = footerTemplates(p, doc);

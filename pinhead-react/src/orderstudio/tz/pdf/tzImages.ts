@@ -198,13 +198,14 @@ export async function prepareVisuals(layout: TzLayout, ctx: VisualCtx, deps: TzI
   const hex = garmentHexOf(ctx.item, ctx.catalogs.suppliers);
 
   async function scene(ref: TzMockupRef, box: TzBox): Promise<TzVisual> {
-    const n = nOf(ref.highlight);
+    const n = ref.highlight ? nOf(ref.highlight) : 0;
+    const what = n ? `нанесения ${n}` : 'листа размещения';
     const flat = flatOf(ctx, ref.flatId);
     const geo = flat ? (flatAtVersion(flat, ref.flatVersion) ?? flat) : null;
     const view = geo?.views.find((v) => v.kind === ref.view);
-    if (!flat || !view) throw new TzPdfError(`мокап нанесения ${n}: силуэта «${ref.flatId}» нет в справочнике флэтов`);
+    if (!flat || !view) throw new TzPdfError(`мокап ${what}: силуэта «${ref.flatId}» нет в справочнике флэтов`);
     const resolved = await deps.flatMarkup(view);
-    if (!resolved) throw new TzPdfError(`силуэт изделия для мокапа нанесения ${n} не загрузился — повторите`);
+    if (!resolved) throw new TzPdfError(`силуэт изделия для мокапа ${what} не загрузился — повторите`);
     const own = ref.printKeys.map((k) => prints.find((p) => p.key === k)).filter((p): p is SalesPrint => Boolean(p));
     const placements = own.map((p) => placementOf(p, flat)).filter((p): p is Placement => Boolean(p));
     const images: Record<string, string> = {};
@@ -213,7 +214,8 @@ export async function prepareVisuals(layout: TzLayout, ctx: VisualCtx, deps: TzI
     const markup = buildSceneSvg({
       view, flatMarkup: resolved.markup, flatMm: resolved.flatMm, garmentColor: hex, placements, images,
       meta: { client: '', orderNumber: '', itemTitle: '', date: '', size: '' },
-      profileOf: printMethodProfile, legend: [], outputScale: Math.min(box.w / mm.w, box.h / mm.h), highlight: ref.highlight,
+      // Пустая подсветка — лист размещения (Э7): отметки и номера у всех нанесений вида
+      profileOf: printMethodProfile, legend: [], outputScale: Math.min(box.w / mm.w, box.h / mm.h), highlight: ref.highlight || undefined,
     });
     return { kind: 'svg', markup };
   }
