@@ -63,6 +63,17 @@
   font-weight: 600;
 }
 
+.grow { flex: 1; }
+
+.swatch {
+  display: inline-block;
+  width: var(--space-md);
+  height: var(--space-md);
+  margin-right: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+}
+
 .hint {
   font-size: var(--type-label);
   color: var(--text-mid);

@@ -396,3 +396,44 @@ describe('DesignTab — проверки под холстом и статус �
   });
 });
 
+describe('DesignTab — вид холста и цвет ткани (веха 5в, Э2)', () => {
+  it('«Как на изделии» — переключатель с aria-pressed, холст в режиме изделия, в заказ ничего не пишется; работает в только чтении', async () => {
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { readOnly: true });
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    const garment = within(group).getByRole('button', { name: 'Как на изделии' });
+    expect(garment).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(garment);
+    expect(garment).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Разметка' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('application')).toHaveAccessibleName(/как на изделии$/);
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('цвет ткани — чипы по цветам сетки, выбор меняет только показ', async () => {
+    const it2 = item({
+      flat_id: FLAT_A.id,
+      prints: [placed()],
+      size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 10 } }, { color: 'Чёрный (15-01)', sizes: { M: 5 } }, { color: 'Белый (01-01)', sizes: { M: 1 } }] },
+    });
+    const { edit } = setup(it2);
+    const group = await screen.findByRole('group', { name: 'Показать на цвете' });
+    const chips = within(group).getAllByRole('button');
+    expect(chips.map((b) => b.textContent)).toEqual(['Белый (01-01)', 'Чёрный (15-01)']);
+    expect(chips[0]).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(chips[1]);
+    expect(chips[1]).toHaveAttribute('aria-pressed', 'true');
+    expect(useDesignStore.getState().fabricColor).toBe('Чёрный (15-01)');
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('флаг выключен — ни переключателя, ни цвета; холст всегда с разметкой', async () => {
+    setFeature('designStudio', false);
+    useDesignStore.getState().setDisplay('garment');
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    expect(screen.queryByRole('group', { name: 'Вид холста' })).toBeNull();
+    expect(screen.getByRole('application')).not.toHaveAccessibleName(/как на изделии/);
+    clearFeature('designStudio');
+  });
+});
+

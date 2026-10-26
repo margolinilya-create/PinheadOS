@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { pluralize } from '../../../../utils/i18n';
 import { defaultAreaId } from '../../geometry/view';
 import { placementOf } from '../../model/layout';
+import { garmentHexOf } from '../../assets/garmentHex';
 import { useDesignStore } from '../../store/useDesignStore';
 import { placeGeometry, viewPlacements, whereOf } from '../panel/panelOps';
 import { LEVEL_LABELS, preflightIssues } from '../panel/preflightIssues';
@@ -64,12 +65,57 @@ function PresetChips({ d, item }) {
   );
 }
 
-/** Полоса над холстом: стандарты (только черновик) */
+const DISPLAYS = [
+  { key: 'markup', label: 'Разметка' },
+  { key: 'garment', label: 'Как на изделии' },
+];
+
+/** Вид холста: две кнопки с неизменным текстом; только показ — работает и в только чтении */
+function DisplayToggle({ display }) {
+  const setDisplay = useDesignStore((s) => s.setDisplay);
+  return (
+    <div className={styles.group} role="group" aria-label="Вид холста">
+      {DISPLAYS.map((x) => (
+        <button key={x.key} type="button" className={styles.chipBtn} aria-pressed={display === x.key} onClick={() => setDisplay(x.key)}>
+          {x.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Полоса над холстом: стандарты (только черновик) и вид холста */
 export function StageTop({ d, item, readOnly }) {
   if (!d.flat || !d.ctx) return null;
   return (
     <div className={styles.bar}>
       {!readOnly && <PresetChips d={d} item={item} />}
+      <span className={styles.grow} />
+      <DisplayToggle display={d.display} />
+    </div>
+  );
+}
+
+/** Цвета позиции без дублей и пустых — ключ — подпись цвета строки сетки */
+function itemColors(item) {
+  return [...new Set(item.size_grid.rows.map((r) => r.color.trim()).filter(Boolean))];
+}
+
+/** «Показать на цвете»: только показ холста, в заказ не пишется; один цвет — чипов нет */
+function FabricChips({ d, item }) {
+  const setFabricColor = useDesignStore((s) => s.setFabricColor);
+  const colors = itemColors(item);
+  if (colors.length < 2) return null;
+  const current = d.fabricColor && colors.includes(d.fabricColor) ? d.fabricColor : colors[0];
+  return (
+    <div className={styles.group} role="group" aria-label="Показать на цвете">
+      <p className={styles.groupTitle} aria-hidden="true">Показать на цвете</p>
+      {colors.map((c) => (
+        <button key={c} type="button" className={styles.chipBtn} aria-pressed={c === current} onClick={() => setFabricColor(c)}>
+          <span className={styles.swatch} style={{ background: garmentHexOf(item, d.suppliers ?? [], null, c) }} aria-hidden="true" />
+          {c}
+        </button>
+      ))}
     </div>
   );
 }
@@ -129,6 +175,7 @@ export function StageBelow({ d, item }) {
   if (!d.flat || !d.ctx) return null;
   return (
     <div className={styles.below}>
+      <FabricChips d={d} item={item} />
       <CanvasChecks d={d} item={item} />
     </div>
   );

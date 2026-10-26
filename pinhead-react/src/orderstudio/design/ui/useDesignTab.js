@@ -53,6 +53,8 @@ export function useDesignTab({ order, item, readOnly }) {
     undoLabel: s.past.length ? s.past[s.past.length - 1].label : null,
     redoLabel: s.future.length ? s.future[0].label : null,
     top: s.past.length ? s.past[s.past.length - 1] : null,
+    display: s.display,
+    fabricColor: s.fabricColor,
   })));
   /** «Дизайн» 2.0 (веха 5в, Э2): флаг читается один раз за монтаж вкладки */
   const [studio] = useState(() => isFeatureEnabled('designStudio'));
@@ -85,7 +87,9 @@ export function useDesignTab({ order, item, readOnly }) {
   const rules = useMemo(() => (sku ? getEffectiveRules(sku, cat.categoryRules ?? []) : null), [sku, cat.categoryRules]);
   const category = sku?.category ?? '';
   const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category, areaAllowed: itemFlat.areaAllowed } : null), [flat, zonesCatalog, category, itemFlat.areaAllowed]);
-  const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? []), [item, cat.suppliers]);
+  // «Показать на цвете» (веха 5в, Э2) — только показ; без флага — первая строка сетки
+  const shownColor = studio ? ds.fabricColor : null;
+  const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? [], null, shownColor), [item, cat.suppliers, shownColor]);
   // Подложка нового логотипа — по цвету изделия: на чёрном не «белое» (обход, H-2)
   const textile = useMemo(
     () => textileOfItem(item, { suppliers: cat.suppliers ?? [], fabricsCatalog: cat.fabricsCatalog ?? [] }),
@@ -171,7 +175,8 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [current, readOnly, zonesCatalog, category]);
 
   return {
-    studio, flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
+    studio, display: studio ? ds.display : 'markup', fabricColor: shownColor, suppliers: cat.suppliers,
+    flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
     art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,

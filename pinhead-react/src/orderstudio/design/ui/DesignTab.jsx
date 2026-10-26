@@ -155,6 +155,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
                 onDropFile={ro ? undefined : d.art.addFile}
                 orderId={order.id}
                 colorHex={d.colorHex}
+                display={d.display}
                 onUndo={undo}
                 onRedo={redo}
               />

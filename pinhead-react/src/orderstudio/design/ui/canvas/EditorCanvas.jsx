@@ -69,8 +69,10 @@ const nodeAttrs = (n) => ({
 
 export function EditorCanvas({
   flat, view, prints, selectedKey, readOnly, onSelect, onCommit, onDropFile,
-  orderId, colorHex = NEUTRAL_GARMENT_HEX, onUndo, onRedo,
+  orderId, colorHex = NEUTRAL_GARMENT_HEX, onUndo, onRedo, display = 'markup',
 }) {
+  // «Как на изделии» (веха 5в, Э2): без зон, осей, сетки, выноски и гайдов — правка та же
+  const markup = display !== 'garment';
   const containerRef = useRef(null);
   const trRef = useRef(null);
   const nodeRefs = useRef(new Map());
@@ -230,7 +232,7 @@ export function EditorCanvas({
         className={styles.canvas}
         role="application"
         tabIndex={0}
-        aria-label={canvasLabel(flat.name, view)}
+        aria-label={canvasLabel(flat.name, view, !markup)}
         aria-describedby={hintId}
         data-ready={ready ? 'true' : 'false'}
         onKeyDown={onKeyDown}
@@ -256,9 +258,9 @@ export function EditorCanvas({
             {flatImg.image && (
               <KImage image={flatImg.image} x={t.px(0)} y={t.py(0)} width={t.s(flatMm.w)} height={t.s(flatMm.h)} />
             )}
-            {gridArea && <GridLines area={gridArea} t={t} darkFabric={darkFabric} />}
-            {flatView && <ZoneShapes view={flatView} t={t} colors={colors} darkFabric={darkFabric} />}
-            {flatView && <NamedAxes view={flatView} t={t} flatH={flatMm.h} colors={colors} />}
+            {markup && gridArea && <GridLines area={gridArea} t={t} darkFabric={darkFabric} />}
+            {markup && flatView && <ZoneShapes view={flatView} t={t} colors={colors} darkFabric={darkFabric} />}
+            {markup && flatView && <NamedAxes view={flatView} t={t} flatH={flatMm.h} colors={colors} />}
           </Layer>
           <Layer>
             {flatView && items.map(({ pl }) => (
@@ -296,8 +298,8 @@ export function EditorCanvas({
             )}
           </Layer>
           <Layer listening={false}>
-            {selected && flatView && <DimensionOverlay view={flatView} placement={selected.pl} t={t} colors={colors} />}
-            <SnapGuides guides={guides} t={t} flatMm={flatMm} colors={colors} />
+            {markup && selected && flatView && <DimensionOverlay view={flatView} placement={selected.pl} t={t} colors={colors} />}
+            {markup && <SnapGuides guides={guides} t={t} flatMm={flatMm} colors={colors} />}
           </Layer>
         </Stage>
 
@@ -308,7 +310,7 @@ export function EditorCanvas({
           </p>
         )}
         {dropActive && <p className={styles.drop}>Отпустите, чтобы поставить логотип на изделие</p>}
-        {gridArea && gridZone && (
+        {markup && gridArea && gridZone && (
           <p className={styles.status}>
             {gridArea.name}: {Math.round(gridZone.zw)} × {Math.round(gridZone.zh)} мм
           </p>

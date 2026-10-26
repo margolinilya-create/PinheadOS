@@ -268,3 +268,18 @@ describe('EditorCanvas — только чтение', () => {
     expect(screen.getByText('На этом виде нанесений нет')).toBeInTheDocument();
   });
 });
+
+describe('EditorCanvas — «Как на изделии» (веха 5в, Э2)', () => {
+  it('без разметки: нет подписи зоны и строки размера зоны; выбор работает; режим — в имени холста', () => {
+    const { canvas, props, container } = setup({ display: 'garment', selectedKey: null });
+    expect(canvas).toHaveAccessibleName(/, как на изделии$/);
+    expect(screen.queryByText(/: \d+ × \d+ мм$/)).toBeNull();
+    expect(container.querySelector('[data-konva="Transformer"]')).not.toBeNull();
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+  it('разметка (по умолчанию) — строка размера зоны есть', () => {
+    setup();
+    expect(screen.getByText(/: \d+ × \d+ мм$/)).toBeInTheDocument();
+  });
+});
+

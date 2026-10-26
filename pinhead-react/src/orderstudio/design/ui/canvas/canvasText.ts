@@ -21,8 +21,8 @@ export const VIEW_NAMES: Record<DesignView, string> = {
 /** Пауза пересказа для aria-live (проверка скиллами, ~500 мс): протяжка и серия стрелок не тараторят */
 export const ANNOUNCE_DELAY_MS = 500;
 
-export function canvasLabel(model: string, view: DesignView): string {
-  return `Холст: ${model}, вид ${VIEW_NAMES[view]}`;
+export function canvasLabel(model: string, view: DesignView, garment = false): string {
+  return `Холст: ${model}, вид ${VIEW_NAMES[view]}${garment ? ', как на изделии' : ''}`;
 }
 
 export function canvasHint(readOnly: boolean): string {
