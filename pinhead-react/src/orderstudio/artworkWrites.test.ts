@@ -88,9 +88,19 @@ describe('запись в order-artworks — только api/artworks.ts', () =
     // превью PNG и PDF ТЗ) — у обеих `upsert: false`
     expect(writes.filter((x) => x === 'upload').length).toBe(2);
     expect(writes.filter((x) => x === 'remove').length).toBe(1);
-    expect(writes.every((x) => x === 'upload' || x === 'remove')).toBe(true);
+    // Копия — одна (повтор заказа, веха 5в, Э8): в тот же бакет, оба конца — пути заказов
+    expect(writes.filter((x) => x === 'copy').length).toBe(1);
+    expect(writes.every((x) => x === 'upload' || x === 'remove' || x === 'copy')).toBe(true);
     expect(w!.text.match(/\.upload\([^;]*?\{\s*upsert: false/g)?.length).toBe(2);
     expect(w!.text).not.toMatch(/upsert: true/);
+  });
+
+  it('копия (Э8): без другого бакета, приёмник — путь нового заказа через isArtworkPath', () => {
+    const w = files.find((f) => f.name === WRITER)!.text;
+    const fn = /export async function copyArtwork[\s\S]*?\n}\n/.exec(w)?.[0] ?? '';
+    expect(fn).toMatch(/const to = repointPath\(fromPath, toOrderId\);\n\s*if \(!to \|\| !isArtworkPath\(toOrderId, to\)/);
+    expect(fn).toMatch(/\.copy\(fromPath, to\)/);
+    expect(w).not.toMatch(/destinationBucket/);
   });
 
   it('PDF ТЗ (веха 6+7) — свой писатель: вид tz, тип application/pdf, проверка сигнатуры', () => {

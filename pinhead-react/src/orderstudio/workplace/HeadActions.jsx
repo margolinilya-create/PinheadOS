@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { transitionOrder } from '../api/salesTransitions';
 import { useSalesStore } from '../store/useSalesStore';
-import { canFinish, canSendToWork } from '../layout/orderNav';
+import { canCreateOrders, canFinish, canSendToWork } from '../layout/orderNav';
 import { paymentStatusText } from '../payment/paymentText';
 import { confirm } from '../../store/useConfirmStore';
 import { toast } from '../../store/useToastStore';
@@ -14,11 +15,26 @@ import styles from './Workplace.module.css';
  * — ТОЛЬКО навигация к разделу отправки на «ТЗ и цена» (`?tab=summary#send`)
  * с числом блокирующих пунктов; «Отметить: заказ сдан» (решение 19) — у
  * `canFinish`, с подтверждением, ответ RPC кладёт `applyServer`.
+ * «Повторить заказ» (веха 5в, Э8) — у `canCreateOrders` и заказа с позициями;
+ * поток грузится `import()` по нажатию (`repeatFlow`).
  *
  * @param {{ order: import('../model/types').SalesOrder, user: object, blocking: number, onGoSend: () => void }} props
  */
 export default function HeadActions({ order, user, blocking, onGoSend }) {
   const [busy, setBusy] = useState(false);
+  const [repeating, setRepeating] = useState(false);
+  const navigate = useNavigate();
+
+  const repeat = async () => {
+    if (repeating) return;
+    setRepeating(true);
+    try {
+      const { repeatOrder } = await import('./repeatFlow');
+      await repeatOrder(user, (id) => navigate(`/sales/${id}?tab=item`));
+    } finally {
+      setRepeating(false);
+    }
+  };
 
   const finish = async () => {
     const ok = await confirm({
@@ -41,6 +57,11 @@ export default function HeadActions({ order, user, blocking, onGoSend }) {
       {canSendToWork(user, order) && (
         <button type="button" className={`btn btn-primary ${styles.headBtn}`} onClick={onGoSend}>
           Отправить в работу{blocking > 0 ? ` · ${blocking} ${pluralize(blocking, 'пункт', 'пункта', 'пунктов')}` : ''}
+        </button>
+      )}
+      {canCreateOrders(user) && order.id && order.items.length > 0 && (
+        <button type="button" className={`btn btn-ghost ${styles.headBtn}`} disabled={repeating} onClick={repeat}>
+          {repeating ? 'Повторяю…' : 'Повторить заказ'}
         </button>
       )}
       {canFinish(user, order) && (

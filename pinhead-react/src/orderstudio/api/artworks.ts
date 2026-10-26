@@ -36,6 +36,7 @@ import { supabase } from '../../lib/supabase';
 import { toast } from '../../store/useToastStore';
 import { asciiFileName } from '../../utils/asciiFileName';
 import { networkFailureMessage, translateSupabaseError } from '../../utils/i18n';
+import { repointPath } from '../model/repeatOrder';
 
 export const ARTWORK_BUCKET = 'order-artworks';
 /** = `file_size_limit` бакета (26214400) */
@@ -152,6 +153,31 @@ export async function uploadArtwork(orderId: string, kind: ArtworkKind, file: Fi
   } catch (e) {
     console.error('uploadArtwork', e);
     return fail('Файл не загружен', networkFailureMessage(e));
+  }
+}
+
+// ── Повтор заказа (веха 5в, Э8) ─────────────────────────────────────────
+
+/**
+ * Серверная копия файла в папку другого заказа (`orders/<новый>/<тот же хвост>`).
+ * Права судит Storage: источник — `order_artworks_select` (заказ виден), приёмник —
+ * `order_artworks_insert` (путь заказа, черновик, автор или руководство); тот же
+ * бакет — тип и размер уже проверены при загрузке, перезаписи нет (`no_update`).
+ * Ошибка — `null` без тоста: итог по всем файлам показывает повтор одним сообщением.
+ */
+export async function copyArtwork(fromPath: string, toOrderId: string): Promise<string | null> {
+  const to = repointPath(fromPath, toOrderId);
+  if (!to || !isArtworkPath(toOrderId, to) || fromPath.includes('..')) return null;
+  try {
+    const { error } = await supabase.storage.from(ARTWORK_BUCKET).copy(fromPath, to);
+    if (error) {
+      console.error('copyArtwork', error);
+      return null;
+    }
+    return to;
+  } catch (e) {
+    console.error('copyArtwork', e);
+    return null;
   }
 }
 
