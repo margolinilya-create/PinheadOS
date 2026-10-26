@@ -26,7 +26,7 @@ type KeySet = { flat: readonly string[]; view: readonly string[]; anchors: reado
 /** Геометрия: меняет силуэт — сохраняется новой версией (К6) */
 export const GEOMETRY_KEYS: KeySet = {
   flat: ['id', 'version', 'views', 'history'],
-  view: ['kind', 'svg_path', 'scale_mm_per_unit', 'anchors', 'size_anchors', 'grade_rule', 'print_areas'],
+  view: ['kind', 'svg_path', 'scale_mm_per_unit', 'anchors', 'size_anchors', 'grade_rule', 'print_areas', 'pattern'],
   anchors: ['neckline_point', 'center_axis_x', 'sleeve_bottom_y', 'sleeve_center_x', 'axes'],
   area: ['id', 'zone_id', 'polygon_mm', 'safe_inset_mm'],
 };

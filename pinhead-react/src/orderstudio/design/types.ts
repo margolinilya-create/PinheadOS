@@ -86,6 +86,17 @@ export interface PrintArea {
   min_print_mm?: { width: number; height: number };
 }
 
+/**
+ * Лекало детали кроя (веха 5в, Э2б): контур из файла конструктора в той же
+ * системе мм, что и вид (выровнен по якорям при импорте), — нанесения ложатся
+ * на него по своим `x_mm/y_mm`. GEOMETRY: правка — новая версия флэта
+ */
+export interface PatternPiece {
+  contour_mm: [number, number][];
+  /** Деталей в крое (две манжеты, два рукава одним лекалом) */
+  count: number;
+}
+
 export interface FlatView {
   kind: FlatViewKind;
   /** Путь в бакете флэтов (`FLATS_BUCKET`): `flats/<id>/v<версия>/<вид>.svg` */
@@ -97,6 +108,8 @@ export interface FlatView {
   size_anchors?: Record<string, ViewAnchors>;
   grade_rule?: GradeRule;
   print_areas: PrintArea[];
+  /** Лекало детали (веха 5в, Э2б); нет — лист «Выкройка» этот вид не показывает */
+  pattern?: PatternPiece;
 }
 
 export interface GarmentFlat {

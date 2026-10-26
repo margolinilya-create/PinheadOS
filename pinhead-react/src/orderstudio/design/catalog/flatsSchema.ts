@@ -26,8 +26,8 @@ import { FLAT_VIEW_KINDS, GARMENT_TYPES, type GarmentFlat, type GarmentFlatsCata
 import { isAccessoryType } from './categoryMap';
 import { TZ_ROW_CODES, ZONE_ID_RE } from '../../catalog/tzRows';
 import {
-  AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_NAME_LEN, MAX_POLYGON_POINTS,
-  MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
+  AREA_ID_RE, FLAT_ID_RE, MAX_COORD_MM, MAX_FLAT_VERSION, MAX_NAME_LEN, MAX_PATTERN_COUNT, MAX_PATTERN_POINTS,
+  MAX_POLYGON_POINTS, MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
 } from '../limits';
 
 const coord = z.number().check(z.gte(-MAX_COORD_MM), z.lte(MAX_COORD_MM));
@@ -90,6 +90,11 @@ export const viewSchema = z.object({
   size_anchors: z.optional(z.record(shortStr, anchorsSchema)),
   grade_rule: z.optional(gradeRuleSchema),
   print_areas: z.array(printAreaSchema).check(z.minLength(1), z.maxLength(32)),
+  // Лекало детали (веха 5в, Э2б): без поля в схеме `z.object` отбросил бы его при чтении
+  pattern: z.optional(z.object({
+    contour_mm: z.array(z.tuple([coord, coord])).check(z.minLength(3), z.maxLength(MAX_PATTERN_POINTS)),
+    count: z.int().check(z.gte(1), z.lte(MAX_PATTERN_COUNT)),
+  })),
 });
 
 type Ctx = { addIssue: (i: { code: 'custom'; path: (string | number)[]; message: string }) => void };
