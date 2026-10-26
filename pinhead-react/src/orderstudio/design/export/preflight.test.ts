@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { preflight, type PreflightInput } from './preflight';
 import { area, flat, frontView } from '../fixtures.testutil';
+import seed from '../seed/garmentFlats.seed.json';
+import { ZONES_CATALOG_DEFAULT } from '../../../data/constants';
+import type { ZoneDefinition } from '../../../types/catalog';
+import { newPlacedPrint, placementOf } from '../model/layout';
 import type { AssetMeta, GarmentFlat, Placement, PrintArea, ProfileOf } from '../types';
 import type { SalesPrintMethod } from '../../model/types';
 
@@ -64,7 +68,9 @@ describe('preflight', () => {
 
   it('у края зоны (ближе безопасного отступа) — предупреждение; за зоной — только «выходит»', () => {
     const near = run({ placements: [pl({ x_mm: 155 })] });
-    expect(near).toEqual([{ level: 'warn', printKey: 'p1', message: '«Грудь»: до края зоны меньше 15 мм — цех может не попасть.' }]);
+    expect(near).toEqual([{ level: 'warn', printKey: 'p1', message: '«Грудь»: до края зоны меньше 15 мм — при печати рисунок может съехать за край.' }]);
+    // Верх — по отступу от горловины, не по safe: стандартная позиция у верха зоны пункта не даёт
+    expect(run({ placements: [pl({ y_mm: 145 })] })).toEqual([]);
     const out = run({ placements: [pl({ x_mm: 160, width_mm: 400 })] });
     expect(has(out, 'выходит за печатную зону')).toBe(true);
     expect(has(out, 'до края зоны')).toBe(false);
@@ -98,5 +104,27 @@ describe('preflight', () => {
     const r = run({ placements: [pl({ x_mm: 160, width_mm: 400, asset: { ...goodPng, px_w: 100 } })] });
     expect(r.map((i) => i.level)).toEqual(['serious', 'warn']);
     expect(r.every((i) => ['serious', 'warn', 'info'].includes(i.level))).toBe(true);
+  });
+});
+
+describe('preflight — на флэтах сида', () => {
+  it('новый логотип в стандартной позиции на переде и спине любого флэта сида — без пункта «до края зоны»', () => {
+    const zones = ZONES_CATALOG_DEFAULT as unknown as ZoneDefinition[];
+    const asset: AssetMeta = { ...goodPng, intrinsic_w_mm: 90, intrinsic_h_mm: 90 };
+    const flats = (seed as unknown as { flats: GarmentFlat[] }).flats;
+    let checked = 0;
+    for (const f of flats) {
+      for (const v of f.views) {
+        const a = v.print_areas.find((x) => x.zone_id);
+        if (!a) continue;
+        const p = newPlacedPrint(asset, 'orders/x/logo/a.png', a.id, { flat: f, zonesCatalog: zones, category: f.categories[0] ?? '', view: v.kind, itemKind: 'sku', method: 'dtf' });
+        const placement = p && placementOf(p, f);
+        if (!placement) continue;
+        checked++;
+        const issues = preflight({ flat: f, placements: [placement], profileOf, methodAllowed: anyMethod });
+        expect(issues.filter((i) => i.message.includes('до края зоны')), `${f.id}/${v.kind}`).toEqual([]);
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
   });
 });

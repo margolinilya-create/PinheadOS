@@ -67,7 +67,11 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
   const bbox = { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm };
   const info = placementInfo(view, bbox, p.rotation_deg, undefined, area.id);
   if (info.check.out_of_zone) add('warn', 'выходит за печатную зону.');
-  else if (info.check.out_of_safe_zone) add('warn', `до края зоны меньше ${Math.round(info.safeInsetMm)} мм — цех может не попасть.`);
+  // Верхний край не проверяем: его задаёт отступ от шва горловины (стандарт Pinhead
+  // «75 мм от горловины» стоит ближе safe-отступа сида — иначе пункт горел бы на каждом логотипе)
+  else if (Math.min(info.dimensions.left, info.dimensions.right, info.dimensions.bottom) < info.safeInsetMm) {
+    add('warn', `до края зоны меньше ${Math.round(info.safeInsetMm)} мм — при печати рисунок может съехать за край.`);
+  }
   return out;
 }
 

@@ -71,6 +71,12 @@ describe('readJpegDpi', () => {
     expect(readJpegDpi(jpegBytes(10, 10, { exif: { x: 300, unit: 2, littleEndian: false } }))).toBe(300);
     expect(readJpegDpi(jpegBytes(10, 10, { exif: { x: 118, unit: 3, littleEndian: true } }))).toBeCloseTo(299.72, 1);
   });
+  it('битый сегмент после JFIF не теряет найденный DPI', () => {
+    const ok = jpegBytes(10, 10, { jfif: { units: 1, x: 300 } });
+    const broken = new Uint8Array([...ok.slice(0, 20), 0xff, 0xe1, 0xff, 0xff, 1, 2]);
+    expect(readJpegDpi(broken)).toBe(300);
+  });
+
   it('не JPEG, обрезанный и мусорный файл — null без исключения', () => {
     expect(readJpegDpi(pngBytes(10, 10, 300))).toBeNull();
     const cut = jpegBytes(10, 10, { exif: { x: 300, unit: 2, littleEndian: true } }).slice(0, 40);

@@ -105,8 +105,8 @@ function jfifDpi(b: Uint8Array, view: DataView, start: number, end: number): num
 
 /**
  * DPI JPEG: EXIF важнее JFIF (его пишут фоторедакторы при экспорте). Идём по
- * маркерам до начала данных (SOS), не дальше первых 64 КБ; любой сбой
- * разметки — `null`, а не исключение: размер тогда оценочный.
+ * маркерам до начала данных (SOS), не дальше первых 64 КБ; битый сегмент
+ * обрывает поиск — найденное до него остаётся, исключений нет.
  */
 export function readJpegDpi(b: Uint8Array): number | null {
   if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
@@ -122,7 +122,7 @@ export function readJpegDpi(b: Uint8Array): number | null {
     const len = view.getUint16(i + 2);
     const start = i + 4;
     const end = i + 2 + len;
-    if (len < 2 || end > b.length) return null;
+    if (len < 2 || end > b.length) break;
     if (marker === 0xe0) jfif = jfifDpi(b, view, start, end) ?? jfif;
     if (marker === 0xe1) exif = exifDpi(b, view, start, end) ?? exif;
     i = end;
