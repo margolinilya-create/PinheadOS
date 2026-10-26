@@ -164,6 +164,20 @@ test.describe('вкладка «Дизайн» 2.0', () => {
     expect(text).toContain('\x89PNG');
   });
 
+  test('«Скачать КП (PDF)» на «ТЗ и цена» — PDF с мокапом (Э6)', async ({ page }) => {
+    await installSupabaseMock(page, mock([]));
+    await page.goto(`/sales/${ORDER_ID}?tab=summary&studio=1`);
+    const btn = page.getByRole('button', { name: 'Скачать КП (PDF)' });
+    await expect(btn).toBeVisible();
+    const download = page.waitForEvent('download');
+    await btn.click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('PH-9150-KP.pdf');
+    const bytes = readFileSync(await file.path());
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(bytes.length).toBeGreaterThan(5000);
+  });
+
   test('?design2=0 — прежний вид: без «Стандартов Pinhead» и вида холста', async ({ page }) => {
     await installSupabaseMock(page, mock([]));
     await page.goto(`/sales/${ORDER_ID}?tab=design&item=${ITEM_ID}&studio=1&design2=0`);

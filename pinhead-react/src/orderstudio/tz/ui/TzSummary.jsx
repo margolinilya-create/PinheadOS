@@ -1,3 +1,4 @@
+import KpPanel from './KpPanel';
 import PaymentPanel from '../../payment/PaymentPanel';
 import TzGroupsPanel from './TzGroupsPanel';
 import SendPanel from './SendPanel';
@@ -18,11 +19,12 @@ import SendPanel from './SendPanel';
  * }} props
  */
 export default function TzSummary({
-  order, user, catalogs, catalogsFailed, checklist, today, appOrigin, loadEngine, focusSend, onSendFocused,
+  order, price, user, catalogs, catalogsFailed, checklist, today, appOrigin, loadEngine, focusSend, onSendFocused,
 }) {
   return (
     <>
       <PaymentPanel order={order} user={user} />
+      <KpPanel order={order} price={price} catalogs={catalogs} today={today} />
       <TzGroupsPanel order={order} catalogs={catalogs} today={today} appOrigin={appOrigin} loadEngine={loadEngine} />
       <SendPanel
         order={order}

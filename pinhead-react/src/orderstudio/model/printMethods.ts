@@ -88,6 +88,29 @@ export function printMethodProfile(m: SalesPrintMethod | undefined | null): Prin
   return (m && PRINT_METHOD_PROFILES[m]) || PRINT_METHOD_PROFILES[DEFAULT_PRINT_METHOD];
 }
 
+// ── Сроки ─────────────────────────────────────────────────────────────────
+
+/**
+ * Срок нанесения по технике, рабочих дней (веха 5в, Э6: «+N дней» в КП;
+ * черновик — подтверждает производство). `null` — по договорённости (подряд).
+ */
+export const METHOD_LEAD_DAYS: Record<SalesPrintMethod, number | null> = {
+  silkscreen: 7,
+  embroidery: 7,
+  dtf: 3,
+  heat_transfer: 3,
+  dtg: 3,
+  sublimation: 5,
+  patch: 10,
+  other: null,
+};
+
+/** Срок нанесений позиции или заказа: наибольший из техник; техник со сроком нет — `null` */
+export function leadDaysOf(methods: readonly SalesPrintMethod[]): number | null {
+  const days = methods.map((m) => METHOD_LEAD_DAYS[m]).filter((d): d is number => d !== null);
+  return days.length ? Math.max(...days) : null;
+}
+
 // ── Пределы размера ───────────────────────────────────────────────────────
 
 export interface MethodSizeIssue {
