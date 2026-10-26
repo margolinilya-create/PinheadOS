@@ -79,7 +79,7 @@ export default function ExportPdfButton({ order, item, flat, disabled = false })
     const tools = await loadMaketTools();
     if (!tools) return;
     const pages = tools.maketPages(item, flat);
-    const issues = tools.issuesToAsk(pages, flat, tools.rulesOf(item, cat.skuCatalog, cat.categoryRules));
+    const issues = tools.issuesToAsk(pages, flat, tools.rulesOf(item, cat.skuCatalog, cat.categoryRules), tools.mismatchOf(item, flat, cat.skuCatalog));
     if (issues.length > 0) {
       const go = await confirm({
         title: 'Проверьте макет перед PDF',

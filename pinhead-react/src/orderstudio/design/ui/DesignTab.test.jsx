@@ -272,3 +272,41 @@ describe('DesignTab — раскладка, которую холст не по�
     expect(within(free).queryByRole('button', { name: /Освободить раскладку/ })).toBeNull();
   });
 });
+
+describe('DesignTab — силуэт не от модели (B1, веха 5в)', () => {
+  const HOODIE_SKU = { ...SKU, code: 'H-TEST', name: 'Худи (тест)', category: 'hoodies' };
+  const HOODIE_FLAT = makeFlat({ id: 'hoodie-test', name: 'Худи (тест)', garment_type: 'hoodie', categories: ['hoodies'] });
+
+  beforeEach(() => {
+    useStore.setState({ skuCatalog: [SKU, HOODIE_SKU] });
+    h.catalog = catalog([FLAT_A, FLAT_B, HOODIE_FLAT]);
+  });
+
+  it('худи на флэте футболки: в выборе силуэта нет чужих футболок, плашка называет причину и предлагает худи', () => {
+    setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id }));
+    const options = within(screen.getByLabelText('Силуэт')).getAllByRole('option').map((o) => o.textContent);
+    expect(options.some((t) => t.startsWith('Футболка другая'))).toBe(false);
+    expect(options.some((t) => t.startsWith('Худи (тест)'))).toBe(true);
+    expect(screen.getByText(/Силуэт «Футболка \(тест\)» — от другой модели/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перенести на «Худи (тест)»' })).toBeInTheDocument();
+  });
+
+  it('пока нанесения на чужом силуэте — новый логотип не ставится: кнопка с причиной, конвейер не грузится', async () => {
+    const load = vi.spyOn(artworkPipeline, 'load');
+    const { edit } = setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id }));
+    await panelReady();
+    const btn = screen.getByRole('button', { name: 'Загрузить логотип' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription(/Сначала перенесите нанесения на силуэт модели/);
+    fireEvent.click(btn);
+    await act(async () => {});
+    expect(load).not.toHaveBeenCalled();
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('проверка макета первым пунктом называет чужой силуэт', async () => {
+    setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    expect(screen.getByRole('region', { name: 'Проверка макета' })).toHaveTextContent(/Серьёзно: Силуэт — от другой модели/);
+  });
+});

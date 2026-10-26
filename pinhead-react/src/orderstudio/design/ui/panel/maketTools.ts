@@ -11,6 +11,7 @@ import type { SalesItem } from '../../../model/types';
 import type { GarmentFlat } from '../../types';
 import type { MaketPage } from '../../export/maketPages';
 import { preflight, type PreflightIssue } from '../../export/preflight';
+import { flatMismatch } from '../../catalog/pickFlat';
 
 export { MaketPdfError, maketFileName, maketPages } from '../../export/maketPages';
 export { saveBlob } from '../../../../utils/saveBlob';
@@ -27,14 +28,25 @@ export function rulesOf(
   return sku ? getEffectiveRules(sku, categoryRules ?? []) : null;
 }
 
+/** Силуэт позиции — от другой модели (B1, веха 5в): то же правило, что у холста и чек-листа */
+export function mismatchOf(
+  item: Pick<SalesItem, 'sku_code'>,
+  flat: GarmentFlat,
+  skuCatalog: SkuItem[] | null | undefined,
+): boolean {
+  const sku = (skuCatalog ?? []).find((s) => s.code === item.sku_code) ?? null;
+  return flatMismatch(flat, item, sku);
+}
+
 /** Замечания, о которых стоит спросить: серьёзные и предупреждения (подсказки — нет) */
-export function issuesToAsk(pages: MaketPage[], flat: GarmentFlat, rules: MethodRules | null): PreflightIssue[] {
+export function issuesToAsk(pages: MaketPage[], flat: GarmentFlat, rules: MethodRules | null, modelMismatch = false): PreflightIssue[] {
   const placements = pages.flatMap((p) => p.entries.map((e) => e.placement));
   return preflight({
     flat,
     placements,
     profileOf: printMethodProfile,
     methodAllowed: (area, method) => allowedMethods(area, rules).includes(method),
+    modelMismatch,
   }).filter((i) => i.level !== 'info');
 }
 

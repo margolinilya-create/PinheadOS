@@ -7,6 +7,7 @@ import FlatPicker from './panel/FlatPicker';
 import UnplacedList from './panel/UnplacedList';
 import ViewTabs from './panel/ViewTabs';
 import { hasPlacedLayout } from '../model/layoutMark';
+import { flatsForModel } from '../catalog/pickFlat';
 import { useDesignTab } from './useDesignTab';
 import { useDesignStore } from '../store/useDesignStore';
 import styles from './DesignTab.module.css';
@@ -48,7 +49,9 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
   const d = useDesignTab({ order, item, readOnly: readOnly || compact });
   const { flats, flat } = d;
   const ro = readOnly || compact;
+  // «Справочник пуст» — по всем активным; в выборе — только силуэты этой модели (B1, веха 5в)
   const choices = useMemo(() => flats.catalog.flats.filter((f) => f.active), [flats.catalog]);
+  const forModel = useMemo(() => flatsForModel(flats.catalog, item, d.sku), [flats.catalog, item, d.sku]);
   const { select, undo, redo } = useDesignStore.getState();
 
   let notice = null;
@@ -87,7 +90,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
   return (
     <section className={styles.tab} data-design-canvas="" aria-label="Дизайн изделия">
       <div className={styles.head}>
-        <FlatPicker flats={choices} current={flat} readOnly={ro} onPick={d.switchFlat} />
+        <FlatPicker flats={forModel} current={flat} readOnly={ro} onPick={d.switchFlat} />
         {flat && !compact && <ViewTabs flat={flat} views={d.views} prints={item.prints} view={d.view} onView={(v) => useDesignStore.getState().setView(v)} />}
         <span className={styles.headGrow} />
         {flat && !ro && (

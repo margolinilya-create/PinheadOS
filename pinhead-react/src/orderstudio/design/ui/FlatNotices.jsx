@@ -22,7 +22,9 @@ export default function FlatNotices({ d, readOnly }) {
     <>
       {pick.modelChanged && (
         <p className={`${styles.notice} ${styles.warn}`}>
-          Модель сменилась — перенесите нанесения на новый силуэт.
+          {pick.suggested
+            ? `Силуэт «${flat.name}» — от другой модели. Перенесите нанесения на силуэт этой модели.`
+            : `Силуэт «${flat.name}» — от другой модели, а своего силуэта у модели нет. Снимите нанесения с изделия — они останутся строками на «Изделии».`}
           {pick.suggested && !readOnly && (
             <button type="button" className={styles.btn} onClick={() => d.switchFlat(pick.suggested)}>
               Перенести на «{pick.suggested.name}»

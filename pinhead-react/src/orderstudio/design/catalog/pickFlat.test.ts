@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoPickFlat, exactUpgrade, flatFitsModel, pickFlat } from './pickFlat';
+import { autoPickFlat, exactUpgrade, flatFitsModel, flatMismatch, flatsForModel, pickFlat } from './pickFlat';
 import { catalog, flat } from '../fixtures.testutil';
 
 const TEE = { code: 'T-001', category: 'tshirts', fit: 'regular' as const };
@@ -131,5 +131,44 @@ describe('exactUpgrade — «появился точный силуэт» (5б, 
 
   it('записанный типовой снят — не предлагать (холст его и так не покажет)', () => {
     expect(exactUpgrade(item({ flat_id: 'tshirt-regular' }), TEE, catalog([{ ...regular, active: false }, exact]))).toBeNull();
+  });
+});
+
+describe('B1 (веха 5в): код модели засчитывается только внутри её категории', () => {
+  const HOODIE = { code: 'H-002', category: 'hoodies', fit: 'regular' as const };
+  // Футболочный флэт, к которому по ошибке привязали код худи — живой случай «Худи Regular» на tshirt-freefit
+  const teeWithHoodieCode = flat({ id: 'tshirt-freefit', categories: ['tshirts'], sku_codes: ['H-002'] });
+  const hoodieItem = item({ sku_code: 'H-002' });
+
+  it('флэт чужой категории не подходит модели, даже если в sku_codes её код', () => {
+    expect(flatFitsModel(teeWithHoodieCode, hoodieItem, HOODIE)).toBe(false);
+    expect(flatMismatch(teeWithHoodieCode, hoodieItem, HOODIE)).toBe(true);
+  });
+
+  it('автоподбор не берёт «точный» флэт чужой категории — берёт худи', () => {
+    expect(autoPickFlat(hoodieItem, HOODIE, catalog([teeWithHoodieCode, hoodie]))?.flat.id).toBe('hoodie-regular');
+  });
+
+  it('флэт без категорий по коду подходит; модель неизвестна — не судим', () => {
+    expect(flatFitsModel(exact, item(), TEE)).toBe(true);
+    expect(flatMismatch(teeWithHoodieCode, hoodieItem, null)).toBe(false);
+    expect(flatMismatch(null, hoodieItem, HOODIE)).toBe(false);
+  });
+
+  it('flatsForModel: только активные флэты, подходящие модели, по id; модель неизвестна — все активные', () => {
+    const off = flat({ id: 'hoodie-off', categories: ['hoodies'], active: false });
+    const cat = catalog([teeWithHoodieCode, hoodie, off, regular]);
+    expect(flatsForModel(cat, hoodieItem, HOODIE).map((f) => f.id)).toEqual(['hoodie-regular']);
+    expect(flatsForModel(cat, hoodieItem, null).map((f) => f.id)).toEqual(['hoodie-regular', 'tshirt-freefit', 'tshirt-regular']);
+  });
+
+  it('свойство: «модель сменилась» у pickFlat = flatMismatch записанного флэта', () => {
+    const flats = [teeWithHoodieCode, hoodie, regular, oversize, exact];
+    for (const stored of flats) {
+      for (const [code, sku] of [['H-002', HOODIE], ['T-001', TEE]] as const) {
+        const it2 = item({ sku_code: code, flat_id: stored.id });
+        expect(pickFlat(it2, sku, catalog(flats)).modelChanged, `${stored.id} × ${code}`).toBe(flatMismatch(stored, it2, sku));
+      }
+    }
   });
 });

@@ -12,7 +12,7 @@ import { placementOf, remapToFlat } from '../model/layout';
 import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
 import { patchPrint } from './panel/panelOps';
-import { useArtworkActions } from './useArtworkActions';
+import { MSG_ADD_BLOCKED_MISMATCH, useArtworkActions } from './useArtworkActions';
 import { transferToCurrent, useItemFlat } from './useItemFlat';
 
 /**
@@ -95,10 +95,12 @@ export function useDesignTab({ order, item, readOnly }) {
     if (view !== ds.view) useDesignStore.getState().setView(view);
   }, [view, ds.view]);
 
-  const target = useMemo(() => (ctx && !readOnly ? {
+  // Силуэт не от модели (B1): новый логотип встал бы на чужой силуэт — сначала перенос
+  const addBlocked = !readOnly && pick.modelChanged;
+  const target = useMemo(() => (ctx && !readOnly && !addBlocked ? {
     orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules, areaAllowed: itemFlat.areaAllowed, textile,
-  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed, textile]);
-  const art = useArtworkActions(target);
+  } : null), [ctx, readOnly, addBlocked, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed, textile]);
+  const art = useArtworkActions(target, addBlocked ? MSG_ADD_BLOCKED_MISMATCH : '');
 
   /** Правка нанесений через историю; `fn(prints) → prints | null` */
   const commitPrints = useCallback(

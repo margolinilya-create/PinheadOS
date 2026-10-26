@@ -31,7 +31,12 @@ export interface PreflightInput {
   profileOf: ProfileOf;
   /** Допустима ли техника в зоне (методы зоны ∩ правила категории) */
   methodAllowed: (area: PrintArea, method: SalesPrintMethod) => boolean;
+  /** Силуэт позиции — от другой модели (`flatMismatch`, B1 вехи 5в) */
+  modelMismatch?: boolean;
 }
+
+export const MSG_NO_PRINTS = 'На изделии нет нанесений — PDF будет без макета.';
+export const MSG_MODEL_MISMATCH = 'Силуэт — от другой модели: перенесите нанесения на силуэт модели позиции.';
 
 const ORDER: Record<PreflightLevel, number> = { serious: 0, warn: 1, info: 2 };
 
@@ -77,8 +82,9 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
 
 /** Замечания перед экспортом: серьёзные впереди */
 export function preflight(input: PreflightInput): PreflightIssue[] {
-  if (input.placements.length === 0) return [{ level: 'serious', message: 'На изделии нет нанесений — PDF будет без макета.' }];
-  return input.placements
+  const head: PreflightIssue[] = input.modelMismatch ? [{ level: 'serious', message: MSG_MODEL_MISMATCH }] : [];
+  if (input.placements.length === 0) return [...head, { level: 'serious', message: MSG_NO_PRINTS }];
+  return [...head, ...input.placements
     .flatMap((p) => checkPlacement(p, input))
-    .sort((a, b) => ORDER[a.level] - ORDER[b.level]);
+    .sort((a, b) => ORDER[a.level] - ORDER[b.level])];
 }

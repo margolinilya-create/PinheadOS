@@ -135,7 +135,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
         {(price?.issues ?? []).map((iss) => <p key={iss} className={`${styles.muted} ${styles.warnText}`}>{ISSUE_LABELS[iss]}</p>)}
       </section>
 
-      <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} onShow={onShow} />
+      <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} onShow={onShow} />
       <UnplacedList
         prints={free}
         flatId={item.flat_id}

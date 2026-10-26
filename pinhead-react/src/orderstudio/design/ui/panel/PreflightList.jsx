@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { allowedMethods, printMethodProfile } from '../../../model/printMethods';
-import { preflight } from '../../export/preflight';
+import { MSG_NO_PRINTS, preflight } from '../../export/preflight';
 import styles from '../DesignTab.module.css';
 
 const LEVEL = {
@@ -14,13 +14,14 @@ const LEVEL = {
  * не блокирует (ответ владельца 17.10). Замечание с нанесением — кнопкой
  * «Показать» (выбрать его на холсте).
  */
-export default function PreflightList({ flat, placements, rules, onShow }) {
-  const issues = useMemo(() => (placements.length === 0 ? [] : preflight({
+export default function PreflightList({ flat, placements, rules, modelMismatch = false, onShow }) {
+  const issues = useMemo(() => (placements.length === 0 && !modelMismatch ? [] : preflight({
     flat,
     placements,
     profileOf: printMethodProfile,
     methodAllowed: (area, method) => allowedMethods(area, rules).includes(method),
-  })), [flat, placements, rules]);
+    modelMismatch,
+  }).filter((i) => placements.length > 0 || i.message !== MSG_NO_PRINTS)), [flat, placements, rules, modelMismatch]);
   if (issues.length === 0) return null;
   return (
     <section className={styles.section} aria-label="Проверка макета">
