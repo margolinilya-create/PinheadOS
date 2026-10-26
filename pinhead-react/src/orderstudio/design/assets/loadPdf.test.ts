@@ -72,10 +72,13 @@ describe('loadPdf', () => {
     expect(res.asset.meta.px_w).toBeUndefined();
     expect(res.asset.meta.dpi).toBeUndefined();
     expect(res.asset.png.type).toBe('image/png');
-    const vp = (render.mock.calls[0] as unknown as [{ viewport: { width: number; height: number }; annotationMode: number }])[0];
+    const vp = (render.mock.calls[0] as unknown as [{ viewport: { width: number; height: number }; annotationMode: number; background: string }])[0];
     expect(Math.round(Math.max(vp.viewport.width, vp.viewport.height))).toBe(PREVIEW_MAX_PX);
     expect(vp.annotationMode).toBe(0);
-    expect(ctx.fillStyle).toBe('#ffffff');
+    // Прозрачный фон (веха 5в): pdf.js по умолчанию заливает белым, и логотип
+    // на тёмной ткани стоял белым прямоугольником — на холсте, в макете и в ТЗ
+    expect(vp.background).toBe('rgba(0,0,0,0)');
+    expect(ctx.fillRect).not.toHaveBeenCalled();
     expect(destroy).toHaveBeenCalled();
   });
 
