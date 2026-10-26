@@ -159,6 +159,8 @@ export const KEEP_ON_LOGOUT = [
   'erp_offline_queue',
   // Витрина дизайн-системы (`?styleguide=1`) — инструмент разработки на устройстве
   FEATURE_STORAGE_KEYS.styleguide,
+  // «Дизайн» 2.0 (веха 5в): выбор прежнего вида — настройка устройства, как витрина
+  FEATURE_STORAGE_KEYS.designStudio,
 ];
 
 export function storageClearAll(): void {

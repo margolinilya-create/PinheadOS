@@ -266,3 +266,38 @@ describe('useDesignStore — только чтение (Review Focus 2)', () => 
     expect(ds().canEdit()).toBe(false);
   });
 });
+
+describe('useDesignStore — вид показа, цвет ткани, буфер слоя (веха 5в, Э2)', () => {
+  it('режим показа и цвет ткани не пишут в заказ и работают у не черновика', () => {
+    const order = openOrder('production');
+    ds().bind(ORDER, 'a');
+    ds().setDisplay('garment');
+    ds().setFabricColor('Чёрный');
+    expect(ds().display).toBe('garment');
+    expect(ds().fabricColor).toBe('Чёрный');
+    expect(useSalesStore.getState().current).toBe(order);
+    expect(ds().past).toHaveLength(0);
+  });
+  it('смена позиции сбрасывает цвет ткани, режим показа остаётся; другой заказ чистит буфер слоя', () => {
+    openOrder();
+    ds().bind(ORDER, 'a');
+    ds().setDisplay('garment');
+    ds().setFabricColor('Чёрный');
+    ds().setClipboard(newSalesPrint({ zone: 'Грудь' }));
+    ds().bind(ORDER, 'b');
+    expect(ds().fabricColor).toBeNull();
+    expect(ds().display).toBe('garment');
+    expect(ds().clipboard?.zone).toBe('Грудь');
+    ds().bind('o-2', 'a');
+    expect(ds().clipboard).toBeNull();
+  });
+  it('выход сбрасывает всё', () => {
+    openOrder();
+    ds().bind(ORDER, 'a');
+    ds().setDisplay('garment');
+    ds().setClipboard(newSalesPrint());
+    runAppResets();
+    expect(ds().display).toBe('markup');
+    expect(ds().clipboard).toBeNull();
+  });
+});

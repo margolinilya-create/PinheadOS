@@ -26,7 +26,7 @@ import { create } from 'zustand';
 import { registerAppReset } from '../../../store/appReset';
 import { isTerminalSaveState, useSalesStore } from '../../store/useSalesStore';
 import { isEditable } from '../../model/editable';
-import type { SalesItem } from '../../model/types';
+import type { SalesItem, SalesPrint } from '../../model/types';
 import type { DesignView } from '../types';
 import { designSnapshotOf, itemOf, setItemDesign, type DesignSnapshot } from '../model/editItem';
 import { releaseArtworkImages, releaseFlatImages } from '../assets/imageLayer';
@@ -44,6 +44,9 @@ export interface HistoryEntry extends DesignSnapshot {
 /** Правка позиции: новые нанесения и (или) флэт; `null` — ничего не менять */
 export type DesignPatch = Partial<DesignSnapshot> | null;
 
+/** Вид холста: с разметкой или «Как на изделии» */
+export type DesignDisplay = 'markup' | 'garment';
+
 interface DesignState {
   orderId: string | null;
   itemKey: string | null;
@@ -53,12 +56,24 @@ interface DesignState {
   future: HistoryEntry[];
   zoom: number;
   pan: { x: number; y: number };
+  /**
+   * Вид холста (веха 5в, Э2): `markup` — с зонами, осями и выноской; `garment` —
+   * «Как на изделии», без разметки. Только показ: в заказ не пишется
+   */
+  display: DesignDisplay;
+  /** Цвет ткани на холсте — строка размерной сетки; `null` — первая. Только показ */
+  fabricColor: string | null;
+  /** Скопированное нанесение (Ctrl+C) — для вставки в позицию этого же заказа */
+  clipboard: SalesPrint | null;
   /** Привязать вкладку к позиции. Смена позиции или заказа сбрасывает историю */
   bind: (orderId: string | null, itemKey: string | null) => void;
   select: (printKey: string | null) => void;
   setView: (view: DesignView) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
+  setDisplay: (display: DesignDisplay) => void;
+  setFabricColor: (color: string | null) => void;
+  setClipboard: (print: SalesPrint | null) => void;
   /** Можно ли сейчас править: привязка жива, заказ — черновик, сохранение не в конечном состоянии */
   canEdit: () => boolean;
   /** Правка позиции через `edit` со снимком истории. `false` — ничего не записано */
@@ -78,6 +93,9 @@ const INITIAL = {
   future: [] as HistoryEntry[],
   zoom: 1,
   pan: { x: 0, y: 0 },
+  display: 'markup' as DesignDisplay,
+  fabricColor: null as string | null,
+  clipboard: null as SalesPrint | null,
 };
 
 /** Слияние истории: ключ и время последней правки (вне состояния — не рисуется) */
@@ -130,13 +148,17 @@ export const useDesignStore = create<DesignState>((set, get) => {
       // Картинки — кэш на заказ: другой заказ — освободить object URL прежнего
       if (s.orderId !== null && s.orderId !== orderId) releaseArtworkImages();
       lastKey = null;
-      set({ ...INITIAL, orderId, itemKey });
+      // Режим показа — привычка человека, переживает смену позиции; буфер слоя — только в своём заказе
+      set({ ...INITIAL, orderId, itemKey, display: s.display, clipboard: s.orderId === orderId ? s.clipboard : null });
     },
 
     select: (printKey) => set({ selectedPrintKey: printKey }),
     setView: (view) => set({ view, selectedPrintKey: null }),
     setZoom: (zoom) => set({ zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number.isFinite(zoom) ? zoom : 1)) }),
     setPan: (pan) => set({ pan: { x: pan.x, y: pan.y } }),
+    setDisplay: (display) => set({ display }),
+    setFabricColor: (fabricColor) => set({ fabricColor }),
+    setClipboard: (clipboard) => set({ clipboard }),
 
     canEdit: () => {
       const s = get();
