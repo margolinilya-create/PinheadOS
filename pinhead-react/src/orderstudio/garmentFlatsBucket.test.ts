@@ -61,7 +61,10 @@ describe('бакет garment-flats', () => {
 });
 
 describe('garment_flat_path_ok = isFlatPath клиента', () => {
-  const fn = /create or replace function public\.garment_flat_path_ok\(p_name text\)([\s\S]*?)\$\$([\s\S]*?)\$\$;/i.exec(SQL);
+  // Последняя редакция функции: H (веха 5а), с вехи 5в — O (виды капюшон и карман)
+  const pathFile = files.filter((f) => /create or replace function public\.garment_flat_path_ok\(/.test(read(f))).at(-1)!;
+  const PATH_SQL = noComments(read(pathFile));
+  const fn = /create or replace function public\.garment_flat_path_ok\(p_name text\)([\s\S]*?)\$\$([\s\S]*?)\$\$;/i.exec(PATH_SQL);
 
   it('immutable, invoker, search_path, без таблиц', () => {
     expect(fn, 'нет функции').not.toBeNull();
@@ -80,9 +83,11 @@ describe('garment_flat_path_ok = isFlatPath клиента', () => {
     expect(FLAT_PATH_RE.flags).toBe('');
   });
 
-  it('revoke from public, anon; grant authenticated', () => {
-    expect(SQL).toMatch(/revoke execute on function public\.garment_flat_path_ok\(text\) from public, anon;/);
-    expect(SQL).toMatch(/grant execute on function public\.garment_flat_path_ok\(text\) to authenticated;/);
+  it('revoke from public, anon; grant authenticated (H и последняя редакция)', () => {
+    for (const sql of [SQL, PATH_SQL]) {
+      expect(sql).toMatch(/revoke execute on function public\.garment_flat_path_ok\(text\) from public, anon;/);
+      expect(sql).toMatch(/grant execute on function public\.garment_flat_path_ok\(text\) to authenticated;/);
+    }
   });
 });
 

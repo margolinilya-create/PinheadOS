@@ -37,7 +37,7 @@ describe('parseLayout — виды рукавов (5б)', () => {
   });
   it('неизвестный вид — null', () => {
     expect(parseLayout({ ...base, view: 'sleeve' })).toBeNull();
-    expect(parseLayout({ ...base, view: 'hood' })).toBeNull();
+    expect(parseLayout({ ...base, view: 'collar' })).toBeNull();
   });
 });
 

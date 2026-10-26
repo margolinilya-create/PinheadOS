@@ -15,16 +15,16 @@
  */
 import type { SalesOrder } from '../model/types';
 import type { DraftItem } from '../../erp/utils/orderForm';
-import type { ErpFileType, ErpUploadResult } from '../api/erpFiles';
 import { contentKind, type ArtworkKind } from '../design/assets/sniff';
 import { sanitizeSvg } from '../design/assets/sanitizeSvg';
 import { printFileName, rasterizePrint, type PrintFileDeps } from '../design/export/printFiles';
 import { erpAttachmentKey } from './erpKeys';
-import type { AttPayload } from './launchFiles';
+import type { AttPayload, CopyDeps } from './launchFiles';
 
 export interface PrintFileCopyDeps {
-  download: (orderId: string, path: string) => Promise<Blob | null>;
-  upload: (path: string, body: Blob, contentType: ErpFileType) => Promise<ErpUploadResult>;
+  download: CopyDeps['download'];
+  /** Писатель `erp-attachments` — тот же, что у копий (`launchCopyDeps`) */
+  upload: CopyDeps['upload'];
   rasterize: PrintFileDeps['rasterize'];
   randomId: () => string;
 }

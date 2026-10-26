@@ -16,6 +16,8 @@ export const VIEW_NAMES: Record<DesignView, string> = {
   back: 'спина',
   sleeve_left: 'левый рукав',
   sleeve_right: 'правый рукав',
+  hood: 'капюшон',
+  pocket: 'карман',
 };
 
 /** Пауза пересказа для aria-live (проверка скиллами, ~500 мс): протяжка и серия стрелок не тараторят */

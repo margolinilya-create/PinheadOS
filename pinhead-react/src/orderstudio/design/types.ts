@@ -25,12 +25,14 @@ export type GarmentType = (typeof GARMENT_TYPES)[number];
 
 /**
  * Виды флэта в справочнике. Перечень совпадает с формой пути в бакете
- * флэтов `FLATS_BUCKET` (миграция H): рукава — под веху 5б.
+ * флэтов `FLATS_BUCKET` (миграция H): рукава — под веху 5б; капюшон и карман —
+ * веха 5в, Э9 (миграция O: путь и форма справочника на сервере). Якорей у них нет —
+ * отступ считается от верха зоны, ось — середина зоны.
  */
-export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
+export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right', 'hood', 'pocket'] as const;
 export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
 
-/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → левый → правый рукав */
+/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → рукава → капюшон → карман */
 export const DESIGN_VIEWS = FLAT_VIEW_KINDS;
 export type DesignView = (typeof DESIGN_VIEWS)[number];
 

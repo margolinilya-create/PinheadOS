@@ -45,10 +45,8 @@ import type { ServerPatch } from '../store/useSalesStore';
 import type { TzCatalogs } from '../tz/model/tzDocTypes';
 import { defaultDigest, type Digest } from '../tz/model/tzHash';
 import { METHOD_LABEL, tzToErpDraft, type BridgeWarning } from './tzToErpDraft';
-import { checkAttachedCount, copyLaunchFiles, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
+import { checkAttachedCount, copyLaunchFiles, launchCopyDeps, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
 import type { PrintFileCopyDeps } from './launchPrintFiles';
-import { downloadArtwork } from '../api/artworks';
-import { uploadErpFile } from '../api/erpFiles';
 import { checkTzHashes } from './tzCheck';
 
 export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'tzcheck' | 'files' | 'recheck' | 'create' | 'transition';
@@ -199,8 +197,8 @@ async function printFilesStep(order: SalesOrder, items: DraftItem[], attemptId: 
   try {
     const [step, render] = await Promise.all([import('./launchPrintFiles'), import('../design/export/printFiles')]);
     return await step.launchPrintFiles(order, items, attemptId, {
-      download: opts.files?.download ?? downloadArtwork,
-      upload: opts.files?.upload ?? uploadErpFile,
+      download: (opts.files ?? launchCopyDeps()).download,
+      upload: (opts.files ?? launchCopyDeps()).upload,
       rasterize: opts.rasterize ?? render.rasterizeInBrowser,
       randomId: opts.randomId ?? (() => crypto.randomUUID()),
     });

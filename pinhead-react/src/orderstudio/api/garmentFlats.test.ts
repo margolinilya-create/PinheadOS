@@ -38,7 +38,7 @@ describe('garmentFlats: константы и путь', () => {
     expect(FLATS_BUCKET).toBe('garment-flats');
     expect(FLAT_MIME).toBe('image/svg+xml');
     expect(FLAT_MAX_BYTES).toBe(1048576);
-    expect([...FLAT_VIEW_KINDS]).toEqual(['front', 'back', 'sleeve_left', 'sleeve_right']);
+    expect([...FLAT_VIEW_KINDS]).toEqual(['front', 'back', 'sleeve_left', 'sleeve_right', 'hood', 'pocket']);
   });
 
   it('константы — один источник с дизайном (design/types, design/limits; техдолг 5а)', () => {

@@ -72,7 +72,7 @@ describe('templateFromPrints / parseLayoutTemplate (веха 5в, Э8)', () => {
 
   it.each([
     ['NaN ширина', { width_mm: Number.NaN }],
-    ['неизвестный вид', { view: 'hood' }],
+    ['неизвестный вид', { view: 'collar' }],
     ['неизвестная техника', { method: 'laser' }],
     ['пустая зона', { area_id: '' }],
     ['длинная зона', { area_id: 'x'.repeat(65) }],
