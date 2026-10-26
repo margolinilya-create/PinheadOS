@@ -126,6 +126,7 @@
 .toggle:hover { background: var(--bg1); }
 
 .btn:disabled,
+.btn[aria-disabled='true'],
 .iconBtn:disabled { cursor: default; opacity: 0.5; }
 
 .toggle[aria-selected='true'] {

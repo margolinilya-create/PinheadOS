@@ -6,6 +6,7 @@ import { placementOf } from '../../model/layout';
 import { useDesignStore } from '../../store/useDesignStore';
 import ArtworkPicker from './ArtworkPicker';
 import PreflightList from './PreflightList';
+import CopyToView from './CopyToView';
 import { preflightIssues } from './preflightIssues';
 import { printStatus } from './printStatus';
 import LayerList from './LayerList';
@@ -122,6 +123,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
             onGeometry={(g, label, key) => d.commitPrints(label, (prints) => placeGeometry(prints, selected.print.key, g, ctx), key)}
             onMethod={(method) => d.commitPrints('Техника', (prints) => patchPrint(prints, selected.print.key, { method }))}
           />
+          {d.studio && !readOnly && <CopyToView d={d} entry={selected} />}
           <details className={styles.details}>
             <summary>Цвета, Pantone, эффект</summary>
             <fieldset className={styles.section} disabled={readOnly}>

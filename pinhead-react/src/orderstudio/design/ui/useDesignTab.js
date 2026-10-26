@@ -12,7 +12,7 @@ import { textileOfItem } from '../../model/garmentTextile';
 import { placementOf, remapToFlat } from '../model/layout';
 import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
-import { patchPrint } from './panel/panelOps';
+import { patchPrint } from './panel/printList';
 import { MSG_ADD_BLOCKED_MISMATCH, useArtworkActions } from './useArtworkActions';
 import { transferToCurrent, useItemFlat } from './useItemFlat';
 
@@ -130,6 +130,19 @@ export function useDesignTab({ order, item, readOnly }) {
     if (ok && change.kind === 'unplace') setUnplacedAt(useDesignStore.getState().past.at(-1) ?? null);
   }, [ctx, commitPrints]);
 
+  /** Ctrl+C слоя: строка — в буфер стора, метка «заказ:строка» — в буфер обмена */
+  const copyLayer = useCallback((key) => {
+    const p = item.prints.find((x) => x.key === key);
+    if (!p) return null;
+    useDesignStore.getState().setClipboard(p);
+    return `${order.id}:${key}`;
+  }, [item.prints, order.id]);
+
+  /** Ctrl+D и Ctrl+V слоя — логика в ленивом `copyOps` (вне чанка холста) */
+  const layerOp = useCallback((op, arg) => {
+    if (ctx) import('./panel/copyOps').then((m) => m.layerOp(op, arg, { orderId: order.id, ctx, blocked: addBlocked, flats: flats.catalog.flats, commitPrints }));
+  }, [ctx, order.id, addBlocked, flats.catalog, commitPrints]);
+
   const [switchNote, setSwitchNote] = useState('');
   /** Сменить силуэт: нанесения на холсте переносятся по зонам; ненайденные — строками */
   const switchFlat = useCallback(async (next) => {
@@ -178,7 +191,7 @@ export function useDesignTab({ order, item, readOnly }) {
     studio, display: studio ? ds.display : 'markup', fabricColor: shownColor, suppliers: cat.suppliers,
     flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
-    art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
+    art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote, addBlocked, layerOp, copyLayer,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,
     clearUnplaced: () => setUnplacedAt(null),
   };

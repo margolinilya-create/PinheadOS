@@ -454,3 +454,44 @@ describe('DesignTab — итог позиции (веха 5в, Э2)', () => {
   });
 });
 
+describe('DesignTab — копия на другой вид и Ctrl+D (веха 5в, Э2)', () => {
+  it('«Копировать на вид» → копия на спине, вид — спина, выбор — копия, один шаг истории', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const group = await screen.findByRole('group', { name: 'Копировать нанесение 1 на вид' });
+    fireEvent.click(within(group).getByRole('button', { name: /Спина/ }));
+    const prints = current().prints;
+    expect(prints).toHaveLength(2);
+    expect(parseLayout(prints[1].layout)?.view).toBe('back');
+    const s = useDesignStore.getState();
+    expect(s.view).toBe('back');
+    expect(s.selectedPrintKey).toBe(prints[1].key);
+    expect(s.past.map((x) => x.label)).toEqual(['Копия на вид']);
+  });
+
+  it('Ctrl+D на холсте — дубль и выбор копии', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    fireEvent.keyDown(screen.getByRole('application'), { key: 'd', code: 'KeyD', ctrlKey: true });
+    await waitFor(() => expect(current().prints).toHaveLength(2));
+    expect(useDesignStore.getState().selectedPrintKey).toBe(current().prints[1].key);
+  });
+
+  it('Ctrl+C → Ctrl+V слоя — вставка копии; чужая метка — ничего', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const canvas = screen.getByRole('application');
+    const store = {};
+    const data = { files: [], setData: (t, v) => { store[t] = v; }, getData: (t) => store[t] ?? '' };
+    fireEvent.copy(canvas, { clipboardData: data });
+    fireEvent.paste(canvas, { clipboardData: { files: [], getData: () => 'другой:ключ' } });
+    await act(async () => {});
+    expect(current().prints).toHaveLength(1);
+    fireEvent.paste(canvas, { clipboardData: data });
+    await waitFor(() => expect(current().prints).toHaveLength(2));
+  });
+});
+

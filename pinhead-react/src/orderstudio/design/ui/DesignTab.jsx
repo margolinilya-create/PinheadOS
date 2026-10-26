@@ -157,6 +157,9 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
                 orderId={order.id}
                 colorHex={d.colorHex}
                 display={d.display}
+                onDuplicate={ro ? undefined : (key) => d.layerOp('duplicate', key)}
+                onCopyLayer={d.copyLayer}
+                onPasteLayer={ro ? undefined : (token) => d.layerOp('paste', token)}
                 onUndo={undo}
                 onRedo={redo}
               />

@@ -7,7 +7,10 @@
  *   нанесения остаётся, тост «Вернуть» — у панели; проверка скиллами);
  * - Ctrl/Cmd+Z — отменить, Ctrl/Cmd+Shift+Z и Ctrl+Y — вернуть; клавиша
  *   узнаётся и по коду (`KeyZ`), иначе на русской раскладке «я» не сработала бы;
- * - Esc — снять выбор; «+», «−», «0» — масштаб и «вписать».
+ * - Esc — снять выбор; «+», «−», «0» — масштаб и «вписать»;
+ * - Ctrl/Cmd+D — дубль выбранного (веха 5в, Э2; по коду `KeyD` — и на «в»).
+ *   Ctrl+C / Ctrl+V слоя — событиями `copy`/`paste` контейнера, НЕ здесь:
+ *   `preventDefault` на keydown погасил бы `paste`, и вставка файла пропала бы.
  *
  * Только чтение — ни одной правки: выбор и масштаб остаются. Чужие сочетания
  * (Ctrl+C, Ctrl+V — вставка ловится событием `paste`, Alt+…, Tab) не гасятся:
@@ -33,6 +36,7 @@ export type KeyAction =
   | { type: 'deselect' }
   | { type: 'unplace' }
   | { type: 'nudge'; dx: number; dy: number }
+  | { type: 'duplicate' }
   | { type: 'zoom'; dir: 1 | -1 }
   | { type: 'fit' };
 
@@ -52,6 +56,7 @@ export function keyAction(e: KeyLike, s: { readOnly: boolean; hasSelection: bool
     if (s.readOnly) return null;
     if (isKey(e, 'KeyZ', 'zZяЯ')) return { type: e.shiftKey ? 'redo' : 'undo' };
     if (isKey(e, 'KeyY', 'yYнН')) return { type: 'redo' };
+    if (s.hasSelection && isKey(e, 'KeyD', 'dDвВ')) return { type: 'duplicate' };
     return null;
   }
   if (e.key === '+' || e.key === '=') return { type: 'zoom', dir: 1 };
@@ -74,13 +79,14 @@ export interface CanvasKeysOpts {
   onCommit: (change: CanvasChange) => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  onDuplicate?: (key: string) => void;
   zoomBy: (dir: 1 | -1) => void;
   fit: () => void;
 }
 
 /** Обработчик `onKeyDown` контейнера холста */
 export function useCanvasKeys(o: CanvasKeysOpts): (e: KeyLike & { preventDefault: () => void }) => void {
-  const { readOnly, selectedKey: key, onSelect, onCommit, onUndo, onRedo, zoomBy, fit } = o;
+  const { readOnly, selectedKey: key, onSelect, onCommit, onUndo, onRedo, onDuplicate, zoomBy, fit } = o;
   return useCallback((e) => {
     const a = keyAction(e, { readOnly, hasSelection: key !== null });
     if (!a) return;
@@ -90,12 +96,16 @@ export function useCanvasKeys(o: CanvasKeysOpts): (e: KeyLike & { preventDefault
     else if (a.type === 'zoom') zoomBy(a.dir);
     else if (a.type === 'fit') fit();
     else if (a.type === 'deselect') onSelect(null);
+    else if (key && a.type === 'duplicate') onDuplicate?.(key);
     else if (key && a.type === 'unplace') onCommit({ kind: 'unplace', key, label: CANVAS_LABELS.unplace });
     else if (key && a.type === 'nudge') {
       onCommit({ kind: 'nudge', key, dx_mm: a.dx, dy_mm: a.dy, label: CANVAS_LABELS.nudge, coalesceKey: `nudge:${key}` });
     }
-  }, [readOnly, key, onSelect, onCommit, onUndo, onRedo, zoomBy, fit]);
+  }, [readOnly, key, onSelect, onCommit, onUndo, onRedo, onDuplicate, zoomBy, fit]);
 }
+
+/** Тип данных буфера для скопированного слоя (метка «заказ:строка») */
+export const LAYER_MIME = 'application/x-pinhead-print';
 
 /** Углы-магниты трансформера без Shift и с Shift (шаг 15°) */
 export const ROTATION_SNAPS = [0, 90, 180, 270];

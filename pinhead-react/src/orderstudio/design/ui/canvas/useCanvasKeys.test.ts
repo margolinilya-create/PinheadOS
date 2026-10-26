@@ -7,6 +7,17 @@ const k = (key: string, extra: Partial<KeyLike> = {}): KeyLike => ({
 });
 const EDIT = { readOnly: false, hasSelection: true };
 
+describe('keyAction — Ctrl+D (веха 5в, Э2)', () => {
+  it('Ctrl/Cmd+D — дубль при выборе; по коду — и на «в»; без выбора и в только чтении — нет; Ctrl+V здесь не ловится', () => {
+    expect(keyAction(k('d', { ctrlKey: true, code: 'KeyD' }), EDIT)).toEqual({ type: 'duplicate' });
+    expect(keyAction(k('в', { metaKey: true }), EDIT)).toEqual({ type: 'duplicate' });
+    expect(keyAction(k('d', { ctrlKey: true, code: 'KeyD' }), { ...EDIT, hasSelection: false })).toBeNull();
+    expect(keyAction(k('d', { ctrlKey: true, code: 'KeyD' }), { ...EDIT, readOnly: true })).toBeNull();
+    expect(keyAction(k('v', { ctrlKey: true, code: 'KeyV' }), EDIT)).toBeNull();
+    expect(keyAction(k('c', { ctrlKey: true, code: 'KeyC' }), EDIT)).toBeNull();
+  });
+});
+
 describe('keyAction', () => {
   it('стрелки: 1 мм, с Shift — 10 мм; без выбора — ничего', () => {
     expect(keyAction(k('ArrowLeft'), EDIT)).toEqual({ type: 'nudge', dx: -1, dy: 0 });

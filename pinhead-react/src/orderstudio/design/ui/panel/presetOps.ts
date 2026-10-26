@@ -81,7 +81,7 @@ function scaledTo(view: FlatView, area: PrintArea, pl: Geometry, widthMm: number
  * и снизу — с безопасным отступом, сверху — по самой зоне (верх у горловины —
  * штатное место логотипа, как у предупреждения «у края зоны», Э1)
  */
-function clampedToZone(view: FlatView, area: PrintArea, pl: Geometry): Geometry {
+export function clampedToZone(view: FlatView, area: PrintArea, pl: Geometry): Geometry {
   const { zone, safeInsetMm: m } = viewZone(view, undefined, area.id);
   const box = boxOf(pl);
   const shift = (lo: number, hi: number, a: number, len: number) => (len > hi - lo ? lo + (hi - lo - len) / 2 - a : Math.min(Math.max(a, lo), hi - len) - a);

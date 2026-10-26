@@ -11,7 +11,7 @@ import { FLAT_MM_FALLBACK, areaAt, fromNode, isDarkHex, isOutOfZone, snapCenter,
 import { CANVAS_LABELS } from './canvasChange';
 import { ANNOUNCE_DELAY_MS, VIEW_NAMES, announcePrint, canvasHint, canvasLabel } from './canvasText';
 import { useCanvasViewport } from './useCanvasViewport';
-import { useCanvasKeys, useRotationSnap, ROTATION_SNAPS } from './useCanvasKeys';
+import { useCanvasKeys, useRotationSnap, LAYER_MIME, ROTATION_SNAPS } from './useCanvasKeys';
 import { useCanvasTheme } from './useCanvasTheme';
 import { usePlacementImages } from './usePlacementImages';
 import { GridLines, ZoneShapes, NamedAxes, DimensionOverlay, SnapGuides } from './canvasOverlays';
@@ -70,6 +70,7 @@ const nodeAttrs = (n) => ({
 export function EditorCanvas({
   flat, view, prints, selectedKey, readOnly, onSelect, onCommit, onDropFile,
   orderId, colorHex = NEUTRAL_GARMENT_HEX, onUndo, onRedo, display = 'markup',
+  onDuplicate, onCopyLayer, onPasteLayer,
 }) {
   // «Как на изделии» (веха 5в, Э2): без зон, осей, сетки, выноски и гайдов — правка та же
   const markup = display !== 'garment';
@@ -104,7 +105,7 @@ export function EditorCanvas({
   const selected = items.find((x) => x.pl.print_key === selectedKey) ?? null;
 
   const onKeyDown = useCanvasKeys({
-    readOnly, selectedKey: selected ? selected.pl.print_key : null, onSelect, onCommit, onUndo, onRedo, zoomBy: vp.zoomBy, fit: vp.fit,
+    readOnly, selectedKey: selected ? selected.pl.print_key : null, onSelect, onCommit, onUndo, onRedo, onDuplicate, zoomBy: vp.zoomBy, fit: vp.fit,
   });
   useRotationSnap(trRef);
 
@@ -206,9 +207,22 @@ export function EditorCanvas({
   };
   const onPaste = (e) => {
     const files = Array.from(e.clipboardData?.files ?? []);
+    // Файл важнее слоя; слой — только по метке своего копирования (веха 5в, Э2)
+    const token = files.length ? '' : e.clipboardData?.getData(LAYER_MIME);
+    if (token && onPasteLayer) {
+      e.preventDefault();
+      onPasteLayer(token);
+      return;
+    }
     if (!canDrop || !files.length) return;
     e.preventDefault();
     dropFiles(files, {});
+  };
+  const onCopy = (e) => {
+    const token = selected && onCopyLayer ? onCopyLayer(selected.pl.print_key) : null;
+    if (!token) return;
+    e.clipboardData?.setData(LAYER_MIME, token);
+    e.preventDefault();
   };
 
   const gridAreaId = selected?.pl.area_id ?? defaultAreaId(flat, view);
@@ -240,6 +254,7 @@ export function EditorCanvas({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         onPaste={onPaste}
+        onCopy={onCopy}
       >
         <Stage
           width={vp.size.width}
