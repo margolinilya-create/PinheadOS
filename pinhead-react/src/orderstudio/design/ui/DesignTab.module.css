@@ -164,6 +164,7 @@
 
 .layer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-xs);
   border: 1px solid var(--border-light);
@@ -233,11 +234,13 @@
 
 .serious { color: var(--color-error-ink); }
 
-/* Статус нанесения в строке слоя (веха 5в, Э2) */
+/* Статус нанесения в строке слоя (веха 5в, Э2) — своей строкой под названием:
+   рядом с кнопками он сжимал название в узкий столбец (обход 26.10) */
 .layerStatus {
-  align-self: center;
+  order: 10;
+  flex-basis: 100%;
+  padding: 0 var(--space-md) var(--space-xs);
   font-size: var(--type-label);
-  white-space: nowrap;
 }
 
 .status_ok { color: var(--color-success-ink); }

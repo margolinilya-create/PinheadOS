@@ -167,6 +167,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
             {d.studio && (
               <Suspense fallback={null}>
                 <StageBelow d={d} item={item} />
+                <ItemTotalBar item={item} price={price} />
               </Suspense>
             )}
           </div>
@@ -174,11 +175,6 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
             <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />
           </Suspense>
         </div>
-      )}
-      {flat && !compact && d.studio && (
-        <Suspense fallback={null}>
-          <ItemTotalBar item={item} price={price} />
-        </Suspense>
       )}
     </section>
   );

@@ -120,7 +120,8 @@
 
 .warn { color: var(--color-warning-ink); }
 
-/* Строка итога позиции: липкая только на широком экране (на телефоне вкладка — превью) */
+/* Строка итога позиции — под проверками в колонке холста; не липкая: липкая
+   перекрывала поля панели при прокрутке (обход 26.10, 1440 и 1100 px) */
 .total {
   display: flex;
   flex-wrap: wrap;
@@ -132,13 +133,4 @@
   background: var(--card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-}
-
-@media (min-width: 761px) {
-  .total {
-    position: sticky;
-    bottom: 0;
-    z-index: var(--z-sticky);
-    box-shadow: var(--shadow-raise);
-  }
 }

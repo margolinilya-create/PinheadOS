@@ -150,6 +150,10 @@ pinhead-react/src/
                              # веха 5в (Э1): design/catalog/pickFlat — flatFitsModel/flatsForModel/flatMismatch (силуэт
                              # только своей модели), model/printMethods — пределы размера `size` + methodSizeIssue,
                              # pricing/printTech (строка техники в цене), model/printOffset.offsetNote (отступ в ERP и ТЗ)
+                             # веха 5в (Э2, флаг designStudio): design/ui/stage/StageParts (части сцены одним ленивым модулем:
+                             # «Стандарты Pinhead», вид холста, проверки под холстом, цвет ткани, итог позиции),
+                             # ui/panel/presetOps (пресеты с размером), copyOps (копия на вид, Ctrl+D, вставка слоя),
+                             # printList (лёгкие операции для чанка холста), catalog/sleeveZones (пары зон рукавов)
 ```
 
 ```

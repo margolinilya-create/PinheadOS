@@ -209,6 +209,11 @@ admin/director — Производство. Подробно — корнево
   макета, чек-лист); строка техники в цене — `PrintPrice.tech` + `pricing/printTech.ts`; отступ в ERP — `offsetNote`.
   План — `docs/superpowers/plans/2026-10-26-order-flow-m5c-design-studio.md`; правила —
   `docs/rules/pravila-dizain-veha-5v-e1-26-10.md`.
+  Веха 5в, Э2 (26.10, флаг `designStudio`, `?design2=0` — прежний вид): части сцены — один ленивый модуль
+  `design/ui/stage/StageParts.jsx` («Стандарты Pinhead» — `panel/presetOps`, «Разметка / Как на изделии»,
+  проверки под холстом + статус строк `panel/printStatus`, «Показать на цвете», итог позиции); копия на вид,
+  Ctrl+D и вставка слоя — `panel/copyOps` (через `import()`); в чанк холста — только пропы и поля стора,
+  лёгкие функции — `panel/printList.ts`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
