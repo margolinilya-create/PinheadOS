@@ -26,6 +26,8 @@ export interface TzCatalogSource {
   zonesCatalog: unknown;
   suppliers: unknown;
   tzSettings: unknown;
+  /** Каталог моделей — только код и категория (чек-лист: силуэт другой модели) */
+  skuCatalog?: unknown;
 }
 
 const list = <T>(v: unknown): readonly T[] => (Array.isArray(v) ? (v as T[]) : []);
@@ -42,7 +44,16 @@ export function tzCatalogsOf(src: TzCatalogSource, flats: GarmentFlatsCatalog | 
     garmentFlats: flats,
     suppliers: list(src.suppliers),
     tzSettings: (src.tzSettings ?? null) as TzCatalogs['tzSettings'],
+    skuCategories: skuCategoriesOf(src.skuCatalog),
   };
+}
+
+function skuCategoriesOf(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const s of list<{ code?: unknown; category?: unknown } | null>(raw)) {
+    if (s && typeof s.code === 'string' && s.code && typeof s.category === 'string' && s.category) out[s.code] = s.category;
+  }
+  return out;
 }
 
 /** Справочники ТЗ для экрана; флэты ещё грузятся или не загрузились — `null` */
@@ -55,6 +66,7 @@ export function useTzCatalogs(): { catalogs: TzCatalogs | null; failed: boolean 
     zonesCatalog: s.zonesCatalog,
     suppliers: s.suppliers,
     tzSettings: s.tzSettings,
+    skuCatalog: s.skuCatalog,
   })));
   const flats = useFlatsCatalog();
   const ready = flats.status === 'ready';

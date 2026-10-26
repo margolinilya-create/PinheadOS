@@ -144,3 +144,31 @@ describe('sendChecklist — тексты', () => {
     expect(canSend(items)).toBe(true);
   });
 });
+
+describe('sendChecklist — силуэт другой модели (B1, веха 5в)', () => {
+  // Образец 68180: свитшот (sweat-basic) с вышивкой, раскладка — на типовом флэте футболки
+  const withCategories = { ...cat, skuCategories: { 'sweat-basic': 'sweatshirts', 'polo-classic': 'polo' } };
+  const SWEAT = '68180-sweat';
+  const flatItems = (o: SalesOrder, c: typeof cat, ctx: CheckCtx) => sendChecklist(o, c, ctx).filter((i) => i.id.startsWith('flat:'));
+
+  it('свитшот, нанесения которого стоят на флэте футболки, — блок у продавца со ссылкой на «Дизайн», у МС — «верните менеджеру»', () => {
+    const o = ready('68180-sweat');
+    const items = flatItems(o, withCategories, seller);
+    expect(items.map((i) => i.id)).toEqual([`flat:${SWEAT}`]);
+    expect(items[0]).toMatchObject({ blocking: true, href: `?tab=design&item=${SWEAT}` });
+    expect(items[0].text).toMatch(/^Нанесения позиции «.+» стоят на силуэте «.+» — он от другой модели\. Откройте «Дизайн» и перенесите их на силуэт модели$/);
+    expect(items[0].rule).toBeUndefined();
+    const m = flatItems(withPdf(o), withCategories, ms);
+    expect(m).toHaveLength(1);
+    expect(m[0]).toMatchObject({ blocking: true, href: null });
+    expect(m[0].text).toMatch(/силуэте другой модели .* — верните менеджеру$/);
+  });
+
+  it('без раскладок на чужом силуэте — пункта нет (выход есть: снять с изделия); модель неизвестна — не судим', () => {
+    const o = ready('68180-sweat');
+    const i = o.items.findIndex((it) => it.key === SWEAT);
+    const unplaced = setItem(o, i, { prints: o.items[i].prints.map((p) => ({ ...p, layout: null })) });
+    expect(flatItems(unplaced, withCategories, seller)).toEqual([]);
+    expect(flatItems(o, cat, seller)).toEqual([]);
+  });
+});
