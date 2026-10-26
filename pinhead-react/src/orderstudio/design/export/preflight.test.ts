@@ -62,6 +62,15 @@ describe('preflight', () => {
     expect(has(run({ placements: [pl({ x_mm: 160, width_mm: 400 })] }), 'выходит за печатную зону')).toBe(true);
   });
 
+  it('у края зоны (ближе безопасного отступа) — предупреждение; за зоной — только «выходит»', () => {
+    const near = run({ placements: [pl({ x_mm: 155 })] });
+    expect(near).toEqual([{ level: 'warn', printKey: 'p1', message: '«Грудь»: до края зоны меньше 15 мм — цех может не попасть.' }]);
+    const out = run({ placements: [pl({ x_mm: 160, width_mm: 400 })] });
+    expect(has(out, 'выходит за печатную зону')).toBe(true);
+    expect(has(out, 'до края зоны')).toBe(false);
+    expect(run({ placements: [pl({ x_mm: 165 })] })).toEqual([]);
+  });
+
   it('максимум зоны — с поворотом, минимум — по сырым Ш×В', () => {
     const maxed = withArea({ max_print_mm: { width: 200, height: 200 } });
     expect(has(run({ flat: maxed, placements: [pl({ width_mm: 180, height_mm: 180, rotation_deg: 45 })] }), 'больше максимума')).toBe(true);

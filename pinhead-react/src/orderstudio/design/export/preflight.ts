@@ -3,7 +3,7 @@
  * Только геометрия и файл; цену проверяет `priceOrder` (`ISSUE_LABELS`).
  * Ничего не блокирует (проверка скиллами, ответ владельца 17.10) — три уровня:
  * - `serious` — серьёзное предупреждение (DPI ниже нижнего порога, нет зоны);
- * - `warn` — предупреждение (DPI между порогами, выход за зону, размер вне
+ * - `warn` — предупреждение (DPI между порогами, выход за зону или ближе safe-отступа к краю, размер вне
  *   границ зоны, техника не для зоны, оценочный размер, флэт обновлён);
  * - `info` — подсказка (вышивка: мелкие детали не прошьются).
  *
@@ -65,7 +65,9 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
   if (!input.methodAllowed(area, p.method)) add('warn', `техника «${profile.label}» не для этой зоны.`);
 
   const bbox = { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm };
-  if (placementInfo(view, bbox, p.rotation_deg, undefined, area.id).check.out_of_zone) add('warn', 'выходит за печатную зону.');
+  const info = placementInfo(view, bbox, p.rotation_deg, undefined, area.id);
+  if (info.check.out_of_zone) add('warn', 'выходит за печатную зону.');
+  else if (info.check.out_of_safe_zone) add('warn', `до края зоны меньше ${Math.round(info.safeInsetMm)} мм — цех может не попасть.`);
   return out;
 }
 
