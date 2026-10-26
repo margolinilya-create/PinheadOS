@@ -437,3 +437,20 @@ describe('DesignTab — вид холста и цвет ткани (веха 5в
   });
 });
 
+describe('DesignTab — итог позиции (веха 5в, Э2)', () => {
+  it('нанесения, цена за штуку и за позицию — как цена позиции', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    const unit = screen.getByRole('heading', { name: /Цена за штуку/ }).textContent.replace('Цена за штуку: ', '');
+    expect(bar.textContent).toMatch(/^1 нанесение·/);
+    expect(bar.textContent).toContain(`${unit}/шт`);
+    expect(bar.textContent).toMatch(/₽ за позицию$/);
+  });
+  it('пустая сетка — «Цена не посчитана»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [], size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 0 } }] } }));
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    expect(bar.textContent).toBe('Нанесений нет·Цена не посчитана');
+  });
+});
+

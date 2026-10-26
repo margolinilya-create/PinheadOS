@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { pluralize } from '../../../../utils/i18n';
+import { rub } from '../../../screens/labels';
 import { defaultAreaId } from '../../geometry/view';
 import { placementOf } from '../../model/layout';
 import { garmentHexOf } from '../../assets/garmentHex';
@@ -178,6 +179,35 @@ export function StageBelow({ d, item }) {
       <FabricChips d={d} item={item} />
       <CanvasChecks d={d} item={item} />
     </div>
+  );
+}
+
+/**
+ * Итог позиции под холстом: нанесения, цена за штуку и за позицию — те же
+ * `unit` и `total`, что на «ТЗ и цена» (ручная цена тоже). Кнопки «Далее»
+ * здесь нет: под вкладкой уже есть «Далее: клиент и доставка».
+ */
+export function ItemTotalBar({ item, price }) {
+  const n = item.prints.length;
+  const prints = n === 0 ? 'Нанесений нет' : `${n} ${pluralize(n, 'нанесение', 'нанесения', 'нанесений')}`;
+  const priced = price && price.qty > 0;
+  return (
+    <section className={styles.total} aria-label="Итог позиции">
+      <span>{prints}</span>
+      {priced ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span><strong>{rub(price.unit)}</strong>/шт{price.manual ? ' (ручная цена)' : ''}</span>
+          <span aria-hidden="true">·</span>
+          <span><strong>{rub(price.total)}</strong> за позицию</span>
+        </>
+      ) : (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>Цена не посчитана</span>
+        </>
+      )}
+    </section>
   );
 }
 

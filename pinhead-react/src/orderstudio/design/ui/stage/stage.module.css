@@ -119,3 +119,26 @@
 .serious { color: var(--color-error-ink); font-weight: 600; }
 
 .warn { color: var(--color-warning-ink); }
+
+/* Строка итога позиции: липкая только на широком экране (на телефоне вкладка — превью) */
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+@media (min-width: 761px) {
+  .total {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-sticky);
+    box-shadow: var(--shadow-raise);
+  }
+}

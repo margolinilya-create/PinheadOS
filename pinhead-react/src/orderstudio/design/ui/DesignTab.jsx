@@ -35,6 +35,7 @@ const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель д
 const loadStage = () => import('./stage/StageParts');
 const StageTop = lazy(() => loadStage().then((m) => ({ default: m.StageTop })));
 const StageBelow = lazy(() => loadStage().then((m) => ({ default: m.StageBelow })));
+const ItemTotalBar = lazy(() => loadStage().then((m) => ({ default: m.ItemTotalBar })));
 const STAGE_TOP_FALLBACK = <div className={styles.stageBarFallback} aria-hidden="true" />;
 
 /**
@@ -170,6 +171,11 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
             <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />
           </Suspense>
         </div>
+      )}
+      {flat && !compact && d.studio && (
+        <Suspense fallback={null}>
+          <ItemTotalBar item={item} price={price} />
+        </Suspense>
       )}
     </section>
   );
