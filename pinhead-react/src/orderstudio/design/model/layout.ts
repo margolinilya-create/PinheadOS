@@ -219,7 +219,7 @@ function axisX(view: FlatView, areaId: string): number {
  * по `zone_id`. Служебная зона (`zone_id = null`) переносится только по `id`
  * и только внутри того же флэта (новая версия): на чужом силуэте — не наугад
  */
-function targetArea(src: PrintArea, toView: FlatView, sameFlat: boolean): PrintArea | undefined {
+export function targetArea(src: Pick<PrintArea, 'id' | 'zone_id'>, toView: FlatView, sameFlat: boolean): PrintArea | undefined {
   const same = toView.print_areas.find((a) => a.id === src.id && a.zone_id === src.zone_id);
   if (same && (src.zone_id !== null || sameFlat)) return same;
   return src.zone_id ? toView.print_areas.find((a) => a.zone_id === src.zone_id) : undefined;

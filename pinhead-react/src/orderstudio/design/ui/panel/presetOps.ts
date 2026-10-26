@@ -62,7 +62,7 @@ export function studioPresets(view: FlatView, area: PrintArea): StudioPresetOpti
 const boxOf = (pl: Geometry) => rotatedAabb({ x: pl.x_mm, y: pl.y_mm, w: pl.width_mm, h: pl.height_mm }, pl.rotation_deg);
 
 /** Масштаб под ширину стандарта по видимой рамке, не больше зоны минус отступ (и по высоте) */
-function scaledTo(view: FlatView, area: PrintArea, pl: Geometry, widthMm: number): Geometry {
+export function scaledTo(view: FlatView, area: PrintArea, pl: Geometry, widthMm: number): Geometry {
   const { zone, safeInsetMm } = viewZone(view, undefined, area.id);
   const box = boxOf(pl);
   if (!(box.w > 0) || !(box.h > 0)) return pl;

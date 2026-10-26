@@ -19,6 +19,8 @@ import styles from '../DesignTab.module.css';
 
 /* Инспектор нужен только при выбранном нанесении — своим чанком (потолок холста 100 кБ) */
 const GeometryInspector = lazy(() => import('./GeometryInspector'));
+/* «Мои раскладки» (Э8) — своим чанком: API таблицы и раскладка грузятся только в черновике «Дизайна» 2.0 */
+const MyLayouts = lazy(() => import('./MyLayouts'));
 
 /**
  * Панель справа от холста (перенос DM `SidePanel`, разрезан по проверке
@@ -145,6 +147,12 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
               />
             </fieldset>
           </details>
+        </Suspense>
+      )}
+
+      {d.studio && !readOnly && (
+        <Suspense fallback={null}>
+          <MyLayouts d={d} item={item} selected={selected} />
         </Suspense>
       )}
 
