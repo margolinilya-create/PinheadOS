@@ -214,6 +214,9 @@ admin/director — Производство. Подробно — корнево
   проверки под холстом + статус строк `panel/printStatus`, «Показать на цвете», итог позиции); копия на вид,
   Ctrl+D и вставка слоя — `panel/copyOps` (через `import()`); в чанк холста — только пропы и поля стора,
   лёгкие функции — `panel/printList.ts`.
+  Веха 5в, Э2б: лекало детали `FlatView.pattern` (GEOMETRY вида), разбор DXF/SVG — `design/edit/pattern/`
+  (в редакторе флэта — `import()`), вкладка «Лекала» `admin/flats/PatternSection.jsx` + `patternAlign.ts`,
+  лист «Выкройка» — `export/buildPatternSvg.ts` + ленивый `ui/stage/PatternSheet.jsx`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
