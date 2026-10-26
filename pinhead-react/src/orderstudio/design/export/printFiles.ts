@@ -65,6 +65,21 @@ export function printablePrints(item: Pick<SalesItem, 'prints'>): { print: Sales
     .filter(({ print }) => !!print.artwork_path && (print.width_mm ?? 0) > 0 && (print.height_mm ?? 0) > 0);
 }
 
+/**
+ * PNG нанесения в натуральную величину: DPI по `dpiCandidates`, pHYs записан.
+ * Общий для кнопки «Файлы печати» и запуска в производство (Э4б); не вышло — `null`
+ */
+export async function rasterizePrint(
+  src: Blob | string, kind: ArtworkKind, wMm: number, hMm: number, rasterize: PrintFileDeps['rasterize'],
+): Promise<{ png: Uint8Array; dpi: number } | null> {
+  for (const dpi of dpiCandidates(wMm, hMm)) {
+    const px = (mm: number) => Math.max(1, Math.round(mm / 25.4 * dpi));
+    const png = await rasterize(src, kind, px(wMm), px(hMm));
+    if (png) return { png: withPngDpi(png, dpi), dpi };
+  }
+  return null;
+}
+
 const EXT: Record<ArtworkKind, string> = { png: 'png', jpeg: 'jpg', webp: 'webp', svg: 'svg', pdf: 'pdf' };
 
 export interface PrintFilesResult {
@@ -103,17 +118,11 @@ export async function buildPrintFiles(order: Pick<SalesOrder, 'id' | 'number'>, 
       count++;
       continue;
     }
-    let dpi = PRINT_DPI;
-    let png: Uint8Array | null = null;
-    for (const d of dpiCandidates(w, h)) {
-      const px = (mm: number) => Math.max(1, Math.round(mm / 25.4 * d));
-      png = await deps.rasterize(src, kind, px(w), px(h));
-      dpi = d;
-      if (png) break;
-    }
-    if (!png) { notes.push(`Нанесение ${n}: не удалось подготовить PNG — приложен исходник`); entries.push({ name: printFileName(order.number, index, print, EXT[kind]), data: bytes }); continue; }
+    const res = await rasterizePrint(src, kind, w, h, deps.rasterize);
+    if (!res) { notes.push(`Нанесение ${n}: не удалось подготовить PNG — приложен исходник`); entries.push({ name: printFileName(order.number, index, print, EXT[kind]), data: bytes }); continue; }
+    const { dpi } = res;
     const name = printFileName(order.number, index, print, 'png', dpi);
-    entries.push({ name, data: withPngDpi(png, dpi) });
+    entries.push({ name, data: res.png });
     lines.push(`${name} — ${Math.round(w)} × ${Math.round(h)} мм, ${dpi} dpi${dpi < PRINT_DPI ? ' (снижено: браузер не удержал холст этого размера при 300 dpi)' : ''}`);
     count++;
   }

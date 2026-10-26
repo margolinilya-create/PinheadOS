@@ -82,6 +82,14 @@
   Рисунок — без поворота и отражения раскладки. e2e — архив скачивается в Chromium с PNG и `pHYs`.
 - **4б (миграция N):** файлы печати собираются при «Отправить в работу» (`tz/sendToWork.ts`), путь — колонка `order_item_prints.print_file_path` (страж `order_v4_child_guard`, `order_v4_save_full`, `SALES_CLIENT_REV` 5 парой с порогом, `api/serverZoneNotes`-подобная проба возможностей, носитель в `orderFileHolders.mjs` + копия в функции), при запуске копия в `erp-attachments` вида `print` (`bridge/launchFiles.ts`, `api/erpFiles.ts`). Пробы `supabase/probes/order_v4_print_files.sql`, выкатка `supabase/rollout/m5c/`.
 
+- **Э4б сделан 26.10 — без миграции N и без правок ERP** (решение по ходу: ERP боевой, ревизия клиента 5
+  связала бы выкатку фронта и базы): файлы печати собираются **при запуске** в браузере МС
+  (`bridge/launchPrintFiles.ts`, тот же рендер `rasterizePrint`, что у кнопки) и уходят в `erp-attachments`
+  писателем `api/erpFiles.ts` вложением вида `print` к тому же нанесению, рядом с копией исходника; имя —
+  `PH-…_p1_front_dtf_127x64mm.png`. Шаг необязательный: сбой — предупреждение МС, запуск идёт (исходник уже в
+  ERP); PDF/AI — без растра (печать по исходнику); модуль — `import()` из `bridge/launch.ts`. Колонка
+  `print_file_path` и сборка при «Отправить в работу» не понадобились.
+
 ### Э5. Мокапы
 - Переключатель цвета ткани по строкам `size_grid` (только вид, не пишется; `assets/garmentHex.ts`).
 - PNG мокапов «вид × цвет» из `buildSceneSvg`/`buildPreviewSvg` (эталонный хэш листа не трогать — новая сцена отдельной функцией), фирменная сцена; скачать PNG/ZIP.

@@ -46,6 +46,9 @@ import type { TzCatalogs } from '../tz/model/tzDocTypes';
 import { defaultDigest, type Digest } from '../tz/model/tzHash';
 import { METHOD_LABEL, tzToErpDraft, type BridgeWarning } from './tzToErpDraft';
 import { checkAttachedCount, copyLaunchFiles, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
+import type { PrintFileCopyDeps } from './launchPrintFiles';
+import { downloadArtwork } from '../api/artworks';
+import { uploadErpFile } from '../api/erpFiles';
 import { checkTzHashes } from './tzCheck';
 
 export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'tzcheck' | 'files' | 'recheck' | 'create' | 'transition';
@@ -67,6 +70,11 @@ export interface LaunchOptions {
   randomId?: () => string;
   /** Сеть шага `files` — для тестов */
   files?: CopyDeps;
+  /**
+   * Файлы печати (веха 5в, Э4б): растеризация для тестов; `null` — шаг не делается.
+   * Сеть — та же, что у `files` (скачивание и писатель `erp-attachments`)
+   */
+  rasterize?: PrintFileCopyDeps['rasterize'] | null;
   /** Ход запуска для `aria-live` экрана: зовётся в начале каждого шага */
   onStage?: (stage: LaunchStage) => void;
 }
@@ -186,6 +194,22 @@ Promise<{ done: Promise<LaunchResult> | LaunchResult } | null> {
   return null;
 }
 
+/** Шаг файлов печати (Э4б); модуль не загрузился — предупреждения нет, запуск идёт без них */
+async function printFilesStep(order: SalesOrder, items: DraftItem[], attemptId: string, opts: LaunchOptions) {
+  try {
+    const [step, render] = await Promise.all([import('./launchPrintFiles'), import('../design/export/printFiles')]);
+    return await step.launchPrintFiles(order, items, attemptId, {
+      download: opts.files?.download ?? downloadArtwork,
+      upload: opts.files?.upload ?? uploadErpFile,
+      rasterize: opts.rasterize ?? render.rasterizeInBrowser,
+      randomId: opts.randomId ?? (() => crypto.randomUUID()),
+    });
+  } catch (e) {
+    console.error('[launchToErp] printFiles', e);
+    return { attachments: [], warnings: [] };
+  }
+}
+
 async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult> {
   const stage = (s: LaunchStage) => opts.onStage?.(s);
   stage('check');
@@ -223,26 +247,33 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
   const plan = planLaunchFiles(order, built.valid, opts.randomId ?? (() => crypto.randomUUID()));
   const files = await copyLaunchFiles(order, plan, opts.actor ?? '', opts.files);
   if (!files.ok) return { ok: false, stage: 'files', reason: files.reason };
+  // Файлы печати (Э4б) — необязательно: сбой — предупреждение, исходный макет уже скопирован
+  // Модуль — `import()`: рендер и запись PNG не в чанке экрана «К запуску» (бюджет)
+  const printing = opts.rasterize === null
+    ? { attachments: [], warnings: [] }
+    : await printFilesStep(order, built.valid, plan.attemptId, opts);
+  const attachments = [...files.attachments, ...printing.attachments];
+  const warnings = [...built.warnings, ...printing.warnings];
 
   stage('recheck');
-  const again = await checkStep(order, 'recheck', built.warnings);
+  const again = await checkStep(order, 'recheck', warnings);
   if (again) return again.done;
 
   stage('create');
   // Бросок — как `null`: он мог случиться уже ПОСЛЕ того, как RPC создал заказ
   let created = null;
   try {
-    created = await erp.store.getState().createOrder(inputOf(built, erp.payload, files.tzDocs, files.attachments));
+    created = await erp.store.getState().createOrder(inputOf(built, erp.payload, files.tzDocs, attachments));
   } catch (e) {
     console.error('[launchToErp] createOrder', e);
   }
   if (created) {
     stage('transition');
-    const lost = checkAttachedCount(files.attachments, created.attachments ?? []);
-    return finish(order, created.id, false, lost ? [...built.warnings, lost] : built.warnings);
+    const lost = checkAttachedCount(attachments, created.attachments ?? []);
+    return finish(order, created.id, false, lost ? [...warnings, lost] : warnings);
   }
   const after = await launchCheck(order.id);
-  if (after?.ok && after.already && !isOldServer(after)) return afterAlready(order, after, false, built.warnings);
+  if (after?.ok && after.already && !isOldServer(after)) return afterAlready(order, after, false, warnings);
   if (after && !after.ok) return { ok: false, stage: 'recheck', reason: after.reason };
   return { ok: false, stage: 'create', reason: REASON.create };
 }

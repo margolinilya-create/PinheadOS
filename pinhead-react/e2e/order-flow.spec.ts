@@ -93,15 +93,22 @@ test('поток заказа: продавец собирает и отправ
   expect(body.order).toMatchObject({ tz_order_id: NEW_ORDER, tz_number: 'PH-9001', launch_date: '2026-10-21' });
   expect(body.tz.documents).toHaveLength(body.items.length);
   expect(body.tz.documents[0]).toMatchObject({ item_index: 0, mime_type: 'application/pdf' });
-  expect(body.attachments).toHaveLength(1);
+  // Копия макета и файл печати (Э4б: PNG в натуральную величину) — оба к нанесению 1
+  expect(body.attachments).toHaveLength(2);
   // Мост шлёт `print_key`, стор ERP переводит его в номер нанесения — ни один макет не выброшен
-  expect(body.attachments[0]).toMatchObject({ kind: 'print', item_index: 0, print_index: 0 });
-  expect(body.attachments[0]).not.toHaveProperty('print_key');
-  expect(String(body.attachments[0].file_path)).toMatch(/^att\/v4-[0-9a-f-]{36}\/print\/[0-9a-f-]{36}\.png$/);
+  for (const a of body.attachments) {
+    expect(a).toMatchObject({ kind: 'print', item_index: 0, print_index: 0 });
+    expect(a).not.toHaveProperty('print_key');
+    expect(String(a.file_path)).toMatch(/^att\/v4-[0-9a-f-]{36}\/print\/[0-9a-f-]{36}\.png$/);
+  }
+  expect(String(body.attachments[1].file_name)).toMatch(/^PH-9001_p1_front_[a-z_]+_127x64mm\.png$/);
+  const printFile = extra.storageObjects?.[`erp-attachments/${String(body.attachments[1].file_path)}`];
+  expect(printFile?.body.subarray(0, 8).toString('latin1')).toBe('\x89PNG\r\n\x1a\n');
+  expect(printFile?.body.includes(Buffer.from('pHYs'))).toBe(true);
   expect(String(body.tz.documents[0].file_path)).not.toContain(NEW_ORDER);
-  expect(v4State(extra).attachments).toHaveLength(1);
+  expect(v4State(extra).attachments).toHaveLength(2);
   expect(rpcCalls(calls, 'order_v4_transition').at(-1)!.body).toMatchObject({ p_to: 'production', p_erp_order_id: MOCK_ERP_ORDER });
-  expect([...erpUploadsByAttempt(extra).values()]).toEqual([2]);
+  expect([...erpUploadsByAttempt(extra).values()]).toEqual([3]);
 });
 
 /** Ответ RPC ошибкой 500 ровно один раз, дальше — мок */
@@ -138,7 +145,7 @@ test('сбой посреди запуска: 500 на первый erp_create_o
   expect(creates).toHaveLength(1);
   const body = creates[0];
   const second = [...erpUploadsByAttempt(extra).keys()].find((a) => !firstAttempt.includes(a))!;
-  expect(erpUploadsByAttempt(extra).get(second)).toBe(2);
+  expect(erpUploadsByAttempt(extra).get(second)).toBe(3);
   const paths = [...body.tz.documents, ...body.attachments].map((d) => String(d.file_path));
   for (const path of paths) {
     expect(extra.storageObjects?.[`erp-attachments/${path}`], path).toBeDefined();
@@ -291,8 +298,10 @@ test.describe('отказы потока', () => {
     await expect(page.getByRole('heading', { name: 'Заказ запущен в производство' })).toBeFocused();
 
     const body = (v4State(extra).erpCreates[0] as { attachments: { file_path: string }[] }).attachments;
-    expect(body).toHaveLength(1);
+    // Очищенная копия SVG и файл печати PNG (Э4б), отрисованный из очищенного текста
+    expect(body).toHaveLength(2);
     expect(body[0].file_path).toMatch(/\.svg$/);
+    expect(body[1].file_path).toMatch(/\.png$/);
     const copy = extra.storageObjects![`erp-attachments/${body[0].file_path}`];
     expect(copy.type).toBe('image/svg+xml');
     const svg = copy.body.toString('utf8');

@@ -371,3 +371,59 @@ describe('launchToErp', () => {
     expect(rpc().filter((s) => s === 'create')).toHaveLength(2);
   });
 });
+
+describe('launchToErp — файлы печати (веха 5в, Э4б)', () => {
+  const sized = (patch = {}) => order({
+    items: [newSalesItem({
+      product_type: 'Худи',
+      tz_pdf_path: TZ,
+      size_grid: { sizes: ['M'], rows: [{ color: 'Чёрный', sizes: { M: 10 } }] },
+      prints: [newSalesPrint({ method: 'dtf', artwork_path: ART, width_mm: 200, height_mm: 100, ...patch })],
+    })],
+  });
+  const PNG_OUT = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0, 0, 0, 0]);
+
+  it('нанесение с мм — PNG 300 dpi вложением print к тому же нанесению, рядом с копией макета', async () => {
+    const rasterize = vi.fn(async () => PNG_OUT);
+    const r = await launchToErp(sized(), opts({ rasterize }));
+    expect(r.ok).toBe(true);
+    expect(rasterize).toHaveBeenCalledWith(expect.any(Blob), 'png', 2362, 1181);
+    const input = erp.createOrder.mock.calls[0][0] as { attachments: { print_key?: string; file_name: string; file_path: string; kind: string }[]; items: { prints: { key: string }[] }[] };
+    expect(input.attachments).toHaveLength(2);
+    const [copy, print] = input.attachments;
+    expect(print).toMatchObject({ kind: 'print', print_key: copy.print_key, file_name: 'PH-1234_p1_front_dtf_200x100mm.png'.replace('front', 'zone') });
+    expect(print.file_path).toMatch(/^att\/v4-[0-9a-f-]{36}\/print\/[0-9a-f-]{36}\.png$/);
+    const up = files.upload.mock.calls.find(([path]) => path === print.file_path)!;
+    expect(up[2]).toBe('image/png');
+    if (!r.ok) return;
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('холст не удержал — запуск идёт, предупреждение с номером нанесения, лишнего вложения нет', async () => {
+    const r = await launchToErp(sized(), opts({ rasterize: vi.fn(async () => null) }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.warnings).toEqual(['Файл печати нанесения 1 «Худи» не собрался — в производстве есть исходный макет']);
+    expect((erp.createOrder.mock.calls[0][0] as { attachments: unknown[] }).attachments).toHaveLength(1);
+    expect(log.at(-1)).toBe('transition:production');
+  });
+
+  it('загрузка файла печати не прошла — запуск идёт с предупреждением', async () => {
+    files.upload.mockImplementation(async (path: string, body: Blob) => (path.endsWith('.png') && body.size === PNG_OUT.length + 21
+      ? { ok: false, reason: 'нет связи' } : { ok: true, path, size: body.size }));
+    const r = await launchToErp(sized(), opts({ rasterize: vi.fn(async () => PNG_OUT) }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.warnings[0]).toMatch(/^Файл печати нанесения 1/);
+  });
+
+  it('PDF-макет не растеризуется (печать по исходнику); rasterize: null — шага нет', async () => {
+    const pdfArt = `orders/${ORDER_ID}/logo/a.pdf`;
+    files.download.mockImplementation(async (_id: string, path: string) => new Blob([path === TZ || path === pdfArt ? PDF : PNG]));
+    const rasterize = vi.fn(async () => PNG_OUT);
+    await launchToErp(sized({ artwork_path: pdfArt }), opts({ rasterize }));
+    expect(rasterize).not.toHaveBeenCalled();
+    const off = vi.fn(async () => PNG_OUT);
+    await launchToErp(sized(), opts({ rasterize: null }));
+    expect(off).not.toHaveBeenCalled();
+  });
+});

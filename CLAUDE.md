@@ -162,6 +162,8 @@ pinhead-react/src/
                              # api/layoutTemplates — единственный писатель order_templates), model/orderPaths + repeatOrder,
                              # api/artworkCopy (второй писатель order-artworks — только copy), workplace/repeatFlow,
                              # tz/ui/RepeatPanel («Повторить заказ» на «ТЗ и цена»)
+                             # веха 5в (Э4б): bridge/launchPrintFiles (PNG 300 dpi нанесений вложением print при запуске,
+                             # необязательный шаг после files, import() из bridge/launch; рендер — printFiles.rasterizePrint)
 ```
 
 ```
