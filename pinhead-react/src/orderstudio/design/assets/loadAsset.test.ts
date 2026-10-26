@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_RASTER_WIDTH_MM, loadAsset, parseSvgSizeMm, readPngDpi } from './loadAsset';
+import { DEFAULT_RASTER_WIDTH_MM, loadAsset, parseSvgSizeMm, readJpegDpi, readPngDpi } from './loadAsset';
 import { MSG_MISMATCH } from './sniff';
 import { jpegBytes, pngBytes, textBytes } from './bytes.testutil';
 import { MSG_DOCTYPE } from './sanitizeSvg';
@@ -36,6 +36,10 @@ describe('parseSvgSizeMm (тесты DM)', () => {
     expect(parseSvgSizeMm('<svg viewBox="0 0 600 760"></svg>')).toEqual({ w: 600, h: 760, estimated: true });
   });
 
+  it('width/height в дюймах — достоверный размер', () => {
+    expect(parseSvgSizeMm('<svg width="2in" height="1in"></svg>')).toEqual({ w: 50.8, h: 25.4, estimated: false });
+  });
+
   it('нет метрик → null', () => {
     expect(parseSvgSizeMm('<svg><rect/></svg>')).toBeNull();
     expect(parseSvgSizeMm('<svg width="100%" height="100%"></svg>')).toBeNull();
@@ -49,6 +53,29 @@ describe('readPngDpi', () => {
   it('нет pHYs или не PNG → null', () => {
     expect(readPngDpi(pngBytes(10, 10))).toBeNull();
     expect(readPngDpi(jpegBytes(10, 10))).toBeNull();
+  });
+});
+
+describe('readJpegDpi', () => {
+  it('JFIF в точках на дюйм', () => {
+    expect(readJpegDpi(jpegBytes(10, 10, { jfif: { units: 1, x: 300 } }))).toBe(300);
+  });
+  it('JFIF в точках на сантиметр — пересчёт в дюймы', () => {
+    expect(readJpegDpi(jpegBytes(10, 10, { jfif: { units: 2, x: 118 } }))).toBeCloseTo(299.72, 1);
+  });
+  it('JFIF только с пропорцией (единица 0) — метрики нет', () => {
+    expect(readJpegDpi(jpegBytes(10, 10, { jfif: { units: 0, x: 72 } }))).toBeNull();
+  });
+  it('EXIF важнее JFIF, оба порядка байт', () => {
+    expect(readJpegDpi(jpegBytes(10, 10, { jfif: { units: 1, x: 72 }, exif: { x: 300, unit: 2, littleEndian: true } }))).toBe(300);
+    expect(readJpegDpi(jpegBytes(10, 10, { exif: { x: 300, unit: 2, littleEndian: false } }))).toBe(300);
+    expect(readJpegDpi(jpegBytes(10, 10, { exif: { x: 118, unit: 3, littleEndian: true } }))).toBeCloseTo(299.72, 1);
+  });
+  it('не JPEG, обрезанный и мусорный файл — null без исключения', () => {
+    expect(readJpegDpi(pngBytes(10, 10, 300))).toBeNull();
+    const cut = jpegBytes(10, 10, { exif: { x: 300, unit: 2, littleEndian: true } }).slice(0, 40);
+    expect(readJpegDpi(cut)).toBeNull();
+    expect(readJpegDpi(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0xff, 0xff, 1, 2, 3]))).toBeNull();
   });
 });
 
@@ -70,6 +97,13 @@ describe('loadAsset', () => {
     expect(r.asset.meta).toMatchObject({ type: 'png', intrinsic_w_mm: DEFAULT_RASTER_WIDTH_MM, intrinsic_h_mm: 60, size_estimated: true });
     expect(r.asset.meta.dpi).toBeUndefined();
     expect(r.asset.blob.type).toBe('image/jpeg');
+  });
+
+  it('JPEG с DPI в JFIF: размер из DPI, достоверно', async () => {
+    const r = await loadAsset(blob(jpegBytes(1200, 600, { jfif: { units: 1, x: 300 } })), 'photo.jpg');
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.asset.meta).toMatchObject({ px_w: 1200, px_h: 600, size_estimated: false, dpi: 300 });
+    expect(r.asset.meta.intrinsic_w_mm).toBeCloseTo(101.6, 1);
   });
 
   it('SVG: Blob из очищенного текста, вредное вырезано и названо', async () => {
