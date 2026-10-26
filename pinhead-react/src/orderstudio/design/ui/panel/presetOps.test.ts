@@ -37,11 +37,28 @@ describe('пресеты «Стандарты Pinhead» — место и раз
     const { pl, view, area } = setup(narrow);
     expect(withStudioPreset(view, area, pl, 'chest-standard').width_mm).toBeCloseTo(200 - 2 * area.safe_inset_mm);
   });
-  it('повёрнутое на 90° — стандарт по видимой ширине (рамке)', () => {
+  it('повёрнутое на 90° — стандарт по видимой ширине, отступ от горловины — по видимой рамке', () => {
     const { pl, view, area } = setup();
     const g = withStudioPreset(view, area, { ...pl, rotation_deg: 90 }, 'left-chest');
     expect(g.height_mm).toBeCloseTo(PRESET_WIDTH_MM['left-chest']);
     expect(g.width_mm).toBeCloseTo(90 * 120 / 80);
+    // видимая рамка: верх = центр − ширина/2
+    expect(g.y_mm + g.height_mm / 2 - g.width_mm / 2).toBeCloseTo(NECKLINE_Y + 60);
+    expect(g.x_mm + g.width_mm / 2).toBeCloseTo(CENTER_X + 89);
+  });
+  it('повёрнутая рамка выше зоны — ужимается и по высоте', () => {
+    const { pl, view, area } = setup();
+    const g = withStudioPreset(view, area, { ...pl, rotation_deg: 90 }, 'chest-standard');
+    expect(g.width_mm).toBeCloseTo(400 - 2 * area.safe_inset_mm);
+  });
+  it('левая грудь на узкой зоне прижимается внутрь, а не выходит за край', () => {
+    const narrow = makeFlat();
+    const front = narrow.views.find((v) => v.kind === 'front')!;
+    front.print_areas[0] = { ...front.print_areas[0], polygon_mm: [[220, 140], [380, 140], [380, 540], [220, 540]] };
+    const { pl, view, area } = setup(narrow);
+    const g = withStudioPreset(view, area, pl, 'left-chest');
+    expect(g.x_mm + g.width_mm).toBeLessThanOrEqual(380 - area.safe_inset_mm + 1e-6);
+    expect(g.x_mm + g.width_mm / 2).toBeGreaterThan(CENTER_X);
   });
   it('рукав: пресет рукава по оси, 70 мм; подсказки с размером', () => {
     const { pl, view, area } = setup(sleevedFlat(), 'sleeve_left', 'sleeve-l');
@@ -49,7 +66,8 @@ describe('пресеты «Стандарты Pinhead» — место и раз
     const g = withStudioPreset(view, area, pl, 'sleeve-standard');
     expect(g.width_mm).toBeCloseTo(70);
     expect(g.x_mm + g.width_mm / 2).toBeCloseTo(SLEEVE_CENTER_X);
-    expect(studioPresets(view, area)[0].hint).toBe('70 мм по оси рукава');
+    expect(g.y_mm + g.height_mm / 2).toBeCloseTo((200 + 480) / 2);
+    expect(studioPresets(view, area)[0].hint).toBe('70 мм, по центру рукава');
     const front = setup();
     expect(studioPresets(front.view, front.area).map((p) => [p.label, p.hint])).toEqual([
       ['Центр груди', '250 мм, 75 мм от горловины'],
