@@ -6,6 +6,8 @@ import { placementOf } from '../../model/layout';
 import { useDesignStore } from '../../store/useDesignStore';
 import ArtworkPicker from './ArtworkPicker';
 import PreflightList from './PreflightList';
+import { preflightIssues } from './preflightIssues';
+import { printStatus } from './printStatus';
 import LayerList from './LayerList';
 import UnplacedList from './UnplacedList';
 import { duplicateLayer, moveLayer, patchPrint, placeGeometry, viewPlacements } from './panelOps';
@@ -37,6 +39,11 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
     [item.prints, ctx],
   );
   const selected = entries.find((e) => e.print.key === selectedKey) ?? null;
+  // «Дизайн» 2.0: проверки — под холстом, здесь — статус у каждой строки
+  const issues = useMemo(
+    () => (d.studio ? preflightIssues(ctx.flat, placements, d.rules, d.pick.modelChanged) : []),
+    [d.studio, ctx, placements, d.rules, d.pick.modelChanged],
+  );
   const unitOf = (key) => price?.prints.find((x) => x.key === key) ?? null;
   const selectedTech = selected ? unitOf(selected.print.key)?.tech ?? null : null;
 
@@ -98,6 +105,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
           onMove={onMove}
           onDuplicate={onDuplicate}
           onUnplace={onUnplace}
+          statusOf={d.studio ? (key) => printStatus(issues, key) : undefined}
         />
       </section>
 
@@ -139,7 +147,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
         {(price?.issues ?? []).map((iss) => <p key={iss} className={`${styles.muted} ${styles.warnText}`}>{ISSUE_LABELS[iss]}</p>)}
       </section>
 
-      <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} onShow={onShow} />
+      {!d.studio && <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} onShow={onShow} />}
       <UnplacedList
         prints={free}
         flatId={item.flat_id}

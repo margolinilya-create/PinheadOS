@@ -34,6 +34,7 @@ const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель д
  */
 const loadStage = () => import('./stage/StageParts');
 const StageTop = lazy(() => loadStage().then((m) => ({ default: m.StageTop })));
+const StageBelow = lazy(() => loadStage().then((m) => ({ default: m.StageBelow })));
 const STAGE_TOP_FALLBACK = <div className={styles.stageBarFallback} aria-hidden="true" />;
 
 /**
@@ -141,21 +142,28 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
       )}
       {flat && !compact && (
         <div className={styles.body}>
-          <div className={styles.stage}>
-            <EditorCanvas
-              flat={flat}
-              view={d.view}
-              prints={item.prints}
-              selectedKey={d.selectedKey}
-              readOnly={ro}
-              onSelect={select}
-              onCommit={d.onCanvasCommit}
-              onDropFile={ro ? undefined : d.art.addFile}
-              orderId={order.id}
-              colorHex={d.colorHex}
-              onUndo={undo}
-              onRedo={redo}
-            />
+          <div className={styles.stageCol}>
+            <div className={styles.stage}>
+              <EditorCanvas
+                flat={flat}
+                view={d.view}
+                prints={item.prints}
+                selectedKey={d.selectedKey}
+                readOnly={ro}
+                onSelect={select}
+                onCommit={d.onCanvasCommit}
+                onDropFile={ro ? undefined : d.art.addFile}
+                orderId={order.id}
+                colorHex={d.colorHex}
+                onUndo={undo}
+                onRedo={redo}
+              />
+            </div>
+            {d.studio && (
+              <Suspense fallback={null}>
+                <StageBelow d={d} item={item} />
+              </Suspense>
+            )}
           </div>
           <Suspense fallback={SIDE_FALLBACK}>
             <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />

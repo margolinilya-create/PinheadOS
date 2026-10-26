@@ -67,3 +67,44 @@
   font-size: var(--type-label);
   color: var(--text-mid);
 }
+
+.below {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.checksTitle {
+  margin: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+}
+
+.serious { color: var(--color-error-ink); font-weight: 600; }
+
+.warn { color: var(--color-warning-ink); }

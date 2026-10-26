@@ -1,7 +1,12 @@
-import { useId } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { pluralize } from '../../../../utils/i18n';
 import { defaultAreaId } from '../../geometry/view';
+import { placementOf } from '../../model/layout';
+import { useDesignStore } from '../../store/useDesignStore';
 import { placeGeometry, viewPlacements, whereOf } from '../panel/panelOps';
+import { LEVEL_LABELS, preflightIssues } from '../panel/preflightIssues';
 import { PRESET_WIDTH_MM, studioPresets, withStudioPreset } from '../panel/presetOps';
+import a11y from '../../../ui/a11y.module.css';
 import styles from './stage.module.css';
 
 /*
@@ -68,3 +73,64 @@ export function StageTop({ d, item, readOnly }) {
     </div>
   );
 }
+
+/** Сводка для читалки — с задержкой: при перетаскивании не перечитывается на каждый шаг */
+const SUMMARY_DELAY_MS = 700;
+
+function useSettled(value, ms) {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return settled;
+}
+
+const LEVEL_CLS = { serious: styles.serious, warn: styles.warn, info: '' };
+
+/**
+ * Проверка макета под холстом: видна, пока двигаешь нанесение. Живой регион —
+ * только короткая сводка, список — без `aria-live` (холст озвучивает своё).
+ */
+function CanvasChecks({ d, item }) {
+  const { ctx } = d;
+  const placements = useMemo(() => item.prints.map((p) => placementOf(p, ctx.flat)).filter(Boolean), [item.prints, ctx]);
+  const issues = useMemo(() => preflightIssues(ctx.flat, placements, d.rules, d.pick.modelChanged), [ctx, placements, d.rules, d.pick.modelChanged]);
+  const n = issues.length;
+  const summary = n === 0 ? 'Замечаний нет' : `${n} ${pluralize(n, 'замечание', 'замечания', 'замечаний')}`;
+  const spoken = useSettled(summary, SUMMARY_DELAY_MS);
+  const show = (key) => {
+    const pl = placements.find((p) => p.print_key === key);
+    const s = useDesignStore.getState();
+    // `setView` снимает выбор — сначала вид, потом выбор
+    if (pl && pl.view !== d.view) s.setView(pl.view);
+    s.select(key);
+  };
+  return (
+    <section className={styles.checks} aria-label="Проверка макета">
+      <h3 className={styles.checksTitle}>Проверка макета · <span aria-hidden="true">{summary}</span></h3>
+      <p className={a11y.srOnly} role="status">{spoken}</p>
+      {n > 0 && (
+        <ul className={styles.issues}>
+          {issues.map((iss, i) => (
+            <li key={`${iss.printKey ?? ''}-${i}`} className={styles.issue}>
+              <span className={LEVEL_CLS[iss.level]}>{LEVEL_LABELS[iss.level]}: {iss.message}</span>
+              {iss.printKey && <button type="button" className={styles.chipBtn} onClick={() => show(iss.printKey)}>Показать</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Полоса под холстом: проверки (и в только чтении — их видно всем) */
+export function StageBelow({ d, item }) {
+  if (!d.flat || !d.ctx) return null;
+  return (
+    <div className={styles.below}>
+      <CanvasChecks d={d} item={item} />
+    </div>
+  );
+}
+

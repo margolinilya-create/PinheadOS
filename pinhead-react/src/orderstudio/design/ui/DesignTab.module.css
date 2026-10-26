@@ -27,6 +27,13 @@
   align-items: start;
 }
 
+.stageCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
 .stage {
   height: min(72vh, 760px);
   min-height: 420px;
@@ -224,6 +231,17 @@
 }
 
 .serious { color: var(--color-error-ink); }
+
+/* Статус нанесения в строке слоя (веха 5в, Э2) */
+.layerStatus {
+  align-self: center;
+  font-size: var(--type-label);
+  white-space: nowrap;
+}
+
+.status_ok { color: var(--color-success-ink); }
+.status_check { color: var(--color-warning-ink); }
+.status_fix { color: var(--color-error-ink); font-weight: 600; }
 .warnText { color: var(--color-warning-ink); }
 
 .details > summary {

@@ -364,3 +364,35 @@ describe('DesignTab — «Стандарты Pinhead» (веха 5в, Э2)', () 
   });
 });
 
+describe('DesignTab — проверки под холстом и статус нанесения (веха 5в, Э2)', () => {
+  it('замечание видно под холстом, сводка — живым регионом; строка слоя — «Проверить»; в панели списка нет', async () => {
+    const tiny = { ...placed(), width_mm: 10, height_mm: 7 };
+    setup(item({ flat_id: FLAT_A.id, prints: [tiny] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    expect(within(checks).getByText(/меньшая сторона — от 20 мм/)).toBeInTheDocument();
+    expect(checks.textContent).toMatch(/1 замечание/);
+    await waitFor(() => expect(within(checks).getByRole('status')).toHaveTextContent('1 замечание'));
+    expect(screen.getAllByRole('region', { name: 'Проверка макета' })).toHaveLength(1);
+    const row = screen.getByRole('button', { name: /^Нанесение 1 · / });
+    expect(row).toHaveAccessibleDescription('Проверить');
+  });
+
+  it('«Показать» выбирает нанесение; без замечаний — «Замечаний нет», статус «Готово»', async () => {
+    const tiny = { ...placed(), width_mm: 10, height_mm: 7 };
+    setup(item({ flat_id: FLAT_A.id, prints: [tiny] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    fireEvent.click(within(checks).getByRole('button', { name: 'Показать' }));
+    expect(useDesignStore.getState().selectedPrintKey).toBe(tiny.key);
+  });
+
+  it('нанесение в норме — «Замечаний нет» и «Готово»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    expect(checks.textContent).toMatch(/Замечаний нет/);
+    expect(screen.getByRole('button', { name: /^Нанесение 1 · / })).toHaveAccessibleDescription('Готово');
+  });
+});
+

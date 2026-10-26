@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { allowedMethods, printMethodProfile } from '../../../model/printMethods';
-import { MSG_NO_PRINTS, preflight } from '../../export/preflight';
+import { LEVEL_LABELS, preflightIssues } from './preflightIssues';
 import styles from '../DesignTab.module.css';
 
 const LEVEL = {
-  serious: { label: 'Серьёзно', cls: styles.serious },
-  warn: { label: 'Внимание', cls: styles.warnText },
-  info: { label: 'Подсказка', cls: '' },
+  serious: { label: LEVEL_LABELS.serious, cls: styles.serious },
+  warn: { label: LEVEL_LABELS.warn, cls: styles.warnText },
+  info: { label: LEVEL_LABELS.info, cls: '' },
 };
 
 /**
@@ -15,13 +14,7 @@ const LEVEL = {
  * «Показать» (выбрать его на холсте).
  */
 export default function PreflightList({ flat, placements, rules, modelMismatch = false, onShow }) {
-  const issues = useMemo(() => (placements.length === 0 && !modelMismatch ? [] : preflight({
-    flat,
-    placements,
-    profileOf: printMethodProfile,
-    methodAllowed: (area, method) => allowedMethods(area, rules).includes(method),
-    modelMismatch,
-  }).filter((i) => placements.length > 0 || i.message !== MSG_NO_PRINTS)), [flat, placements, rules, modelMismatch]);
+  const issues = useMemo(() => preflightIssues(flat, placements, rules, modelMismatch), [flat, placements, rules, modelMismatch]);
   if (issues.length === 0) return null;
   return (
     <section className={styles.section} aria-label="Проверка макета">

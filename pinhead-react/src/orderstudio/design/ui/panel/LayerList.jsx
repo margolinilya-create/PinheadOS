@@ -8,7 +8,7 @@ import styles from '../DesignTab.module.css';
  * слой (последний в позиции рисуется поверх). `focusKey` — куда перевести
  * фокус после загрузки логотипа или снятия (проверка скиллами).
  */
-export default function LayerList({ entries, selectedKey, readOnly, focusKey, onFocused, onSelect, onMove, onDuplicate, onUnplace }) {
+export default function LayerList({ entries, selectedKey, readOnly, focusKey, onFocused, onSelect, onMove, onDuplicate, onUnplace, statusOf }) {
   const refs = useRef(new Map());
   useEffect(() => {
     if (!focusKey) return;
@@ -37,6 +37,7 @@ export default function LayerList({ entries, selectedKey, readOnly, focusKey, on
           onDown={() => onMove(e.print.key, -1)}
           onDuplicate={() => onDuplicate(e.print.key)}
           onUnplace={() => onUnplace(e.print.key)}
+          status={statusOf ? statusOf(e.print.key) : null}
         />
       ))}
     </ul>
