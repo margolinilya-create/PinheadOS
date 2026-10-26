@@ -329,6 +329,11 @@ const patternKey = designKey('PatternSheet', 'src/orderstudio/design/ui/stage/Pa
 const patternJs = patternKey ? minus(staticGraph(manifest, [patternKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
 const patternTotal = patternKey ? report('Лист выкройки — JS (PatternSheet минус холст, картинки, панель, части сцены и оболочка Order)', patternJs).total : null;
 if (patternKey) check('Лист выкройки «Дизайн», JS', patternTotal, BUDGETS.designPattern);
+// Файлы печати (веха 5в, Э4а): ZIP по кнопке — свой ленивый чанк
+const printFilesKey = designKey('printFiles', 'src/orderstudio/design/export/printFiles.ts', 'src/orderstudio/design/ui/stage/PrintFilesButton.jsx');
+const printFilesJs = printFilesKey ? minus(staticGraph(manifest, [printFilesKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
+const printFilesTotal = printFilesKey ? report('Файлы печати — JS (printFiles минус холст, картинки, панель, части сцены и оболочка Order)', printFilesJs).total : null;
+if (printFilesKey) check('Файлы печати «Дизайн», JS', printFilesTotal, BUDGETS.designPrintFiles);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);

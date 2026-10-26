@@ -49,6 +49,12 @@ vi.mock('../catalog/useFlatsCatalog', () => ({
   useFlatsCatalog: () => ({ status: h.status, catalog: h.catalog, issues: [], reload: vi.fn() }),
 }));
 
+const printFilesMock = vi.hoisted(() => ({ build: vi.fn(), save: vi.fn() }));
+vi.mock('../export/printFiles', () => ({
+  buildPrintFiles: printFilesMock.build.mockImplementation(async () => ({ zip: new Uint8Array([1]), fileName: 'PH-TEST-print-files.zip', count: 1, notes: [] })),
+  rasterizeInBrowser: vi.fn(),
+}));
+vi.mock('../../../utils/saveBlob', () => ({ saveBlob: printFilesMock.save }));
 import DesignTab from './DesignTab';
 
 const SKU = SKU_CATALOG_DEFAULT.find((s) => s.code === 'T-003');
@@ -438,6 +444,17 @@ describe('DesignTab — вид холста и цвет ткани (веха 5в
 });
 
 describe('DesignTab — итог позиции (веха 5в, Э2)', () => {
+  it('«Файлы печати» — сборка по клику, архив скачивается, заказ не пишется (Э4а)', async () => {
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    const btn = within(bar).getByRole('button', { name: 'Файлы печати' });
+    expect(btn).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(btn);
+    await waitFor(() => expect(printFilesMock.build).toHaveBeenCalled());
+    await waitFor(() => expect(printFilesMock.save).toHaveBeenCalledWith(expect.any(Blob), 'PH-TEST-print-files.zip'));
+    expect(edit).not.toHaveBeenCalled();
+  });
+
   it('нанесения, цена за штуку и за позицию — как цена позиции', async () => {
     setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
     await panelReady();
@@ -445,12 +462,15 @@ describe('DesignTab — итог позиции (веха 5в, Э2)', () => {
     const unit = screen.getByRole('heading', { name: /Цена за штуку/ }).textContent.replace('Цена за штуку: ', '');
     expect(bar.textContent).toMatch(/^1 нанесение·/);
     expect(bar.textContent).toContain(`${unit}/шт`);
-    expect(bar.textContent).toMatch(/₽ за позицию$/);
+    expect(bar.textContent).toMatch(/₽ за позицию/);
   });
   it('пустая сетка — «Цена не посчитана»', async () => {
     setup(item({ flat_id: FLAT_A.id, prints: [], size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 0 } }] } }));
     const bar = await screen.findByRole('region', { name: 'Итог позиции' });
-    expect(bar.textContent).toBe('Нанесений нет·Цена не посчитана');
+    expect(bar.textContent).toMatch(/^Нанесений нет·Цена не посчитана/);
+    const btn = within(bar).getByRole('button', { name: 'Файлы печати' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription('Нет нанесений с макетом и размером в мм');
   });
 });
 

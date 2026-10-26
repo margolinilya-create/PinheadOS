@@ -10,6 +10,7 @@ import { LEVEL_LABELS, artContextOf, preflightIssues } from '../panel/preflightI
 import { useArtStats } from '../panel/useArtStats';
 import { isLightFabric } from '../../assets/artStats';
 import { PRESET_WIDTH_MM, studioPresets, withStudioPreset } from '../panel/presetOps';
+import PrintFilesButton from './PrintFilesButton';
 import a11y from '../../../ui/a11y.module.css';
 import styles from './stage.module.css';
 
@@ -192,7 +193,7 @@ export function StageBelow({ d, item }) {
  * `unit` и `total`, что на «ТЗ и цена» (ручная цена тоже). Кнопки «Далее»
  * здесь нет: под вкладкой уже есть «Далее: клиент и доставка».
  */
-export function ItemTotalBar({ item, price }) {
+export function ItemTotalBar({ order, item, price }) {
   const n = item.prints.length;
   const prints = n === 0 ? 'Нанесений нет' : `${n} ${pluralize(n, 'нанесение', 'нанесения', 'нанесений')}`;
   const priced = price && price.qty > 0;
@@ -212,6 +213,8 @@ export function ItemTotalBar({ item, price }) {
           <span>Цена не посчитана</span>
         </>
       )}
+      <span className={styles.grow} />
+      <PrintFilesButton order={order} item={item} />
     </section>
   );
 }

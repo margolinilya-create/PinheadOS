@@ -136,6 +136,21 @@ test.describe('вкладка «Дизайн» 2.0', () => {
     expect(errors).toEqual([]);
   });
 
+  test('«Файлы печати» — ZIP с PNG 300 dpi нанесения и списком (Э4а)', async ({ page }) => {
+    await installSupabaseMock(page, mock([]));
+    await open(page);
+    const download = page.waitForEvent('download');
+    await page.getByRole('region', { name: 'Итог позиции' }).getByRole('button', { name: 'Файлы печати' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toBe('PH-9150-print-files.zip');
+    const bytes = readFileSync(await file.path());
+    const text = bytes.toString('latin1');
+    expect(text.startsWith('PK')).toBe(true);
+    expect(text).toContain('PH-9150_p1_front_dtf_200x100mm.png');
+    expect(text).toContain('\x89PNG');
+    expect(text).toContain('pHYs');
+  });
+
   test('?design2=0 — прежний вид: без «Стандартов Pinhead» и вида холста', async ({ page }) => {
     await installSupabaseMock(page, mock([]));
     await page.goto(`/sales/${ORDER_ID}?tab=design&item=${ITEM_ID}&studio=1&design2=0`);

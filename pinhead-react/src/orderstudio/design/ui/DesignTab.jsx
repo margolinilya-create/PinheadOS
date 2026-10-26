@@ -181,7 +181,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
             {d.studio && (
               <Suspense fallback={null}>
                 <StageBelow d={d} item={item} />
-                <ItemTotalBar item={item} price={price} />
+                <ItemTotalBar order={order} item={item} price={price} />
               </Suspense>
             )}
           </div>
