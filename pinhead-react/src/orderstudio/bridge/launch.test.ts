@@ -25,6 +25,12 @@ const erp = vi.hoisted(() => ({
 }));
 const tz = vi.hoisted(() => ({ checkTzHashes: vi.fn() }));
 
+const flags = vi.hoisted(() => ({ designStudio: true }));
+vi.mock('../../config/features', async (orig) => ({
+  ...(await orig<typeof import('../../config/features')>()),
+  isFeatureEnabled: (name: string) => (name === 'designStudio' ? flags.designStudio : true),
+}));
+
 vi.mock('../api/salesTransitions', () => transitions);
 vi.mock('./tzCheck', () => tz);
 vi.mock('../../erp/lazyScreen', () => ({ ensureDomainSlices: erp.ensureDomainSlices }));
@@ -77,6 +83,7 @@ const opts = (more = {}) => ({ catalogs: CAT, actor: 'u-ms', randomId, digest: n
 const rpc = () => log.filter((s) => s !== 'upload');
 
 beforeEach(() => {
+  flags.designStudio = true;
   log.length = 0;
   uid = 0;
   vi.restoreAllMocks();
@@ -425,5 +432,44 @@ describe('launchToErp — файлы печати (веха 5в, Э4б)', () => 
     const off = vi.fn(async () => PNG_OUT);
     await launchToErp(sized(), opts({ rasterize: null }));
     expect(off).not.toHaveBeenCalled();
+  });
+
+  it('холст больше 40 Мп ни при каком DPI (запечат 1500 × 1000 мм) — растеризации нет, предупреждение, запуск идёт', async () => {
+    const rasterize = vi.fn(async () => PNG_OUT);
+    const r = await launchToErp(sized({ width_mm: 1500, height_mm: 1000 }), opts({ rasterize }));
+    expect(r.ok).toBe(true);
+    expect(rasterize).not.toHaveBeenCalled();
+    if (r.ok) expect(r.warnings).toEqual(['Файл печати нанесения 1 «Худи» не собрался — в производстве есть исходный макет']);
+  });
+
+  it('A3 (297 × 420 мм): 300 dpi — 17,4 Мп, в пределе', async () => {
+    const sizes: number[] = [];
+    const rasterize = vi.fn(async (_s: unknown, _k: unknown, w: number, h: number) => { sizes.push(w * h); return PNG_OUT; });
+    await launchToErp(sized({ width_mm: 297, height_mm: 420 }), opts({ rasterize }));
+    expect(sizes).toEqual([3508 * 4961]);
+  });
+
+  it('EPS/PS и нераспознанный макет — печать по исходнику, без предупреждения', async () => {
+    files.download.mockImplementation(async (_id: string, path: string) => new Blob([path === TZ ? PDF : new TextEncoder().encode('%!PS-Adobe-3.0 EPSF')]));
+    const rasterize = vi.fn(async () => PNG_OUT);
+    const r = await launchToErp(sized({ artwork_path: `orders/${ORDER_ID}/logo/a.eps` }), opts({ rasterize }));
+    expect(rasterize).not.toHaveBeenCalled();
+    if (r.ok) expect(r.warnings).toEqual([]);
+  });
+
+  it('шаг дольше предела — запуск идёт без файлов печати, с предупреждением', async () => {
+    const rasterize = vi.fn(() => new Promise<Uint8Array | null>(() => {}));
+    const r = await launchToErp(sized(), opts({ rasterize, printFilesTimeoutMs: 20 }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.warnings).toEqual(['Файлы печати не успели собраться — в производстве есть исходные макеты']);
+    expect((erp.createOrder.mock.calls[0][0] as { attachments: unknown[] }).attachments).toHaveLength(1);
+  });
+
+  it('«Дизайн» 2.0 выключен (флаг designStudio) — шага нет', async () => {
+    flags.designStudio = false;
+    const r = await launchToErp(sized(), opts());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.warnings).toEqual([]);
+    expect((erp.createOrder.mock.calls[0][0] as { attachments: unknown[] }).attachments).toHaveLength(1);
   });
 });

@@ -16,8 +16,12 @@ import { parseLayoutTemplate, type LayoutTemplateData } from '../design/model/la
 const TABLE = 'order_templates';
 export const LAYOUT_NAME_MAX = 60;
 export const LAYOUT_LIST_LIMIT = 50;
-/** Предел данных одной раскладки, байт JSON (20 нанесений — около 5 КБ) */
-export const LAYOUT_DATA_MAX_BYTES = 16 * 1024;
+/**
+ * Предел данных одной раскладки, байт JSON (20 нанесений — около 5 КБ). Сервер (миграция P)
+ * держит 16 КБ по `octet_length(data::text)` — текст jsonb с пробелами длиннее
+ * `JSON.stringify`, поэтому у клиента запас ~12 %: на краю отказ — здесь, а не на сервере
+ */
+export const LAYOUT_DATA_MAX_BYTES = 14 * 1024;
 
 export interface LayoutTemplateRow {
   id: string;

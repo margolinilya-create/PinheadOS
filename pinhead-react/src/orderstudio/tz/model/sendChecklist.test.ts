@@ -174,7 +174,7 @@ describe('sendChecklist — силуэт другой модели (B1, веха
 });
 
 describe('sendChecklist — пределы размера по технике (B3, веха 5в)', () => {
-  it('меньше минимума — блок; больше максимума — без блока (цифры ждут технолога)', () => {
+  it('мельче 5 мм — блок (ошибка ввода); меньше чернового минимума и больше рамки — подсказка', () => {
     const o = ready('63886');
     const key = o.items[0].key;
     const p0 = o.items[0].prints[0];
@@ -185,5 +185,9 @@ describe('sendChecklist — пределы размера по технике (B
     const big = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'silkscreen', width_mm: 420, height_mm: 520 }] }), cat, seller);
     expect(big.find((i) => i.id === `mm-size:1:${key}`)).toMatchObject({ blocking: false });
     expect(canSend(big.filter((i) => i.id.startsWith('mm-size')))).toBe(true);
+    // вышивка 12 мм при черновом минимуме 15 — подсказка, отправку не держит
+    const small = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'embroidery', width_mm: 40, height_mm: 12 }] }), cat, seller);
+    expect(small.find((i) => i.id === `mm-size:1:${key}`)).toMatchObject({ ok: false, blocking: false });
+    expect(canSend(small.filter((i) => i.id.startsWith('mm-size')))).toBe(true);
   });
 });

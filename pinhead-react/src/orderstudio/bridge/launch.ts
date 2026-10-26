@@ -47,6 +47,7 @@ import { defaultDigest, type Digest } from '../tz/model/tzHash';
 import { METHOD_LABEL, tzToErpDraft, type BridgeWarning } from './tzToErpDraft';
 import { checkAttachedCount, copyLaunchFiles, launchCopyDeps, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
 import type { PrintFileCopyDeps } from './launchPrintFiles';
+import { isFeatureEnabled } from '../../config/features';
 import { checkTzHashes } from './tzCheck';
 
 export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'tzcheck' | 'files' | 'recheck' | 'create' | 'transition';
@@ -73,6 +74,8 @@ export interface LaunchOptions {
    * Сеть — та же, что у `files` (скачивание и писатель `erp-attachments`)
    */
   rasterize?: PrintFileCopyDeps['rasterize'] | null;
+  /** Предел шага файлов печати — для тестов (по умолчанию `PRINT_FILES_TIMEOUT_MS`) */
+  printFilesTimeoutMs?: number;
   /** Ход запуска для `aria-live` экрана: зовётся в начале каждого шага */
   onStage?: (stage: LaunchStage) => void;
 }
@@ -192,8 +195,30 @@ Promise<{ done: Promise<LaunchResult> | LaunchResult } | null> {
   return null;
 }
 
-/** Шаг файлов печати (Э4б); модуль не загрузился — предупреждения нет, запуск идёт без них */
+/** Общий предел шага файлов печати, мс: дольше — запуск идёт без них (ревью ветки 5в) */
+export const PRINT_FILES_TIMEOUT_MS = 60_000;
+export const MSG_PRINT_FILES_TIMEOUT = 'Файлы печати не успели собраться — в производстве есть исходные макеты';
+
+/**
+ * Шаг файлов печати (Э4б). Выключен вместе с «Дизайн» 2.0 (флаг `designStudio`:
+ * `VITE_FEATURE_DESIGN_STUDIO=0` гасит и его). Модуль не загрузился — без файлов,
+ * дольше `PRINT_FILES_TIMEOUT_MS` — без файлов с предупреждением (недописанные
+ * загрузки уберёт `storage-gc`: ключей нет ни у одного заказа ERP)
+ */
 async function printFilesStep(order: SalesOrder, items: DraftItem[], attemptId: string, opts: LaunchOptions) {
+  if (opts.rasterize === undefined && !isFeatureEnabled('designStudio')) return { attachments: [], warnings: [] };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ attachments: AttPayload[]; warnings: string[] }>((res) => {
+    timer = setTimeout(() => res({ attachments: [], warnings: [MSG_PRINT_FILES_TIMEOUT] }), opts.printFilesTimeoutMs ?? PRINT_FILES_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([timeout, runPrintFiles(order, items, attemptId, opts)]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runPrintFiles(order: SalesOrder, items: DraftItem[], attemptId: string, opts: LaunchOptions) {
   try {
     const [step, render] = await Promise.all([import('./launchPrintFiles'), import('../design/export/printFiles')]);
     return await step.launchPrintFiles(order, items, attemptId, {

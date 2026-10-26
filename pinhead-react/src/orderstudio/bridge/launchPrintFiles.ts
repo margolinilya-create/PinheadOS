@@ -31,6 +31,18 @@ export interface PrintFileCopyDeps {
 
 export const MSG_PRINT_FILE = (n: number, title: string) =>
   `Файл печати нанесения ${n} «${title}» не собрался — в производстве есть исходный макет`;
+export const MSG_PRINT_TOO_BIG = (n: number, title: string) =>
+  `Файл печати нанесения ${n} «${title}» больше 30 МБ — в производстве есть исходный макет`;
+
+/**
+ * Предел холста при запуске, пикселей (ревью ветки 5в): у кнопки «Файлы печати» —
+ * предел настольного браузера (268 Мп ≈ 1 ГБ памяти), а запуск идёт в браузере МС
+ * на критическом пути — вкладка не должна падать. Больше — следующий DPI
+ * (`dpiCandidates`: 150, ниже), не влез и он — пропуск с предупреждением.
+ */
+export const LAUNCH_MAX_PX = 40_000_000;
+/** Предел файла в `erp-attachments` (= `ERP_FILE_MAX_BYTES` писателя, `attachmentLimits`) */
+const MAX_BYTES = 30 * 1024 * 1024;
 
 const RASTER: readonly ArtworkKind[] = ['png', 'jpeg', 'webp', 'svg'];
 
@@ -55,11 +67,12 @@ export async function launchPrintFiles(
         const blob = await deps.download(order.id, p.artwork_path);
         const bytes = blob ? new Uint8Array(await blob.arrayBuffer()) : null;
         const kind = bytes ? contentKind(bytes) : null;
-        if (!blob || !bytes || !kind) {
+        if (!blob || !bytes) {
           warnings.push(MSG_PRINT_FILE(index + 1, title));
           continue;
         }
-        if (!RASTER.includes(kind)) continue;
+        // PDF/AI, EPS/PS и прочее — печать по исходнику (он уже скопирован), без предупреждения
+        if (!kind || !RASTER.includes(kind)) continue;
         let src: Blob | string = blob;
         if (kind === 'svg') {
           const clean = sanitizeSvg(new TextDecoder().decode(bytes), 'asset');
@@ -69,7 +82,12 @@ export async function launchPrintFiles(
           }
           src = clean.svg;
         }
-        const res = await rasterizePrint(src, kind, w, h, deps.rasterize);
+        const capped: PrintFileDeps['rasterize'] = (s, k, pw, ph) => (pw * ph > LAUNCH_MAX_PX ? Promise.resolve(null) : deps.rasterize(s, k, pw, ph));
+        const res = await rasterizePrint(src, kind, w, h, capped);
+        if (res && res.png.length > MAX_BYTES) {
+          warnings.push(MSG_PRINT_TOO_BIG(index + 1, title));
+          continue;
+        }
         const key = res ? erpAttachmentKey(attemptId, 'print', deps.randomId(), 'png') : '';
         const up = res ? await deps.upload(key, new Blob([res.png as BlobPart]), 'image/png') : null;
         if (!res || !up?.ok) {

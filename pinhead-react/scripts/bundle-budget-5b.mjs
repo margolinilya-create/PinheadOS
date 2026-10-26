@@ -138,9 +138,11 @@ export function createBaseline({ root, dist, fail, write }) {
 
   function done() {
     if (!write) return;
+    // Комментарий базы — история перезаписей: сохраняется, а не сбрасывается к тексту 5б
+    // (перезапись 26.10 стёрла историю вех 8 и 19.10 — ревью ветки 5в)
     const out = {
-      comment: 'База bundle-budget (веха 5б, задача 0). Перезапись — только решением вслух: '
-        + 'npm run bundle:budget -- --write-baseline, причина — в design/README.md («Замеры 5б»)',
+      comment: saved?.comment ?? ('База bundle-budget (веха 5б, задача 0). Перезапись — только решением вслух: '
+        + 'npm run bundle:budget -- --write-baseline, причина — в design/README.md («Замеры 5б»)'),
       ...next,
     };
     writeFileSync(path, `${JSON.stringify(out, null, 2)}\n`);

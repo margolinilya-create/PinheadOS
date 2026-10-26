@@ -56,6 +56,9 @@ export interface CheckCtx {
 }
 
 
+/** Меньшая сторона нанесения, мм, ниже которой размер — явная ошибка ввода (блок отправки) */
+export const SIZE_TYPO_MM = 5;
+
 /** `blocking: false` — подсказка: видна в списке, отправку не держит */
 type Push = (id: string, seller: string, fact: string, href: string | null, rule?: ServerSendRule, blocking?: boolean) => void;
 
@@ -101,12 +104,14 @@ function itemChecks(order: SalesOrder, item: SalesItem, cat: TzCatalogs, ctx: Ch
     const n = i + 1;
     if (!p.artwork_path) push(id(`artwork:${n}`), `Добавьте макет к нанесению ${n} позиции ${name}`, `У нанесения ${n} ${name} нет макета`, href, 'artwork_path_except_other');
     if (!(Number(p.width_mm) > 0 && Number(p.height_mm) > 0)) push(id(`mm:${n}`), `Укажите размер в мм у нанесения ${n} позиции ${name}`, `У нанесения ${n} ${name} нет размера в мм`, href);
-    // Пределы техники (B3): мельче минимума — не пропечатается (блок); больше рамки — подсказка,
-    // цифры черновые, ждут технолога
+    // Пределы техники (B3): цифры черновые, ждут технолога — подсказка. Блок — только явная
+    // ошибка ввода (меньшая сторона меньше SIZE_TYPO_MM, как «2 × 1 мм»): сервер такого правила не знает,
+    // и черновой порог не должен держать отправку на бою (ревью ветки 5в)
     const limit = methodSizeIssue(p.method, Number(p.width_mm), Number(p.height_mm));
     if (limit) {
+      const typo = limit.kind === 'min' && Math.min(Number(p.width_mm), Number(p.height_mm)) < SIZE_TYPO_MM;
       push(id(`mm-size:${n}`), `Нанесение ${n} позиции ${name}: ${limit.text}`, `У нанесения ${n} ${name}: ${limit.text}`,
-        href, undefined, limit.kind === 'min');
+        href, undefined, typo);
     }
     const size = p.artwork_path ? ctx.fileSizes?.[p.artwork_path] : undefined;
     if (size && size > ERP_FILE_MAX_BYTES) {
