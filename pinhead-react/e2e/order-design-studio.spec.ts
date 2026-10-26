@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { installSupabaseMock, FX_CREATED, type MockCall, type MockExtras } from './support/mockSupabase';
 import { seedFlatObjects, seedFlatsCatalog } from './support/flatsFixture';
 import { axeSerious } from './support/orderCatalogFx';
+import { NEW_ORDER, newOrderGetsUuid } from './support/orderFlowFx';
 
 /**
  * «Дизайн» 2.0 (веха 5в, Э2): «Стандарты Pinhead», вид холста, проверки под
@@ -176,6 +177,24 @@ test.describe('вкладка «Дизайн» 2.0', () => {
     const bytes = readFileSync(await file.path());
     expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
     expect(bytes.length).toBeGreaterThan(5000);
+  });
+
+  test('«Повторить заказ» на «ТЗ и цена» — черновик с parent_id, файл скопирован в папку нового заказа (Э8)', async ({ page }) => {
+    const calls: MockCall[] = [];
+    await installSupabaseMock(page, mock(calls));
+    await newOrderGetsUuid(page);
+    await page.goto(`/sales/${ORDER_ID}?tab=summary&studio=1`);
+    await page.getByRole('button', { name: 'Повторить заказ' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Создать черновик' }).click();
+    await expect(page).toHaveURL(new RegExp(`/sales/${NEW_ORDER}\\?tab=item`));
+    const newId = NEW_ORDER;
+    await expect.poll(() => calls.filter((c) => c.kind === 'storage-copy').map((c) => c.name), { timeout: 10_000 })
+      .toEqual([`order-artworks/${LOGO_PATH}->${LOGO_PATH.replace(ORDER_ID, newId)}`]);
+    type Saved = { parent_id?: string; items: { prints: { artwork_path: string; layout: unknown }[] }[] };
+    const last = () => calls.filter((c) => c.kind === 'rpc' && c.name === 'order_v4_save_full').map((c) => (c.body as { p_order: Saved }).p_order).at(-1);
+    await expect.poll(() => last()?.items[0]?.prints[0]?.artwork_path, { timeout: 10_000 }).toBe(LOGO_PATH.replace(ORDER_ID, newId));
+    expect(last()?.parent_id).toBe(ORDER_ID);
+    expect(last()?.items[0].prints[0].layout).not.toBeNull();
   });
 
   test('?design2=0 — прежний вид: без «Стандартов Pinhead» и вида холста', async ({ page }) => {

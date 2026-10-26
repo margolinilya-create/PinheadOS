@@ -17,13 +17,7 @@
 import { newSalesItem, newSalesLabel, newSalesNoteCard, newSalesPrint } from './factory';
 import type { SalesOrder } from './types';
 
-const ORDER_PATH = /^orders\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(.+)$/;
-
-/** Тот же файл в папке другого заказа; путь не заказа — `null` */
-export function repointPath(path: string, toOrderId: string): string | null {
-  const m = ORDER_PATH.exec(path);
-  return m ? `orders/${toOrderId.toLowerCase()}/${m[1]}` : null;
-}
+export { repointPath } from './orderPaths';
 
 /** Поля шапки нового черновика */
 export function repeatHeader(src: SalesOrder): Partial<SalesOrder> {

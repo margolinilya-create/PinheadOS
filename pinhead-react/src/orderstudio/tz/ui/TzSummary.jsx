@@ -1,4 +1,5 @@
 import KpPanel from './KpPanel';
+import RepeatPanel from './RepeatPanel';
 import PaymentPanel from '../../payment/PaymentPanel';
 import TzGroupsPanel from './TzGroupsPanel';
 import SendPanel from './SendPanel';
@@ -36,6 +37,7 @@ export default function TzSummary({
         focusHeading={focusSend}
         onFocused={onSendFocused}
       />
+      <RepeatPanel order={order} user={user} />
     </>
   );
 }

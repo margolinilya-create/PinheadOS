@@ -27,7 +27,7 @@ vi.mock('../store/useSalesStore', () => ({
 }));
 vi.mock('../../store/useConfirmStore', () => ({ confirm: h.confirm }));
 vi.mock('../../store/useToastStore', () => ({ toast: h.toast }));
-vi.mock('../api/artworks', async (orig) => ({ ...(await orig()), copyArtwork: h.copyArtwork }));
+vi.mock('../api/artworkCopy', () => ({ copyArtwork: h.copyArtwork }));
 
 const { repeatOrder, MSG_SAVE_FIRST } = await import('./repeatFlow');
 

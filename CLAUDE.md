@@ -156,6 +156,12 @@ pinhead-react/src/
                              # printList (лёгкие операции для чанка холста), catalog/sleeveZones (пары зон рукавов);
                              # веха 5в (Э2б): edit/pattern/ (разбор DXF/SVG лекал), FlatView.pattern, admin/flats/PatternSection +
                              # patternAlign (импорт), export/buildPatternSvg + ui/stage/PatternSheet (лист «Выкройка»)
+                             # веха 5в (Э3–Э7): assets/artStats, export/zipStore + printFiles + mockups, tz/kp + tz/pdf/kpPdf
+                             # (КП), tz/model/layoutTzPrints.placementSheet (лист размещения);
+                             # веха 5в (Э8): design/model/layoutTemplate + ui/panel/templateOps + MyLayouts («Мои раскладки»,
+                             # api/layoutTemplates — единственный писатель order_templates), model/orderPaths + repeatOrder,
+                             # api/artworkCopy (второй писатель order-artworks — только copy), workplace/repeatFlow,
+                             # tz/ui/RepeatPanel («Повторить заказ» на «ТЗ и цена»)
 ```
 
 ```

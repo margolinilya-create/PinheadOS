@@ -13,7 +13,8 @@
  *
  * Повторный вызов во время работы получает тот же промис — второго заказа нет.
  */
-import { copyArtwork, artworkPreviewPath } from '../api/artworks';
+import { artworkPreviewPath } from '../api/artworks';
+import { copyArtwork } from '../api/artworkCopy';
 import { attachFiles, orderFilePaths, previewSources, repeatDraft, repeatHeader } from '../model/repeatOrder';
 import type { SalesOrder } from '../model/types';
 import { useSalesStore } from '../store/useSalesStore';

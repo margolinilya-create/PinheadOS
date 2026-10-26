@@ -21,7 +21,7 @@ function source(): SalesOrder {
     bitrix_id: '[67108]',
     due_date: '2026-11-01',
     payments: [{ kind: 'prepay', amount: 1000, paid_on: '2026-10-01' }],
-    paid_kind: 'prepay',
+    paid_kind: 'prepaid',
     sent_at: '2026-10-02T10:00:00Z',
     erp_order_id: 'erp-1',
     sticker_preview_path: `${base}/sticker/s.png`,
