@@ -14,11 +14,12 @@ import { FLAT_VIEW_KINDS, type FlatHistoryEntry, type FlatViewKind, type Garment
 import type { SaveProgress } from './saveFlat';
 
 /** Вкладки правой панели редактора */
-export type FlatPanel = 'zones' | 'view' | 'model' | 'history';
+export type FlatPanel = 'zones' | 'view' | 'pattern' | 'model' | 'history';
 
 export const PANEL_LABELS: Record<FlatPanel, string> = {
   zones: 'Зоны',
   view: 'Вид',
+  pattern: 'Лекала',
   model: 'Модель и подбор',
   history: 'История',
 };

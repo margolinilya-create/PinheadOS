@@ -470,3 +470,31 @@
   .chipX { min-width: 44px; }
   .chipX { min-height: 44px; }
 }
+
+/* ── Лекала (веха 5в, Э2б) ── */
+.patternList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.patternRow {
+  display: grid;
+  grid-template-columns: var(--control-h-lg) minmax(0, 1fr);
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.patternRow > .inline { grid-column: 1 / -1; }
+
+.piecePreview {
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+  color: var(--text-mid);
+}

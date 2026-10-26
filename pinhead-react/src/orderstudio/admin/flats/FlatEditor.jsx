@@ -10,6 +10,7 @@ import FlatModelSection from './FlatModelSection';
 import FlatSaveBar from './FlatSaveBar';
 import FlatViewsSection from './FlatViewsSection';
 import NewFlatForm from './NewFlatForm';
+import PatternSection from './PatternSection';
 import { issueTarget, PANEL_LABELS, READ_ONLY_TEXT, viewOrder } from './flatEditorView';
 import { useFlatEditor } from './useFlatEditor';
 import { useFlatViewActions } from './useFlatViewActions';
@@ -115,6 +116,7 @@ export default function FlatEditor({ flatId, view: viewParam, onView, onBack, re
               <legend className={styles.srOnly}>{PANEL_LABELS[panel]}</legend>
               {panel === 'zones' && view && <AreasSection ctx={ctx} view={view} />}
               {panel === 'view' && view && <FlatViewsSection ctx={ctx} view={view} />}
+              {panel === 'pattern' && <PatternSection ctx={ctx} />}
               {panel === 'model' && <FlatModelSection ctx={ctx} />}
             </fieldset>
             {panel === 'history' && <FlatHistory flat={draft} />}

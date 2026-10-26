@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Stage, Layer, Image as KImage, Rect, Transformer } from '../../../design/ui/konva';
+import { Stage, Layer, Image as KImage, Line, Rect, Transformer } from '../../../design/ui/konva';
 import { AreaShapes } from './AreaShapes';
 import { AnchorGuides, AnchorHandles } from './AnchorHandles';
 import { CalibrateLayer } from './CalibrateTool';
@@ -162,6 +162,16 @@ export function FlatCanvas({
             <Rect x={paper.x} y={paper.y} width={lenPx(f, fm.w)} height={lenPx(f, fm.h)} fill={tokens.paper} />
             {img.image && <KImage image={img.image} x={paper.x} y={paper.y} width={lenPx(f, fm.w)} height={lenPx(f, fm.h)} />}
             <AnchorGuides scene={scene} f={f} flatMm={fm} tokens={tokens} />
+            {/* Лекало детали (веха 5в, Э2б) пунктиром поверх флэта — сверка выравнивания */}
+            {view.pattern && (
+              <Line
+                points={view.pattern.contour_mm.flatMap(([x, y]) => { const p = toPx(f, { x, y }); return [p.x, p.y]; })}
+                closed
+                stroke={tokens.label}
+                strokeWidth={1.5}
+                dash={[8, 4]}
+              />
+            )}
           </Layer>
           <Layer listening={mode !== 'calibrate'}>
             <AreaShapes
