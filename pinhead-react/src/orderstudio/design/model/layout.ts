@@ -90,6 +90,8 @@ export interface PlaceCtx {
   zonesCatalog: ZoneDefinition[];
   /** Категория модели (`SkuItem.category`) — отступ штанов от пояса */
   category: string;
+  /** Зоны, доступные модели (`useItemFlat.areaAllowed`); нет — все зоны вида */
+  areaAllowed?: ((area: PrintArea) => boolean) | null;
 }
 
 const tenth = (v: number) => Math.round(v * 10) / 10;

@@ -81,7 +81,7 @@ export function useDesignTab({ order, item, readOnly }) {
   const { flat, views } = itemFlat;
   const rules = useMemo(() => (sku ? getEffectiveRules(sku, cat.categoryRules ?? []) : null), [sku, cat.categoryRules]);
   const category = sku?.category ?? '';
-  const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category } : null), [flat, zonesCatalog, category]);
+  const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category, areaAllowed: itemFlat.areaAllowed } : null), [flat, zonesCatalog, category, itemFlat.areaAllowed]);
   const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? []), [item, cat.suppliers]);
   // Подложка нового логотипа — по цвету изделия: на чёрном не «белое» (обход, H-2)
   const textile = useMemo(

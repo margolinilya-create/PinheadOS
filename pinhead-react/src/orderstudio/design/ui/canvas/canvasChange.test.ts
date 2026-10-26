@@ -46,6 +46,23 @@ describe('applyCanvasChange', () => {
     expect(parseLayout(applyCanvasChange([p], nudge, ctx)![0].layout)?.area_id).toBe('chest');
   });
 
+  it('place: центр ещё в текущей зоне — зона прежняя, даже если её перекрывает другая; недоступная модели зона не берётся', () => {
+    const big = area({ id: 'big', name: 'Перед целиком', polygon_mm: [[100, 100], [500, 100], [500, 900], [100, 900]] });
+    const belly = area({ id: 'belly', name: 'Живот', polygon_mm: [[150, 560], [450, 560], [450, 800], [150, 800]] });
+    const overlap = flat({ views: [frontView({ print_areas: [big, area(), belly] })] });
+    const ctx: NewPlacedCtx = { ...CTX, flat: overlap };
+    const p = newPlacedPrint(ASSET, PATH, 'chest', ctx)!;
+    const pl = placementOf(p, overlap)!;
+    const moveTo = (y_mm: number, c: typeof ctx = ctx): SalesPrint => applyCanvasChange([p], { kind: 'place', key: p.key, geometry: { ...pl, y_mm }, label: CANVAS_LABELS.move }, c)![0];
+    // Чуть ниже — центр всё ещё в «Груди»: не перескакивать в перекрывающий «Перед целиком»
+    expect(parseLayout(moveTo(pl.y_mm + 20).layout)?.area_id).toBe('chest');
+    // В «Животе» центр попал в две зоны — берётся не текущая и не первая попавшаяся, а та, что не «Грудь»: «Перед целиком» идёт первым
+    expect(parseLayout(moveTo(640).layout)?.area_id).toBe('big');
+    // «Перед целиком» модели недоступен — берётся «Живот»
+    const onlyBelly = { ...ctx, areaAllowed: (a: { id: string }) => a.id !== 'big' };
+    expect(parseLayout(moveTo(640, onlyBelly).layout)?.area_id).toBe('belly');
+  });
+
   it('nudge: сдвиг считается от СВЕЖЕГО нанесения (две стрелки подряд до перерисовки не теряются)', () => {
     const p = placed();
     const y0 = parseLayout(p.layout)!.y_mm;

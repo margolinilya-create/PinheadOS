@@ -13,7 +13,7 @@
  * Метрика мм неизменна: экранный зум и панорама живут в сторе дизайна
  * отдельно (масштаб и положение стейджа), `pxPerMM` от них не зависит.
  */
-import type { FlatView, Placement } from '../../types';
+import type { FlatView, Placement, PrintArea } from '../../types';
 import { anchorsForSize, placementInfo, viewZone } from '../../geometry/view';
 import { ZOOM_MAX, ZOOM_MIN } from '../../store/useDesignStore';
 
@@ -173,8 +173,14 @@ function inPolygon(x: number, y: number, poly: [number, number][]): boolean {
 }
 
 /** Зона вида под точкой (мм); мимо всех — `undefined` (зона по умолчанию решается при постановке) */
-export function areaAt(view: FlatView, x: number, y: number): string | undefined {
-  return view.print_areas.find((a) => inPolygon(x, y, a.polygon_mm))?.id;
+export function areaAt(view: FlatView, x: number, y: number, allowed?: ((area: PrintArea) => boolean) | null): string | undefined {
+  return view.print_areas.find((a) => (!allowed || allowed(a)) && inPolygon(x, y, a.polygon_mm))?.id;
+}
+
+/** Точка внутри зоны вида с этим id */
+export function inArea(view: FlatView, areaId: string, x: number, y: number): boolean {
+  const a = view.print_areas.find((z) => z.id === areaId);
+  return !!a && inPolygon(x, y, a.polygon_mm);
 }
 
 /** Наконечник размерной линии в точке (x2, y2): треугольник для `Line closed`; нулевая длина — `[]` */
