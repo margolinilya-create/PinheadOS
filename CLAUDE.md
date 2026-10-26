@@ -147,6 +147,9 @@ pinhead-react/src/
                              # model/garmentTextile (подложка по цвету изделия), api/serverZoneNotes (сервер знает zone_id
                              # и notes), workplace/OrderNotesField («Комментарий для цехов»), TabMarker + tabState (маркеры
                              # вкладок), admin/SalesStaffJournal («Кто и когда менял»)
+                             # веха 5в (Э1): design/catalog/pickFlat — flatFitsModel/flatsForModel/flatMismatch (силуэт
+                             # только своей модели), model/printMethods — пределы размера `size` + methodSizeIssue,
+                             # pricing/printTech (строка техники в цене), model/printOffset.offsetNote (отступ в ERP и ТЗ)
 ```
 
 ```
@@ -588,13 +591,14 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/skills-pinhead.md` | Pinhead-часть скиллов, заменённых ECC |
 | `docs/2026-10-05-ecc-review.md` | Обзор everything-claude-code |
 | `docs/rules/INDEX.md` | **Указатель правил по темам** (75 файлов, перенос 15.09) |
+| `docs/superpowers/plans/2026-10-26-order-flow-m5c-design-studio.md` | **Веха 5в «Дизайн» 2.0:** карта D0, этапы Э1–Э9, визуал (гибрид), решения владельца (3D отложено) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, статистика, roadmap |
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (99 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (102 файла, перенос 24.09) |
 | `supabase/rollout/r1910a/README.md` | **Правки 19.10, план A:** предусловия, порядок S1 → E1 → C1, откаты, триггеры, запрос «наследия» вышивки |
 | `supabase/rollout/r1910b/README.md` | **Правки 19.10, план B («Бизнес-задачи»):** предусловие «A выкачена», T1 → T2 → фронт, смоук чата и `pg_cron`, откат T2, триггеры |
 | `supabase/rollout/m8/CHECKLIST.md` | **Веха 8:** порядок выкатки L → фронт → K → M, триггеры отката, чек-лист «Готовность» и «Включение» |

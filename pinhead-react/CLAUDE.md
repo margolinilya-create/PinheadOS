@@ -203,6 +203,12 @@ admin/director — Производство. Подробно — корнево
   удалены `editors.css`, `express.css`, `garment.css`, `PageHeader.jsx`, `useCommentsStore.ts`. Миграции L/K/M — файлы
   `supabase/rollout/m8/`, отчёт о ничьих файлах — `supabase/functions/order-files-gc/`. Правила —
   `docs/rules/pravila-vklyucheniya-i-restayla-veha-8-18-10.md`.
+  Веха 5в, Э1 (26.10): силуэт только своей модели — `design/catalog/pickFlat` (`flatFitsModel`, `flatsForModel`,
+  `flatMismatch`), блок новых логотипов в `useDesignTab`, пункт `flat:<key>` чек-листа по `layout.flat_id`; пределы
+  размера по технике — `size` в профилях `model/printMethods.ts` + `methodSizeIssue` (подсказка `PrintRow`, PDF
+  макета, чек-лист); строка техники в цене — `PrintPrice.tech` + `pricing/printTech.ts`; отступ в ERP — `offsetNote`.
+  План — `docs/superpowers/plans/2026-10-26-order-flow-m5c-design-studio.md`; правила —
+  `docs/rules/pravila-dizain-veha-5v-e1-26-10.md`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 
