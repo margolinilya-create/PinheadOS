@@ -174,6 +174,15 @@ describe('DesignTab — правка', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: /Цена за штуку/ }).textContent).not.toBe(priceBefore));
   });
 
+  it('цена позиции: у выбранного нанесения — строка техники (плёнка DTF), до выбора её нет (веха 5в)', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const section = screen.getByRole('region', { name: 'Цена позиции' });
+    expect(section.textContent).not.toMatch(/Плёнка/);
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    await waitFor(() => expect(section.textContent).toMatch(/Нанесение 1 — Плёнка: 1 м на \d+ шт \(\d+ в ряд\)/));
+  });
+
   it('«Снять с изделия» в списке — строка остаётся, «Вернуть» возвращает раскладку', async () => {
     const p = placed();
     setup(item({ flat_id: FLAT_A.id, prints: [p] }));

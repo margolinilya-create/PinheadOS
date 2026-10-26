@@ -34,6 +34,7 @@ import type { LabelLibrary } from '../catalog/types';
 import { libraryLabelPrice } from '../catalog/labels';
 import { itemPackaging } from '../model/packaging';
 import { tzRowOfZone, zoneOfPrint } from '../catalog/tzRows';
+import type { PrintTech } from './printTech';
 
 export interface PriceCatalogs {
   skuCatalog: SkuItem[];
@@ -84,6 +85,8 @@ export interface PrintPrice {
   qty: number;
   /** Цена нанесения за штуку (по ступени тиража группы) */
   unit: number;
+  /** Из чего сложилась цена (формат, плёнка, стежки) — только когда заданы оба мм */
+  tech?: PrintTech;
 }
 
 export interface ItemPrice {
@@ -175,7 +178,7 @@ export function isPocketPrint(print: SalesPrint, zones: PriceCatalogs['zonesCata
 function printUnitPrice(
   P: PricesExt, print: SalesPrint, qty: number, fabricCode: string, embMode: printRules.EmbMode = 'cut',
   zones: PriceCatalogs['zonesCatalog'] = [],
-): { unit: number | null; issue?: PriceIssue } {
+): { unit: number | null; issue?: PriceIssue; tech?: PrintTech } {
   const { fmt, issue } = fitFormat(print.width_mm, print.height_mm);
   const w = print.width_mm ?? undefined;
   const h = print.height_mm ?? undefined;
@@ -185,10 +188,13 @@ function printUnitPrice(
       const unit = core.calcZonePriceDirect(P, 'screen', { fmt: sf.fmt, col: print.colors, textile: print.textile, fx: print.special || 'none' }, qty, fabricCode);
       // Пометка «тираж от 50 шт» — в `priceItem` по тиражу нанесения: здесь `qty`
       // у пустой позиции подменён единицей, а строка держит одну пометку
-      return { unit, issue: sf.issue };
+      return { unit, issue: sf.issue, ...(w && h ? { tech: { kind: 'screen', fmt: sf.fmt } } : {}) };
     }
     case 'heat_transfer':
-      return { unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue };
+      return {
+        unit: core.calcZonePriceDirect(P, 'flex', { fmt, col: print.colors }, qty), issue,
+        ...(w && h ? { tech: { kind: 'flex', fmt } } : {}),
+      };
     case 'dtg': {
       // Размеры DTG свои (А4 — 20×30, А3 — 30×41, 40×45 см): подбор по мм макета
       const size = w && h ? printRules.dtgFitSize(w, h) : 'A4';
@@ -197,6 +203,7 @@ function printUnitPrice(
       return {
         unit: core.calcZonePriceDirect(P, 'dtg', { fmt: size || '40x45', textile: print.textile, placement }, qty),
         issue: !w || !h ? 'print_no_size' : size ? undefined : 'print_oversize',
+        ...(w && h && size ? { tech: { kind: 'dtg', size } } : {}),
       };
     }
     case 'embroidery': {
@@ -204,12 +211,16 @@ function printUnitPrice(
       return {
         unit: core.calcZonePriceDirect(P, 'embroidery', { width_mm: w, height_mm: h, fill: print.fill, extras, mode: embMode }, qty),
         issue: !w || !h ? 'print_no_size' : qty < (P.embTiers?.[0] ?? printRules.EMB_TIERS[0]) ? 'emb_low_qty' : undefined,
+        // Стежки — той же функцией, что цена (`calcZonePriceDirect` → `embroideryPrice`)
+        ...(w && h ? { tech: { kind: 'emb', stitches: printRules.embroideryPrice(P, { width_mm: w, height_mm: h, fill: print.fill ?? 1, extras, mode: embMode, qty }).stitches } } : {}),
       };
     }
     case 'dtf': {
       if (!w || !h) return { unit: core.calcZonePriceDirect(P, 'dtf', {}, qty), issue: 'print_no_size' };
       const layout = printRules.dtfLayout(core.dtfPrices(P), w, h, qty);
-      return layout ? { unit: layout.unit } : { unit: null, issue: 'print_too_big' };
+      return layout
+        ? { unit: layout.unit, tech: { kind: 'dtf', perMeter: layout.perMeter, cols: layout.cols } }
+        : { unit: null, issue: 'print_too_big' };
     }
     default:
       return { unit: null, issue: 'method_unpriced' };
@@ -312,7 +323,7 @@ export function priceItem(
     const mode: printRules.EmbMode = /шеврон|нашивк|patch/i.test(pr.garment_kind || '')
       ? 'patch'
       : sewn && pr.on === 'cut' ? 'cut' : 'garment';
-    const { unit, issue } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode, cat.zonesCatalog);
+    const { unit, issue, tech } = printUnitPrice(P, pr, pq || 1, item.client_fabric ? '' : item.fabric_code, mode, cat.zonesCatalog);
     if (issue && !issues.includes(issue)) issues.push(issue);
     // Как в экспрессе: только при тираже > 0 (у пустой позиции хватает «no_qty»)
     // и вместе с пометкой формата («нет размеров» и меньший тираж — обе)
@@ -320,7 +331,7 @@ export function priceItem(
       issues.push('screen_low_qty');
     }
     const u = unit ?? 0;
-    prints.push({ key: pr.key, method: pr.method, qty: pq, unit: u });
+    prints.push({ key: pr.key, method: pr.method, qty: pq, unit: u, ...(tech ? { tech } : {}) });
     printsTotal += u * pq;
   }
   if (qty > 0) printsPerUnit = printsTotal / qty;

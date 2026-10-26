@@ -233,3 +233,34 @@ describe('правки 16.10 — форматы, бирки, упаковка, �
     expect(embroideryExtras('stone')).toEqual([]);
   });
 });
+
+describe('техника в цене нанесения — формат, плёнка, стежки (веха 5в, Э1)', () => {
+  const techOf = (pr: Parameters<typeof newSalesPrint>[0]) => {
+    const print = newSalesPrint(pr);
+    return priceItem(item({ prints: [print] }), P, CAT, DEFAULT_PRICE_RULES, false).prints[0];
+  };
+  it('шелкография 280 × 200 — формат A4; флекс — формат листа', () => {
+    expect(techOf({ method: 'silkscreen', width_mm: 280, height_mm: 200, colors: 1 }).tech).toEqual({ kind: 'screen', fmt: 'A4' });
+    expect(techOf({ method: 'heat_transfer', width_mm: 120, height_mm: 180, colors: 1 }).tech).toEqual({ kind: 'flex', fmt: 'A5' });
+  });
+  it('DTF — раскладка из dtfLayout', () => {
+    const r = techOf({ method: 'dtf', width_mm: 90, height_mm: 72 });
+    expect(r.tech).toMatchObject({ kind: 'dtf' });
+    const t = r.tech as { perMeter: number; cols: number };
+    expect(t.perMeter).toBeGreaterThan(0);
+    expect(t.cols).toBeGreaterThan(0);
+  });
+  it('вышивка 80 × 60 — стежки по площади и заливке', () => {
+    const r = techOf({ method: 'embroidery', width_mm: 80, height_mm: 60 });
+    const perCm2 = (P as { embStitchesPerCm2?: number }).embStitchesPerCm2 || 300;
+    expect(r.tech).toEqual({ kind: 'emb', stitches: Math.round(8 * 6 * perCm2) });
+  });
+  it('DTG — размер печати', () => {
+    expect(techOf({ method: 'dtg', width_mm: 200, height_mm: 280 }).tech).toEqual({ kind: 'dtg', size: 'A4' });
+  });
+  it('без мм — техники нет; цена та же, что без поля tech', () => {
+    expect(techOf({ method: 'dtf', width_mm: null, height_mm: null }).tech).toBeUndefined();
+    expect(techOf({ method: 'silkscreen', width_mm: null, height_mm: 200 }).tech).toBeUndefined();
+    expect(techOf({ method: 'other', width_mm: 100, height_mm: 100 }).tech).toBeUndefined();
+  });
+});

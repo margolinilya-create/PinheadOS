@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PrintRow from '../../../screens/PrintRow';
 import { ISSUE_LABELS, rub } from '../../../screens/labels';
+import { printTechText } from '../../../pricing/printTech';
 import { placementOf } from '../../model/layout';
 import { useDesignStore } from '../../store/useDesignStore';
 import ArtworkPicker from './ArtworkPicker';
@@ -37,6 +38,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
   );
   const selected = entries.find((e) => e.print.key === selectedKey) ?? null;
   const unitOf = (key) => price?.prints.find((x) => x.key === key) ?? null;
+  const selectedTech = selected ? unitOf(selected.print.key)?.tech ?? null : null;
 
   useEffect(() => {
     if (d.unplaced) undoRef.current?.focus();
@@ -132,6 +134,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
 
       <section className={styles.section} aria-label="Цена позиции">
         <h3 className={styles.sectionTitle}>Цена за штуку: {rub(price?.calc_unit)}</h3>
+        {selectedTech && <p className={styles.muted}>Нанесение {selected.index + 1} — {printTechText(selectedTech)}</p>}
         {(price?.issues ?? []).map((iss) => <p key={iss} className={`${styles.muted} ${styles.warnText}`}>{ISSUE_LABELS[iss]}</p>)}
       </section>
 
