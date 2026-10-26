@@ -13,7 +13,9 @@
  * ```
  *
  * - `place` — новая геометрия после перетаскивания или трансформера
- *   (абсолютная: человек видел именно её);
+ *   (абсолютная: человек видел именно её); центр рамки попал в другую зону
+ *   того же вида — нанесение переходит в неё (веха 5в: до того зона оставалась
+ *   прежней, и картинка обрезалась по старой зоне);
  * - `nudge` — сдвиг стрелками: ДЕЛЬТА к свежему нанесению, чтобы две стрелки
  *   до перерисовки не схлопнулись в одну; `coalesceKey` сливает серию в один
  *   шаг отмены (800 мс, стор дизайна);
@@ -27,7 +29,8 @@
  */
 import type { SalesPrint } from '../../../model/types';
 import { applyPlacement, parseLayout, placementOf, type PlaceCtx } from '../../model/layout';
-import { nudged, type Geometry } from './canvasMath';
+import { areaAt, nudged, type Geometry } from './canvasMath';
+import type { GarmentFlat, Placement } from '../../types';
 
 /** Подписи шагов отмены («Отменить: …») */
 export const CANVAS_LABELS = {
@@ -42,11 +45,18 @@ export type CanvasChange =
   | { kind: 'nudge'; key: string; dx_mm: number; dy_mm: number; label: string; coalesceKey: string }
   | { kind: 'unplace'; key: string; label: string; coalesceKey?: undefined };
 
+/** Зона под центром рамки, если это другая зона того же вида; вне зон — прежняя */
+function withAreaAtCenter(pl: Placement, flat: GarmentFlat): Placement {
+  const view = flat.views.find((v) => v.kind === pl.view);
+  const id = view ? areaAt(view, pl.x_mm + pl.width_mm / 2, pl.y_mm + pl.height_mm / 2) : undefined;
+  return id && id !== pl.area_id ? { ...pl, area_id: id } : pl;
+}
+
 function nextPrint(print: SalesPrint, change: CanvasChange, ctx: PlaceCtx): SalesPrint | null {
   if (change.kind === 'unplace') return parseLayout(print.layout) ? { ...print, layout: null } : null;
   const pl = placementOf(print, ctx.flat);
   if (!pl) return null;
-  const geometry = change.kind === 'nudge' ? nudged(pl, change.dx_mm, change.dy_mm) : { ...pl, ...change.geometry };
+  const geometry = change.kind === 'nudge' ? nudged(pl, change.dx_mm, change.dy_mm) : withAreaAtCenter({ ...pl, ...change.geometry }, ctx.flat);
   const next = applyPlacement(print, geometry, ctx);
   if (next === print || JSON.stringify(next) === JSON.stringify(print)) return null;
   return next;

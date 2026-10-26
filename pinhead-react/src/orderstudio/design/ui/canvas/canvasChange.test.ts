@@ -3,7 +3,7 @@ import { ZONES_CATALOG_DEFAULT } from '../../../../data/constants';
 import type { ZoneDefinition } from '../../../../types/catalog';
 import { newSalesPrint } from '../../../model/factory';
 import type { SalesPrint } from '../../../model/types';
-import { flat } from '../../fixtures.testutil';
+import { area, flat, frontView } from '../../fixtures.testutil';
 import { newPlacedPrint, parseLayout, placementOf, type NewPlacedCtx } from '../../model/layout';
 import type { AssetMeta } from '../../types';
 import { applyCanvasChange, CANVAS_LABELS, type CanvasChange } from './canvasChange';
@@ -29,6 +29,21 @@ describe('applyCanvasChange', () => {
     expect(out[1]).toMatchObject({ key: p.key, width_mm: 150, height_mm: 100, offset_from: 'neck_seam' });
     expect(parseLayout(out[1].layout)?.x_mm).toBeCloseTo(pl.x_mm + 10, 1);
     expect(p.width_mm).toBe(120); // исходное не мутировано
+  });
+
+  it('place: центр рамки в другой зоне того же вида — нанесение получает её зону; вне зон и nudge — зона прежняя', () => {
+    const belly = area({ id: 'belly', name: 'Живот', polygon_mm: [[150, 560], [450, 560], [450, 800], [150, 800]] });
+    const twoAreas = flat({ views: [frontView({ print_areas: [area(), belly] })] });
+    const ctx: NewPlacedCtx = { ...CTX, flat: twoAreas };
+    const p = newPlacedPrint(ASSET, PATH, 'chest', ctx)!;
+    const pl = placementOf(p, twoAreas)!;
+    const moveTo = (x_mm: number, y_mm: number): CanvasChange => ({ kind: 'place', key: p.key, geometry: { ...pl, x_mm, y_mm }, label: CANVAS_LABELS.move });
+    const inBelly = applyCanvasChange([p], moveTo(240, 640), ctx)!;
+    expect(parseLayout(inBelly[0].layout)?.area_id).toBe('belly');
+    const nowhere = applyCanvasChange([p], moveTo(10, 10), ctx)!;
+    expect(parseLayout(nowhere[0].layout)?.area_id).toBe('chest');
+    const nudge: CanvasChange = { kind: 'nudge', key: p.key, dx_mm: 0, dy_mm: 300, label: CANVAS_LABELS.nudge, coalesceKey: 'n' };
+    expect(parseLayout(applyCanvasChange([p], nudge, ctx)![0].layout)?.area_id).toBe('chest');
   });
 
   it('nudge: сдвиг считается от СВЕЖЕГО нанесения (две стрелки подряд до перерисовки не теряются)', () => {
