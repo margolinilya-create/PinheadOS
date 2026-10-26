@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   METHOD_LABELS, METHOD_ORDER, METHOD_TO_TECH, PRINT_METHOD_PROFILES, TECH_TO_METHOD,
-  allowedMethods, defaultMethod, methodAllowedInZone, printMethodProfile, resolveMethod,
+  allowedMethods, defaultMethod, methodAllowedInZone, methodSizeIssue, printMethodProfile, resolveMethod,
 } from './printMethods';
 import { SALES_PRINT_METHODS } from './types';
 import { METHOD_LABELS as SCREEN_LABELS, METHOD_ORDER as SCREEN_ORDER } from '../screens/labels';
@@ -111,5 +111,24 @@ describe('техника в зоне (решение 8)', () => {
     expect(resolveMethod('dtg', { default_method: 'dtf' }, null)).toBe('dtg');
     expect(resolveMethod(undefined, { default_method: 'dtf' }, null)).toBe('dtf');
     expect(resolveMethod(undefined, undefined, null)).toBe('silkscreen');
+  });
+});
+
+describe('methodSizeIssue — пределы размера по технике (веха 5в, B3; цифры — черновик технолога)', () => {
+  it('меньше минимума — по меньшей стороне, блокирующее', () => {
+    expect(methodSizeIssue('dtf', 2, 1)).toEqual({ kind: 'min', text: 'техника «DTF»: меньшая сторона — от 20 мм, сейчас 2 × 1 мм' });
+    expect(methodSizeIssue('embroidery', 14, 40)?.kind).toBe('min');
+  });
+  it('больше максимума — с учётом поворота на 90°', () => {
+    expect(methodSizeIssue('dtf', 600, 450)).toBeNull();
+    expect(methodSizeIssue('dtf', 450, 600)).toBeNull();
+    expect(methodSizeIssue('silkscreen', 420, 520)).toEqual({ kind: 'max', text: 'техника «Шелкография»: не больше 400 × 500 мм, сейчас 420 × 520 мм' });
+  });
+  it('без правил (прочее, шевроны, сублимация) и без мм — ничего', () => {
+    expect(methodSizeIssue('other', 1, 1)).toBeNull();
+    expect(methodSizeIssue('patch', 1, 1)).toBeNull();
+    expect(methodSizeIssue('sublimation', 1, 1)).toBeNull();
+    expect(methodSizeIssue('dtf', null, 10)).toBeNull();
+    expect(methodSizeIssue('dtf', 0, 10)).toBeNull();
   });
 });

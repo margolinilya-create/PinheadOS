@@ -5,6 +5,7 @@ import { METHOD_LABELS, METHOD_ORDER, SCREEN_EFFECTS, EMBROIDERY_EFFECTS, rub } 
 import BufferedInput from './BufferedInput';
 import { formatPantone, parseIntIn, parsePantone } from './fieldParse';
 import { offsetText } from '../model/printOffset';
+import { methodSizeIssue } from '../model/printMethods';
 import { zoneIdByName } from '../catalog/tzRows';
 import styles from './Sales.module.css';
 
@@ -52,6 +53,10 @@ export default function PrintRow({
   const maxColors = m === 'heat_transfer' ? FLEX_MAX_COLORS : SCREEN_MAX_COLORS;
   const needsTextile = m === 'silkscreen' || m === 'dtg';
   const effects = m === 'silkscreen' ? SCREEN_EFFECTS : m === 'embroidery' ? EMBROIDERY_EFFECTS : null;
+  // Пределы техники (B3) — подсказка у полей Ш×В; живой регион есть всегда, чтобы читалка его заметила
+  const sizeIssue = methodSizeIssue(m, print.width_mm, print.height_mm);
+  const sizeHint = sizeIssue ? sizeIssue.text[0].toUpperCase() + sizeIssue.text.slice(1) : '';
+  const sizeRef = sizeIssue ? `${id}-size` : undefined;
 
   const toggleSize = (s) => onChange({
     sizes: print.sizes.includes(s) ? print.sizes.filter((x) => x !== s) : [...print.sizes, s],
@@ -100,10 +105,10 @@ export default function PrintRow({
               </datalist>
             </label>
             <label className={styles.field}>Ширина, мм
-              <input className={styles.input} type="number" min="1" value={print.width_mm ?? ''} readOnly={placed} onChange={(e) => onChange({ width_mm: toInt(e.target.value) })} />
+              <input className={styles.input} type="number" min="1" value={print.width_mm ?? ''} readOnly={placed} aria-describedby={sizeRef} onChange={(e) => onChange({ width_mm: toInt(e.target.value) })} />
             </label>
             <label className={styles.field}>Высота, мм
-              <input className={styles.input} type="number" min="1" value={print.height_mm ?? ''} readOnly={placed} onChange={(e) => onChange({ height_mm: toInt(e.target.value) })} />
+              <input className={styles.input} type="number" min="1" value={print.height_mm ?? ''} readOnly={placed} aria-describedby={sizeRef} onChange={(e) => onChange({ height_mm: toInt(e.target.value) })} />
             </label>
           </>
         )}
@@ -155,6 +160,7 @@ export default function PrintRow({
           <input className={styles.input} value={print.artwork_url} onChange={(e) => onChange({ artwork_url: e.target.value })} placeholder="https://…" />
         </label>
       </div>
+      <p id={`${id}-size`} role="status" data-size-hint className={styles.muted}>{sizeHint}</p>
       {retired && !embedded && (
         <p id={`${id}-retired`} className={styles.muted}>
           Зона «{retired.name}» снята — новым позициям не предлагается, в этом заказе остаётся

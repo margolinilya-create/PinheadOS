@@ -172,3 +172,18 @@ describe('sendChecklist — силуэт другой модели (B1, веха
     expect(flatItems(o, cat, seller)).toEqual([]);
   });
 });
+
+describe('sendChecklist — пределы размера по технике (B3, веха 5в)', () => {
+  it('меньше минимума — блок; больше максимума — без блока (цифры ждут технолога)', () => {
+    const o = ready('63886');
+    const key = o.items[0].key;
+    const p0 = o.items[0].prints[0];
+    const tiny = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'dtf', width_mm: 2, height_mm: 1 }] }), cat, seller);
+    const min = tiny.find((i) => i.id === `mm-size:1:${key}`);
+    expect(min).toMatchObject({ blocking: true, href: `?tab=item&item=${key}` });
+    expect(min?.text).toBe('Нанесение 1 позиции «Футболка Old Money, чёрный»: техника «DTF»: меньшая сторона — от 20 мм, сейчас 2 × 1 мм');
+    const big = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'silkscreen', width_mm: 420, height_mm: 520 }] }), cat, seller);
+    expect(big.find((i) => i.id === `mm-size:1:${key}`)).toMatchObject({ blocking: false });
+    expect(canSend(big.filter((i) => i.id.startsWith('mm-size')))).toBe(true);
+  });
+});

@@ -66,6 +66,12 @@ describe('preflight', () => {
     expect(has(run({ placements: [pl({ x_mm: 160, width_mm: 400 })] }), 'выходит за печатную зону')).toBe(true);
   });
 
+  it('пределы техники: меньше минимума и больше максимума — предупреждение с текстом правила', () => {
+    const tiny = run({ placements: [pl({ width_mm: 10, height_mm: 8 })] });
+    expect(has(tiny, '«Грудь»: техника «DTF»: меньшая сторона — от 20 мм, сейчас 10 × 8 мм.')).toBe(true);
+    expect(tiny.find((i) => i.message.includes('меньшая сторона'))?.level).toBe('warn');
+  });
+
   it('у края зоны (ближе безопасного отступа) — предупреждение; за зоной — только «выходит»', () => {
     const near = run({ placements: [pl({ x_mm: 155 })] });
     expect(near).toEqual([{ level: 'warn', printKey: 'p1', message: '«Грудь»: до края зоны меньше 15 мм — при печати рисунок может съехать за край.' }]);

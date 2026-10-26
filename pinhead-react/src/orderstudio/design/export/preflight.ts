@@ -16,6 +16,7 @@ import type { SalesPrintMethod } from '../../model/types';
 import { placementInfo } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { printQuality } from '../catalog/dpi';
+import { methodSizeIssue } from '../../model/printMethods';
 
 export type PreflightLevel = 'serious' | 'warn' | 'info';
 
@@ -67,6 +68,8 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
   if (mn && (p.width_mm < mn.width || p.height_mm < mn.height)) {
     add('warn', `размер ${Math.round(p.width_mm)}×${Math.round(p.height_mm)} мм меньше минимума зоны ${mn.width}×${mn.height} мм.`);
   }
+  const sizeIssue = methodSizeIssue(p.method, p.width_mm, p.height_mm);
+  if (sizeIssue) add('warn', `${sizeIssue.text}.`);
   if (!input.methodAllowed(area, p.method)) add('warn', `техника «${profile.label}» не для этой зоны.`);
 
   const bbox = { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm };

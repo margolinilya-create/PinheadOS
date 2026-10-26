@@ -27,6 +27,7 @@ import type { TzCatalogs } from './tzDocTypes';
 import { parseLayout } from '../../design/model/layoutMark';
 import { flatMismatch } from '../../design/catalog/pickFlat';
 import type { GarmentFlat } from '../../design/types';
+import { methodSizeIssue } from '../../model/printMethods';
 
 export const SERVER_SEND_RULES = ['tz_pdf_path', 'artwork_path_except_other'] as const;
 export type ServerSendRule = (typeof SERVER_SEND_RULES)[number];
@@ -55,7 +56,8 @@ export interface CheckCtx {
 }
 
 
-type Push = (id: string, seller: string, fact: string, href: string | null, rule?: ServerSendRule) => void;
+/** `blocking: false` — подсказка: видна в списке, отправку не держит */
+type Push = (id: string, seller: string, fact: string, href: string | null, rule?: ServerSendRule, blocking?: boolean) => void;
 
 function orderChecks(order: SalesOrder, push: Push): void {
   if (!order.customer.trim()) push('client', 'Укажите клиента', 'Не указан клиент', '?tab=client');
@@ -99,6 +101,13 @@ function itemChecks(order: SalesOrder, item: SalesItem, cat: TzCatalogs, ctx: Ch
     const n = i + 1;
     if (!p.artwork_path) push(id(`artwork:${n}`), `Добавьте макет к нанесению ${n} позиции ${name}`, `У нанесения ${n} ${name} нет макета`, href, 'artwork_path_except_other');
     if (!(Number(p.width_mm) > 0 && Number(p.height_mm) > 0)) push(id(`mm:${n}`), `Укажите размер в мм у нанесения ${n} позиции ${name}`, `У нанесения ${n} ${name} нет размера в мм`, href);
+    // Пределы техники (B3): мельче минимума — не пропечатается (блок); больше рамки — подсказка,
+    // цифры черновые, ждут технолога
+    const limit = methodSizeIssue(p.method, Number(p.width_mm), Number(p.height_mm));
+    if (limit) {
+      push(id(`mm-size:${n}`), `Нанесение ${n} позиции ${name}: ${limit.text}`, `У нанесения ${n} ${name}: ${limit.text}`,
+        href, undefined, limit.kind === 'min');
+    }
     const size = p.artwork_path ? ctx.fileSizes?.[p.artwork_path] : undefined;
     if (size && size > ERP_FILE_MAX_BYTES) {
       push(id(`size:${n}`), `Файл макета нанесения ${n} ${name} больше 30 МБ — производство его не примет. Замените файл`,
@@ -117,8 +126,8 @@ function itemChecks(order: SalesOrder, item: SalesItem, cat: TzCatalogs, ctx: Ch
 export function sendChecklist(order: SalesOrder, cat: TzCatalogs, ctx: CheckCtx): CheckItem[] {
   const ms = ctx.audience === 'ms';
   const out: CheckItem[] = [];
-  const push: Push = (id, seller, fact, href, rule) => out.push({
-    id, ok: false, blocking: true, text: ms ? `${fact} — верните менеджеру` : seller, href: ms ? null : href, ...(rule ? { rule } : {}),
+  const push: Push = (id, seller, fact, href, rule, blocking = true) => out.push({
+    id, ok: false, blocking, text: ms ? `${fact} — верните менеджеру` : seller, href: ms ? null : href, ...(rule ? { rule } : {}),
   });
   orderChecks(order, push);
   order.items.forEach((item) => itemChecks(order, item, cat, ctx, push));
