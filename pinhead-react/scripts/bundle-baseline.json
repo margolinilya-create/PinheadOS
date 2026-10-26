@@ -1,14 +1,14 @@
 {
-  "comment": "База bundle-budget (веха 5б, задача 0; strict перезаписан в вехе 8 — рост входа от выбора оболочки К1, «Замеры 8» — и 19.10 — рост оболочки ERP от правок плана A, решение Р6, «Замеры 19.10», и раздел «Бизнес-задачи» части B (раздел, карточка, диалог задачи и уведомления), «Замеры 19.10, часть B», и опора `.deptTab` для скрытой подписи вкладки (+17 Б CSS, распор карточки заказа на телефоне); причины — design/README.md). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md",
+  "comment": "База bundle-budget (веха 5б, задача 0). Перезапись — только решением вслух: npm run bundle:budget -- --write-baseline, причина — в design/README.md («Замеры 5б»)",
   "strict": {
     "entryJs": {
-      "raw": 499840,
-      "gzip": 152044,
-      "sha256": "0b34ab6a5e9d18879051e68af7d1801bbe0e86b4c0c6300a71b3c27ac860d8f5",
+      "raw": 499959,
+      "gzip": 152083,
+      "sha256": "ccb954e41e7faa0d79c6242282468239e9823fbe4b56966e68e05ee2d7add304",
       "files": {
         "assets/index-HASH.js": {
-          "raw": 41022,
-          "gzip": 14183
+          "raw": 41141,
+          "gzip": 14222
         },
         "assets/vendor-react-HASH.js": {
           "raw": 287180,
@@ -21,9 +21,9 @@
       }
     },
     "shellJs": {
-      "raw": 619132,
-      "gzip": 194114,
-      "sha256": "79e470e9077dfdd79fa1f075e7801f8c92a751666cfcbe0e0339753360e0548f",
+      "raw": 619251,
+      "gzip": 194153,
+      "sha256": "ec615ffb207f36ff4c69c07d36a5ab50878a046bc070a5672e068043d80cd9e0",
       "files": {
         "assets/date-HASH.js": {
           "raw": 1799,
@@ -42,8 +42,8 @@
           "gzip": 6800
         },
         "assets/index-HASH.js": {
-          "raw": 41022,
-          "gzip": 14183
+          "raw": 41141,
+          "gzip": 14222
         },
         "assets/Skeleton-HASH.js": {
           "raw": 208,
@@ -100,14 +100,17 @@
     }
   },
   "reference": {
-    "orderShell": 269093,
-    "designCanvas": 96627,
+    "orderShell": 288347,
+    "designCanvas": 99255,
     "vendorKonva": 76258,
-    "designImages": 8545,
-    "designPanel": 5297,
-    "designPdf": 159426,
-    "designPdfjs": 99991,
-    "flatsTab": 12826,
-    "flatEditor": null
+    "designImages": 9392,
+    "designPanel": 6244,
+    "designPdf": 160113,
+    "designPdfjs": 99907,
+    "flatsTab": 18147,
+    "flatEditor": 48036,
+    "workplace": 94946,
+    "tzPdf": 28351,
+    "launchScreen": 54037
   }
 }

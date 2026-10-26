@@ -27,6 +27,14 @@ const DesignPreview = lazy(() => import('./DesignPreview'));
  */
 const DesignSide = lazy(() => import('./panel/DesignSide'));
 const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель дизайна" aria-busy="true" />;
+/*
+ * Части сцены «Дизайн» 2.0 (веха 5в, Э2, флаг `designStudio`) — один ленивый
+ * модуль: обе полосы — от одного `import()`, чанк и запрос — один. Из `stage/`
+ * сюда не импортируется ничего статически (потолок холста).
+ */
+const loadStage = () => import('./stage/StageParts');
+const StageTop = lazy(() => loadStage().then((m) => ({ default: m.StageTop })));
+const STAGE_TOP_FALLBACK = <div className={styles.stageBarFallback} aria-hidden="true" />;
 
 /**
  * Вкладка «Дизайн» рабочего места `/sales/:id?tab=design&item=<key>` (веха 5а,
@@ -124,6 +132,11 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
       {flat && compact && (
         <Suspense fallback={<p className={styles.muted} role="status">Готовлю превью…</p>}>
           <DesignPreview orderId={order.id} item={item} flat={flat} colorHex={d.colorHex} />
+        </Suspense>
+      )}
+      {flat && !compact && d.studio && (
+        <Suspense fallback={STAGE_TOP_FALLBACK}>
+          <StageTop d={d} item={item} readOnly={ro} />
         </Suspense>
       )}
       {flat && !compact && (

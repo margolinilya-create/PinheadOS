@@ -108,6 +108,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
             ctx={ctx}
             rules={d.rules}
             readOnly={readOnly}
+            studio={d.studio}
             autoFocus={focusWidth === selected.print.key}
             onFocused={clearWidth}
             onGeometry={(g, label, key) => d.commitPrints(label, (prints) => placeGeometry(prints, selected.print.key, g, ctx), key)}

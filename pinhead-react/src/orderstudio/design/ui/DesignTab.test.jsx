@@ -11,6 +11,7 @@ import { useDesignStore } from '../store/useDesignStore';
 import { catalog, flat as makeFlat } from '../fixtures.testutil';
 import { newPlacedPrint, parseLayout } from '../model/layout';
 import { artworkPipeline } from './useArtworkActions';
+import { clearFeature, setFeature } from '../../../config/features';
 
 /**
  * Вкладка «Дизайн» в jsdom: konva подменён простыми div (konva — в e2e),
@@ -319,3 +320,47 @@ describe('DesignTab — силуэт не от модели (B1, веха 5в)',
     expect(screen.getByRole('region', { name: 'Проверка макета' })).toHaveTextContent(/Серьёзно: Силуэт — от другой модели/);
   });
 });
+
+describe('DesignTab — «Стандарты Pinhead» (веха 5в, Э2)', () => {
+  afterEach(() => clearFeature('designStudio'));
+
+  it('без выбора — чипы видны, недоступны с причиной; подсказка размера — описанием, не именем', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Стандарты Pinhead' });
+    const chest = within(group).getByRole('button', { name: 'Центр груди' });
+    expect(chest).toHaveAttribute('aria-disabled', 'true');
+    expect(chest).toHaveAccessibleDescription('250 мм, 75 мм от горловины Выберите нанесение на холсте');
+  });
+
+  it('клик у выбранного — размер стандарта и один шаг истории «Центр груди (стандарт)»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const group = await screen.findByRole('group', { name: 'Стандарты Pinhead' });
+    const chest = within(group).getByRole('button', { name: 'Центр груди' });
+    expect(chest).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(chest);
+    expect(current().prints[0].width_mm).toBe(250);
+    const { past } = useDesignStore.getState();
+    expect(past).toHaveLength(1);
+    expect(past[0].label).toBe('Центр груди (стандарт)');
+    // Кнопок пресетов в инспекторе нет — одна точка входа
+    expect(screen.queryByRole('group', { name: 'Положение одной кнопкой' })).toBeNull();
+  });
+
+  it('только чтение — чипов нет', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { readOnly: true });
+    await panelReady();
+    expect(screen.queryByRole('group', { name: 'Стандарты Pinhead' })).toBeNull();
+  });
+
+  it('флаг выключен — прежний вид: чипов нет, пресеты в инспекторе', async () => {
+    setFeature('designStudio', false);
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    expect(await screen.findByRole('group', { name: 'Положение одной кнопкой' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Стандарты Pinhead' })).toBeNull();
+  });
+});
+

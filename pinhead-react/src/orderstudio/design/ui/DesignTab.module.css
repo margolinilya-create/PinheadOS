@@ -17,6 +17,9 @@
 
 .headGrow { flex: 1; }
 
+/* Место полосы «Стандарты Pinhead», пока её чанк грузится — без сдвига вёрстки */
+.stageBarFallback { min-height: var(--control-h-md); }
+
 .body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);

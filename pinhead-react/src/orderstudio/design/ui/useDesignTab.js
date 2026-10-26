@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../../store/useStore';
+import { isFeatureEnabled } from '../../../config/features';
 import { confirm } from '../../../store/useConfirmStore';
 import { getEffectiveRules } from '../../../utils/skuRules';
 import { pluralize } from '../../../utils/i18n';
@@ -53,6 +54,8 @@ export function useDesignTab({ order, item, readOnly }) {
     redoLabel: s.future.length ? s.future[0].label : null,
     top: s.past.length ? s.past[s.past.length - 1] : null,
   })));
+  /** «Дизайн» 2.0 (веха 5в, Э2): флаг читается один раз за монтаж вкладки */
+  const [studio] = useState(() => isFeatureEnabled('designStudio'));
   /** Шаг истории «Снять с изделия»: «Вернуть» — только пока он верхний (следующей правки не было) */
   const [unplacedAt, setUnplacedAt] = useState(null);
 
@@ -168,7 +171,7 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [current, readOnly, zonesCatalog, category]);
 
   return {
-    flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
+    studio, flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
     art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,

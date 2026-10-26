@@ -319,6 +319,11 @@ const panelKey = designKey('DesignSide', 'src/orderstudio/design/ui/panel/Design
 const panelJs = panelKey ? minus(staticGraph(manifest, [panelKey]).js, order.js, canvasJs, imagesJs) : [];
 const panelTotal = panelKey ? report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total : null;
 if (panelKey) check('Панель «Дизайн», JS', panelTotal, BUDGETS.designPanel);
+// Части сцены «Дизайн» 2.0 (веха 5в, Э2): полосы над холстом и под ним — один ленивый модуль
+const stageKey = designKey('StageParts', 'src/orderstudio/design/ui/stage/StageParts.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const stageJs = stageKey ? minus(staticGraph(manifest, [stageKey]).js, order.js, canvasJs, imagesJs, panelJs) : [];
+const stageTotal = stageKey ? report('Части сцены — JS (StageParts минус холст, картинки, панель и оболочка Order)', stageJs).total : null;
+if (stageKey) check('Части сцены «Дизайн», JS', stageTotal, BUDGETS.designStage);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);
