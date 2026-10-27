@@ -265,7 +265,8 @@ describe('FlatsTab — режимы по адресу (веха 5б)', () => {
     expect(screen.getByRole('tab', { name: 'Зоны нанесения' })).toHaveAttribute('aria-selected', 'true');
     fireEvent.click(screen.getByRole('tab', { name: 'Флэты' }));
     expect(await screen.findByRole('link', { name: 'Футболка Regular' })).toBeInTheDocument();
-    expect(param('part')).toBeNull();
+    // Адрес обновляется навигацией после отрисовки списка: под нагрузкой полного прогона — не сразу
+    await waitFor(() => expect(param('part')).toBeNull());
     fireEvent.click(screen.getByRole('tab', { name: 'Зоны нанесения' }));
     await waitFor(() => expect(param('part')).toBe('zones'));
   });
