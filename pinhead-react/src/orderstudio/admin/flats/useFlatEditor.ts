@@ -164,7 +164,7 @@ async function load(flatId: string): Promise<Loaded> {
   return { ...common, state: 'broken', brokenRaw: raw, issues: flatIssues(raw) };
 }
 
-export function useFlatEditor(flatId: string | 'new'): FlatEditor {
+export function useFlatEditor(flatId: string | 'new', skuCatalog?: readonly { code: string; category: string }[] | null): FlatEditor {
   const [data, setData] = useState<Loaded>(LOADING);
   const [files, setFiles] = useState<Files>({});
   const [progress, setProgress] = useState<SaveProgress | null>(null);
@@ -240,7 +240,7 @@ export function useFlatEditor(flatId: string | 'new'): FlatEditor {
     setData((d) => ({ ...d, state: 'saving', errorText: null }));
     const res = await saveFlat({
       rawBase: data.rawBase, base: data.base, draft: data.draft, files,
-      zonesCatalog: data.zonesCatalog, raceRetry: raceRef.current, onProgress: setProgress,
+      zonesCatalog: data.zonesCatalog, raceRetry: raceRef.current, onProgress: setProgress, skuCatalog,
     });
     setProgress(null);
     if (!res.ok) {
@@ -266,7 +266,7 @@ export function useFlatEditor(flatId: string | 'new'): FlatEditor {
       }, { replace: true });
     }
     return true;
-  }, [data, files, flatId, setParams]);
+  }, [data, files, flatId, setParams, skuCatalog]);
 
   return {
     state: data.state, draft, base, files, setDraft, setFile, geometry, nextVersion: version, dirty, progress,

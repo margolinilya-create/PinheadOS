@@ -17,11 +17,21 @@
 
 .headGrow { flex: 1; }
 
+/* Место полосы «Стандарты Pinhead», пока её чанк грузится — без сдвига вёрстки */
+.stageBarFallback { min-height: var(--control-h-md); }
+
 .body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: var(--space-lg);
   align-items: start;
+}
+
+.stageCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
 }
 
 .stage {
@@ -116,6 +126,7 @@
 .toggle:hover { background: var(--bg1); }
 
 .btn:disabled,
+.btn[aria-disabled='true'],
 .iconBtn:disabled { cursor: default; opacity: 0.5; }
 
 .toggle[aria-selected='true'] {
@@ -153,6 +164,7 @@
 
 .layer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-xs);
   border: 1px solid var(--border-light);
@@ -221,6 +233,19 @@
 }
 
 .serious { color: var(--color-error-ink); }
+
+/* Статус нанесения в строке слоя (веха 5в, Э2) — своей строкой под названием:
+   рядом с кнопками он сжимал название в узкий столбец (обход 26.10) */
+.layerStatus {
+  order: 10;
+  flex-basis: 100%;
+  padding: 0 var(--space-md) var(--space-xs);
+  font-size: var(--type-label);
+}
+
+.status_ok { color: var(--color-success-ink); }
+.status_check { color: var(--color-warning-ink); }
+.status_fix { color: var(--color-error-ink); font-weight: 600; }
 .warnText { color: var(--color-warning-ink); }
 
 .details > summary {

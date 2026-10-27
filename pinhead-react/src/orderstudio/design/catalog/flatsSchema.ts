@@ -30,6 +30,13 @@ import {
   MAX_SCALE_MM_PER_UNIT, flatSvgPathOf,
 } from '../limits';
 
+/*
+ * Лекало детали (веха 5в, Э2б): точек в контуре после упрощения и деталей в крое.
+ * Здесь, а не в `limits.ts`: тот общий с кэшами картинок холста (их потолок).
+ */
+export const MAX_PATTERN_POINTS = 400;
+export const MAX_PATTERN_COUNT = 8;
+
 const coord = z.number().check(z.gte(-MAX_COORD_MM), z.lte(MAX_COORD_MM));
 const positiveMm = z.number().check(z.gt(0), z.lte(MAX_COORD_MM));
 const name = z.string().check(z.minLength(1), z.maxLength(MAX_NAME_LEN));
@@ -90,6 +97,11 @@ export const viewSchema = z.object({
   size_anchors: z.optional(z.record(shortStr, anchorsSchema)),
   grade_rule: z.optional(gradeRuleSchema),
   print_areas: z.array(printAreaSchema).check(z.minLength(1), z.maxLength(32)),
+  // Лекало детали (веха 5в, Э2б): без поля в схеме `z.object` отбросил бы его при чтении
+  pattern: z.optional(z.object({
+    contour_mm: z.array(z.tuple([coord, coord])).check(z.minLength(3), z.maxLength(MAX_PATTERN_POINTS)),
+    count: z.int().check(z.gte(1), z.lte(MAX_PATTERN_COUNT)),
+  })),
 });
 
 type Ctx = { addIssue: (i: { code: 'custom'; path: (string | number)[]; message: string }) => void };

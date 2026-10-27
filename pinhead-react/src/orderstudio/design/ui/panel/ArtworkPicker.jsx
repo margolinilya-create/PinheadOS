@@ -12,6 +12,9 @@ const ACCEPT = '.svg,.png,.jpg,.jpeg,.webp,.pdf,.ai,image/svg+xml,image/png,imag
  */
 export default function ArtworkPicker({ order, art, onAdded }) {
   const inputId = useId();
+  const reasonId = useId();
+  // Закрыто по условию (силуэт не от модели) — aria-disabled с причиной: кнопка в фокусе, причина видна
+  const blocked = art.blockedReason || '';
   const inputRef = useRef(null);
   const known = useMemo(() => orderArtworks(order), [order]);
 
@@ -29,13 +32,16 @@ export default function ArtworkPicker({ order, art, onAdded }) {
       <button
         type="button"
         className="btn btn-primary"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => { if (!blocked) inputRef.current?.click(); }}
         disabled={art.busy}
         aria-busy={art.busy}
+        aria-disabled={blocked ? 'true' : undefined}
+        aria-describedby={blocked ? reasonId : undefined}
       >
         <DesignIcon name="upload" />
         {art.busy ? 'Загружаю логотип…' : 'Загрузить логотип'}
       </button>
+      {blocked && <p id={reasonId} className={`${styles.notice} ${styles.warn}`}>{blocked}</p>}
       <p className={styles.muted}>PNG, JPEG, WEBP, SVG, PDF или AI (PDF-совместимый) до 25 МБ. Можно перетащить на холст или вставить Ctrl+V.</p>
       {known.length > 0 && (
         <details className={styles.details}>
@@ -47,7 +53,10 @@ export default function ArtworkPicker({ order, art, onAdded }) {
                 type="button"
                 className={styles.btn}
                 disabled={art.busy}
+                aria-disabled={blocked ? 'true' : undefined}
+                aria-describedby={blocked ? reasonId : undefined}
                 onClick={async () => {
+                  if (blocked) return;
                   const key = await art.addExisting(a);
                   if (key) onAdded(key);
                 }}

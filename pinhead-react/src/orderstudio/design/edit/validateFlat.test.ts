@@ -104,3 +104,16 @@ describe('validateFlat', () => {
     expect(w.some((t) => /многоугольник/.test(t))).toBe(true);
   });
 });
+
+describe('validateFlat — модели только категорий флэта (B1/B5, веха 5в)', () => {
+  const tee = { ...(seed as unknown as { flats: GarmentFlat[] }).flats.find((f) => f.categories.includes('tshirts'))!, sku_codes: ['H-002'] };
+  it('модель другой категории в sku_codes — ошибка с подсказкой, что делать', () => {
+    const r = validateFlat(tee, ctx({ skuCodes: new Set(['H-002']), skuCategory: new Map([['H-002', 'hoodies']]) }));
+    expect(r.errors).toContainEqual({ field: 'sku_codes', text: 'Модель H-002 — из категории «Худи», а флэт — для категорий: «Футболки». Уберите модель или добавьте флэту её категорию' });
+  });
+  it('категория совпадает, модели нет в каталоге или каталог не передан — без этой ошибки', () => {
+    const own = { ...tee, sku_codes: ['T-006'] };
+    expect(validateFlat(own, ctx({ skuCategory: new Map([['T-006', 'tshirts']]) })).errors.filter((e) => e.text.includes('из категории'))).toEqual([]);
+    expect(validateFlat(tee, ctx({ skuCodes: new Set(['H-002']) })).errors.filter((e) => e.text.includes('из категории'))).toEqual([]);
+  });
+});

@@ -11,7 +11,7 @@ import { FLAT_MM_FALLBACK, areaAt, fromNode, isDarkHex, isOutOfZone, snapCenter,
 import { CANVAS_LABELS } from './canvasChange';
 import { ANNOUNCE_DELAY_MS, VIEW_NAMES, announcePrint, canvasHint, canvasLabel } from './canvasText';
 import { useCanvasViewport } from './useCanvasViewport';
-import { useCanvasKeys, useRotationSnap, ROTATION_SNAPS } from './useCanvasKeys';
+import { useCanvasKeys, useRotationSnap, LAYER_MIME, ROTATION_SNAPS } from './useCanvasKeys';
 import { useCanvasTheme } from './useCanvasTheme';
 import { usePlacementImages } from './usePlacementImages';
 import { GridLines, ZoneShapes, NamedAxes, DimensionOverlay, SnapGuides } from './canvasOverlays';
@@ -69,8 +69,11 @@ const nodeAttrs = (n) => ({
 
 export function EditorCanvas({
   flat, view, prints, selectedKey, readOnly, onSelect, onCommit, onDropFile,
-  orderId, colorHex = NEUTRAL_GARMENT_HEX, onUndo, onRedo,
+  orderId, colorHex = NEUTRAL_GARMENT_HEX, onUndo, onRedo, display = 'markup',
+  onDuplicate, onCopyLayer, onPasteLayer,
 }) {
+  // «Как на изделии» (веха 5в, Э2): без зон, осей, сетки, выноски и гайдов — правка та же
+  const markup = display !== 'garment';
   const containerRef = useRef(null);
   const trRef = useRef(null);
   const nodeRefs = useRef(new Map());
@@ -102,7 +105,7 @@ export function EditorCanvas({
   const selected = items.find((x) => x.pl.print_key === selectedKey) ?? null;
 
   const onKeyDown = useCanvasKeys({
-    readOnly, selectedKey: selected ? selected.pl.print_key : null, onSelect, onCommit, onUndo, onRedo, zoomBy: vp.zoomBy, fit: vp.fit,
+    readOnly, selectedKey: selected ? selected.pl.print_key : null, onSelect, onCommit, onUndo, onRedo, onDuplicate, zoomBy: vp.zoomBy, fit: vp.fit,
   });
   useRotationSnap(trRef);
 
@@ -204,9 +207,22 @@ export function EditorCanvas({
   };
   const onPaste = (e) => {
     const files = Array.from(e.clipboardData?.files ?? []);
+    // Файл важнее слоя; слой — только по метке своего копирования (веха 5в, Э2)
+    const token = files.length ? '' : e.clipboardData?.getData(LAYER_MIME);
+    if (token && onPasteLayer) {
+      e.preventDefault();
+      onPasteLayer(token);
+      return;
+    }
     if (!canDrop || !files.length) return;
     e.preventDefault();
     dropFiles(files, {});
+  };
+  const onCopy = (e) => {
+    const token = selected && onCopyLayer ? onCopyLayer(selected.pl.print_key) : null;
+    if (!token) return;
+    e.clipboardData?.setData(LAYER_MIME, token);
+    e.preventDefault();
   };
 
   const gridAreaId = selected?.pl.area_id ?? defaultAreaId(flat, view);
@@ -230,7 +246,7 @@ export function EditorCanvas({
         className={styles.canvas}
         role="application"
         tabIndex={0}
-        aria-label={canvasLabel(flat.name, view)}
+        aria-label={canvasLabel(flat.name, view, !markup)}
         aria-describedby={hintId}
         data-ready={ready ? 'true' : 'false'}
         onKeyDown={onKeyDown}
@@ -238,6 +254,7 @@ export function EditorCanvas({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         onPaste={onPaste}
+        onCopy={onCopy}
       >
         <Stage
           width={vp.size.width}
@@ -256,9 +273,9 @@ export function EditorCanvas({
             {flatImg.image && (
               <KImage image={flatImg.image} x={t.px(0)} y={t.py(0)} width={t.s(flatMm.w)} height={t.s(flatMm.h)} />
             )}
-            {gridArea && <GridLines area={gridArea} t={t} darkFabric={darkFabric} />}
-            {flatView && <ZoneShapes view={flatView} t={t} colors={colors} darkFabric={darkFabric} />}
-            {flatView && <NamedAxes view={flatView} t={t} flatH={flatMm.h} colors={colors} />}
+            {markup && gridArea && <GridLines area={gridArea} t={t} darkFabric={darkFabric} />}
+            {markup && flatView && <ZoneShapes view={flatView} t={t} colors={colors} darkFabric={darkFabric} />}
+            {markup && flatView && <NamedAxes view={flatView} t={t} flatH={flatMm.h} colors={colors} />}
           </Layer>
           <Layer>
             {flatView && items.map(({ pl }) => (
@@ -296,8 +313,8 @@ export function EditorCanvas({
             )}
           </Layer>
           <Layer listening={false}>
-            {selected && flatView && <DimensionOverlay view={flatView} placement={selected.pl} t={t} colors={colors} />}
-            <SnapGuides guides={guides} t={t} flatMm={flatMm} colors={colors} />
+            {markup && selected && flatView && <DimensionOverlay view={flatView} placement={selected.pl} t={t} colors={colors} />}
+            {markup && <SnapGuides guides={guides} t={t} flatMm={flatMm} colors={colors} />}
           </Layer>
         </Stage>
 
@@ -308,7 +325,7 @@ export function EditorCanvas({
           </p>
         )}
         {dropActive && <p className={styles.drop}>Отпустите, чтобы поставить логотип на изделие</p>}
-        {gridArea && gridZone && (
+        {markup && gridArea && gridZone && (
           <p className={styles.status}>
             {gridArea.name}: {Math.round(gridZone.zw)} × {Math.round(gridZone.zh)} мм
           </p>

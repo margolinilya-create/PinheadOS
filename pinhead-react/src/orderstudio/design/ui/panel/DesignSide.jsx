@@ -1,10 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PrintRow from '../../../screens/PrintRow';
 import { ISSUE_LABELS, rub } from '../../../screens/labels';
+import { printTechText } from '../../../pricing/printTech';
 import { placementOf } from '../../model/layout';
 import { useDesignStore } from '../../store/useDesignStore';
 import ArtworkPicker from './ArtworkPicker';
 import PreflightList from './PreflightList';
+import CopyToView from './CopyToView';
+import { artContextOf, preflightIssues } from './preflightIssues';
+import { useArtStats } from './useArtStats';
+import { isLightFabric } from '../../assets/artStats';
+import { printStatus } from './printStatus';
 import LayerList from './LayerList';
 import UnplacedList from './UnplacedList';
 import { duplicateLayer, moveLayer, patchPrint, placeGeometry, viewPlacements } from './panelOps';
@@ -13,6 +19,8 @@ import styles from '../DesignTab.module.css';
 
 /* Инспектор нужен только при выбранном нанесении — своим чанком (потолок холста 100 кБ) */
 const GeometryInspector = lazy(() => import('./GeometryInspector'));
+/* «Мои раскладки» (Э8) — своим чанком: API таблицы и раскладка грузятся только в черновике «Дизайна» 2.0 */
+const MyLayouts = lazy(() => import('./MyLayouts'));
 
 /**
  * Панель справа от холста (перенос DM `SidePanel`, разрезан по проверке
@@ -36,7 +44,16 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
     [item.prints, ctx],
   );
   const selected = entries.find((e) => e.print.key === selectedKey) ?? null;
+  // «Дизайн» 2.0: проверки — под холстом, здесь — статус у каждой строки
+  // Макеты клиента (Э3): прозрачность и цвета — из картинок холста, на лету
+  const artStats = useArtStats(order.id, placements);
+  const art = useMemo(() => artContextOf(item.prints, artStats, isLightFabric(d.colorHex)), [item.prints, artStats, d.colorHex]);
+  const issues = useMemo(
+    () => (d.studio ? preflightIssues(ctx.flat, placements, d.rules, d.pick.modelChanged, art) : []),
+    [d.studio, ctx, placements, d.rules, d.pick.modelChanged, art],
+  );
   const unitOf = (key) => price?.prints.find((x) => x.key === key) ?? null;
+  const selectedTech = selected ? unitOf(selected.print.key)?.tech ?? null : null;
 
   useEffect(() => {
     if (d.unplaced) undoRef.current?.focus();
@@ -96,6 +113,7 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
           onMove={onMove}
           onDuplicate={onDuplicate}
           onUnplace={onUnplace}
+          statusOf={d.studio ? (key) => printStatus(issues, key) : undefined}
         />
       </section>
 
@@ -106,11 +124,13 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
             ctx={ctx}
             rules={d.rules}
             readOnly={readOnly}
+            studio={d.studio}
             autoFocus={focusWidth === selected.print.key}
             onFocused={clearWidth}
             onGeometry={(g, label, key) => d.commitPrints(label, (prints) => placeGeometry(prints, selected.print.key, g, ctx), key)}
             onMethod={(method) => d.commitPrints('Техника', (prints) => patchPrint(prints, selected.print.key, { method }))}
           />
+          {d.studio && !readOnly && <CopyToView d={d} entry={selected} />}
           <details className={styles.details}>
             <summary>Цвета, Pantone, эффект</summary>
             <fieldset className={styles.section} disabled={readOnly}>
@@ -130,12 +150,19 @@ export default function DesignSide({ d, order, item, price, readOnly, onOpenItem
         </Suspense>
       )}
 
+      {d.studio && !readOnly && (
+        <Suspense fallback={null}>
+          <MyLayouts d={d} item={item} selected={selected} />
+        </Suspense>
+      )}
+
       <section className={styles.section} aria-label="Цена позиции">
         <h3 className={styles.sectionTitle}>Цена за штуку: {rub(price?.calc_unit)}</h3>
+        {selectedTech && <p className={styles.muted}>Нанесение {selected.index + 1} — {printTechText(selectedTech)}</p>}
         {(price?.issues ?? []).map((iss) => <p key={iss} className={`${styles.muted} ${styles.warnText}`}>{ISSUE_LABELS[iss]}</p>)}
       </section>
 
-      <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} onShow={onShow} />
+      {!d.studio && <PreflightList flat={ctx.flat} placements={placements} rules={d.rules} modelMismatch={d.pick.modelChanged} art={art} onShow={onShow} />}
       <UnplacedList
         prints={free}
         flatId={item.flat_id}

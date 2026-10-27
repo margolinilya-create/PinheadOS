@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ZONES_CATALOG_DEFAULT } from '../../../../data/constants';
 import { newSalesPrint } from '../../../model/factory';
 import { useSalesStore } from '../../../store/useSalesStore';
@@ -268,3 +268,55 @@ describe('EditorCanvas — только чтение', () => {
     expect(screen.getByText('На этом виде нанесений нет')).toBeInTheDocument();
   });
 });
+
+describe('EditorCanvas — «Как на изделии» (веха 5в, Э2)', () => {
+  it('без разметки: нет подписи зоны и строки размера зоны; выбор работает; режим — в имени холста', () => {
+    const { canvas, props, container } = setup({ display: 'garment', selectedKey: null });
+    expect(canvas).toHaveAccessibleName(/, как на изделии$/);
+    expect(screen.queryByText(/: \d+ × \d+ мм$/)).toBeNull();
+    expect(container.querySelector('[data-konva="Transformer"]')).not.toBeNull();
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+  it('разметка (по умолчанию) — строка размера зоны есть', () => {
+    setup();
+    expect(screen.getByText(/: \d+ × \d+ мм$/)).toBeInTheDocument();
+  });
+});
+
+describe('EditorCanvas — копирование и вставка слоя (веха 5в, Э2)', () => {
+  const clip = (data = {}, files = []) => ({ files, getData: (t) => data[t] ?? '', setData: vi.fn() });
+
+  it('copy при выбранном — метка в буфер обмена; без выбора — событие не трогаем', () => {
+    const onCopyLayer = vi.fn(() => 'o:k');
+    const front = placed('front');
+    const { canvas } = setup({ prints: [front], selectedKey: front.key, onCopyLayer });
+    const data = clip();
+    fireEvent.copy(canvas, { clipboardData: data });
+    expect(onCopyLayer).toHaveBeenCalledWith(front.key);
+    expect(data.setData).toHaveBeenCalledWith('application/x-pinhead-print', 'o:k');
+    cleanup();
+    const none = vi.fn(() => 'o:k');
+    const other = setup({ prints: [front], selectedKey: null, onCopyLayer: none });
+    fireEvent.copy(other.canvas, { clipboardData: clip() });
+    expect(none).not.toHaveBeenCalled();
+  });
+
+  it('paste: метка слоя — вставка слоя; файл важнее метки', () => {
+    const onPasteLayer = vi.fn();
+    const onDropFile = vi.fn();
+    const { canvas } = setup({ onPasteLayer, onDropFile });
+    fireEvent.paste(canvas, { clipboardData: clip({ 'application/x-pinhead-print': 'o:k' }) });
+    expect(onPasteLayer).toHaveBeenCalledWith('o:k');
+    onPasteLayer.mockClear();
+    fireEvent.paste(canvas, { clipboardData: clip({ 'application/x-pinhead-print': 'o:k' }, [new File(['x'], 'a.png')]) });
+    expect(onPasteLayer).not.toHaveBeenCalled();
+  });
+
+  it('paste без метки (скопирован текст) — слой не вставляется', () => {
+    const onPasteLayer = vi.fn();
+    const { canvas } = setup({ onPasteLayer });
+    fireEvent.paste(canvas, { clipboardData: clip({ 'text/plain': 'привет' }) });
+    expect(onPasteLayer).not.toHaveBeenCalled();
+  });
+});
+

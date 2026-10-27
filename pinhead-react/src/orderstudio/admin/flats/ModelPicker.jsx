@@ -10,11 +10,13 @@ const MAX_HITS = 8;
  * и названию, выбранные — чипами. Неизвестный код (модели нет в каталоге)
  * остаётся чипом — его подсвечивает проверка флэта.
  */
-export default function ModelPicker({ id, label, skus, value, onChange, describedBy }) {
+export default function ModelPicker({ id, label, skus, categories = [], value, onChange, describedBy }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
+  // Только модели категорий флэта (веха 5в, B1); категорий нет — все
+  const fitsCategories = (s) => categories.length === 0 || categories.includes(s.category);
   const hits = q
-    ? skus.filter((s) => !value.includes(s.code) && (`${s.code} ${s.name}`).toLowerCase().includes(q)).slice(0, MAX_HITS)
+    ? skus.filter((s) => !value.includes(s.code) && fitsCategories(s) && (`${s.code} ${s.name}`).toLowerCase().includes(q)).slice(0, MAX_HITS)
     : [];
   const byCode = new Map(skus.map((s) => [s.code, s]));
 

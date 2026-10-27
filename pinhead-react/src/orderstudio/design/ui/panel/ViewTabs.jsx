@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { VIEW_LABELS } from '../../catalog/flatLabels';
-import { viewPlacements } from './panelOps';
+import { viewPlacements } from './printList';
 import styles from '../DesignTab.module.css';
 
 /** Клавиши перехода между вкладками: шаг или край списка */

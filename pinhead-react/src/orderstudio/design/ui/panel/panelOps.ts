@@ -18,6 +18,10 @@ import { placementOf, type PlaceCtx } from '../../model/layout';
 import { presetPosition, viewZone, type PositionPreset } from '../../geometry/view';
 import { rotatedAabb } from '../../geometry/coords';
 import { applyCanvasChange } from '../canvas/canvasChange';
+import { patchPrint, viewPlacements } from './printList';
+
+// Лёгкие правки списка — в `printList` (их читает чанк холста); здесь — реэкспорт
+export { patchPrint, viewPlacements };
 import type { Geometry } from '../canvas/canvasMath';
 
 /** Шаг дубля: копия сдвигается вниз-вправо, чтобы не лечь ровно на исходное */
@@ -166,27 +170,8 @@ export function rotated(pl: Geometry, deltaDeg: number): Geometry {
   return { ...pl, rotation_deg: (((pl.rotation_deg + deltaDeg) % 360) + 360) % 360 };
 }
 
-/** Поля строки нанесения (техника, Pantone, цвета…) — без геометрии */
-export function patchPrint(prints: SalesPrint[], key: string, patch: Partial<SalesPrint>): SalesPrint[] | null {
-  const i = prints.findIndex((p) => p.key === key);
-  if (i < 0) return null;
-  const cur = prints[i];
-  const changed = Object.entries(patch).some(([k, v]) => cur[k as keyof SalesPrint] !== v);
-  return changed ? prints.map((p, j) => (j === i ? { ...p, ...patch } : p)) : null;
-}
-
 export function setMethod(prints: SalesPrint[], key: string, method: SalesPrintMethod): SalesPrint[] | null {
   return patchPrint(prints, key, { method });
-}
-
-/** Нанесения вида на холсте — в порядке позиции */
-export function viewPlacements(prints: SalesPrint[], ctx: Pick<PlaceCtx, 'flat'>, view: DesignView): { print: SalesPrint; index: number; pl: Placement }[] {
-  const out: { print: SalesPrint; index: number; pl: Placement }[] = [];
-  prints.forEach((print, index) => {
-    const pl = placementOf(print, ctx.flat);
-    if (pl && pl.view === view) out.push({ print, index, pl });
-  });
-  return out;
 }
 
 /**

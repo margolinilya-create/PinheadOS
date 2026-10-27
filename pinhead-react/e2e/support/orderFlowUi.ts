@@ -33,8 +33,15 @@ export async function uploadLogo(page: Page, file: string) {
     .setInputFiles({ name: file, mimeType, buffer: tzFixture(file) });
 }
 
+/**
+ * Логотип сценария: 600 × 300 px при 120 dpi = 127 × 64 мм (копия `logo.png` с другим
+ * pHYs). У `logo.png` 300 dpi — 51 × 25 мм, меньше предела шелкографии (меньшая сторона
+ * от 30 мм, веха 5в, Э1): отправку останавливает чек-лист
+ */
+export const FLOW_LOGO = 'logo-print.png';
+
 /** Логотип на вкладке «Дизайн» (по умолчанию PNG) — ложится в зону «Грудь (перед)» */
-export async function placeLogo(page: Page, file = 'logo.png') {
+export async function placeLogo(page: Page, file = FLOW_LOGO) {
   await page.getByRole('tab', { name: /^Дизайн/ }).click();
   await expect(page.getByRole('application', { name: /^Холст/ })).toHaveAttribute('data-ready', 'true');
   await uploadLogo(page, file);
@@ -57,7 +64,7 @@ export async function buildOrderUntilDesign(page: Page, extra: MockExtras) {
 }
 
 /** Продавец собирает заказ до «ТЗ и цена»; `logo` — файл фикстуры логотипа */
-export async function buildOrder(page: Page, extra: MockExtras, logo = 'logo.png') {
+export async function buildOrder(page: Page, extra: MockExtras, logo = FLOW_LOGO) {
   await buildOrderUntilDesign(page, extra);
   await placeLogo(page, logo);
   await page.getByRole('tab', { name: /^Клиент/ }).click();
@@ -115,7 +122,7 @@ export async function expectedPages(page: Page, flats: unknown): Promise<number>
 
 
 /** Заказ продавца в `ready_to_launch`: сборка, предоплата, отправка */
-export async function sentOrder(page: Page, extra: MockExtras, logo = 'logo.png') {
+export async function sentOrder(page: Page, extra: MockExtras, logo = FLOW_LOGO) {
   await buildOrder(page, extra, logo);
   await markPrepaid(page);
   await sendToWork(page);

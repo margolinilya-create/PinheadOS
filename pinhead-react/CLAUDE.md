@@ -203,6 +203,20 @@ admin/director — Производство. Подробно — корнево
   удалены `editors.css`, `express.css`, `garment.css`, `PageHeader.jsx`, `useCommentsStore.ts`. Миграции L/K/M — файлы
   `supabase/rollout/m8/`, отчёт о ничьих файлах — `supabase/functions/order-files-gc/`. Правила —
   `docs/rules/pravila-vklyucheniya-i-restayla-veha-8-18-10.md`.
+  Веха 5в, Э1 (26.10): силуэт только своей модели — `design/catalog/pickFlat` (`flatFitsModel`, `flatsForModel`,
+  `flatMismatch`), блок новых логотипов в `useDesignTab`, пункт `flat:<key>` чек-листа по `layout.flat_id`; пределы
+  размера по технике — `size` в профилях `model/printMethods.ts` + `methodSizeIssue` (подсказка `PrintRow`, PDF
+  макета, чек-лист); строка техники в цене — `PrintPrice.tech` + `pricing/printTech.ts`; отступ в ERP — `offsetNote`.
+  План — `docs/superpowers/plans/2026-10-26-order-flow-m5c-design-studio.md`; правила —
+  `docs/rules/pravila-dizain-veha-5v-e1-26-10.md`.
+  Веха 5в, Э2 (26.10, флаг `designStudio`, `?design2=0` — прежний вид): части сцены — один ленивый модуль
+  `design/ui/stage/StageParts.jsx` («Стандарты Pinhead» — `panel/presetOps`, «Разметка / Как на изделии»,
+  проверки под холстом + статус строк `panel/printStatus`, «Показать на цвете», итог позиции); копия на вид,
+  Ctrl+D и вставка слоя — `panel/copyOps` (через `import()`); в чанк холста — только пропы и поля стора,
+  лёгкие функции — `panel/printList.ts`.
+  Веха 5в, Э2б: лекало детали `FlatView.pattern` (GEOMETRY вида), разбор DXF/SVG — `design/edit/pattern/`
+  (в редакторе флэта — `import()`), вкладка «Лекала» `admin/flats/PatternSection.jsx` + `patternAlign.ts`,
+  лист «Выкройка» — `export/buildPatternSvg.ts` + ленивый `ui/stage/PatternSheet.jsx`.
 - Единая админка: erp/screens/AdminScreen смонтирован в оба раздела.
 - Правила ERP: см. SESSION-STATE.md и docs/DESIGN.md в корне репо.
 

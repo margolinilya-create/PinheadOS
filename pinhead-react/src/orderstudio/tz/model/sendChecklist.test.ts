@@ -144,3 +144,50 @@ describe('sendChecklist — тексты', () => {
     expect(canSend(items)).toBe(true);
   });
 });
+
+describe('sendChecklist — силуэт другой модели (B1, веха 5в)', () => {
+  // Образец 68180: свитшот (sweat-basic) с вышивкой, раскладка — на типовом флэте футболки
+  const withCategories = { ...cat, skuCategories: { 'sweat-basic': 'sweatshirts', 'polo-classic': 'polo' } };
+  const SWEAT = '68180-sweat';
+  const flatItems = (o: SalesOrder, c: typeof cat, ctx: CheckCtx) => sendChecklist(o, c, ctx).filter((i) => i.id.startsWith('flat:'));
+
+  it('свитшот, нанесения которого стоят на флэте футболки, — блок у продавца со ссылкой на «Дизайн», у МС — «верните менеджеру»', () => {
+    const o = ready('68180-sweat');
+    const items = flatItems(o, withCategories, seller);
+    expect(items.map((i) => i.id)).toEqual([`flat:${SWEAT}`]);
+    expect(items[0]).toMatchObject({ blocking: true, href: `?tab=design&item=${SWEAT}` });
+    expect(items[0].text).toMatch(/^Нанесения позиции «.+» стоят на силуэте «.+» — он от другой модели\. Откройте «Дизайн» и перенесите их на силуэт модели$/);
+    expect(items[0].rule).toBeUndefined();
+    const m = flatItems(withPdf(o), withCategories, ms);
+    expect(m).toHaveLength(1);
+    expect(m[0]).toMatchObject({ blocking: true, href: null });
+    expect(m[0].text).toMatch(/силуэте другой модели .* — верните менеджеру$/);
+  });
+
+  it('без раскладок на чужом силуэте — пункта нет (выход есть: снять с изделия); модель неизвестна — не судим', () => {
+    const o = ready('68180-sweat');
+    const i = o.items.findIndex((it) => it.key === SWEAT);
+    const unplaced = setItem(o, i, { prints: o.items[i].prints.map((p) => ({ ...p, layout: null })) });
+    expect(flatItems(unplaced, withCategories, seller)).toEqual([]);
+    expect(flatItems(o, cat, seller)).toEqual([]);
+  });
+});
+
+describe('sendChecklist — пределы размера по технике (B3, веха 5в)', () => {
+  it('мельче 5 мм — блок (ошибка ввода); меньше чернового минимума и больше рамки — подсказка', () => {
+    const o = ready('63886');
+    const key = o.items[0].key;
+    const p0 = o.items[0].prints[0];
+    const tiny = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'dtf', width_mm: 2, height_mm: 1 }] }), cat, seller);
+    const min = tiny.find((i) => i.id === `mm-size:1:${key}`);
+    expect(min).toMatchObject({ blocking: true, href: `?tab=item&item=${key}` });
+    expect(min?.text).toBe('Нанесение 1 позиции «Футболка Old Money, чёрный»: техника «DTF»: меньшая сторона — от 20 мм, сейчас 2 × 1 мм');
+    const big = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'silkscreen', width_mm: 420, height_mm: 520 }] }), cat, seller);
+    expect(big.find((i) => i.id === `mm-size:1:${key}`)).toMatchObject({ blocking: false });
+    expect(canSend(big.filter((i) => i.id.startsWith('mm-size')))).toBe(true);
+    // вышивка 12 мм при черновом минимуме 15 — подсказка, отправку не держит
+    const small = sendChecklist(setItem(o, 0, { prints: [{ ...p0, method: 'embroidery', width_mm: 40, height_mm: 12 }] }), cat, seller);
+    expect(small.find((i) => i.id === `mm-size:1:${key}`)).toMatchObject({ ok: false, blocking: false });
+    expect(canSend(small.filter((i) => i.id.startsWith('mm-size')))).toBe(true);
+  });
+});

@@ -14,6 +14,8 @@ import { SRC_DIR, sourceFiles, readSource } from '../testutil/sourceFiles';
  * файл без проверки типа или осиротевшее превью после удаления исходника.
  */
 const WRITER = 'orderstudio/api/artworks.ts';
+/** Копия файла в папку нового заказа (повтор, веха 5в, Э8) — отдельно: писатель в чанках оболочки */
+const COPIER = 'orderstudio/api/artworkCopy.ts';
 
 /** `.from('order-artworks')` или `.from(ARTWORK_BUCKET)` и цепочка до `;` */
 const FROM = /\.from\(\s*(?:(['"`])order-artworks\1|ARTWORK_BUCKET)\s*\)/g;
@@ -71,13 +73,21 @@ const files = sourceFiles().map((p) => ({ name: relative(SRC_DIR, p), text: read
 describe('запись в order-artworks — только api/artworks.ts', () => {
   it('вне писателя нет upload/remove/update/move/copy по бакету заказа', () => {
     const bad = files
-      .filter((f) => f.name !== WRITER)
+      .filter((f) => f.name !== WRITER && f.name !== COPIER)
       .flatMap((f) => bucketWrites(f.text).map((w) => `${f.name}: ${w}`));
     expect(bad).toEqual([]);
   });
 
+  it('копировщик (Э8): ровно одна запись — copy, без другого бакета, приёмник через isArtworkPath', () => {
+    const c = files.find((f) => f.name === COPIER)!.text;
+    expect(bucketWrites(c)).toEqual(['copy']);
+    expect(c).toMatch(/const to = repointPath\(fromPath, toOrderId\);\n\s*if \(!to \|\| !isArtworkPath\(toOrderId, to\)/);
+    expect(c).toMatch(/\.copy\(fromPath, to\)/);
+    expect(c).not.toMatch(/destinationBucket/);
+  });
+
   it('вне писателя бакет не называется в файле, который пишет в хранилище', () => {
-    expect(files.filter((f) => f.name !== WRITER && mentionsAndWrites(f.text)).map((f) => f.name)).toEqual([]);
+    expect(files.filter((f) => f.name !== WRITER && f.name !== COPIER && mentionsAndWrites(f.text)).map((f) => f.name)).toEqual([]);
   });
 
   it('писатель на месте: загрузки без upsert (макет, превью, PDF ТЗ), удаление одно', () => {

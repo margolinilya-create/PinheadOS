@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { allowedMethods, printMethodProfile } from '../../../model/printMethods';
-import { preflight } from '../../export/preflight';
+import { LEVEL_LABELS, preflightIssues } from './preflightIssues';
 import styles from '../DesignTab.module.css';
 
 const LEVEL = {
-  serious: { label: 'Серьёзно', cls: styles.serious },
-  warn: { label: 'Внимание', cls: styles.warnText },
-  info: { label: 'Подсказка', cls: '' },
+  serious: { label: LEVEL_LABELS.serious, cls: styles.serious },
+  warn: { label: LEVEL_LABELS.warn, cls: styles.warnText },
+  info: { label: LEVEL_LABELS.info, cls: '' },
 };
 
 /**
@@ -14,13 +13,8 @@ const LEVEL = {
  * не блокирует (ответ владельца 17.10). Замечание с нанесением — кнопкой
  * «Показать» (выбрать его на холсте).
  */
-export default function PreflightList({ flat, placements, rules, onShow }) {
-  const issues = useMemo(() => (placements.length === 0 ? [] : preflight({
-    flat,
-    placements,
-    profileOf: printMethodProfile,
-    methodAllowed: (area, method) => allowedMethods(area, rules).includes(method),
-  })), [flat, placements, rules]);
+export default function PreflightList({ flat, placements, rules, modelMismatch = false, art, onShow }) {
+  const issues = useMemo(() => preflightIssues(flat, placements, rules, modelMismatch, art), [flat, placements, rules, modelMismatch, art]);
   if (issues.length === 0) return null;
   return (
     <section className={styles.section} aria-label="Проверка макета">

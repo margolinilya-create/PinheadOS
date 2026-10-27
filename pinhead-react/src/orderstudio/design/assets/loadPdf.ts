@@ -126,10 +126,10 @@ async function renderFirstPage(task: pdfjs.PDFDocumentLoadingTask, fileName: str
   canvas.height = Math.max(1, Math.round(viewport.height));
   const ctx = canvas.getContext('2d');
   if (!ctx) return { ok: false, error: MSG_PDF_BROKEN };
-  // Белая подложка: у PDF часто прозрачный фон, а превью — PNG для холста и PDF макета
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport, annotationMode: pdfjs.AnnotationMode.DISABLE }).promise;
+  // Прозрачный фон (веха 5в): pdf.js без `background` заливает холст белым, и логотип
+  // из PDF/AI на тёмной ткани стоял белым прямоугольником — на холсте, в макете и в ТЗ.
+  // Белый фон, нарисованный в самом файле, останется: его рисует содержимое страницы
+  await page.render({ canvasContext: ctx, viewport, annotationMode: pdfjs.AnnotationMode.DISABLE, background: 'rgba(0,0,0,0)' }).promise;
   const png = await toPng(canvas);
   if (!png) return { ok: false, error: MSG_PDF_BROKEN };
   const meta: AssetMeta = {

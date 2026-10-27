@@ -141,6 +141,9 @@ export interface CopyDeps {
 
 const DEFAULT_DEPS: CopyDeps = { download: downloadArtwork, upload: uploadErpFile, sanitize: (t) => sanitizeSvg(t) };
 
+/** Сеть копий по умолчанию — и для файлов печати (Э4б): писателя `erp-attachments` импортирует только этот модуль */
+export const launchCopyDeps = (): CopyDeps => DEFAULT_DEPS;
+
 type CopyResult = { ok: true; tzDocs: TzDocPayload[]; attachments: AttPayload[] } | { ok: false; reason: string };
 
 const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());

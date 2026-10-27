@@ -8,7 +8,7 @@
  *  - бирка — `findLabelKind`, `shownVariantId`, схема из `labelLibrary.schemes`;
  *  - строка матрицы — К7 (`tzRowOfArea` по флэту версии раскладки, иначе
  *    `tzRowOfZone` по коду зоны `zone_id`, без кода — по имени, веха 8), столбец — `tzColumnOf`;
- *  - отступ — `offsetText` (`model/printOffset`);
+ *  - отступ — `offsetNote` (`model/printOffset`: мм с холста и заметка);
  *  - срок — `parseDateLocal`; дата оформления и адрес — аргументом.
  *
  * Цены сюда не попадают: модуль не читает полей цены позиции и заказа
@@ -16,7 +16,7 @@
  */
 import type { SalesItem, SalesOrder, SalesPrint } from '../../model/types';
 import { METHOD_LABELS } from '../../model/printMethods';
-import { offsetText } from '../../model/printOffset';
+import { offsetNote } from '../../model/printOffset';
 import { itemPackaging } from '../../model/packaging';
 import { TZ_MATRIX_ROWS, TZ_ROW_LABELS, tzRowOfArea, tzRowOfZone, zoneOfPrint, type TzRow } from '../../catalog/tzRows';
 import { UNKNOWN_MARK, findLabelKind, parseLabelVariant, shownVariantId } from '../../catalog/labels';
@@ -141,7 +141,7 @@ function printPage(n: number, items: SalesItem[], aligned: (SalesPrint | undefin
     zone: trim(p.zone),
     row: rows[n - 1],
     rowLabel: rowLabel(rows[n - 1], p.zone),
-    offset: [offsetText(p), trim(p.offset_note)].filter(Boolean).join('; '),
+    offset: offsetNote(p),
     on: p.on === 'cut' ? 'на крое' : 'на готовом',
     pantone: same((x) => x.pantone.map(trim).filter(Boolean).join(', ')),
     comment: same((x) => x.comment),

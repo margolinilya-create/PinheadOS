@@ -45,7 +45,9 @@ import type { ServerPatch } from '../store/useSalesStore';
 import type { TzCatalogs } from '../tz/model/tzDocTypes';
 import { defaultDigest, type Digest } from '../tz/model/tzHash';
 import { METHOD_LABEL, tzToErpDraft, type BridgeWarning } from './tzToErpDraft';
-import { checkAttachedCount, copyLaunchFiles, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
+import { checkAttachedCount, copyLaunchFiles, launchCopyDeps, planLaunchFiles, type AttPayload, type CopyDeps, type TzDocPayload } from './launchFiles';
+import type { PrintFileCopyDeps } from './launchPrintFiles';
+import { isFeatureEnabled } from '../../config/features';
 import { checkTzHashes } from './tzCheck';
 
 export type LaunchStage = 'check' | 'bootstrap' | 'payload' | 'tzcheck' | 'files' | 'recheck' | 'create' | 'transition';
@@ -67,6 +69,13 @@ export interface LaunchOptions {
   randomId?: () => string;
   /** Сеть шага `files` — для тестов */
   files?: CopyDeps;
+  /**
+   * Файлы печати (веха 5в, Э4б): растеризация для тестов; `null` — шаг не делается.
+   * Сеть — та же, что у `files` (скачивание и писатель `erp-attachments`)
+   */
+  rasterize?: PrintFileCopyDeps['rasterize'] | null;
+  /** Предел шага файлов печати — для тестов (по умолчанию `PRINT_FILES_TIMEOUT_MS`) */
+  printFilesTimeoutMs?: number;
   /** Ход запуска для `aria-live` экрана: зовётся в начале каждого шага */
   onStage?: (stage: LaunchStage) => void;
 }
@@ -186,6 +195,44 @@ Promise<{ done: Promise<LaunchResult> | LaunchResult } | null> {
   return null;
 }
 
+/** Общий предел шага файлов печати, мс: дольше — запуск идёт без них (ревью ветки 5в) */
+export const PRINT_FILES_TIMEOUT_MS = 60_000;
+export const MSG_PRINT_FILES_TIMEOUT = 'Файлы печати не успели собраться — в производстве есть исходные макеты';
+
+/**
+ * Шаг файлов печати (Э4б). Выключен вместе с «Дизайн» 2.0 (флаг `designStudio`:
+ * `VITE_FEATURE_DESIGN_STUDIO=0` гасит и его). Модуль не загрузился — без файлов,
+ * дольше `PRINT_FILES_TIMEOUT_MS` — без файлов с предупреждением (недописанные
+ * загрузки уберёт `storage-gc`: ключей нет ни у одного заказа ERP)
+ */
+async function printFilesStep(order: SalesOrder, items: DraftItem[], attemptId: string, opts: LaunchOptions) {
+  if (opts.rasterize === undefined && !isFeatureEnabled('designStudio')) return { attachments: [], warnings: [] };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ attachments: AttPayload[]; warnings: string[] }>((res) => {
+    timer = setTimeout(() => res({ attachments: [], warnings: [MSG_PRINT_FILES_TIMEOUT] }), opts.printFilesTimeoutMs ?? PRINT_FILES_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([timeout, runPrintFiles(order, items, attemptId, opts)]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runPrintFiles(order: SalesOrder, items: DraftItem[], attemptId: string, opts: LaunchOptions) {
+  try {
+    const [step, render] = await Promise.all([import('./launchPrintFiles'), import('../design/export/printFiles')]);
+    return await step.launchPrintFiles(order, items, attemptId, {
+      download: (opts.files ?? launchCopyDeps()).download,
+      upload: (opts.files ?? launchCopyDeps()).upload,
+      rasterize: opts.rasterize ?? render.rasterizeInBrowser,
+      randomId: opts.randomId ?? (() => crypto.randomUUID()),
+    });
+  } catch (e) {
+    console.error('[launchToErp] printFiles', e);
+    return { attachments: [], warnings: [] };
+  }
+}
+
 async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult> {
   const stage = (s: LaunchStage) => opts.onStage?.(s);
   stage('check');
@@ -223,26 +270,33 @@ async function run(order: SalesOrder, opts: LaunchOptions): Promise<LaunchResult
   const plan = planLaunchFiles(order, built.valid, opts.randomId ?? (() => crypto.randomUUID()));
   const files = await copyLaunchFiles(order, plan, opts.actor ?? '', opts.files);
   if (!files.ok) return { ok: false, stage: 'files', reason: files.reason };
+  // Файлы печати (Э4б) — необязательно: сбой — предупреждение, исходный макет уже скопирован
+  // Модуль — `import()`: рендер и запись PNG не в чанке экрана «К запуску» (бюджет)
+  const printing = opts.rasterize === null
+    ? { attachments: [], warnings: [] }
+    : await printFilesStep(order, built.valid, plan.attemptId, opts);
+  const attachments = [...files.attachments, ...printing.attachments];
+  const warnings = [...built.warnings, ...printing.warnings];
 
   stage('recheck');
-  const again = await checkStep(order, 'recheck', built.warnings);
+  const again = await checkStep(order, 'recheck', warnings);
   if (again) return again.done;
 
   stage('create');
   // Бросок — как `null`: он мог случиться уже ПОСЛЕ того, как RPC создал заказ
   let created = null;
   try {
-    created = await erp.store.getState().createOrder(inputOf(built, erp.payload, files.tzDocs, files.attachments));
+    created = await erp.store.getState().createOrder(inputOf(built, erp.payload, files.tzDocs, attachments));
   } catch (e) {
     console.error('[launchToErp] createOrder', e);
   }
   if (created) {
     stage('transition');
-    const lost = checkAttachedCount(files.attachments, created.attachments ?? []);
-    return finish(order, created.id, false, lost ? [...built.warnings, lost] : built.warnings);
+    const lost = checkAttachedCount(attachments, created.attachments ?? []);
+    return finish(order, created.id, false, lost ? [...warnings, lost] : warnings);
   }
   const after = await launchCheck(order.id);
-  if (after?.ok && after.already && !isOldServer(after)) return afterAlready(order, after, false, built.warnings);
+  if (after?.ok && after.already && !isOldServer(after)) return afterAlready(order, after, false, warnings);
   if (after && !after.ok) return { ok: false, stage: 'recheck', reason: after.reason };
   return { ok: false, stage: 'create', reason: REASON.create };
 }

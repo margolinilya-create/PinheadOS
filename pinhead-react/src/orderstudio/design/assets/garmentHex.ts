@@ -23,8 +23,10 @@ export function garmentHexOf(
   item: Pick<SalesItem, 'size_grid'>,
   suppliers: readonly Supplier[],
   preferred?: Supplier | null,
+  /** Цвет для показа (веха 5в, Э2: «Показать на цвете»); ТЗ и PDF его не передают — первая строка */
+  color?: string | null,
 ): string {
-  const label = item.size_grid.rows.find((r) => r.color.trim())?.color ?? '';
+  const label = color?.trim() || (item.size_grid.rows.find((r) => r.color.trim())?.color ?? '');
   const code = label ? colorCodeOf(label, suppliers, preferred) : '';
   const hex = code ? findPaletteColor(code, suppliers, preferred)?.hex : undefined;
   return validHex(hex) ? hex : NEUTRAL_GARMENT_HEX;

@@ -24,6 +24,10 @@ import { hashFromTzPath } from './tzHash';
 import { tzDocument } from './tzDocument';
 import { tzGroups } from './tzGroups';
 import type { TzCatalogs } from './tzDocTypes';
+import { parseLayout } from '../../design/model/layoutMark';
+import { flatMismatch } from '../../design/catalog/pickFlat';
+import type { GarmentFlat } from '../../design/types';
+import { methodSizeIssue } from '../../model/printMethods';
 
 export const SERVER_SEND_RULES = ['tz_pdf_path', 'artwork_path_except_other'] as const;
 export type ServerSendRule = (typeof SERVER_SEND_RULES)[number];
@@ -52,7 +56,11 @@ export interface CheckCtx {
 }
 
 
-type Push = (id: string, seller: string, fact: string, href: string | null, rule?: ServerSendRule) => void;
+/** Меньшая сторона нанесения, мм, ниже которой размер — явная ошибка ввода (блок отправки) */
+export const SIZE_TYPO_MM = 5;
+
+/** `blocking: false` — подсказка: видна в списке, отправку не держит */
+type Push = (id: string, seller: string, fact: string, href: string | null, rule?: ServerSendRule, blocking?: boolean) => void;
 
 function orderChecks(order: SalesOrder, push: Push): void {
   if (!order.customer.trim()) push('client', 'Укажите клиента', 'Не указан клиент', '?tab=client');
@@ -60,7 +68,25 @@ function orderChecks(order: SalesOrder, push: Push): void {
   if (order.items.length === 0) push('items', 'Добавьте хотя бы одно изделие', 'В заказе нет изделий', '?tab=item');
 }
 
-function itemChecks(order: SalesOrder, item: SalesItem, ctx: CheckCtx, push: Push): void {
+/**
+ * Силуэт, на котором стоят раскладки позиции, — от другой модели (B1, веха 5в).
+ * Судим по тому, что попадёт в ТЗ, — по `layout.flat_id` (снятые флэты тоже:
+ * ТЗ рисует и их), а не по `item.flat_id`: снять нанесения с изделия — выход есть.
+ * Модель неизвестна (нет в каталоге) — не судим
+ */
+function foreignFlat(item: SalesItem, cat: TzCatalogs): GarmentFlat | null {
+  const category = item.sku_code ? cat.skuCategories?.[item.sku_code] : undefined;
+  const flats = cat.garmentFlats?.flats ?? [];
+  if (!category || flats.length === 0) return null;
+  for (const p of item.prints) {
+    const flatId = parseLayout(p.layout)?.flat_id;
+    const flat = flatId ? flats.find((f) => f.id === flatId) : undefined;
+    if (flat && flatMismatch(flat, item, { category })) return flat;
+  }
+  return null;
+}
+
+function itemChecks(order: SalesOrder, item: SalesItem, cat: TzCatalogs, ctx: CheckCtx, push: Push): void {
   const name = `«${itemName(item)}»`;
   const href = itemHref(item);
   const id = (s: string) => `${s}:${item.key}`;
@@ -68,11 +94,25 @@ function itemChecks(order: SalesOrder, item: SalesItem, ctx: CheckCtx, push: Pus
   if (!item.fabric_code.trim() && !item.main_fabric.trim()) push(id('fabric'), `Выберите ткань у позиции ${name}`, `У позиции ${name} не выбрана ткань`, href);
   if (item.size_grid.rows.length === 0 || item.size_grid.rows.some((r) => !r.color.trim())) push(id('color'), `Выберите цвет у позиции ${name}`, `У позиции ${name} не выбран цвет`, href);
   if (gridQty(item.size_grid) === 0) push(id('grid'), `Заполните размерную сетку позиции ${name}`, `У позиции ${name} пустая размерная сетка`, href);
+  const foreign = foreignFlat(item, cat);
+  if (foreign) {
+    push(id('flat'), `Нанесения позиции ${name} стоят на силуэте «${foreign.name}» — он от другой модели. Откройте «Дизайн» и перенесите их на силуэт модели`,
+      `У позиции ${name} нанесения на силуэте другой модели («${foreign.name}»)`, `?tab=design&item=${item.key}`);
+  }
   item.prints.forEach((p, i) => {
     if (p.method === 'other') return;
     const n = i + 1;
     if (!p.artwork_path) push(id(`artwork:${n}`), `Добавьте макет к нанесению ${n} позиции ${name}`, `У нанесения ${n} ${name} нет макета`, href, 'artwork_path_except_other');
     if (!(Number(p.width_mm) > 0 && Number(p.height_mm) > 0)) push(id(`mm:${n}`), `Укажите размер в мм у нанесения ${n} позиции ${name}`, `У нанесения ${n} ${name} нет размера в мм`, href);
+    // Пределы техники (B3): цифры черновые, ждут технолога — подсказка. Блок — только явная
+    // ошибка ввода (меньшая сторона меньше SIZE_TYPO_MM, как «2 × 1 мм»): сервер такого правила не знает,
+    // и черновой порог не должен держать отправку на бою (ревью ветки 5в)
+    const limit = methodSizeIssue(p.method, Number(p.width_mm), Number(p.height_mm));
+    if (limit) {
+      const typo = limit.kind === 'min' && Math.min(Number(p.width_mm), Number(p.height_mm)) < SIZE_TYPO_MM;
+      push(id(`mm-size:${n}`), `Нанесение ${n} позиции ${name}: ${limit.text}`, `У нанесения ${n} ${name}: ${limit.text}`,
+        href, undefined, typo);
+    }
     const size = p.artwork_path ? ctx.fileSizes?.[p.artwork_path] : undefined;
     if (size && size > ERP_FILE_MAX_BYTES) {
       push(id(`size:${n}`), `Файл макета нанесения ${n} ${name} больше 30 МБ — производство его не примет. Замените файл`,
@@ -91,11 +131,11 @@ function itemChecks(order: SalesOrder, item: SalesItem, ctx: CheckCtx, push: Pus
 export function sendChecklist(order: SalesOrder, cat: TzCatalogs, ctx: CheckCtx): CheckItem[] {
   const ms = ctx.audience === 'ms';
   const out: CheckItem[] = [];
-  const push: Push = (id, seller, fact, href, rule) => out.push({
-    id, ok: false, blocking: true, text: ms ? `${fact} — верните менеджеру` : seller, href: ms ? null : href, ...(rule ? { rule } : {}),
+  const push: Push = (id, seller, fact, href, rule, blocking = true) => out.push({
+    id, ok: false, blocking, text: ms ? `${fact} — верните менеджеру` : seller, href: ms ? null : href, ...(rule ? { rule } : {}),
   });
   orderChecks(order, push);
-  order.items.forEach((item) => itemChecks(order, item, ctx, push));
+  order.items.forEach((item) => itemChecks(order, item, cat, ctx, push));
   for (const g of tzGroups(order)) {
     const doc = tzDocument(order, g, cat, { issuedOn: '', appOrigin: '' });
     out.push(...glyphItems(doc, g.items[0], ms));

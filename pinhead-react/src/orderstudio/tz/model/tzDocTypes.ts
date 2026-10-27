@@ -24,6 +24,11 @@ export interface TzCatalogs {
   garmentFlats: GarmentFlatsCatalog | null;
   suppliers: readonly Supplier[];
   tzSettings: TzSettings | null;
+  /**
+   * Код модели → категория (веха 5в, B1): чек-лист отправки сверяет силуэт
+   * раскладок с моделью. Документ ТЗ его не читает — хэш ТЗ не меняется
+   */
+  skuCategories?: Readonly<Record<string, string>>;
 }
 
 /** Сетка ЦВ/РАЗМ: стандартный ряд 2XS–4XL + ONE, размеры вне ряда — доп. колонками в конце */

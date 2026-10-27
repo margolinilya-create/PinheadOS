@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CATALOG_PUT_KEYS, SALES_CATALOG_KEYS } from '../api/catalogAdmin';
-import { GARMENT_TYPES } from '../design/types';
+import { FLAT_VIEW_KINDS, GARMENT_TYPES } from '../design/types';
 import { FLATS_CASES } from '../design/catalog/flatsCases';
 import { TZ_ROW_CODES, ZONE_ID_RE } from './tzRows';
 
@@ -182,8 +182,8 @@ describe('миграция I: форма флэтов и зон, страж app_
     expect(ALL.filter((f) => f > I_FILE).every((f) => f >= '20261018120000')).toBe(true);
   });
 
-  it('I — последняя редакция catalog_value_check, H остаётся последней редакцией catalog_put', () => {
-    expect(CHECK_FILE).toBe(I_FILE);
+  it('I — последняя редакция catalog_value_check (кроме O вехи 5в), H остаётся последней редакцией catalog_put', () => {
+    expect(CHECK_FILE).toBe(ALL.find((f) => f.endsWith('_garment_flats_hood_pocket.sql')) ?? I_FILE);
     expect(PUT_FILE).toBe(H_FILE);
   });
 
@@ -262,5 +262,37 @@ describe('миграция I: форма флэтов и зон, страж app_
     const client = new Map(FLATS_CASES.map((c) => [c.name, c.ok ? 'OK' : '22023']));
     expect(server.size).toBeGreaterThan(40);
     expect(Object.fromEntries(server)).toEqual(Object.fromEntries(client));
+  });
+});
+
+/**
+ * Миграция O (веха 5в, Э9): `catalog_value_check` — подлинный текст I с ОДНОЙ правкой,
+ * перечнем видов флэта (капюшон и карман); `garment_flat_path_ok` — тот же перечень.
+ * Перечни сервера = `FLAT_VIEW_KINDS` клиента.
+ */
+describe('миграция O: виды капюшон и карман', () => {
+  const I = read(ALL.find((f) => f.endsWith('_flats_admin.sql')) ?? 'нет');
+  const O_FILE = ALL.find((f) => f.endsWith('_garment_flats_hood_pocket.sql'));
+  const O = O_FILE ? read(O_FILE) : '';
+  const OLD = "not in ('front', 'back', 'sleeve_left', 'sleeve_right')";
+  const NEW = `not in (${FLAT_VIEW_KINDS.map((k) => `'${k}'`).join(', ')})`;
+
+  it('O есть и идёт после всех миграций с catalog_value_check', () => {
+    expect(O_FILE).toBeDefined();
+    expect(ALL.filter((f) => /create or replace function public\.catalog_value_check\(/.test(read(f))).at(-1)).toBe(O_FILE);
+  });
+
+  it('тело O = тело I с заменой перечня видов (ровно одно место)', () => {
+    const bodyO = bodyOf(O, 'catalog_value_check');
+    expect(bodyO.split(NEW)).toHaveLength(2);
+    expect(bodyO.replace(NEW, OLD)).toBe(bodyOf(I, 'catalog_value_check'));
+  });
+
+  it('путь SVG в бакете — те же виды; права функций повторены; ERP и политики не тронуты', () => {
+    expect(O).toContain(`/(${FLAT_VIEW_KINDS.join('|')})\\.svg$'`);
+    expect(O).toContain('revoke execute on function public.catalog_value_check(text, text, jsonb) from public, anon, authenticated;');
+    expect(O).toContain('revoke execute on function public.garment_flat_path_ok(text) from public, anon;');
+    const code = O.split('\n').filter((l) => !l.trimStart().startsWith('--')).join('\n');
+    expect(code).not.toMatch(/erp_|create policy|drop /i);
   });
 });

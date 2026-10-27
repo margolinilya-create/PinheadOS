@@ -29,25 +29,34 @@
  * а его нельзя.
  */
 
-export type FeatureName = 'orderStudio' | 'styleguide';
+export type FeatureName = 'orderStudio' | 'styleguide' | 'designStudio';
 
 /** Все флаги — для сторожа хранилища: каждый ключ классифицирован при выходе */
-export const FEATURE_NAMES: readonly FeatureName[] = ['orderStudio', 'styleguide'];
+export const FEATURE_NAMES: readonly FeatureName[] = ['orderStudio', 'styleguide', 'designStudio'];
 
+/*
+ * `designStudio` — вкладка «Дизайн» 2.0 (веха 5в, Э2): «Стандарты Pinhead»,
+ * режим «Как на изделии», проверки под холстом, цвет ткани, строка итога,
+ * копия на другой вид. Включён по умолчанию; `VITE_FEATURE_DESIGN_STUDIO=0`
+ * или `?design2=0` — прежний вид (гасит только новые точки входа).
+ */
 const DEFAULTS: Record<FeatureName, boolean> = {
   orderStudio: false,
   styleguide: false,
+  designStudio: true,
 };
 
 const ENV_KEYS: Record<FeatureName, string> = {
   orderStudio: 'VITE_FEATURE_ORDER_STUDIO',
   styleguide: 'VITE_FEATURE_STYLEGUIDE',
+  designStudio: 'VITE_FEATURE_DESIGN_STUDIO',
 };
 
 /** Короткие URL-параметры для быстрого включения */
 const URL_KEYS: Record<FeatureName, string> = {
   orderStudio: 'studio',
   styleguide: 'styleguide',
+  designStudio: 'design2',
 };
 
 const LS_PREFIX = 'pinhead_feature_';

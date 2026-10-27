@@ -24,7 +24,7 @@ export const FLAT_MIME = 'image/svg+xml';
 /** = `file_size_limit` бакета (1 МБ; самый большой сид — около 80 КБ) */
 export const FLAT_MAX_BYTES = 1048576;
 /** = регулярка `garment_flat_path_ok` (без флага m: `$` — только конец строки) */
-export const FLAT_PATH_RE = /^flats\/[a-z0-9][a-z0-9-]{0,62}\/v[1-9][0-9]{0,3}\/(front|back|sleeve_left|sleeve_right)\.svg$/;
+export const FLAT_PATH_RE = /^flats\/[a-z0-9][a-z0-9-]{0,62}\/v[1-9][0-9]{0,3}\/(front|back|sleeve_left|sleeve_right|hood|pocket)\.svg$/;
 
 export function isFlatPath(p: unknown): p is string {
   return typeof p === 'string' && FLAT_PATH_RE.test(p);

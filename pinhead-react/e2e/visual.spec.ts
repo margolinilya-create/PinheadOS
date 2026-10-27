@@ -511,14 +511,17 @@ test('visual: studio-launch', async ({ page }) => {
   await shoot(page, 'studio-launch', page.locator('#main-content'), [page.locator('iframe'), toasts(page)], 0.01);
 });
 
-/** PDF ТЗ 67108: страницы 1 (шапка) и 3 (бирки) — pdfjs в canvas, масштаб 2 */
+/**
+ * PDF ТЗ 67108: страницы 1 (шапка) и 3 (бирки) — pdfjs в canvas, масштаб 2. Страниц 11: с вехи 5в (Э7)
+ * после бирок — «Лист размещения» (стр. 4), страницы 1 и 3 от него не сдвигаются
+ */
 test('visual: tz-pdf-67108', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'PDF от ширины окна не зависит — один прогон');
   for (const n of [1, 3]) skipUntilBaseline(`tz-pdf-67108-p${n}`);
   await page.clock.setFixedTime(new Date(TZ_VISUAL_NOW));
   await page.goto('/sales?studio=1');
   await expect(page.locator('#root')).not.toBeEmpty();
-  expect(await renderTz67108(page, [1, 3])).toBe(10);
+  expect(await renderTz67108(page, [1, 3])).toBe(11);
   for (const n of [1, 3]) {
     await expect(page.locator(`#tz-page-${n}`)).toHaveScreenshot(`tz-pdf-67108-p${n}.png`, { maxDiffPixelRatio: 0.01 });
   }

@@ -5,7 +5,7 @@
  * - тип — по байтам (`sniffArtwork`), не по `File.type` и не по ответу (H2);
  * - SVG — через `sanitizeSvg`, Blob собирается из очищенного текста;
  * - растр — новый Blob с MIME по сигнатуре; размеры — из заголовка (M2),
- *   DPI — из `pHYs` PNG; нет метрики — ширина 120 мм «оценочно».
+ *   DPI — из `pHYs` PNG и из JFIF/EXIF JPEG; нет метрики — ширина 120 мм «оценочно».
  */
 import type { AssetMeta } from '../types';
 import { MAX_COORD_MM, MAX_SOURCE_FILE_LEN } from '../limits';
@@ -16,12 +16,12 @@ import { ARTWORK_MIME, sniffArtwork, type ArtworkKind } from './sniff';
 /** Ширина печати растра без метрики, мм */
 export const DEFAULT_RASTER_WIDTH_MM = 120;
 
-const UNIT_TO_MM: Record<string, number> = { mm: 1, cm: 10, px: 0.2645833, pt: 0.352778 };
+const UNIT_TO_MM: Record<string, number> = { mm: 1, cm: 10, in: 25.4, px: 0.2645833, pt: 0.352778 };
 
-/** «210mm», «595.3pt», «300» → мм; `physical` — единица физическая (mm/cm/pt) */
+/** «210mm», «595.3pt», «2in», «300» → мм; `physical` — единица физическая (mm/cm/in/pt) */
 function lengthToMm(raw: string | null): { mm: number; physical: boolean } | null {
   if (!raw) return null;
-  const m = raw.trim().match(/^([\d.]+)\s*(mm|cm|px|pt)?$/i);
+  const m = raw.trim().match(/^([\d.]+)\s*(mm|cm|in|px|pt)?$/i);
   if (!m) return null;
   const value = parseFloat(m[1]);
   if (!(value > 0)) return null;
@@ -63,6 +63,71 @@ export function readPngDpi(b: Uint8Array): number | null {
     offset = data + length + 4;
   }
   return null;
+}
+
+/** Сколько первых байт JPEG читаем в поисках метрики (APP0/APP1 стоят до SOS) */
+const JPEG_SCAN_BYTES = 64 * 1024;
+
+/** DPI из EXIF APP1 (IFD0: XResolution + ResolutionUnit); нет или кривой — `null` */
+function exifDpi(b: Uint8Array, view: DataView, start: number, end: number): number | null {
+  if (end - start < 14 || String.fromCharCode(...b.subarray(start, start + 4)) !== 'Exif') return null;
+  const tiff = start + 6;
+  const le = b[tiff] === 0x49 && b[tiff + 1] === 0x49;
+  if (!le && !(b[tiff] === 0x4d && b[tiff + 1] === 0x4d)) return null;
+  const u16 = (o: number) => view.getUint16(o, le);
+  const u32 = (o: number) => view.getUint32(o, le);
+  const ifd = tiff + u32(tiff + 4);
+  if (ifd + 2 > end) return null;
+  let x: number | null = null;
+  let unit = 2;
+  for (let n = u16(ifd), e = ifd + 2; n > 0 && e + 12 <= end; n--, e += 12) {
+    const tag = u16(e);
+    if (tag === 0x0128) unit = u16(e + 8);
+    if (tag === 0x011a) {
+      const at = tiff + u32(e + 8);
+      if (at + 8 > end) return null;
+      const den = u32(at + 4);
+      x = den > 0 ? u32(at) / den : null;
+    }
+  }
+  if (!x || !(x > 0)) return null;
+  return unit === 3 ? x * 2.54 : unit === 2 ? x : null;
+}
+
+/** DPI из JFIF APP0 (единица 1 — дюйм, 2 — сантиметр; 0 — только пропорция) */
+function jfifDpi(b: Uint8Array, view: DataView, start: number, end: number): number | null {
+  if (end - start < 12 || String.fromCharCode(...b.subarray(start, start + 5)) !== 'JFIF\0') return null;
+  const units = b[start + 7];
+  const x = view.getUint16(start + 8);
+  if (!(x > 0)) return null;
+  return units === 1 ? x : units === 2 ? x * 2.54 : null;
+}
+
+/**
+ * DPI JPEG: EXIF важнее JFIF (его пишут фоторедакторы при экспорте). Идём по
+ * маркерам до начала данных (SOS), не дальше первых 64 КБ; битый сегмент
+ * обрывает поиск — найденное до него остаётся, исключений нет.
+ */
+export function readJpegDpi(b: Uint8Array): number | null {
+  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const limit = Math.min(b.length, JPEG_SCAN_BYTES);
+  let jfif: number | null = null;
+  let exif: number | null = null;
+  let i = 2;
+  while (i + 4 <= limit && b[i] === 0xff) {
+    const marker = b[i + 1];
+    if (marker === 0xda || marker === 0xd9) break;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+    const len = view.getUint16(i + 2);
+    const start = i + 4;
+    const end = i + 2 + len;
+    if (len < 2 || end > b.length) break;
+    if (marker === 0xe0) jfif = jfifDpi(b, view, start, end) ?? jfif;
+    if (marker === 0xe1) exif = exifDpi(b, view, start, end) ?? exif;
+    i = end;
+  }
+  return exif ?? jfif;
 }
 
 export interface LoadedAsset {
@@ -131,8 +196,8 @@ function svgAsset(bytes: Uint8Array, fileName: string): LoadAssetResult {
 }
 
 function rasterAsset(bytes: Uint8Array, fileName: string, kind: ArtworkKind, pxW: number, pxH: number): LoadAssetResult {
-  const read = kind === 'png' ? readPngDpi(bytes) : null;
-  // Странный pHYs (ppu = 1 → 0,0254 DPI, сотни метров; или > 10000 DPI) — как будто его нет:
+  const read = kind === 'png' ? readPngDpi(bytes) : kind === 'jpeg' ? readJpegDpi(bytes) : null;
+  // Странная метрика (pHYs ppu = 1 → 0,0254 DPI, сотни метров; или > 10000 DPI) — как будто её нет:
   // раскладка с таким макетом не прошла бы `parseLayout`, и нанесение пропало бы с холста
   const dpi = read && read <= MAX_ASSET_DPI && sizeInBounds((pxW / read) * 25.4, (pxH / read) * 25.4) ? read : null;
   const { w, h } = dpi

@@ -96,6 +96,8 @@ export interface SaveFlatInput {
   zonesCatalog?: readonly ZoneLike[] | null;
   /** Прошлое сохранение упёрлось в гонку номеров — текст исчерпания строже (К3) */
   raceRetry?: boolean;
+  /** Каталог моделей: модель другой категории — ошибка (веха 5в); нет каталога — не сверяем */
+  skuCatalog?: readonly { code: string; category: string }[] | null;
   onProgress?: (p: SaveProgress) => void;
 }
 
@@ -150,6 +152,7 @@ function precheck(input: SaveFlatInput, provisional: GarmentFlat): string | null
     activeFlats: others.filter((f) => f.active),
     zonesCatalog: input.zonesCatalog ?? null,
     skuCodes: new Set(provisional.sku_codes),
+    skuCategory: input.skuCatalog ? new Map(input.skuCatalog.map((s) => [s.code, s.category])) : undefined,
     flatMm: {},
     catalogBytes: bytes,
   });

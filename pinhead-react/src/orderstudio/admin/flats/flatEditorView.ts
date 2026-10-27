@@ -14,11 +14,12 @@ import { FLAT_VIEW_KINDS, type FlatHistoryEntry, type FlatViewKind, type Garment
 import type { SaveProgress } from './saveFlat';
 
 /** Вкладки правой панели редактора */
-export type FlatPanel = 'zones' | 'view' | 'model' | 'history';
+export type FlatPanel = 'zones' | 'view' | 'pattern' | 'model' | 'history';
 
 export const PANEL_LABELS: Record<FlatPanel, string> = {
   zones: 'Зоны',
   view: 'Вид',
+  pattern: 'Лекала',
   model: 'Модель и подбор',
   history: 'История',
 };
@@ -99,7 +100,7 @@ export function historyText(e: FlatHistoryEntry): string {
 }
 
 const VIEW_ACC: Record<FlatViewKind, string> = {
-  front: 'перед', back: 'спину', sleeve_left: 'левый рукав', sleeve_right: 'правый рукав',
+  front: 'перед', back: 'спину', sleeve_left: 'левый рукав', sleeve_right: 'правый рукав', hood: 'капюшон', pocket: 'карман',
 };
 
 export const mirrorTarget = (from: FlatViewKind): FlatViewKind => (from === 'sleeve_left' ? 'sleeve_right' : 'sleeve_left');

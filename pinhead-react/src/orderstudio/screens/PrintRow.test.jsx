@@ -109,3 +109,17 @@ describe('PrintRow — код зоны (веха 8, К5)', () => {
     expect(props.onChange).toHaveBeenCalledWith({ zone: 'Над карманом слева', zone_id: null });
   });
 });
+
+describe('PrintRow — пределы техники (веха 5в)', () => {
+  it('живой регион есть заранее, пустой; размер меньше минимума — текст правила, поля связаны с ним', () => {
+    const { container } = setup({ print: newSalesPrint({ method: 'dtf', zone: 'Грудь', width_mm: 120, height_mm: 80 }) });
+    const status = container.querySelector('[role="status"][data-size-hint]');
+    expect(status).not.toBeNull();
+    expect(status.textContent).toBe('');
+  });
+  it('2 × 1 мм у DTF — подсказка', () => {
+    setup({ print: newSalesPrint({ method: 'dtf', zone: 'Грудь', width_mm: 2, height_mm: 1 }) });
+    const width = screen.getByLabelText('Ширина, мм');
+    expect(width).toHaveAccessibleDescription('Техника «DTF»: меньшая сторона — от 20 мм, сейчас 2 × 1 мм');
+  });
+});

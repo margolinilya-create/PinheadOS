@@ -72,7 +72,7 @@ export default function FlatModelSection({ ctx }) {
       </label>
       <p id="flat-active-hint" className={styles.hint}>{draft.active ? ACTIVE_HINT : OFF_TEXT}</p>
 
-      <ModelPicker id={flatFieldId('sku_codes')} label="Модели" skus={ctx.skus} value={draft.sku_codes}
+      <ModelPicker id={flatFieldId('sku_codes')} label="Модели" skus={ctx.skus} categories={draft.categories} value={draft.sku_codes}
         onChange={(codes) => meta({ sku_codes: codes })} describedBy={described('sku_codes')} />
       <FieldErrors id={flatFieldId('sku_codes')} errors={err('sku_codes')} />
 

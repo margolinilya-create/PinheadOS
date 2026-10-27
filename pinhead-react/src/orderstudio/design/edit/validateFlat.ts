@@ -17,6 +17,7 @@ import { FLAT_VIEW_KINDS, type FlatViewKind, type GarmentFlat, type PrintArea } 
 import { isRectArea } from './flatEdit';
 import type { ZoneLike } from './flatAreas';
 import { idError } from './flatIds';
+import { SKU_CATEGORIES } from '../../../data/skuCatalog';
 
 export interface FlatIssue { text: string; view?: FlatViewKind; areaId?: string; field?: string }
 export interface FlatCheck { errors: FlatIssue[]; warnings: FlatIssue[] }
@@ -29,6 +30,8 @@ export interface FlatCheckCtx {
   /** `null` — свежий справочник зон не загрузился: одно предупреждение, без ошибок */
   zonesCatalog: readonly ZoneLike[] | null;
   skuCodes: ReadonlySet<string>;
+  /** Код модели → категория; нет — каталог не передан, категорию не сверяем (веха 5в) */
+  skuCategory?: ReadonlyMap<string, string>;
   flatMm: Partial<Record<FlatViewKind, { w: number; h: number }>>;
   /** Размер склеенного справочника, байт UTF-8 (`flatVersion.catalogBytes`) */
   catalogBytes: number;
@@ -84,11 +87,21 @@ function zoneChecks(flat: GarmentFlat, ctx: FlatCheckCtx, out: FlatCheck): void 
   }
 }
 
+const categoryName = (id: string): string => SKU_CATEGORIES.find((c) => c.id === id)?.name ?? id;
+
 function skuChecks(flat: GarmentFlat, ctx: FlatCheckCtx, out: FlatCheck): void {
   for (const code of new Set(flat.sku_codes)) {
     const other = flat.active ? ctx.activeFlats.find((f) => f.id !== flat.id && f.active && f.sku_codes.includes(code)) : undefined;
     if (other) out.errors.push({ text: `Модель ${code} уже у флэта «${other.name}» — снимите её там или снимите флэт с подбора`, field: 'sku_codes' });
     if (!ctx.skuCodes.has(code)) out.warnings.push({ text: `Модели ${code} нет в каталоге моделей`, field: 'sku_codes' });
+    const cat = ctx.skuCategory?.get(code);
+    // Код модели засчитывается только внутри её категории (B1: худи на флэте футболки)
+    if (cat && flat.categories.length > 0 && !flat.categories.includes(cat)) {
+      out.errors.push({
+        text: `Модель ${code} — из категории «${categoryName(cat)}», а флэт — для категорий: ${flat.categories.map((c) => `«${categoryName(c)}»`).join(', ')}. Уберите модель или добавьте флэту её категорию`,
+        field: 'sku_codes',
+      });
+    }
   }
 }
 

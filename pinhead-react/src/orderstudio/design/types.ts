@@ -25,12 +25,14 @@ export type GarmentType = (typeof GARMENT_TYPES)[number];
 
 /**
  * Виды флэта в справочнике. Перечень совпадает с формой пути в бакете
- * флэтов `FLATS_BUCKET` (миграция H): рукава — под веху 5б.
+ * флэтов `FLATS_BUCKET` (миграция H): рукава — под веху 5б; капюшон и карман —
+ * веха 5в, Э9 (миграция O: путь и форма справочника на сервере). Якорей у них нет —
+ * отступ считается от верха зоны, ось — середина зоны.
  */
-export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right'] as const;
+export const FLAT_VIEW_KINDS = ['front', 'back', 'sleeve_left', 'sleeve_right', 'hood', 'pocket'] as const;
 export type FlatViewKind = (typeof FLAT_VIEW_KINDS)[number];
 
-/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → левый → правый рукав */
+/** Виды холста: с вехи 5б — все виды флэта, рукава тоже (К15); порядок — перед → спина → рукава → капюшон → карман */
 export const DESIGN_VIEWS = FLAT_VIEW_KINDS;
 export type DesignView = (typeof DESIGN_VIEWS)[number];
 
@@ -86,6 +88,17 @@ export interface PrintArea {
   min_print_mm?: { width: number; height: number };
 }
 
+/**
+ * Лекало детали кроя (веха 5в, Э2б): контур из файла конструктора в той же
+ * системе мм, что и вид (выровнен по якорям при импорте), — нанесения ложатся
+ * на него по своим `x_mm/y_mm`. GEOMETRY: правка — новая версия флэта
+ */
+export interface PatternPiece {
+  contour_mm: [number, number][];
+  /** Деталей в крое (две манжеты, два рукава одним лекалом) */
+  count: number;
+}
+
 export interface FlatView {
   kind: FlatViewKind;
   /** Путь в бакете флэтов (`FLATS_BUCKET`): `flats/<id>/v<версия>/<вид>.svg` */
@@ -97,6 +110,8 @@ export interface FlatView {
   size_anchors?: Record<string, ViewAnchors>;
   grade_rule?: GradeRule;
   print_areas: PrintArea[];
+  /** Лекало детали (веха 5в, Э2б); нет — лист «Выкройка» этот вид не показывает */
+  pattern?: PatternPiece;
 }
 
 export interface GarmentFlat {

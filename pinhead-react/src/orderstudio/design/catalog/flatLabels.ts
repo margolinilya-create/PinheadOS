@@ -20,10 +20,12 @@ export const GARMENT_TYPE_LABELS: Record<GarmentType, string> = {
   shopper: 'Шоппер',
 };
 
-/** Виды в порядке показа: перед → спина → левый → правый рукав */
+/** Виды в порядке показа: перед → спина → левый → правый рукав → капюшон → карман (веха 5в, Э9) */
 export const VIEW_LABELS: Record<FlatViewKind, string> = {
   front: 'Перед',
   back: 'Спина',
   sleeve_left: 'Левый рукав',
   sleeve_right: 'Правый рукав',
+  hood: 'Капюшон',
+  pocket: 'Карман',
 };

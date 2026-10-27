@@ -11,6 +11,7 @@ import { useDesignStore } from '../store/useDesignStore';
 import { catalog, flat as makeFlat } from '../fixtures.testutil';
 import { newPlacedPrint, parseLayout } from '../model/layout';
 import { artworkPipeline } from './useArtworkActions';
+import { clearFeature, setFeature } from '../../../config/features';
 
 /**
  * Вкладка «Дизайн» в jsdom: konva подменён простыми div (konva — в e2e),
@@ -48,6 +49,12 @@ vi.mock('../catalog/useFlatsCatalog', () => ({
   useFlatsCatalog: () => ({ status: h.status, catalog: h.catalog, issues: [], reload: vi.fn() }),
 }));
 
+const printFilesMock = vi.hoisted(() => ({ build: vi.fn(), save: vi.fn() }));
+vi.mock('../export/printFiles', () => ({
+  buildPrintFiles: printFilesMock.build.mockImplementation(async () => ({ zip: new Uint8Array([1]), fileName: 'PH-TEST-print-files.zip', count: 1, notes: [] })),
+  rasterizeInBrowser: vi.fn(),
+}));
+vi.mock('../../../utils/saveBlob', () => ({ saveBlob: printFilesMock.save }));
 import DesignTab from './DesignTab';
 
 const SKU = SKU_CATALOG_DEFAULT.find((s) => s.code === 'T-003');
@@ -174,6 +181,15 @@ describe('DesignTab — правка', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: /Цена за штуку/ }).textContent).not.toBe(priceBefore));
   });
 
+  it('цена позиции: у выбранного нанесения — строка техники (плёнка DTF), до выбора её нет (веха 5в)', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const section = screen.getByRole('region', { name: 'Цена позиции' });
+    expect(section.textContent).not.toMatch(/Плёнка/);
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    await waitFor(() => expect(section.textContent).toMatch(/Нанесение 1 — Плёнка: 1 м на \d+ шт \(\d+ в ряд\)/));
+  });
+
   it('«Снять с изделия» в списке — строка остаётся, «Вернуть» возвращает раскладку', async () => {
     const p = placed();
     setup(item({ flat_id: FLAT_A.id, prints: [p] }));
@@ -272,3 +288,258 @@ describe('DesignTab — раскладка, которую холст не по�
     expect(within(free).queryByRole('button', { name: /Освободить раскладку/ })).toBeNull();
   });
 });
+
+describe('DesignTab — силуэт не от модели (B1, веха 5в)', () => {
+  const HOODIE_SKU = { ...SKU, code: 'H-TEST', name: 'Худи (тест)', category: 'hoodies' };
+  const HOODIE_FLAT = makeFlat({ id: 'hoodie-test', name: 'Худи (тест)', garment_type: 'hoodie', categories: ['hoodies'] });
+
+  beforeEach(() => {
+    useStore.setState({ skuCatalog: [SKU, HOODIE_SKU] });
+    h.catalog = catalog([FLAT_A, FLAT_B, HOODIE_FLAT]);
+  });
+
+  it('худи на флэте футболки: в выборе силуэта нет чужих футболок, плашка называет причину и предлагает худи', () => {
+    setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id }));
+    const options = within(screen.getByLabelText('Силуэт')).getAllByRole('option').map((o) => o.textContent);
+    expect(options.some((t) => t.startsWith('Футболка другая'))).toBe(false);
+    expect(options.some((t) => t.startsWith('Худи (тест)'))).toBe(true);
+    expect(screen.getByText(/Силуэт «Футболка \(тест\)» — от другой модели/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Перенести на «Худи (тест)»' })).toBeInTheDocument();
+  });
+
+  it('пока нанесения на чужом силуэте — новый логотип не ставится: кнопка с причиной, конвейер не грузится', async () => {
+    const load = vi.spyOn(artworkPipeline, 'load');
+    const { edit } = setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id }));
+    await panelReady();
+    const btn = screen.getByRole('button', { name: 'Загрузить логотип' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription(/Сначала перенесите нанесения на силуэт модели/);
+    fireEvent.click(btn);
+    await act(async () => {});
+    expect(load).not.toHaveBeenCalled();
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('проверка макета первым пунктом называет чужой силуэт', async () => {
+    setup(item({ sku_code: HOODIE_SKU.code, product_type: HOODIE_SKU.name, flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    expect(screen.getByRole('region', { name: 'Проверка макета' })).toHaveTextContent(/Серьёзно: Силуэт — от другой модели/);
+  });
+});
+
+describe('DesignTab — «Стандарты Pinhead» (веха 5в, Э2)', () => {
+  afterEach(() => clearFeature('designStudio'));
+
+  it('без выбора — чипы видны, недоступны с причиной; подсказка размера — описанием, не именем', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Стандарты Pinhead' });
+    const chest = within(group).getByRole('button', { name: 'Центр груди' });
+    expect(chest).toHaveAttribute('aria-disabled', 'true');
+    expect(chest).toHaveAccessibleDescription('250 мм, 75 мм от горловины Выберите нанесение на холсте');
+  });
+
+  it('клик у выбранного — размер стандарта и один шаг истории «Центр груди (стандарт)»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const group = await screen.findByRole('group', { name: 'Стандарты Pinhead' });
+    const chest = within(group).getByRole('button', { name: 'Центр груди' });
+    expect(chest).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(chest);
+    expect(current().prints[0].width_mm).toBe(250);
+    const { past } = useDesignStore.getState();
+    expect(past).toHaveLength(1);
+    expect(past[0].label).toBe('Центр груди (стандарт)');
+    // Кнопок пресетов в инспекторе нет — одна точка входа
+    expect(screen.queryByRole('group', { name: 'Положение одной кнопкой' })).toBeNull();
+  });
+
+  it('только чтение — чипов нет', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { readOnly: true });
+    await panelReady();
+    expect(screen.queryByRole('group', { name: 'Стандарты Pinhead' })).toBeNull();
+  });
+
+  it('флаг выключен — прежний вид: чипов нет, пресеты в инспекторе', async () => {
+    setFeature('designStudio', false);
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    expect(await screen.findByRole('group', { name: 'Положение одной кнопкой' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Стандарты Pinhead' })).toBeNull();
+  });
+});
+
+describe('DesignTab — проверки под холстом и статус нанесения (веха 5в, Э2)', () => {
+  it('замечание видно под холстом, сводка — живым регионом; строка слоя — «Проверить»; в панели списка нет', async () => {
+    const tiny = { ...placed(), width_mm: 10, height_mm: 7 };
+    setup(item({ flat_id: FLAT_A.id, prints: [tiny] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    expect(within(checks).getByText(/меньшая сторона — от 20 мм/)).toBeInTheDocument();
+    expect(checks.textContent).toMatch(/1 замечание/);
+    await waitFor(() => expect(within(checks).getByRole('status')).toHaveTextContent('1 замечание'));
+    expect(screen.getAllByRole('region', { name: 'Проверка макета' })).toHaveLength(1);
+    const row = screen.getByRole('button', { name: /^Нанесение 1 · / });
+    expect(row).toHaveAccessibleDescription('Проверить');
+  });
+
+  it('«Показать» выбирает нанесение; без замечаний — «Замечаний нет», статус «Готово»', async () => {
+    const tiny = { ...placed(), width_mm: 10, height_mm: 7 };
+    setup(item({ flat_id: FLAT_A.id, prints: [tiny] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    fireEvent.click(within(checks).getByRole('button', { name: 'Показать' }));
+    expect(useDesignStore.getState().selectedPrintKey).toBe(tiny.key);
+  });
+
+  it('нанесение в норме — «Замечаний нет» и «Готово»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const checks = await screen.findByRole('region', { name: 'Проверка макета' });
+    expect(checks.textContent).toMatch(/Замечаний нет/);
+    expect(screen.getByRole('button', { name: /^Нанесение 1 · / })).toHaveAccessibleDescription('Готово');
+  });
+});
+
+describe('DesignTab — вид холста и цвет ткани (веха 5в, Э2)', () => {
+  it('«Как на изделии» — переключатель с aria-pressed, холст в режиме изделия, в заказ ничего не пишется; работает в только чтении', async () => {
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }), { readOnly: true });
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    const garment = within(group).getByRole('button', { name: 'Как на изделии' });
+    expect(garment).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(garment);
+    expect(garment).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Разметка' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('application')).toHaveAccessibleName(/как на изделии$/);
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('цвет ткани — чипы по цветам сетки, выбор меняет только показ', async () => {
+    const it2 = item({
+      flat_id: FLAT_A.id,
+      prints: [placed()],
+      size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 10 } }, { color: 'Чёрный (15-01)', sizes: { M: 5 } }, { color: 'Белый (01-01)', sizes: { M: 1 } }] },
+    });
+    const { edit } = setup(it2);
+    const group = await screen.findByRole('group', { name: 'Показать на цвете' });
+    const chips = within(group).getAllByRole('button');
+    expect(chips.map((b) => b.textContent)).toEqual(['Белый (01-01)', 'Чёрный (15-01)']);
+    expect(chips[0]).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(chips[1]);
+    expect(chips[1]).toHaveAttribute('aria-pressed', 'true');
+    expect(useDesignStore.getState().fabricColor).toBe('Чёрный (15-01)');
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('флаг выключен — ни переключателя, ни цвета; холст всегда с разметкой', async () => {
+    setFeature('designStudio', false);
+    useDesignStore.getState().setDisplay('garment');
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    expect(screen.queryByRole('group', { name: 'Вид холста' })).toBeNull();
+    expect(screen.getByRole('application')).not.toHaveAccessibleName(/как на изделии/);
+    clearFeature('designStudio');
+  });
+});
+
+describe('DesignTab — итог позиции (веха 5в, Э2)', () => {
+  it('«Файлы печати» — сборка по клику, архив скачивается, заказ не пишется (Э4а)', async () => {
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    const btn = within(bar).getByRole('button', { name: 'Файлы печати' });
+    expect(btn).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(btn);
+    await waitFor(() => expect(printFilesMock.build).toHaveBeenCalled());
+    await waitFor(() => expect(printFilesMock.save).toHaveBeenCalledWith(expect.any(Blob), 'PH-TEST-print-files.zip'));
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('нанесения, цена за штуку и за позицию — как цена позиции', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    const unit = screen.getByRole('heading', { name: /Цена за штуку/ }).textContent.replace('Цена за штуку: ', '');
+    expect(bar.textContent).toMatch(/^1 нанесение·/);
+    expect(bar.textContent).toContain(`${unit}/шт`);
+    expect(bar.textContent).toMatch(/₽ за позицию/);
+  });
+  it('пустая сетка — «Цена не посчитана»', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [], size_grid: { sizes: ['M'], rows: [{ color: 'Белый (01-01)', sizes: { M: 0 } }] } }));
+    const bar = await screen.findByRole('region', { name: 'Итог позиции' });
+    expect(bar.textContent).toMatch(/^Нанесений нет·Цена не посчитана/);
+    const btn = within(bar).getByRole('button', { name: 'Файлы печати' });
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+    expect(btn).toHaveAccessibleDescription('Нет нанесений с макетом и размером в мм');
+  });
+});
+
+describe('DesignTab — копия на другой вид и Ctrl+D (веха 5в, Э2)', () => {
+  it('«Копировать на вид» → копия на спине, вид — спина, выбор — копия, один шаг истории', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const group = await screen.findByRole('group', { name: 'Копировать нанесение 1 на вид' });
+    fireEvent.click(within(group).getByRole('button', { name: /Спина/ }));
+    const prints = current().prints;
+    expect(prints).toHaveLength(2);
+    expect(parseLayout(prints[1].layout)?.view).toBe('back');
+    const s = useDesignStore.getState();
+    expect(s.view).toBe('back');
+    expect(s.selectedPrintKey).toBe(prints[1].key);
+    expect(s.past.map((x) => x.label)).toEqual(['Копия на вид']);
+  });
+
+  it('Ctrl+D на холсте — дубль и выбор копии', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    fireEvent.keyDown(screen.getByRole('application'), { key: 'd', code: 'KeyD', ctrlKey: true });
+    await waitFor(() => expect(current().prints).toHaveLength(2));
+    expect(useDesignStore.getState().selectedPrintKey).toBe(current().prints[1].key);
+  });
+
+  it('Ctrl+C → Ctrl+V слоя — вставка копии; чужая метка — ничего', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    await panelReady();
+    fireEvent.click(screen.getByRole('button', { name: /^Нанесение 1 · / }));
+    const canvas = screen.getByRole('application');
+    const store = {};
+    const data = { files: [], setData: (t, v) => { store[t] = v; }, getData: (t) => store[t] ?? '' };
+    fireEvent.copy(canvas, { clipboardData: data });
+    fireEvent.paste(canvas, { clipboardData: { files: [], getData: () => 'другой:ключ' } });
+    await act(async () => {});
+    expect(current().prints).toHaveLength(1);
+    fireEvent.paste(canvas, { clipboardData: data });
+    await waitFor(() => expect(current().prints).toHaveLength(2));
+  });
+});
+
+describe('DesignTab — лист «Выкройка» (веха 5в, Э2б)', () => {
+  const withPattern = (f) => ({
+    ...f,
+    views: f.views.map((v) => ({ ...v, pattern: { contour_mm: [[20, 10], [580, 10], [600, 730], [0, 730]], count: 1 } })),
+  });
+
+  it('без лекал — кнопки «Выкройка» нет', async () => {
+    setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    expect(within(group).queryByRole('button', { name: 'Выкройка' })).toBeNull();
+  });
+
+  it('с лекалами — лист картинкой вместо холста, ничего не пишет; «Править деталь» — разметка на этом виде', async () => {
+    h.catalog = catalog([withPattern(FLAT_A), FLAT_B]);
+    const { edit } = setup(item({ flat_id: FLAT_A.id, prints: [placed()] }));
+    const group = await screen.findByRole('group', { name: 'Вид холста' });
+    fireEvent.click(within(group).getByRole('button', { name: 'Выкройка' }));
+    const sheet = await screen.findByRole('region', { name: 'Выкройка' });
+    expect(await within(sheet).findByRole('img', { name: /^Выкройка: перед, спина; нанесений 1$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('application')).toBeNull();
+    fireEvent.click(within(within(sheet).getByRole('group', { name: 'Править деталь' })).getByRole('button', { name: 'Спина' }));
+    expect(useDesignStore.getState().display).toBe('markup');
+    expect(useDesignStore.getState().view).toBe('back');
+    expect(await screen.findByRole('application')).toBeInTheDocument();
+    expect(edit).not.toHaveBeenCalled();
+  });
+});
+

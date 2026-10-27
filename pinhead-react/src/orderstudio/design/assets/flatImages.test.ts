@@ -116,4 +116,10 @@ describe('garmentHexOf — цвет ткани позиции', () => {
   it('hex палитры не по форме — нейтральный', () => {
     expect(garmentHexOf(newSalesItem({ size_grid: grid('Плохой (bad)') }), SUP)).toBe(NEUTRAL_GARMENT_HEX);
   });
+  it('цвет для показа (веха 5в) — его hex; без него — по первой строке, как раньше', () => {
+    const it2 = newSalesItem({ size_grid: grid('Чёрный (15-01)', 'Белый (01-01)') });
+    expect(garmentHexOf(it2, SUP, null, 'Белый (01-01)')).toBe(garmentHexOf(newSalesItem({ size_grid: grid('Белый (01-01)') }), SUP));
+    expect(garmentHexOf(it2, SUP, null, null)).toBe('#111111');
+    expect(garmentHexOf(it2, SUP, null, '  ')).toBe('#111111');
+  });
 });

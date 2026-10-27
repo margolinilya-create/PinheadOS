@@ -7,12 +7,16 @@
  *   печатями (рисует движок), превью макета, сетка по 3 строки, «После проверки».
  * - Заметки — сетка 2 × 2 карточек на страницу, ссылка кликабельна только
  *   после `isSafeHttpUrl` (`linkSafe`).
+ * - Лист размещения (веха 5в, Э7) — при двух нанесениях и больше: все виды со
+ *   всеми нанесениями (номера на плашках) и сводная таблица. Строится только из
+ *   полей документа, поэтому хэш ТЗ и проверка запуска (`bridge/tzCheck`) не
+ *   меняются: прежние PDF остаются верными, новые несут лист.
  */
 import {
-  CONTENT_W, GAP, MARGIN, add, ensure, newPage, row, textIn, type Pager,
+  BOTTOM, CONTENT_W, GAP, MARGIN, add, ensure, newPage, row, textIn, type Pager,
 } from './layoutPager';
 import { gridTable } from './layoutGrid';
-import type { TzDoc, TzLabel, TzNoteCard, TzPrintPage } from './tzDocTypes';
+import type { TzDoc, TzLabel, TzMockupRef, TzNoteCard, TzPrintPage } from './tzDocTypes';
 
 const LABELS_TITLE = 'Параметры бирок';
 
@@ -86,6 +90,75 @@ function printPage(p: Pager, doc: TzDoc, pr: TzPrintPage): void {
   textIn(p, { x: MARGIN, y: p.y, w: 40, h: 7 }, 'После проверки', { bold: true, max: 10, field: title });
   add(p, { x: MARGIN + 42, y: p.y + 6, w: CONTENT_W - 42, h: 0, kind: 'line' });
   p.y += 8;
+}
+
+const SHEET_TITLE = 'Лист размещения';
+const SHEET_ROW_H = 9;
+const SHEET_HEAD_H = 8;
+/** Высота сцены листа: не выше 105 мм; ужимается, чтобы таблица встала на тот же лист, но не ниже 60 мм */
+const SHEET_SCENE_MAX_H = 105;
+const SHEET_SCENE_MIN_H = 60;
+
+/** Мокапы листа: вид — один, нанесения вида — все; пустая подсветка — номера у всех */
+export function sheetScenes(prints: readonly TzPrintPage[]): TzMockupRef[] {
+  const byView = new Map<string, TzMockupRef>();
+  for (const pr of prints) {
+    if (!pr.mockup) continue;
+    const key = `${pr.mockup.flatId}|${pr.mockup.flatVersion}|${pr.mockup.view}`;
+    const cur = byView.get(key);
+    if (cur) cur.printKeys = [...new Set([...cur.printKeys, ...pr.mockup.printKeys])];
+    else byView.set(key, { ...pr.mockup, printKeys: [...pr.mockup.printKeys], highlight: '' });
+  }
+  return [...byView.values()];
+}
+
+/** Колонки сводной таблицы: подпись и доля ширины */
+const SHEET_COLS: [string, number, (pr: TzPrintPage) => string][] = [
+  ['№', 0.06, (pr) => String(pr.n)],
+  ['Зона', 0.18, (pr) => pr.zone || '—'],
+  ['Техника', 0.16, (pr) => pr.methodLabel],
+  ['Размер', 0.15, (pr) => pr.sizeText || '—'],
+  ['Отступ', 0.25, (pr) => pr.offset || '—'],
+  ['Pantone, эффект', 0.2, (pr) => [pr.pantone, pr.effects].filter(Boolean).join('; ') || '—'],
+];
+
+export function placementSheet(p: Pager, doc: TzDoc): void {
+  if (doc.prints.length < 2) return;
+  newPage(p, SHEET_TITLE);
+  const scenes = sheetScenes(doc.prints);
+  if (scenes.length) {
+    const cols = Math.min(2, scenes.length);
+    const w = (CONTENT_W - GAP * 2 * (cols - 1)) / cols;
+    const rows = Math.ceil(scenes.length / cols);
+    const table = SHEET_HEAD_H + doc.prints.length * SHEET_ROW_H;
+    const room = (BOTTOM - p.y - table - GAP) / rows - GAP;
+    const h = Math.max(SHEET_SCENE_MIN_H, Math.min(SHEET_SCENE_MAX_H, w * 1.2, room));
+    scenes.forEach((ref, i) => {
+      add(p, { x: MARGIN + (i % cols) * (w + GAP * 2), y: p.y + Math.floor(i / cols) * (h + GAP), w, h, kind: 'scene', scene: ref });
+    });
+    p.y += rows * (h + GAP) + GAP;
+  }
+  const head = () => {
+    let x = MARGIN;
+    for (const [label, share] of SHEET_COLS) {
+      textIn(p, { x, y: p.y, w: CONTENT_W * share, h: 7 }, label, { bold: true, max: 9, kind: 'cell', field: SHEET_TITLE });
+      x += CONTENT_W * share;
+    }
+    p.y += SHEET_HEAD_H;
+  };
+  ensure(p, SHEET_HEAD_H + SHEET_ROW_H, `${SHEET_TITLE} — продолжение`);
+  head();
+  for (const pr of doc.prints) {
+    const before = p.page;
+    ensure(p, SHEET_ROW_H, `${SHEET_TITLE} — продолжение`);
+    if (p.page !== before) head();
+    let x = MARGIN;
+    for (const [label, share, value] of SHEET_COLS) {
+      textIn(p, { x, y: p.y, w: CONTENT_W * share, h: SHEET_ROW_H }, value(pr), { max: 8, kind: 'cell', field: `${SHEET_TITLE}: ${label}` });
+      x += CONTENT_W * share;
+    }
+    p.y += SHEET_ROW_H;
+  }
 }
 
 export function printsPages(p: Pager, doc: TzDoc): void {

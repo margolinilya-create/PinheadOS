@@ -319,6 +319,26 @@ const panelKey = designKey('DesignSide', 'src/orderstudio/design/ui/panel/Design
 const panelJs = panelKey ? minus(staticGraph(manifest, [panelKey]).js, order.js, canvasJs, imagesJs) : [];
 const panelTotal = panelKey ? report('Панель — JS (DesignSide минус холст, картинки и оболочка Order)', panelJs).total : null;
 if (panelKey) check('Панель «Дизайн», JS', panelTotal, BUDGETS.designPanel);
+// Части сцены «Дизайн» 2.0 (веха 5в, Э2): полосы над холстом и под ним — один ленивый модуль
+const stageKey = designKey('StageParts', 'src/orderstudio/design/ui/stage/StageParts.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const stageJs = stageKey ? minus(staticGraph(manifest, [stageKey]).js, order.js, canvasJs, imagesJs, panelJs) : [];
+const stageTotal = stageKey ? report('Части сцены — JS (StageParts минус холст, картинки, панель и оболочка Order)', stageJs).total : null;
+if (stageKey) check('Части сцены «Дизайн», JS', stageTotal, BUDGETS.designStage);
+// Лист «Выкройка» (веха 5в, Э2б): по кнопке и только с лекалами — свой ленивый чанк
+const patternKey = designKey('PatternSheet', 'src/orderstudio/design/ui/stage/PatternSheet.jsx', 'src/orderstudio/design/ui/DesignTab.jsx');
+const patternJs = patternKey ? minus(staticGraph(manifest, [patternKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
+const patternTotal = patternKey ? report('Лист выкройки — JS (PatternSheet минус холст, картинки, панель, части сцены и оболочка Order)', patternJs).total : null;
+if (patternKey) check('Лист выкройки «Дизайн», JS', patternTotal, BUDGETS.designPattern);
+// Файлы печати (веха 5в, Э4а): ZIP по кнопке — свой ленивый чанк
+const printFilesKey = designKey('printFiles', 'src/orderstudio/design/export/printFiles.ts', 'src/orderstudio/design/ui/stage/PrintFilesButton.jsx');
+const printFilesJs = printFilesKey ? minus(staticGraph(manifest, [printFilesKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs) : [];
+const printFilesTotal = printFilesKey ? report('Файлы печати — JS (printFiles минус холст, картинки, панель, части сцены и оболочка Order)', printFilesJs).total : null;
+if (printFilesKey) check('Файлы печати «Дизайн», JS', printFilesTotal, BUDGETS.designPrintFiles);
+// Мокапы (веха 5в, Э5): ZIP по кнопке — свой ленивый чанк
+const mockupsKey = designKey('mockups', 'src/orderstudio/design/export/mockups.ts', 'src/orderstudio/design/ui/stage/PrintFilesButton.jsx');
+const mockupsJs = mockupsKey ? minus(staticGraph(manifest, [mockupsKey]).js, order.js, canvasJs, imagesJs, panelJs, stageJs, printFilesJs) : [];
+const mockupsTotal = mockupsKey ? report('Мокапы — JS (mockups минус холст, картинки, панель, части сцены, файлы печати и оболочка Order)', mockupsJs).total : null;
+if (mockupsKey) check('Мокапы «Дизайн», JS', mockupsTotal, BUDGETS.designMockups);
 if (canvasKey) {
   const sum = (files) => files.reduce((n, f) => n + gzipSync(readFileSync(join(DIST, f))).length, 0);
   console.log(`  вкладка «Дизайн» при открытии (холст + картинки + панель): ${sum([...canvasJs, ...imagesJs, ...panelJs])} Б gzip (справочно)`);

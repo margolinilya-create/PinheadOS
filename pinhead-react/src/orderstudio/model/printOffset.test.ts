@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { offsetText } from './printOffset';
+import { offsetNote, offsetText } from './printOffset';
 import type { SalesPrint } from './types';
 
 type Off = Pick<SalesPrint, 'offset_mm' | 'offset_from' | 'offset_dir'>;
@@ -35,5 +35,22 @@ describe('offsetText — паритет прежних копий', () => {
     expect(offsetText(p(15, 'center', 'left'))).toBe('15 мм левее центра');
     expect(offsetText(p(15, 'center', 'right'))).toBe('15 мм правее центра');
     expect(offsetText(p(0, 'neck_seam', 'down'))).toBe('0 мм от шва горловины');
+  });
+});
+
+describe('offsetNote — отступ с холста и ручная заметка (ТЗ и мост в ERP)', () => {
+  const n = (offset_mm: number | null, offset_note: string | null) =>
+    ({ offset_mm, offset_from: 'neck_seam' as const, offset_dir: 'down' as const, offset_note: offset_note as string });
+  it('мм с холста без заметки — текст отступа', () => {
+    expect(offsetNote(n(70, ''))).toBe('70 мм от шва горловины');
+  });
+  it('мм и заметка — через «; », отступ первым', () => {
+    expect(offsetNote(n(70, '  по центру кармана '))).toBe('70 мм от шва горловины; по центру кармана');
+  });
+  it('без мм — ровно ручная заметка, без разделителя в начале', () => {
+    expect(offsetNote(n(null, 'по центру кармана'))).toBe('по центру кармана');
+  });
+  it('ничего нет — пусто, и null в заметке не падает', () => {
+    expect(offsetNote(n(null, null))).toBe('');
   });
 });

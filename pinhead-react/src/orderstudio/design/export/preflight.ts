@@ -3,7 +3,7 @@
  * Только геометрия и файл; цену проверяет `priceOrder` (`ISSUE_LABELS`).
  * Ничего не блокирует (проверка скиллами, ответ владельца 17.10) — три уровня:
  * - `serious` — серьёзное предупреждение (DPI ниже нижнего порога, нет зоны);
- * - `warn` — предупреждение (DPI между порогами, выход за зону, размер вне
+ * - `warn` — предупреждение (DPI между порогами, выход за зону или ближе safe-отступа к краю, размер вне
  *   границ зоны, техника не для зоны, оценочный размер, флэт обновлён);
  * - `info` — подсказка (вышивка: мелкие детали не прошьются).
  *
@@ -16,6 +16,9 @@ import type { SalesPrintMethod } from '../../model/types';
 import { placementInfo } from '../geometry/view';
 import { rotatedAabb } from '../geometry/coords';
 import { printQuality } from '../catalog/dpi';
+import { methodSizeIssue } from '../../model/printMethods';
+import { pluralize } from '../../../utils/i18n';
+import { FULL_COLOR, type ArtStats } from '../assets/artStats';
 
 export type PreflightLevel = 'serious' | 'warn' | 'info';
 
@@ -31,7 +34,18 @@ export interface PreflightInput {
   profileOf: ProfileOf;
   /** Допустима ли техника в зоне (методы зоны ∩ правила категории) */
   methodAllowed: (area: PrintArea, method: SalesPrintMethod) => boolean;
+  /** Силуэт позиции — от другой модели (`flatMismatch`, B1 вехи 5в) */
+  modelMismatch?: boolean;
+  /** Что видно в макетах (веха 5в, Э3) — по `print_key`; считается на лету, в раскладку не пишется */
+  artStats?: Readonly<Record<string, ArtStats | null | undefined>>;
+  /** Цветов в нанесении (шелкография, флекс) — по `print_key` */
+  printColors?: Readonly<Record<string, number | null | undefined>>;
+  /** Ткань светлая (белая, молочная): DTG по ней фон не печатает */
+  garmentLight?: boolean;
 }
+
+export const MSG_NO_PRINTS = 'На изделии нет нанесений — PDF будет без макета.';
+export const MSG_MODEL_MISMATCH = 'Силуэт — от другой модели: перенесите нанесения на силуэт модели позиции.';
 
 const ORDER: Record<PreflightLevel, number> = { serious: 0, warn: 1, info: 2 };
 
@@ -62,17 +76,47 @@ function checkPlacement(p: Placement, input: PreflightInput): PreflightIssue[] {
   if (mn && (p.width_mm < mn.width || p.height_mm < mn.height)) {
     add('warn', `размер ${Math.round(p.width_mm)}×${Math.round(p.height_mm)} мм меньше минимума зоны ${mn.width}×${mn.height} мм.`);
   }
+  const sizeIssue = methodSizeIssue(p.method, p.width_mm, p.height_mm);
+  if (sizeIssue) add('warn', `${sizeIssue.text}.`);
+  artChecks(p, input, profile.label, add);
   if (!input.methodAllowed(area, p.method)) add('warn', `техника «${profile.label}» не для этой зоны.`);
 
   const bbox = { x: p.x_mm, y: p.y_mm, w: p.width_mm, h: p.height_mm };
-  if (placementInfo(view, bbox, p.rotation_deg, undefined, area.id).check.out_of_zone) add('warn', 'выходит за печатную зону.');
+  const info = placementInfo(view, bbox, p.rotation_deg, undefined, area.id);
+  if (info.check.out_of_zone) add('warn', 'выходит за печатную зону.');
+  // Верхний край не проверяем: его задаёт отступ от шва горловины (стандарт Pinhead
+  // «75 мм от горловины» стоит ближе safe-отступа сида — иначе пункт горел бы на каждом логотипе)
+  else if (Math.min(info.dimensions.left, info.dimensions.right, info.dimensions.bottom) < info.safeInsetMm) {
+    add('warn', `до края зоны меньше ${Math.round(info.safeInsetMm)} мм — при печати рисунок может съехать за край.`);
+  }
   return out;
+}
+
+/**
+ * Макет клиента (Э3): непрозрачный фон у DTF (и у DTG на цветной ткани)
+ * напечатается прямоугольником; у шелкографии и флекса цветов в макете больше,
+ * чем в нанесении, — цена и печать идут по нанесению
+ */
+function artChecks(p: Placement, input: PreflightInput, label: string, add: (l: PreflightLevel, t: string) => void): void {
+  const st = input.artStats?.[p.print_key];
+  if (!st) return;
+  if (st.opaqueBackground && (p.method === 'dtf' || (p.method === 'dtg' && input.garmentLight === false))) {
+    add('warn', 'у макета непрозрачный фон — напечатается прямоугольником; нужен PNG с прозрачным фоном.');
+  }
+  const cols = input.printColors?.[p.print_key];
+  if ((p.method === 'silkscreen' || p.method === 'heat_transfer') && cols && st.colors > cols) {
+    const n = `${cols} ${pluralize(cols, 'цвет', 'цвета', 'цветов')}`;
+    add('warn', st.colors >= FULL_COLOR
+      ? `макет полноцветный (фото или градиент) — для «${label}» нужен макет в ${n} или другая техника.`
+      : `в макете около ${st.colors} ${pluralize(st.colors, 'цвета', 'цветов', 'цветов')}, в нанесении — ${n}: печать и цена — по нанесению.`);
+  }
 }
 
 /** Замечания перед экспортом: серьёзные впереди */
 export function preflight(input: PreflightInput): PreflightIssue[] {
-  if (input.placements.length === 0) return [{ level: 'serious', message: 'На изделии нет нанесений — PDF будет без макета.' }];
-  return input.placements
+  const head: PreflightIssue[] = input.modelMismatch ? [{ level: 'serious', message: MSG_MODEL_MISMATCH }] : [];
+  if (input.placements.length === 0) return [...head, { level: 'serious', message: MSG_NO_PRINTS }];
+  return [...head, ...input.placements
     .flatMap((p) => checkPlacement(p, input))
-    .sort((a, b) => ORDER[a.level] - ORDER[b.level]);
+    .sort((a, b) => ORDER[a.level] - ORDER[b.level])];
 }

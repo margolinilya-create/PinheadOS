@@ -147,6 +147,24 @@ pinhead-react/src/
                              # model/garmentTextile (подложка по цвету изделия), api/serverZoneNotes (сервер знает zone_id
                              # и notes), workplace/OrderNotesField («Комментарий для цехов»), TabMarker + tabState (маркеры
                              # вкладок), admin/SalesStaffJournal («Кто и когда менял»)
+                             # веха 5в (Э1): design/catalog/pickFlat — flatFitsModel/flatsForModel/flatMismatch (силуэт
+                             # только своей модели), model/printMethods — пределы размера `size` + methodSizeIssue,
+                             # pricing/printTech (строка техники в цене), model/printOffset.offsetNote (отступ в ERP и ТЗ)
+                             # веха 5в (Э2, флаг designStudio): design/ui/stage/StageParts (части сцены одним ленивым модулем:
+                             # «Стандарты Pinhead», вид холста, проверки под холстом, цвет ткани, итог позиции),
+                             # ui/panel/presetOps (пресеты с размером), copyOps (копия на вид, Ctrl+D, вставка слоя),
+                             # printList (лёгкие операции для чанка холста), catalog/sleeveZones (пары зон рукавов);
+                             # веха 5в (Э2б): edit/pattern/ (разбор DXF/SVG лекал), FlatView.pattern, admin/flats/PatternSection +
+                             # patternAlign (импорт), export/buildPatternSvg + ui/stage/PatternSheet (лист «Выкройка»)
+                             # веха 5в (Э3–Э7): assets/artStats, export/zipStore + printFiles + mockups, tz/kp + tz/pdf/kpPdf
+                             # (КП), tz/model/layoutTzPrints.placementSheet (лист размещения);
+                             # веха 5в (Э8): design/model/layoutTemplate + ui/panel/templateOps + MyLayouts («Мои раскладки»,
+                             # api/layoutTemplates — единственный писатель order_templates), model/orderPaths + repeatOrder,
+                             # api/artworkCopy (второй писатель order-artworks — только copy), workplace/repeatFlow,
+                             # tz/ui/RepeatPanel («Повторить заказ» на «ТЗ и цена»)
+                             # веха 5в (Э4б): bridge/launchPrintFiles (PNG 300 dpi нанесений вложением print при запуске,
+                             # необязательный шаг после files, import() из bridge/launch; рендер — printFiles.rasterizePrint)
+                             # веха 5в (Э9): виды флэта hood/pocket (FLAT_VIEW_KINDS, FLAT_PATH_RE; сервер — миграция O)
 ```
 
 ```
@@ -302,7 +320,7 @@ admin/director с `active and approved` (`catalog_writer()`). Чтение — �
 | `sku-photos` | Фото моделей (до 4 на SKU), public read |
 | `erp-attachments` | Превью макетов, вложения заказов и ТЗ в PDF (префикс `tz/`), public read; лимит файла 30 МБ (`31457280`, миграция S1 правок 19.10; одна величина с `ATTACH_MAX_BYTES`, `TZ_MAX_BYTES` и писателями Order — сторож `attachmentLimits.test.ts`). С вехи 6+7 — копии ТЗ (`tz/v4-<попытка>/<группа>/v1-tz.pdf`) и макетов (`att/v4-<попытка>/<вид>/<uid>.<ext>`) при запуске заказа v4: пишет только `orderstudio/api/erpFiles.ts` (тип по сигнатуре байт из `ERP_FILE_TYPES`, SVG только очищенный, `upsert: false`, 409 — отказ), ключи без id заказа и номера; после запуска их видят все одобренные и любой со ссылкой |
 | `order-artworks` | Файлы заказа v4 (веха 2, миграция C `20261017070826`, применена 17.10): **private**, 25 МБ, пути `orders/<uuid>/…` (ASCII); подписанные ссылки 600 с по требованию, SVG — только `<img>` и скачиванием; UPDATE запрещён restrictive-политикой `order_artworks_no_update`. Правила — `docs/rules/pravila-hranilishcha-faylov-zakaza-veha-2-17-10.md`. Веха 6+7: PDF ТЗ — `orders/<id>/tz/<uuid>-<PH-…>-g<hash8>-c<hash12>-<модель>.pdf` (`uploadTzPdf`, только `%PDF-`, ≤ 8 МБ), новая версия — новый ключ, старые — история (уборка — веха 8) |
-| `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема; L1 плана 5а «delete неупомянутых версий» отменён решением К5 вехи 5б). Пишет только `orderstudio/api/garmentFlats.ts` (`uploadFlatSvgOnce`: «уже есть» сверяется содержимым), читает холст через `api/garmentFlatsRead.ts`; наполняет кнопка «Загрузить типовые флэты», новые версии — редактор флэта (стартовая версия — и по занятым `v<N>` в бакете). Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
+| `garment-flats` | Флэты изделий (веха 5а, миграция H `20261017185435`): **private**, 1 МБ, только `image/svg+xml`, путь `flats/<flat_id>/v<N>/<вид>.svg` (виды `front`/`back`/`sleeve_left`/`sleeve_right`, с миграции O вехи 5в — применена 27.10 — и `hood`/`pocket`) (ASCII, версия 1…9999, `garment_flat_path_ok`); чтение — `catalog_reader()`, запись — admin/director (`catalog_writer()`), UPDATE запрещён restrictive `garment_flats_no_update`, DELETE-политики нет (версия неизменяема; L1 плана 5а «delete неупомянутых версий» отменён решением К5 вехи 5б). Пишет только `orderstudio/api/garmentFlats.ts` (`uploadFlatSvgOnce`: «уже есть» сверяется содержимым), читает холст через `api/garmentFlatsRead.ts`; наполняет кнопка «Загрузить типовые флэты», новые версии — редактор флэта (стартовая версия — и по занятым `v<N>` в бакете). Правила — `docs/rules/pravila-dizain-meikera-veha-5a-18-10.md` |
 | `storage-backup` | Ночная копия бакетов выше (с вехи 5а — четырёх, `garment-flats` в `SOURCES`) (workflow «Storage backup», серверный `copy`, только новое, ничего не удаляется). **Private**, политик нет — только `service_role` (сессия 68) |
 
 Уборка ничьих объектов `erp-attachments` — edge-функция `storage-gc` либо
@@ -588,13 +606,14 @@ Npm-зависимости плагина при этом не ставятся 
 | `docs/skills-pinhead.md` | Pinhead-часть скиллов, заменённых ECC |
 | `docs/2026-10-05-ecc-review.md` | Обзор everything-claude-code |
 | `docs/rules/INDEX.md` | **Указатель правил по темам** (75 файлов, перенос 15.09) |
+| `docs/superpowers/plans/2026-10-26-order-flow-m5c-design-studio.md` | **Веха 5в «Дизайн» 2.0:** карта D0, этапы Э1–Э9, визуал (гибрид), решения владельца (3D отложено) |
 | `docs/rules/react/INDEX.md` | **Карта подсистем React-приложения** (48 файлов, «где что лежит») |
 | `pinhead-react/CLAUDE.md` | Контекст для Claude (вложенный, детали React-приложения) |
 | `PROJECT.md` | История, статистика, roadmap |
 | `docs/changelog/INDEX.md` | **Changelog** — записи сессий по файлу на месяц (перенос 26.09) |
 | `docs/OPERATIONS.md` | Эксплуатация: инциденты, окружения, доступы |
 | `SESSION-STATE.md` | Память проекта: текущее состояние, решения, next steps (две последние сессии) |
-| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (99 файлов, перенос 24.09) |
+| `docs/sessions/INDEX.md` | **История сессий** — разделы «Состояние на …» по файлу на раздел (102 файла, перенос 24.09) |
 | `supabase/rollout/r1910a/README.md` | **Правки 19.10, план A:** предусловия, порядок S1 → E1 → C1, откаты, триггеры, запрос «наследия» вышивки |
 | `supabase/rollout/r1910b/README.md` | **Правки 19.10, план B («Бизнес-задачи»):** предусловие «A выкачена», T1 → T2 → фронт, смоук чата и `pg_cron`, откат T2, триггеры |
 | `supabase/rollout/m8/CHECKLIST.md` | **Веха 8:** порядок выкатки L → фронт → K → M, триггеры отката, чек-лист «Готовность» и «Включение» |

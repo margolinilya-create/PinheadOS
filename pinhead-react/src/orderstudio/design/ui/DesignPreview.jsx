@@ -1,37 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadFlatMarkup } from '../assets/flatImages';
 import { loadArtworkImage } from '../assets/artworkImages';
+import { toPngDataUrl } from './previewImages';
 import { buildPreviewSvg } from '../export/buildPreviewSvg';
 import { svgToDataUrl } from '../export/flatMarkup';
 import { placementOf } from '../model/layout';
 import { VIEW_NAMES } from './canvas/canvasText';
 import { viewsOf } from './useItemFlat';
 import styles from './DesignTab.module.css';
-
-/** Сторона растра логотипа в превью, px — для экрана телефона хватает */
-const PREVIEW_PX = 1024;
-
-/**
- * Картинка логотипа → `data:image/png` (превью строится только из `data:`,
- * H1). Холст из чистой картинки (object URL того же источника); не вышло —
- * `undefined`, логотип в превью не рисуется
- */
-function toPngDataUrl(img) {
-  if (!img?.naturalWidth || !img?.naturalHeight) return undefined;
-  try {
-    const k = Math.min(1, PREVIEW_PX / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(img.naturalWidth * k));
-    canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
-    const g = canvas.getContext('2d');
-    if (!g) return undefined;
-    g.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/png');
-  } catch (e) {
-    console.error('DesignPreview: логотип', e);
-    return undefined;
-  }
-}
 
 async function buildView(orderId, view, placements, colorHex) {
   const flat = await loadFlatMarkup(view);

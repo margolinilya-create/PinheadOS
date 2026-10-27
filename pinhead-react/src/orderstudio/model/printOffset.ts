@@ -32,3 +32,13 @@ export function offsetText(p: Pick<SalesPrint, 'offset_mm' | 'offset_from' | 'of
   if (p.offset_mm === null || p.offset_mm === undefined || !from) return '';
   return `${p.offset_mm} мм ${OFFSET_DIR_TEXT[p.offset_dir] ?? 'от'} ${from}`;
 }
+
+/**
+ * Отступ целиком — «70 мм от шва горловины; по центру кармана»: текст отступа
+ * с холста и ручная заметка. Одна строка для ТЗ (`tzDocument`) и моста в ERP
+ * (`offset_note` черновика): до вехи 5в мост слал только заметку, и отступ,
+ * заданный на холсте, до цеха не доходил.
+ */
+export function offsetNote(p: Pick<SalesPrint, 'offset_mm' | 'offset_from' | 'offset_dir' | 'offset_note'>): string {
+  return [offsetText(p), (p.offset_note ?? '').trim()].filter(Boolean).join('; ');
+}

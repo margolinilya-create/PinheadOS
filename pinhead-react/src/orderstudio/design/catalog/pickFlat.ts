@@ -48,19 +48,34 @@ function fitOf(item: ItemRef, sku: SkuRef): string {
 }
 
 /**
- * Подходит ли флэт модели: точный по коду либо та же категория. Посадку не
- * сверяем — её учитывает только автоподбор (`autoPickFlat`), иначе подбор и
- * проверка противоречили бы друг другу
+ * Подходит ли флэт модели: та же категория, либо точный по коду — но код
+ * засчитывается только внутри категории модели или у флэта без категорий
+ * (веха 5в, B1: код худи, привязанный к флэту футболки, ставил худи на футболку).
+ * Посадку не сверяем — её учитывает только автоподбор (`autoPickFlat`), иначе
+ * подбор и проверка противоречили бы друг другу. Одно правило для холста,
+ * чек-листа отправки и админки флэтов
  */
 export function flatFitsModel(flat: GarmentFlat, item: FitRef, sku: FitSkuRef): boolean {
-  if (item.sku_code && flat.sku_codes.includes(item.sku_code)) return true;
-  return !!sku?.category && flat.categories.includes(sku.category);
+  const category = sku?.category;
+  if (category && flat.categories.includes(category)) return true;
+  if (!item.sku_code || !flat.sku_codes.includes(item.sku_code)) return false;
+  return !category || flat.categories.length === 0;
+}
+
+/** Флэт есть, модель известна, и флэт ей не подходит (B1). Модель неизвестна — не судим */
+export function flatMismatch(flat: GarmentFlat | null | undefined, item: FitRef, sku: FitSkuRef): boolean {
+  return !!flat && !!sku?.category && !flatFitsModel(flat, item, sku);
+}
+
+/** Силуэты для выбора у позиции: активные и подходящие модели, по id; модель неизвестна — все активные */
+export function flatsForModel(catalog: GarmentFlatsCatalog, item: FitRef, sku: FitSkuRef): GarmentFlat[] {
+  return catalog.flats.filter((f) => f.active && (!sku?.category || flatFitsModel(f, item, sku))).sort(byId);
 }
 
 /** Автоподбор без учёта `item.flat_id`: точный → типовой по крою → типовой по категории */
 export function autoPickFlat(item: ItemRef, sku: SkuRef, catalog: GarmentFlatsCatalog): { flat: GarmentFlat; source: FlatPickSource } | null {
   const active = catalog.flats.filter((f) => f.active).sort(byId);
-  const exact = item.sku_code ? active.find((f) => f.sku_codes.includes(item.sku_code)) : undefined;
+  const exact = item.sku_code ? active.find((f) => f.sku_codes.includes(item.sku_code) && flatFitsModel(f, item, sku)) : undefined;
   if (exact) return { flat: exact, source: 'exact' };
   const category = sku?.category;
   if (!category) return null;

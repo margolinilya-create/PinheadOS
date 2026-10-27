@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../../store/useStore';
+import { isFeatureEnabled } from '../../../config/features';
 import { confirm } from '../../../store/useConfirmStore';
 import { getEffectiveRules } from '../../../utils/skuRules';
 import { pluralize } from '../../../utils/i18n';
@@ -11,8 +12,8 @@ import { textileOfItem } from '../../model/garmentTextile';
 import { placementOf, remapToFlat } from '../model/layout';
 import { useDesignStore } from '../store/useDesignStore';
 import { applyCanvasChange } from './canvas/canvasChange';
-import { patchPrint } from './panel/panelOps';
-import { useArtworkActions } from './useArtworkActions';
+import { patchPrint } from './panel/printList';
+import { MSG_ADD_BLOCKED_MISMATCH, useArtworkActions } from './useArtworkActions';
 import { transferToCurrent, useItemFlat } from './useItemFlat';
 
 /**
@@ -52,7 +53,11 @@ export function useDesignTab({ order, item, readOnly }) {
     undoLabel: s.past.length ? s.past[s.past.length - 1].label : null,
     redoLabel: s.future.length ? s.future[0].label : null,
     top: s.past.length ? s.past[s.past.length - 1] : null,
+    display: s.display,
+    fabricColor: s.fabricColor,
   })));
+  /** «Дизайн» 2.0 (веха 5в, Э2): флаг читается один раз за монтаж вкладки */
+  const [studio] = useState(() => isFeatureEnabled('designStudio'));
   /** Шаг истории «Снять с изделия»: «Вернуть» — только пока он верхний (следующей правки не было) */
   const [unplacedAt, setUnplacedAt] = useState(null);
 
@@ -81,13 +86,19 @@ export function useDesignTab({ order, item, readOnly }) {
   const { flat, views } = itemFlat;
   const rules = useMemo(() => (sku ? getEffectiveRules(sku, cat.categoryRules ?? []) : null), [sku, cat.categoryRules]);
   const category = sku?.category ?? '';
-  const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category } : null), [flat, zonesCatalog, category]);
-  const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? []), [item, cat.suppliers]);
+  const ctx = useMemo(() => (flat ? { flat, zonesCatalog, category, areaAllowed: itemFlat.areaAllowed } : null), [flat, zonesCatalog, category, itemFlat.areaAllowed]);
+  // «Показать на цвете» (веха 5в, Э2) — только показ; без флага — первая строка сетки
+  const shownColor = studio ? ds.fabricColor : null;
+  const colorHex = useMemo(() => garmentHexOf(item, cat.suppliers ?? [], null, shownColor), [item, cat.suppliers, shownColor]);
   // Подложка нового логотипа — по цвету изделия: на чёрном не «белое» (обход, H-2)
   const textile = useMemo(
     () => textileOfItem(item, { suppliers: cat.suppliers ?? [], fabricsCatalog: cat.fabricsCatalog ?? [] }),
     [item, cat.suppliers, cat.fabricsCatalog],
   );
+
+  // «Выкройка» — только у силуэта с лекалами (веха 5в, Э2б); без флага — всегда разметка
+  const hasPattern = !!flat?.views.some((v) => v.pattern);
+  const display = !studio || (ds.display === 'pattern' && !hasPattern) ? 'markup' : ds.display;
 
   // Вида нет на этом силуэте — первый, что есть (порядок: перед → спина → левый → правый рукав)
   const view = views.includes(ds.view) ? ds.view : (views[0] ?? 'front');
@@ -95,10 +106,12 @@ export function useDesignTab({ order, item, readOnly }) {
     if (view !== ds.view) useDesignStore.getState().setView(view);
   }, [view, ds.view]);
 
-  const target = useMemo(() => (ctx && !readOnly ? {
+  // Силуэт не от модели (B1): новый логотип встал бы на чужой силуэт — сначала перенос
+  const addBlocked = !readOnly && pick.modelChanged;
+  const target = useMemo(() => (ctx && !readOnly && !addBlocked ? {
     orderId: order.id, itemKey: item.key, flat, view, zonesCatalog, category, rules, areaAllowed: itemFlat.areaAllowed, textile,
-  } : null), [ctx, readOnly, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed, textile]);
-  const art = useArtworkActions(target);
+  } : null), [ctx, readOnly, addBlocked, order.id, item.key, flat, view, zonesCatalog, category, rules, itemFlat.areaAllowed, textile]);
+  const art = useArtworkActions(target, addBlocked ? MSG_ADD_BLOCKED_MISMATCH : '');
 
   /** Правка нанесений через историю; `fn(prints) → prints | null` */
   const commitPrints = useCallback(
@@ -120,6 +133,19 @@ export function useDesignTab({ order, item, readOnly }) {
     const ok = commitPrints(change.label, (prints) => applyCanvasChange(prints, change, ctx), change.coalesceKey);
     if (ok && change.kind === 'unplace') setUnplacedAt(useDesignStore.getState().past.at(-1) ?? null);
   }, [ctx, commitPrints]);
+
+  /** Ctrl+C слоя: строка — в буфер стора, метка «заказ:строка» — в буфер обмена */
+  const copyLayer = useCallback((key) => {
+    const p = item.prints.find((x) => x.key === key);
+    if (!p) return null;
+    useDesignStore.getState().setClipboard(p);
+    return `${order.id}:${key}`;
+  }, [item.prints, order.id]);
+
+  /** Ctrl+D и Ctrl+V слоя — логика в ленивом `copyOps` (вне чанка холста) */
+  const layerOp = useCallback((op, arg) => {
+    if (ctx) import('./panel/copyOps').then((m) => m.layerOp(op, arg, { orderId: order.id, ctx, blocked: addBlocked, flats: flats.catalog.flats, commitPrints }));
+  }, [ctx, order.id, addBlocked, flats.catalog, commitPrints]);
 
   const [switchNote, setSwitchNote] = useState('');
   /** Сменить силуэт: нанесения на холсте переносятся по зонам; ненайденные — строками */
@@ -166,9 +192,10 @@ export function useDesignTab({ order, item, readOnly }) {
   }, [current, readOnly, zonesCatalog, category]);
 
   return {
+    orderId: order.id, studio, display, hasPattern, fabricColor: shownColor, suppliers: cat.suppliers,
     flats, sku, pick, flat, ctx, itemFlat, transferVersion, rules, category, colorHex, views, view,
     selectedKey: ds.selectedKey, undoLabel: ds.undoLabel, redoLabel: ds.redoLabel,
-    art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote,
+    art, commitPrints, releaseLayout, onCanvasCommit, switchFlat, switchNote, addBlocked, layerOp, copyLayer,
     unplaced: unplacedAt !== null && unplacedAt === ds.top,
     clearUnplaced: () => setUnplacedAt(null),
   };

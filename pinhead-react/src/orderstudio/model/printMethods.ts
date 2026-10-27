@@ -53,6 +53,12 @@ export interface PrintMethodProfile {
   dpi?: { good: number; min: number };
   /** Контроль по минимальной детали, мм (вышивка вместо DPI) */
   detail?: { minLineMm: number; minTextMm: number };
+  /**
+   * Пределы размера нанесения, мм (веха 5в, B3; черновые цифры — подтверждает
+   * технолог): меньшая сторона — не меньше `minMm`, рамка — не больше
+   * `maxW × maxH` с поворотом на 90°.
+   */
+  size?: { minMm: number; maxW: number; maxH: number };
 }
 
 const DPI_RASTER = { good: 300, min: 150 } as const;
@@ -60,11 +66,14 @@ const DPI_RASTER = { good: 300, min: 150 } as const;
 type ProfileBody = Omit<PrintMethodProfile, 'id' | 'label'>;
 
 const BODIES: Record<SalesPrintMethod, ProfileBody> = {
-  silkscreen: { short: 'Шёлк', colorMode: 'spot', pantone: true, dpi: { ...DPI_RASTER } },
-  embroidery: { short: 'Вышивка', colorMode: 'spot', pantone: true, detail: { minLineMm: 1, minTextMm: 4 } },
-  dtf: { short: 'DTF', colorMode: 'cmyk', pantone: false, dpi: { ...DPI_RASTER } },
-  heat_transfer: { short: 'Флекс', colorMode: 'spot', pantone: true, dpi: { ...DPI_RASTER } },
-  dtg: { short: 'DTG', colorMode: 'cmyk', pantone: false, dpi: { ...DPI_RASTER } },
+  silkscreen: { short: 'Шёлк', colorMode: 'spot', pantone: true, dpi: { ...DPI_RASTER }, size: { minMm: 30, maxW: 400, maxH: 500 } },
+  embroidery: {
+    short: 'Вышивка', colorMode: 'spot', pantone: true, detail: { minLineMm: 1, minTextMm: 4 },
+    size: { minMm: 15, maxW: 300, maxH: 300 },
+  },
+  dtf: { short: 'DTF', colorMode: 'cmyk', pantone: false, dpi: { ...DPI_RASTER }, size: { minMm: 20, maxW: 450, maxH: 600 } },
+  heat_transfer: { short: 'Флекс', colorMode: 'spot', pantone: true, dpi: { ...DPI_RASTER }, size: { minMm: 20, maxW: 400, maxH: 500 } },
+  dtg: { short: 'DTG', colorMode: 'cmyk', pantone: false, dpi: { ...DPI_RASTER }, size: { minMm: 20, maxW: 400, maxH: 450 } },
   sublimation: { short: 'Сублим.', colorMode: 'cmyk', pantone: false },
   patch: { short: 'Шеврон', colorMode: 'spot', pantone: true },
   other: { short: 'Прочее', colorMode: 'cmyk', pantone: false },
@@ -77,6 +86,61 @@ export const PRINT_METHOD_PROFILES: Record<SalesPrintMethod, PrintMethodProfile>
 /** Профиль техники; неизвестная или пустая — шелкография */
 export function printMethodProfile(m: SalesPrintMethod | undefined | null): PrintMethodProfile {
   return (m && PRINT_METHOD_PROFILES[m]) || PRINT_METHOD_PROFILES[DEFAULT_PRINT_METHOD];
+}
+
+// ── Сроки ─────────────────────────────────────────────────────────────────
+
+/**
+ * Срок нанесения по технике, рабочих дней (веха 5в, Э6: «+N дней» в КП;
+ * черновик — подтверждает производство). `null` — по договорённости (подряд).
+ */
+export const METHOD_LEAD_DAYS: Record<SalesPrintMethod, number | null> = {
+  silkscreen: 7,
+  embroidery: 7,
+  dtf: 3,
+  heat_transfer: 3,
+  dtg: 3,
+  sublimation: 5,
+  patch: 10,
+  other: null,
+};
+
+/** Срок нанесений позиции или заказа: наибольший из техник; техник со сроком нет — `null` */
+export function leadDaysOf(methods: readonly SalesPrintMethod[]): number | null {
+  const days = methods.map((m) => METHOD_LEAD_DAYS[m]).filter((d): d is number => d !== null);
+  return days.length ? Math.max(...days) : null;
+}
+
+// ── Пределы размера ───────────────────────────────────────────────────────
+
+export interface MethodSizeIssue {
+  /** `min` — мельче, чем техника пропечатает (блокирует отправку); `max` — больше рамки (подсказка) */
+  kind: 'min' | 'max';
+  text: string;
+}
+
+/**
+ * Выходит ли Ш×В за пределы техники. Без пределов у техники или без обоих
+ * размеров — `null`. Минимум — по меньшей стороне, максимум — с поворотом.
+ */
+export function methodSizeIssue(
+  method: SalesPrintMethod | undefined | null,
+  w: number | null | undefined,
+  h: number | null | undefined,
+): MethodSizeIssue | null {
+  const size = method ? PRINT_METHOD_PROFILES[method]?.size : undefined;
+  if (!size || !w || !h || w <= 0 || h <= 0) return null;
+  const label = METHOD_LABELS[method as SalesPrintMethod];
+  const mm = (v: number) => Math.round(v * 10) / 10;
+  const now = `сейчас ${mm(w)} × ${mm(h)} мм`;
+  if (Math.min(w, h) < size.minMm) {
+    return { kind: 'min', text: `техника «${label}»: меньшая сторона — от ${size.minMm} мм, ${now}` };
+  }
+  const fits = (w <= size.maxW && h <= size.maxH) || (h <= size.maxW && w <= size.maxH);
+  if (!fits) {
+    return { kind: 'max', text: `техника «${label}»: не больше ${size.maxW} × ${size.maxH} мм, ${now}` };
+  }
+  return null;
 }
 
 // ── Визард ↔ Order ────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ function qualityText(pl, profile) {
  * отражение, качество макета. Правка — `onGeometry(geometry, label, key?)`
  * и `onMethod(method)`; запись и история — у вкладки.
  */
-export default function GeometryInspector({ entry, ctx, rules, readOnly, autoFocus, onFocused, onGeometry, onMethod }) {
+export default function GeometryInspector({ entry, ctx, rules, readOnly, autoFocus, onFocused, onGeometry, onMethod, studio = false }) {
   const methodId = useId();
   const widthRef = useRef(null);
   const [locked, setLocked] = useState(true);
@@ -66,7 +66,8 @@ export default function GeometryInspector({ entry, ctx, rules, readOnly, autoFoc
         <p className={`${styles.notice} ${styles.warn}`}>Техника «{profile.label}» не для зоны «{area.name}» — проверьте с производством.</p>
       )}
 
-      {off && (
+      {/* С «Дизайном» 2.0 пресеты — чипами над холстом (одна точка входа) */}
+      {off && !studio && (
         <div className={styles.row} role="group" aria-label="Положение одной кнопкой">
           {presetsFor(view, area).map((p) => (
             <button key={p.key} type="button" className={styles.btn} onClick={() => geo(withPreset(view, area, pl, p.key), p.label)}>

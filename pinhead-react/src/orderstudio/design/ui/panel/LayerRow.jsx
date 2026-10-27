@@ -1,5 +1,7 @@
+import { useId } from 'react';
 import { DesignIcon } from '../DesignIcon';
 import { printMethodProfile } from '../../../model/printMethods';
+import { PRINT_STATUS_TEXT } from './printStatus';
 import styles from '../DesignTab.module.css';
 
 /**
@@ -9,9 +11,11 @@ import styles from '../DesignTab.module.css';
  * Удаления строки здесь нет — только на вкладке «Изделие» (проверка скиллами).
  */
 export default function LayerRow({
-  entry, selected, readOnly, first, last, mainRef, onSelect, onUp, onDown, onDuplicate, onUnplace,
+  entry, selected, readOnly, first, last, mainRef, onSelect, onUp, onDown, onDuplicate, onUnplace, status = null,
 }) {
+  const statusId = useId();
   const { print, index } = entry;
+  const st = status ? PRINT_STATUS_TEXT[status] : null;
   const n = index + 1;
   const size = print.width_mm && print.height_mm ? `${print.width_mm} × ${print.height_mm} мм` : 'без размера';
   return (
@@ -21,11 +25,18 @@ export default function LayerRow({
         type="button"
         className={styles.layerMain}
         aria-pressed={selected}
+        aria-describedby={st ? statusId : undefined}
         onClick={() => onSelect(selected ? null : print.key)}
       >
         Нанесение {n} · {print.zone || 'без зоны'} · {size} · {printMethodProfile(print.method).short}
         {entry.pl.stale ? ' · силуэт обновлён' : ''}
       </button>
+      {/* Статус проверки (веха 5в, Э2): текстом, знак — только глазам */}
+      {st && (
+        <span id={statusId} className={`${styles.layerStatus} ${styles[`status_${status}`]}`}>
+          <span aria-hidden="true">{st.sign} </span>{st.text}
+        </span>
+      )}
       {!readOnly && (
         <>
           <button type="button" className={styles.iconBtn} onClick={onUp} disabled={last} aria-label={`Выше: нанесение ${n}`}>

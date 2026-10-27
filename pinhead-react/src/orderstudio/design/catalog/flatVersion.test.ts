@@ -13,7 +13,7 @@ function fullFlat(): GarmentFlat {
   const full = area({ tz_row: 'front', methods: ['dtf', 'dtg'], default_method: 'dtg', max_print_mm: { width: 280, height: 380 }, min_print_mm: { width: 20, height: 20 } });
   const anchors = { neckline_point: { x: 300, y: 92 }, center_axis_x: 300, sleeve_bottom_y: 600, sleeve_center_x: 100, axes: [{ id: 'dart', name: 'Вытачка', x: 200 }] };
   const v1 = frontView({ svg_path: 'flats/tshirt-test/v1/front.svg', anchors, print_areas: [full] });
-  const v2: FlatView = { ...frontView({ svg_path: 'flats/tshirt-test/v2/front.svg', anchors, print_areas: [full] }), size_anchors: { M: anchors }, grade_rule: { center_axis_dx: 1 } };
+  const v2: FlatView = { ...frontView({ svg_path: 'flats/tshirt-test/v2/front.svg', anchors, print_areas: [full] }), size_anchors: { M: anchors }, grade_rule: { center_axis_dx: 1 }, pattern: { contour_mm: [[200, 60], [400, 60], [420, 700], [180, 700]], count: 1 } };
   return { ...flat({ id: 'tshirt-test', version: 2, views: [v2] }), sku_codes: ['T-006'], history: [{ version: 1, views: [v1] }] };
 }
 
@@ -137,6 +137,33 @@ describe('версии и выпуск', () => {
     const noArchive = { ...clone(base), version: 3 };
     expect(historyPreserved(base, noArchive)).toBe(false);
     expect(historyPreserved(null, base)).toBe(true);
+  });
+});
+
+describe('лекало детали (веха 5в, Э2б)', () => {
+  const withPattern = (contour: [number, number][], count = 1): GarmentFlat => {
+    const f = flat();
+    return { ...f, views: f.views.map((v, i) => (i === 0 ? { ...v, pattern: { contour_mm: contour, count } } : v)) };
+  };
+  const SQUARE: [number, number][] = [[100, 50], [500, 50], [500, 700], [100, 700]];
+
+  it('лекало переживает разбор справочника; правка контура — новая версия, прежнее лекало — в истории', () => {
+    const base = withPattern(SQUARE);
+    expect(parseFlatsCatalog({ version: 1, flats: [base] }).catalog.flats[0].views[0].pattern?.contour_mm).toEqual(SQUARE);
+    const next = withPattern([...SQUARE.slice(0, 3), [90, 700]]);
+    expect(geometryChanged(base, next, [])).toBe(true);
+    const released = releaseFlat(base, next, 2);
+    expect(flatAtVersion(released, 1)!.views[0].pattern?.contour_mm).toEqual(SQUARE);
+    expect(historyPreserved(base, released)).toBe(true);
+  });
+
+  it('границы: 3…400 точек, кол-во в крое 1…8', () => {
+    const bad = (f: GarmentFlat) => parseFlatsCatalog({ version: 1, flats: [f] }).issues.length > 0;
+    expect(bad(withPattern(SQUARE.slice(0, 2)))).toBe(true);
+    expect(bad(withPattern(Array.from({ length: 401 }, (_, i) => [i, i % 7] as [number, number])))).toBe(true);
+    expect(bad(withPattern(SQUARE, 0))).toBe(true);
+    expect(bad(withPattern(SQUARE, 9))).toBe(true);
+    expect(bad(withPattern(SQUARE, 2))).toBe(false);
   });
 });
 

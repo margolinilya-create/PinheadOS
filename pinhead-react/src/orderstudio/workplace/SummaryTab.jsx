@@ -85,6 +85,7 @@ export default function SummaryTab({
           <Suspense fallback={<p className={sales.muted} role="status">Загружаем оплату и ТЗ…</p>}>
             <TzSummary
               order={order}
+              price={price}
               user={user}
               catalogs={catalogs}
               catalogsFailed={catalogsFailed}

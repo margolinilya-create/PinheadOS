@@ -1,6 +1,11 @@
+import type { ArtStats } from '../assets/artStats';
 import { describe, it, expect } from 'vitest';
 import { preflight, type PreflightInput } from './preflight';
 import { area, flat, frontView } from '../fixtures.testutil';
+import seed from '../seed/garmentFlats.seed.json';
+import { ZONES_CATALOG_DEFAULT } from '../../../data/constants';
+import type { ZoneDefinition } from '../../../types/catalog';
+import { newPlacedPrint, placementOf } from '../model/layout';
 import type { AssetMeta, GarmentFlat, Placement, PrintArea, ProfileOf } from '../types';
 import type { SalesPrintMethod } from '../../model/types';
 
@@ -62,6 +67,23 @@ describe('preflight', () => {
     expect(has(run({ placements: [pl({ x_mm: 160, width_mm: 400 })] }), 'выходит за печатную зону')).toBe(true);
   });
 
+  it('пределы техники: меньше минимума и больше максимума — предупреждение с текстом правила', () => {
+    const tiny = run({ placements: [pl({ width_mm: 10, height_mm: 8 })] });
+    expect(has(tiny, '«Грудь»: техника «DTF»: меньшая сторона — от 20 мм, сейчас 10 × 8 мм.')).toBe(true);
+    expect(tiny.find((i) => i.message.includes('меньшая сторона'))?.level).toBe('warn');
+  });
+
+  it('у края зоны (ближе безопасного отступа) — предупреждение; за зоной — только «выходит»', () => {
+    const near = run({ placements: [pl({ x_mm: 155 })] });
+    expect(near).toEqual([{ level: 'warn', printKey: 'p1', message: '«Грудь»: до края зоны меньше 15 мм — при печати рисунок может съехать за край.' }]);
+    // Верх — по отступу от горловины, не по safe: стандартная позиция у верха зоны пункта не даёт
+    expect(run({ placements: [pl({ y_mm: 145 })] })).toEqual([]);
+    const out = run({ placements: [pl({ x_mm: 160, width_mm: 400 })] });
+    expect(has(out, 'выходит за печатную зону')).toBe(true);
+    expect(has(out, 'до края зоны')).toBe(false);
+    expect(run({ placements: [pl({ x_mm: 165 })] })).toEqual([]);
+  });
+
   it('максимум зоны — с поворотом, минимум — по сырым Ш×В', () => {
     const maxed = withArea({ max_print_mm: { width: 200, height: 200 } });
     expect(has(run({ flat: maxed, placements: [pl({ width_mm: 180, height_mm: 180, rotation_deg: 45 })] }), 'больше максимума')).toBe(true);
@@ -91,3 +113,46 @@ describe('preflight', () => {
     expect(r.every((i) => ['serious', 'warn', 'info'].includes(i.level))).toBe(true);
   });
 });
+
+describe('preflight — на флэтах сида', () => {
+  it('новый логотип в стандартной позиции на переде и спине любого флэта сида — без пункта «до края зоны»', () => {
+    const zones = ZONES_CATALOG_DEFAULT as unknown as ZoneDefinition[];
+    const asset: AssetMeta = { ...goodPng, intrinsic_w_mm: 90, intrinsic_h_mm: 90 };
+    const flats = (seed as unknown as { flats: GarmentFlat[] }).flats;
+    let checked = 0;
+    for (const f of flats) {
+      for (const v of f.views) {
+        const a = v.print_areas.find((x) => x.zone_id);
+        if (!a) continue;
+        const p = newPlacedPrint(asset, 'orders/x/logo/a.png', a.id, { flat: f, zonesCatalog: zones, category: f.categories[0] ?? '', view: v.kind, itemKind: 'sku', method: 'dtf' });
+        const placement = p && placementOf(p, f);
+        if (!placement) continue;
+        checked++;
+        const issues = preflight({ flat: f, placements: [placement], profileOf, methodAllowed: anyMethod });
+        expect(issues.filter((i) => i.message.includes('до края зоны')), `${f.id}/${v.kind}`).toEqual([]);
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
+  });
+});
+
+describe('preflight — макет клиента (веха 5в, Э3)', () => {
+  const stats = (o: Partial<ArtStats>): ArtStats => ({ transparent: false, opaqueBackground: false, colors: 2, ...o });
+  it('DTF с непрозрачным фоном — предупреждение; с прозрачным — нет', () => {
+    const bad = run({ placements: [pl()], artStats: { p1: stats({ opaqueBackground: true }) } });
+    expect(has(bad, '«Грудь»: у макета непрозрачный фон — напечатается прямоугольником; нужен PNG с прозрачным фоном.')).toBe(true);
+    expect(has(run({ placements: [pl()], artStats: { p1: stats({ transparent: true }) } }), 'непрозрачный фон')).toBe(false);
+  });
+  it('DTG: фон — только на цветной ткани', () => {
+    const dtg = pl({ method: 'dtg' });
+    expect(has(run({ placements: [dtg], artStats: { p1: stats({ opaqueBackground: true }) }, garmentLight: true }), 'непрозрачный фон')).toBe(false);
+    expect(has(run({ placements: [dtg], artStats: { p1: stats({ opaqueBackground: true }) }, garmentLight: false }), 'непрозрачный фон')).toBe(true);
+  });
+  it('шелкография: цветов в макете больше, чем в нанесении; полноцвет — отдельный текст; без статистики — молчим', () => {
+    const silk = pl({ method: 'silkscreen' });
+    expect(has(run({ placements: [silk], artStats: { p1: stats({ colors: 4 }) }, printColors: { p1: 2 } }), 'в макете около 4 цветов, в нанесении — 2 цвета: печать и цена — по нанесению.')).toBe(true);
+    expect(has(run({ placements: [silk], artStats: { p1: stats({ colors: 16 }) }, printColors: { p1: 1 } }), 'макет полноцветный (фото или градиент) — для «Шелкография» нужен макет в 1 цвет или другая техника.')).toBe(true);
+    expect(has(run({ placements: [silk], printColors: { p1: 1 } }), 'в макете')).toBe(false);
+  });
+});
+

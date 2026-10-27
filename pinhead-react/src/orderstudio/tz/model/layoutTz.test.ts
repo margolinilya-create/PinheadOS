@@ -113,3 +113,48 @@ describe('layoutTz — страницы', () => {
     expect(pagesTitled(l, 'Продолжение: Вид изделия')).toHaveLength(1);
   });
 });
+
+describe('layoutTz — лист размещения (Э7)', () => {
+  const SHEET = 'Лист размещения';
+  /** Первая колонка таблицы листа: шапка «№» и номера нанесений по порядку */
+  const firstCol = (l: ReturnType<typeof layoutTz>) => {
+    const pages = new Set(pagesTitled(l, SHEET));
+    return l.boxes
+      .filter((b) => pages.has(b.page) && b.kind === 'cell' && b.x === MARGIN)
+      .map((b) => (b.lines ?? []).join(''));
+  };
+
+  it('67108 (6 нанесений): лист до страниц нанесений, строка таблицы на нанесение', () => {
+    const doc = docOf('67108');
+    const l = layoutTz(doc, mono);
+    const sheet = pagesTitled(l, SHEET);
+    expect(sheet.length).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...sheet)).toBeLessThan(Math.min(...pagesTitled(l, 'Нанесение № ')));
+    expect(firstCol(l)).toEqual(['№', ...doc.prints.map((p) => String(p.n))]);
+  });
+
+  it('сцены листа — по одной на вид, все номера вида, без подсветки', () => {
+    const doc = docOf('67108');
+    const scenes = layoutTz(doc, mono).boxes.filter((b) => b.kind === 'scene' && b.scene && !b.scene.highlight);
+    const views = new Set(doc.prints.filter((p) => p.mockup).map((p) => `${p.mockup!.flatId}|${p.mockup!.view}`));
+    expect(scenes).toHaveLength(views.size);
+    const keys = scenes.flatMap((b) => b.scene!.printKeys);
+    for (const p of doc.prints.filter((x) => x.mockup)) {
+      for (const k of p.mockup!.printKeys) expect(keys).toContain(k);
+    }
+  });
+
+  it('одно нанесение — листа нет', () => {
+    expect(pagesTitled(layoutTz(docOf('68180-polo'), mono), SHEET)).toEqual([]);
+  });
+
+  it('40 нанесений — таблица уходит на продолжение с повтором шапки', () => {
+    const doc = docOf('67108');
+    const many = { ...doc, prints: Array.from({ length: 40 }, (_, i) => ({ ...doc.prints[i % doc.prints.length], n: i + 1 })) };
+    const l = layoutTz(many, mono);
+    expect(pagesTitled(l, `${SHEET} — продолжение`).length).toBeGreaterThanOrEqual(1);
+    const col = firstCol(l);
+    expect(col.filter((t) => t !== '№')).toEqual(many.prints.map((p) => String(p.n)));
+    expect(col.filter((t) => t === '№').length).toBeGreaterThanOrEqual(2);
+  });
+});

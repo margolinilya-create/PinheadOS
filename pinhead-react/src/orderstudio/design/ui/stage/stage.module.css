@@ -1,0 +1,160 @@
+/* Части сцены вкладки «Дизайн» 2.0 (веха 5в, Э2): полосы над холстом и под ним.
+   Только токены из :root; тач-цели — по токену высоты контрола. */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-md);
+  min-height: var(--control-h-md);
+}
+
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.groupTitle {
+  align-self: center;
+  margin: 0;
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-mid);
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.chipBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-h-md);
+  padding: 0 var(--space-md);
+  font: inherit;
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.chipBtn:hover { background: var(--bg1); }
+
+.chipBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.chipBtn[aria-disabled='true'] { cursor: default; opacity: 0.5; }
+
+.chipBtn[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.grow { flex: 1; }
+
+.swatch {
+  display: inline-block;
+  width: var(--space-md);
+  height: var(--space-md);
+  margin-right: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-pill);
+}
+
+.hint {
+  font-size: var(--type-label);
+  color: var(--text-mid);
+}
+
+.below {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.checksTitle {
+  margin: 0;
+  font-size: var(--type-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+}
+
+.serious { color: var(--color-error-ink); font-weight: 600; }
+
+.warn { color: var(--color-warning-ink); }
+
+/* Строка итога позиции — под проверками в колонке холста; не липкая: липкая
+   перекрывала поля панели при прокрутке (обход 26.10, 1440 и 1100 px) */
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--type-body-sm);
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+/* Лист «Выкройка» (веха 5в, Э2б): натуральная величина, прокрутка по ширине */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.sheetScroll {
+  overflow: auto;
+  max-height: min(72vh, 760px);
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.sheetImg {
+  display: block;
+  max-width: none;
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+}

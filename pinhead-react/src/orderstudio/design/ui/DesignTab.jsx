@@ -7,6 +7,7 @@ import FlatPicker from './panel/FlatPicker';
 import UnplacedList from './panel/UnplacedList';
 import ViewTabs from './panel/ViewTabs';
 import { hasPlacedLayout } from '../model/layoutMark';
+import { flatsForModel } from '../catalog/pickFlat';
 import { useDesignTab } from './useDesignTab';
 import { useDesignStore } from '../store/useDesignStore';
 import styles from './DesignTab.module.css';
@@ -26,6 +27,18 @@ const DesignPreview = lazy(() => import('./DesignPreview'));
  */
 const DesignSide = lazy(() => import('./panel/DesignSide'));
 const SIDE_FALLBACK = <aside className={styles.side} aria-label="Панель дизайна" aria-busy="true" />;
+/*
+ * Части сцены «Дизайн» 2.0 (веха 5в, Э2, флаг `designStudio`) — один ленивый
+ * модуль: обе полосы — от одного `import()`, чанк и запрос — один. Из `stage/`
+ * сюда не импортируется ничего статически (потолок холста).
+ */
+const loadStage = () => import('./stage/StageParts');
+const StageTop = lazy(() => loadStage().then((m) => ({ default: m.StageTop })));
+const StageBelow = lazy(() => loadStage().then((m) => ({ default: m.StageBelow })));
+const ItemTotalBar = lazy(() => loadStage().then((m) => ({ default: m.ItemTotalBar })));
+/* Лист «Выкройка» (веха 5в, Э2б) — свой ленивый чанк: только с лекалами и по кнопке */
+const PatternSheet = lazy(() => import('./stage/PatternSheet'));
+const STAGE_TOP_FALLBACK = <div className={styles.stageBarFallback} aria-hidden="true" />;
 
 /**
  * Вкладка «Дизайн» рабочего места `/sales/:id?tab=design&item=<key>` (веха 5а,
@@ -48,7 +61,9 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
   const d = useDesignTab({ order, item, readOnly: readOnly || compact });
   const { flats, flat } = d;
   const ro = readOnly || compact;
+  // «Справочник пуст» — по всем активным; в выборе — только силуэты этой модели (B1, веха 5в)
   const choices = useMemo(() => flats.catalog.flats.filter((f) => f.active), [flats.catalog]);
+  const forModel = useMemo(() => flatsForModel(flats.catalog, item, d.sku), [flats.catalog, item, d.sku]);
   const { select, undo, redo } = useDesignStore.getState();
 
   let notice = null;
@@ -87,7 +102,7 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
   return (
     <section className={styles.tab} data-design-canvas="" aria-label="Дизайн изделия">
       <div className={styles.head}>
-        <FlatPicker flats={choices} current={flat} readOnly={ro} onPick={d.switchFlat} />
+        <FlatPicker flats={forModel} current={flat} readOnly={ro} onPick={d.switchFlat} />
         {flat && !compact && <ViewTabs flat={flat} views={d.views} prints={item.prints} view={d.view} onView={(v) => useDesignStore.getState().setView(v)} />}
         <span className={styles.headGrow} />
         {flat && !ro && (
@@ -123,23 +138,52 @@ export default function DesignTab({ order, item, price, readOnly, compact = fals
           <DesignPreview orderId={order.id} item={item} flat={flat} colorHex={d.colorHex} />
         </Suspense>
       )}
+      {flat && !compact && d.studio && (
+        <Suspense fallback={STAGE_TOP_FALLBACK}>
+          <StageTop d={d} item={item} readOnly={ro} />
+        </Suspense>
+      )}
       {flat && !compact && (
         <div className={styles.body}>
-          <div className={styles.stage}>
-            <EditorCanvas
-              flat={flat}
-              view={d.view}
-              prints={item.prints}
-              selectedKey={d.selectedKey}
-              readOnly={ro}
-              onSelect={select}
-              onCommit={d.onCanvasCommit}
-              onDropFile={ro ? undefined : d.art.addFile}
-              orderId={order.id}
-              colorHex={d.colorHex}
-              onUndo={undo}
-              onRedo={redo}
-            />
+          <div className={styles.stageCol}>
+            {d.display === 'pattern' ? (
+              <Suspense fallback={<p className={styles.muted} role="status">Открываю выкройку…</p>}>
+                <PatternSheet
+                  orderId={order.id}
+                  item={item}
+                  flat={flat}
+                  colorHex={d.colorHex}
+                  onEdit={(kind) => { const s = useDesignStore.getState(); s.setDisplay('markup'); s.setView(kind); }}
+                />
+              </Suspense>
+            ) : (
+              <div className={styles.stage}>
+                <EditorCanvas
+                  flat={flat}
+                  view={d.view}
+                  prints={item.prints}
+                  selectedKey={d.selectedKey}
+                  readOnly={ro}
+                  onSelect={select}
+                  onCommit={d.onCanvasCommit}
+                  onDropFile={ro ? undefined : d.art.addFile}
+                  orderId={order.id}
+                  colorHex={d.colorHex}
+                  display={d.display}
+                  onDuplicate={ro ? undefined : (key) => d.layerOp('duplicate', key)}
+                  onCopyLayer={d.copyLayer}
+                  onPasteLayer={ro ? undefined : (token) => d.layerOp('paste', token)}
+                  onUndo={undo}
+                  onRedo={redo}
+                />
+              </div>
+            )}
+            {d.studio && (
+              <Suspense fallback={null}>
+                <StageBelow d={d} item={item} />
+                <ItemTotalBar d={d} order={order} item={item} price={price} />
+              </Suspense>
+            )}
           </div>
           <Suspense fallback={SIDE_FALLBACK}>
             <DesignSide d={d} order={order} item={item} price={price} readOnly={ro} onOpenItem={onOpenItem} />

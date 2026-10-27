@@ -16,6 +16,7 @@
  */
 import { sanitizeSvg } from '../assets/sanitizeSvg';
 import { flatSvgPathOf } from '../limits';
+import { SWAP_ZONE } from '../catalog/sleeveZones';
 import type { FlatView, FlatViewKind, GarmentFlat, GradeRule, PrintArea, ViewAnchors } from '../types';
 import type { TzRow } from '../../catalog/tzRows';
 import type { ZoneLike } from './flatAreas';
@@ -51,7 +52,6 @@ export function mirrorSvg(svg: string): string | null {
   return out.ok ? out.svg : null;
 }
 
-const SWAP_ZONE: Record<string, string> = { 'sleeve-l': 'sleeve-r', 'sleeve-r': 'sleeve-l' };
 const SWAP_ROW: Partial<Record<TzRow, TzRow>> = { sleeve_l: 'sleeve_r', sleeve_r: 'sleeve_l' };
 
 const mx = (W: number, x: number) => Math.round((W - x) * 1000) / 1000;

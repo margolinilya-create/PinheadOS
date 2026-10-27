@@ -10,6 +10,7 @@ import FlatModelSection from './FlatModelSection';
 import FlatSaveBar from './FlatSaveBar';
 import FlatViewsSection from './FlatViewsSection';
 import NewFlatForm from './NewFlatForm';
+import PatternSection from './PatternSection';
 import { issueTarget, PANEL_LABELS, READ_ONLY_TEXT, viewOrder } from './flatEditorView';
 import { useFlatEditor } from './useFlatEditor';
 import { useFlatViewActions } from './useFlatViewActions';
@@ -28,8 +29,8 @@ const PANELS = Object.keys(PANEL_LABELS);
  * внизу — замечания и кнопка, называющая результат. rop — без правки.
  */
 export default function FlatEditor({ flatId, view: viewParam, onView, onBack, readOnly, copyFrom, onMakeExact }) {
-  const ed = useFlatEditor(flatId);
   const skus = useStore((s) => s.skuCatalog);
+  const ed = useFlatEditor(flatId, skus);
   const focusSoon = useFocusSoon();
   const [areaId, setAreaId] = useState(null);
   const [panel, setPanel] = useState('zones');
@@ -53,7 +54,7 @@ export default function FlatEditor({ flatId, view: viewParam, onView, onBack, re
 
   const check = useMemo(() => (draft ? validateFlat(draft, {
     reservedIds: ed.reservedIds, isNew, base, activeFlats: ed.allFlats, zonesCatalog: ed.zonesCatalog,
-    skuCodes: new Set(skus.map((s) => s.code)), flatMm: mmW && kind ? { [kind]: { w: mmW, h: mmH } } : {}, catalogBytes: ed.catalogBytes,
+    skuCodes: new Set(skus.map((s) => s.code)), skuCategory: new Map(skus.map((s) => [s.code, s.category])), flatMm: mmW && kind ? { [kind]: { w: mmW, h: mmH } } : {}, catalogBytes: ed.catalogBytes,
   }) : NO_CHECK), [draft, ed.reservedIds, isNew, base, ed.allFlats, ed.zonesCatalog, skus, mmW, mmH, kind, ed.catalogBytes]);
   const flatMm = mmW ? { w: mmW, h: mmH } : null;
 
@@ -115,6 +116,7 @@ export default function FlatEditor({ flatId, view: viewParam, onView, onBack, re
               <legend className={styles.srOnly}>{PANEL_LABELS[panel]}</legend>
               {panel === 'zones' && view && <AreasSection ctx={ctx} view={view} />}
               {panel === 'view' && view && <FlatViewsSection ctx={ctx} view={view} />}
+              {panel === 'pattern' && <PatternSection ctx={ctx} />}
               {panel === 'model' && <FlatModelSection ctx={ctx} />}
             </fieldset>
             {panel === 'history' && <FlatHistory flat={draft} />}
