@@ -197,6 +197,69 @@ test.describe('вкладка «Дизайн» 2.0', () => {
     expect(last()?.items[0].prints[0].layout).not.toBeNull();
   });
 
+  test('«Мои раскладки»: разложить логотип по сохранённой — грудь и спина уходят в заказ (Э8)', async ({ page }) => {
+    const calls: MockCall[] = [];
+    const extras = mock(calls);
+    extras.layoutTemplates = [{
+      id: '00000000-0000-4000-8000-00000000a001',
+      name: 'Грудь и спина',
+      created_by: 'dev',
+      created_at: '2026-10-26T10:00:00.000Z',
+      data: {
+        kind: 'layout', v: 1, flat_id: FLAT, prints: [
+          { view: 'front', area_id: 'chest', zone_id: 'front', method: 'dtf', width_mm: 180, down_mm: 70, dx_mm: 0, rotation_deg: 0 },
+          { view: 'back', area_id: 'back', zone_id: 'back', method: 'dtf', width_mm: 260, down_mm: 120, dx_mm: 0, rotation_deg: 0 },
+        ],
+      },
+    }];
+    await installSupabaseMock(page, extras);
+    await open(page);
+
+    const panel = page.locator('details', { has: page.getByText('Мои раскладки', { exact: true }) });
+    await panel.getByText('Мои раскладки', { exact: true }).click();
+    const applyBtn = panel.getByRole('button', { name: 'Разложить по раскладке' });
+    await expect(panel.getByLabel('Раскладка')).toContainText('Грудь и спина · 2 нанесения');
+    // Без выбранного нанесения — недоступно с причиной
+    await expect(applyBtn).toHaveAttribute('aria-disabled', 'true');
+    await expect(panel).toContainText('Выберите размещённое нанесение на холсте');
+
+    await page.getByRole('button', { name: /^Нанесение 1 · / }).click();
+    await expect(applyBtn).not.toHaveAttribute('aria-disabled', 'true');
+    await applyBtn.click();
+    await expect.poll(() => saves(calls).at(-1)?.items[0].prints.length, { timeout: 10_000 }).toBe(2);
+    const prints = saves(calls).at(-1)!.items[0].prints;
+    expect(prints.map((p) => [p.layout?.view, p.width_mm])).toEqual([['front', 180], ['back', 260]]);
+    await expect(page.getByText(/«Грудь и спина»: разложено мест — 2/)).toBeVisible();
+  });
+
+  test('«Мои раскладки»: сохранить раскладку позиции и удалить её — только своя строка (Э8)', async ({ page }) => {
+    const calls: MockCall[] = [];
+    await installSupabaseMock(page, mock(calls));
+    await open(page);
+
+    const panel = page.locator('details', { has: page.getByText('Мои раскладки', { exact: true }) });
+    await panel.getByText('Мои раскладки', { exact: true }).click();
+    await expect(panel).toContainText('Сохраните раскладку позиции');
+    await panel.getByLabel('Название новой раскладки').fill('  Логотип на груди ');
+    await panel.getByRole('button', { name: 'Сохранить раскладку позиции (1 нанесение)' }).click();
+
+    await expect(panel.getByLabel('Раскладка')).toContainText('Логотип на груди · 1 нанесение');
+    type Insert = { name: string; created_by: string; data: { kind: string; v: number; flat_id: string; prints: Record<string, unknown>[] } };
+    const inserts = calls.filter((c) => c.name === 'order_templates:POST').map((c) => c.body as Insert);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ name: 'Логотип на груди', created_by: 'dev', data: { kind: 'layout', v: 1, flat_id: FLAT } });
+    expect(inserts[0].data.prints).toEqual([expect.objectContaining({ view: 'front', area_id: 'chest', zone_id: 'front', method: 'dtf', width_mm: 200 })]);
+    // В раскладке нет файлов и абсолютных координат
+    expect(JSON.stringify(inserts[0].data)).not.toMatch(/orders\/|"x_mm"|"y_mm"|artwork/);
+    // Сохранение раскладки заказ не пишет
+    expect(saves(calls)).toHaveLength(0);
+
+    await panel.getByRole('button', { name: 'Удалить раскладку' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Удалить' }).click();
+    await expect(panel.getByLabel('Раскладка')).toHaveCount(0);
+    expect(calls.filter((c) => c.name === 'order_templates:DELETE')).toHaveLength(1);
+  });
+
   test('?design2=0 — прежний вид: без «Стандартов Pinhead» и вида холста', async ({ page }) => {
     await installSupabaseMock(page, mock([]));
     await page.goto(`/sales/${ORDER_ID}?tab=design&item=${ITEM_ID}&studio=1&design2=0`);

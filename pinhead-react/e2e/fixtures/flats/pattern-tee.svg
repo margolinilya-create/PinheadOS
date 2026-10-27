@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300mm" height="800mm" viewBox="0 0 1300 800">
+  <!-- Лекала футболки для e2e «Лекала → Выкройка» (веха 5в, Э2б): перед и спина, мм -->
+  <path id="front" d="M40 60 L260 40 L330 120 L560 120 L630 40 L850 60 L850 760 L40 760 Z" fill="none" stroke="#000"/>
+  <path id="back" d="M900 60 L1260 60 L1260 760 L900 760 Z" fill="none" stroke="#000"/>
+</svg>

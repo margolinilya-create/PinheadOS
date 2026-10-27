@@ -190,6 +190,59 @@ test.describe('редактор флэта: рукава, чужой SVG, две
     expect(print).toMatchObject({ offset_from: 'part_seam', layout: { view: 'sleeve_left', flat_version: 2 } });
   });
 
+  test('4а. вид «Капюшон» из SVG → выпуск v2 с hood.svg; на «Дизайне» вкладка «Капюшон» (веха 5в, Э9)', async ({ page }) => {
+    const calls: MockCall[] = [];
+    const objects = { ...teeObjects(1), ...logoObject() };
+    await installSupabaseMock(page, adminExtras(calls, teeV1(), objects, { salesOrders: [teeOrder()] }));
+    await openFlat(page, TEE);
+    await page.getByRole('tab', { name: 'Вид', exact: true }).click();
+    await page.getByLabel('Какой вид').selectOption('hood');
+    await page.getByLabel('SVG вида «Капюшон»').setInputFiles({ name: 'hood.svg', mimeType: 'image/svg+xml', buffer: fixture('flats/sleeve-left.svg') });
+    await expect(page.getByRole('tab', { name: 'Капюшон' })).toHaveAttribute('aria-selected', 'true');
+    await release(page, 'Выпустить версию 2');
+    await expect(page.locator('#flat-version-badge')).toHaveText('Версия 2');
+
+    expect(flatUploads(calls)).toEqual(['front', 'back', 'hood'].map((k) => `flats/${TEE}/v2/${k}.svg`));
+    const flat = flatPuts(calls)[0].p_value.flats[0];
+    expect(flat.views.map((v) => v.kind)).toEqual(['front', 'back', 'hood']);
+    expect(flat.views[2]).toMatchObject({ svg_path: `flats/${TEE}/v2/hood.svg` });
+
+    await page.goto(`/sales/${ORDER_ID}?tab=design&item=${ITEM_ID}&studio=1`);
+    const canvas = page.getByRole('application', { name: /^Холст/ });
+    await expect(canvas).toHaveAttribute('data-ready', 'true');
+    await page.getByRole('tablist', { name: 'Вид изделия' }).getByRole('tab', { name: 'Капюшон' }).click();
+    await expect(canvas).toHaveAccessibleName(/вид капюшон$/i);
+  });
+
+  test('4б. лекала из SVG конструктора → «Поставить на виды» → выпуск v2 с pattern; на «Дизайне» лист «Выкройка» (веха 5в, Э2б)', async ({ page }) => {
+    const calls: MockCall[] = [];
+    const objects = { ...teeObjects(1), ...logoObject() };
+    await installSupabaseMock(page, adminExtras(calls, teeV1(), objects, { salesOrders: [teeOrder()] }));
+    await openFlat(page, TEE);
+    await page.getByRole('tab', { name: 'Лекала', exact: true }).click();
+    await page.getByLabel('Загрузить лекала (DXF или SVG)').setInputFiles({ name: 'pattern-tee.svg', mimeType: 'image/svg+xml', buffer: fixture('flats/pattern-tee.svg') });
+    const pieces = page.getByRole('list', { name: 'Детали из файла' }).getByRole('listitem');
+    await expect(pieces).toHaveCount(2);
+    // Роль угадана по id детали: front → «Перед», back → «Спина»
+    await expect(pieces.nth(0).getByLabel('Деталь')).toHaveValue('front');
+    await expect(pieces.nth(1).getByLabel('Деталь')).toHaveValue('back');
+    await page.getByRole('button', { name: 'Поставить лекала на виды' }).click();
+    await expect(page.getByRole('list', { name: 'Лекала видов' }).getByRole('listitem')).toHaveCount(2);
+    await release(page, 'Выпустить версию 2');
+    await expect(page.locator('#flat-version-badge')).toHaveText('Версия 2');
+
+    const flat = flatPuts(calls)[0].p_value.flats[0] as { views: { kind: string; pattern?: { contour_mm: number[][]; count: number } }[]; history?: unknown[] };
+    expect(flat.views.map((v) => [v.kind, (v.pattern?.contour_mm.length ?? 0) >= 4, v.pattern?.count])).toEqual([['front', true, 1], ['back', true, 1]]);
+    expect(flat.history).toHaveLength(1);
+
+    await page.goto(`/sales/${ORDER_ID}?tab=design&item=${ITEM_ID}&studio=1`);
+    await expect(page.getByRole('application', { name: /^Холст/ })).toHaveAttribute('data-ready', 'true');
+    await page.getByRole('group', { name: 'Вид холста' }).getByRole('button', { name: 'Выкройка' }).click();
+    const sheet = page.getByRole('region', { name: 'Выкройка' });
+    await expect(sheet.getByRole('img', { name: /^Выкройка: / })).toBeVisible();
+    await expect(sheet.getByRole('group', { name: 'Править деталь' }).getByRole('button')).toHaveCount(2);
+  });
+
   test('5. чужой SVG (<script>, onload, внешний href): список «Из файла убрано», в бакете только очищенное', async ({ page }) => {
     const calls: MockCall[] = [];
     const objects = teeObjects(1);

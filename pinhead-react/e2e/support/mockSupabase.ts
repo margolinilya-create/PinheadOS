@@ -18,6 +18,7 @@ import {
 } from './mock/orderV4Rpc';
 import { storageList, storageRead, storageWrite } from './mock/storageBuckets';
 import { bizTasksRpc, bizTasksTable, resetBizTasksMock } from './mock/bizTasksRpc';
+import { layoutTemplatesReply, type LayoutTemplateRow } from './mock/layoutTemplates';
 
 // Фиксированные метки времени — никаких «сегодня» в фикстурах.
 const CREATED = '2026-07-10T08:00:00Z';
@@ -549,7 +550,7 @@ const PLAN_SLOTS = [
  * — `<bucket>/<prefix>`, `body` — тело запроса как есть.
  */
 export type MockCall = {
-  kind: 'rpc' | 'storage' | 'storage-sign' | 'storage-list' | 'storage-move' | 'storage-copy';
+  kind: 'rpc' | 'rest' | 'storage' | 'storage-sign' | 'storage-list' | 'storage-move' | 'storage-copy';
   name: string;
   body: unknown;
 };
@@ -707,6 +708,11 @@ export type MockExtras = {
    * `list` и загрузкой.
    */
   storageListHidden?: string[];
+  /**
+   * Строки `order_templates` — «Мои раскладки» (веха 5в, Э8, `mock/layoutTemplates.ts`):
+   * список, вставка и удаление идут сюда, запись — в `calls` видом `rest`
+   */
+  layoutTemplates?: LayoutTemplateRow[];
 };
 
 /**
@@ -1546,6 +1552,15 @@ export async function installSupabaseMock(page: Page, extra: MockExtras = {}): P
     }
 
     const table = path.split('?')[0];
+    if (table === 'order_templates') {
+      const method = route.request().method();
+      const body = route.request().postData();
+      if (method !== 'GET') extra.calls?.push({ kind: 'rest', name: `order_templates:${method}`, body: body ? JSON.parse(body) : null });
+      const reply = layoutTemplatesReply(method, url.searchParams, body, extra);
+      const one = (route.request().headers()['accept'] ?? '').includes('vnd.pgrst.object');
+      const out = one && Array.isArray(reply.body) ? reply.body[0] ?? null : reply.body;
+      return route.fulfill({ status: reply.status, contentType: 'application/json', body: JSON.stringify(out) });
+    }
     if (table === 'erp_departments' && extra.deptsGate) await extra.deptsGate;
     if (table === 'erp_settings' && extra.settingsGate) await extra.settingsGate;
     if (table === 'erp_orders' && extra.ordersGate) await extra.ordersGate;
