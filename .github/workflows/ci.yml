@@ -97,7 +97,10 @@ jobs:
   # поэтому успели незаметно протухнуть. Здесь без continue-on-error: это гейт.
   # Эталонные скриншоты сюда не входят, у них свой job ниже.
   e2e:
-    runs-on: ubuntu-latest
+    # Закреплено 12.11: ubuntu-latest переехал на 26.04, а Playwright 1.58
+    # там не ставит Chromium («does not support chromium on ubuntu26.04-x64»).
+    # Поднимать — вместе с @playwright/test, когда он узнает 26.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     defaults:
       run:
@@ -155,7 +158,9 @@ jobs:
   # Теперь: эталоны обновляются ТОЛЬКО явным workflow_dispatch с update_snapshots=true,
   # и коммит идёт в ТЕКУЩУЮ ветку, а не в main. Обновление проходит ревью в своём PR.
   visual:
-    runs-on: ubuntu-latest
+    # Та же причина, что у e2e; эталоны к тому же сняты на 24.04 — шрифты
+    # другой системы сдвинули бы рендер
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: write
